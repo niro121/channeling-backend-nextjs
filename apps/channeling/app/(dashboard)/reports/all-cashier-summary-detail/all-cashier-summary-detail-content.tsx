@@ -51,6 +51,10 @@ const AMOUNT_HEAD =
   'acs-amt text-right tabular-nums lining-nums min-w-[5rem] !px-2 py-1 text-[11px] font-medium whitespace-nowrap';
 const AMOUNT_CELL =
   'acs-amt text-right tabular-nums lining-nums font-mono text-[11px] leading-snug min-w-[5rem] !px-2 py-0.5 whitespace-nowrap';
+const RECEIPTS_HEAD = 'acs-receipts text-right tabular-nums';
+const RECEIPTS_CELL = 'acs-receipts text-right tabular-nums';
+const SHIFTS_HEAD = 'acs-shifts min-w-[190px]';
+const SHIFTS_CELL = 'acs-shifts align-top';
 
 function formatAmount(n: number | undefined | null): string {
   const num = Number(n);
@@ -428,13 +432,13 @@ export default function AllCashierSummaryDetailContent({
                             <TableRow className="border-b">
                               <TableHead className="w-10 text-right">No.</TableHead>
                               <TableHead className="pr-0">User</TableHead>
-                              <TableHead className="text-right">Receipts</TableHead>
+                              <TableHead className={RECEIPTS_HEAD}>Receipts</TableHead>
                               {PAYMENT_COLUMNS.map((c) => (
                                 <TableHead key={c.key} className={AMOUNT_HEAD}>
                                   {c.label}
                                 </TableHead>
                               ))}
-                              <TableHead className="min-w-[190px]">Shifts</TableHead>
+                              <TableHead className={SHIFTS_HEAD}>Shifts</TableHead>
                               <TableHead className="text-center">Checked By</TableHead>
                             </TableRow>
                           </TableHeader>
@@ -443,13 +447,13 @@ export default function AllCashierSummaryDetailContent({
                               <TableRow key={r.userId} className="border-b border-border/50">
                                 <TableCell className="text-center tabular-nums">{i + 1}</TableCell>
                                 <TableCell className="pr-0">{r.userName}</TableCell>
-                                <TableCell className="text-right tabular-nums">{r.receiptCount}</TableCell>
+                                <TableCell className={RECEIPTS_CELL}>{r.receiptCount}</TableCell>
                                 {PAYMENT_COLUMNS.map((c) => (
                                   <TableCell key={c.key} className={AMOUNT_CELL}>
                                     {formatAmount(r[c.key])}
                                   </TableCell>
                                 ))}
-                                <TableCell className="align-top">
+                                <TableCell className={SHIFTS_CELL}>
                                   <ShiftHandoverMarks shifts={r.shifts} />
                                 </TableCell>
                                 <TableCell className="text-center">
@@ -487,13 +491,13 @@ export default function AllCashierSummaryDetailContent({
                                   <TableHead className="w-10 text-right">No.</TableHead>
                                   <TableHead className="pr-0">User</TableHead>
                                   <TableHead>Section</TableHead>
-                                  <TableHead className="text-right">Receipts</TableHead>
+                                  <TableHead className={RECEIPTS_HEAD}>Receipts</TableHead>
                                   {PAYMENT_COLUMNS.map((c) => (
                                     <TableHead key={c.key} className={AMOUNT_HEAD}>
                                       {c.label}
                                     </TableHead>
                                   ))}
-                                  <TableHead className="min-w-[190px]">Shifts</TableHead>
+                                  <TableHead className={SHIFTS_HEAD}>Shifts</TableHead>
                                   <TableHead className="text-center">Checked By</TableHead>
                                 </TableRow>
                               </TableHeader>
@@ -510,9 +514,7 @@ export default function AllCashierSummaryDetailContent({
                                       {i === 0 ? u.userName : ''}
                                     </TableCell>
                                     <TableCell>{s.title}</TableCell>
-                                    <TableCell className="text-right tabular-nums">
-                                      {s.receiptCount}
-                                    </TableCell>
+                                    <TableCell className={RECEIPTS_CELL}>{s.receiptCount}</TableCell>
                                     {PAYMENT_COLUMNS.map((c) => (
                                       <TableCell key={c.key} className={AMOUNT_CELL}>
                                         {formatAmount(s.totals[c.key])}
@@ -522,7 +524,7 @@ export default function AllCashierSummaryDetailContent({
                                       <>
                                         <TableCell
                                           rowSpan={u.sections.length + 1}
-                                          className="align-top"
+                                          className={SHIFTS_CELL}
                                         >
                                           <ShiftHandoverMarks shifts={u.shifts} />
                                         </TableCell>
@@ -541,9 +543,7 @@ export default function AllCashierSummaryDetailContent({
                                 ))}
                                 <TableRow className="font-medium bg-muted/50">
                                   <TableCell colSpan={3}>User Total</TableCell>
-                                  <TableCell className="text-right tabular-nums">
-                                    {u.receiptCount}
-                                  </TableCell>
+                                  <TableCell className={RECEIPTS_CELL}>{u.receiptCount}</TableCell>
                                   {PAYMENT_COLUMNS.map((c) => (
                                     <TableCell key={c.key} className={`${AMOUNT_CELL} font-semibold`}>
                                       {formatAmount(u.totals[c.key])}

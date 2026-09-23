@@ -70,9 +70,9 @@ const thinBorder: Partial<ExcelJS.Borders> = {
   bottom: { style: 'thin', color: { argb: 'FF000000' } },
 };
 
-/** Landscape widths matching print: meta + 7 amounts (≥12 for 6 digits) + shifts + checked */
-const SUMMARY_COLUMN_WIDTHS = [5, 22, 10, 12, 12, 12, 12, 12, 12, 12, 28, 14];
-const DETAIL_COLUMN_WIDTHS = [5, 18, 18, 10, 12, 12, 12, 12, 12, 12, 12, 26, 12];
+/** Landscape widths matching print: Receipts narrower, Shifts wider (same Δ). */
+const SUMMARY_COLUMN_WIDTHS = [5, 22, 8, 12, 12, 12, 12, 12, 12, 12, 30, 14];
+const DETAIL_COLUMN_WIDTHS = [5, 18, 18, 8, 12, 12, 12, 12, 12, 12, 12, 32, 12];
 
 const SUMMARY_AMOUNT_START = 3; // Cash
 const DETAIL_AMOUNT_START = 4;
