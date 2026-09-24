@@ -24,7 +24,8 @@ import { ShiftStatusModule } from '@/app/(dashboard)/welcome/modules/shift-statu
 import { TodayBookingsKpi } from '@/app/(dashboard)/welcome/modules/today-bookings-kpi'
 import { TodayRevenueKpi } from '@/app/(dashboard)/welcome/modules/today-revenue-kpi'
 import { SessionsTodayKpi } from '@/app/(dashboard)/welcome/modules/sessions-today-kpi'
-import { NewPatientsKpi } from '@/app/(dashboard)/welcome/modules/new-patients-kpi'
+import { ApprovalCenterStats } from '@/app/(dashboard)/welcome/modules/approval-center-stats'
+import { FloatRequestStats } from '@/app/(dashboard)/welcome/modules/float-request-stats'
 import { RecentBookingsModule } from '@/app/(dashboard)/welcome/modules/recent-bookings'
 import { QueueSnapshotModule } from '@/app/(dashboard)/welcome/modules/queue-snapshot'
 
@@ -112,20 +113,23 @@ export function WelcomeDashboard() {
   const showBookings = can(DASHBOARD_MODULES.todayBookings)
   const showRevenue = can(DASHBOARD_MODULES.todayRevenue)
   const showSessions = can(DASHBOARD_MODULES.sessionsToday)
-  const showPatients = can(DASHBOARD_MODULES.newPatients)
   const showRecent = can(DASHBOARD_MODULES.recentBookings)
   const showQueue = can(DASHBOARD_MODULES.queueSnapshot)
+  const showApprovals = canAccess('/approvals')
+  const showFloat = canAccess('/bulk-cashier') || canAccess('/float-transfers')
+  const floatHref = canAccess('/bulk-cashier') ? '/bulk-cashier' : '/float-transfers'
   const hasLiveModules =
     showShift ||
     showBookings ||
     showRevenue ||
     showSessions ||
-    showPatients ||
     showRecent ||
-    showQueue
+    showQueue ||
+    showApprovals ||
+    showFloat
 
   const links = QUICK_LINKS.filter((item) => canAccess(item.href))
-  const kpiCount = [showBookings, showRevenue, showSessions, showPatients].filter(Boolean).length
+  const kpiCount = [showBookings, showRevenue, showSessions].filter(Boolean).length
 
   return (
     <main className="space-y-6 pb-8">
@@ -166,7 +170,13 @@ export function WelcomeDashboard() {
               {showBookings ? <TodayBookingsKpi /> : null}
               {showRevenue ? <TodayRevenueKpi /> : null}
               {showSessions ? <SessionsTodayKpi /> : null}
-              {showPatients ? <NewPatientsKpi /> : null}
+            </section>
+          ) : null}
+
+          {showApprovals || showFloat ? (
+            <section className="grid gap-4 lg:grid-cols-2">
+              {showApprovals ? <ApprovalCenterStats /> : null}
+              {showFloat ? <FloatRequestStats href={floatHref} /> : null}
             </section>
           ) : null}
 

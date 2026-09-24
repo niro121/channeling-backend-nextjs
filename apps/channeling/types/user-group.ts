@@ -24,7 +24,6 @@ export const RESOURCES: ResourceWithOptionalActions[] = [
       { id: "today-bookings", name: "Today's bookings" },
       { id: "today-revenue", name: "Today's revenue" },
       { id: "sessions-today", name: "Sessions today" },
-      { id: "new-patients", name: "New patients" },
       { id: "recent-bookings", name: "Recent bookings" },
       { id: "queue-snapshot", name: "Queue snapshot" },
     ],

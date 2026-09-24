@@ -6,7 +6,6 @@ export const DASHBOARD_MODULES = {
   todayBookings: "today-bookings",
   todayRevenue: "today-revenue",
   sessionsToday: "sessions-today",
-  newPatients: "new-patients",
   recentBookings: "recent-bookings",
   queueSnapshot: "queue-snapshot",
 } as const

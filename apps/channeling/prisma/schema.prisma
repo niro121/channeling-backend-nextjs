@@ -396,6 +396,9 @@ model DoctorLeave {
   // ==== RELATIONS ==== //
   doctorId    String @db.ObjectId
   doctor      Doctor @relation("DoctorToLeaves", fields: [doctorId], references: [id], onDelete: Cascade)
+  /** Branch this leave applies to. One leave covers sessions at a single location. */
+  locationId  String?   @db.ObjectId
+  location    Location? @relation("LocationToDoctorLeave", fields: [locationId], references: [id], onDelete: SetNull)
   createdUser User?  @relation("UserCreatedLeaves", fields: [createdBy], references: [id], onDelete: SetNull)
   updatedUser User?  @relation("UserUpdatedLeaves", fields: [updatedBy], references: [id], onDelete: SetNull)
 }
@@ -425,6 +428,7 @@ model Location {
   agencies             Agency[]              @relation("LocationToAgency")
   doctorSessions       DoctorSession[]       @relation("SessionToLocation")
   sessions             Session[]             @relation("LocationToSession")
+  doctorLeaves         DoctorLeave[]         @relation("LocationToDoctorLeave")
   bookings             Booking[]             @relation("LocationToBooking")
   receiptsBilling      Receipt[]             @relation("ReceiptBillingLocation")
   receiptsUserLocation Receipt[]             @relation("ReceiptUserLocation")

@@ -7,10 +7,12 @@ import {
   DASHBOARD_RESOURCE,
   type DashboardModuleAction,
 } from '@/lib/dashboard-permissions'
-import { requirePermission } from '@/lib/server-permissions'
+import { checkRouteAccess, requirePermission } from '@/lib/server-permissions'
+import { userTypes } from '@/lib/roles'
 import { getCurrentShift } from '@/services/shift.service'
 import {
-  getDashboardNewPatientsService,
+  getDashboardApprovalStatsService,
+  getDashboardFloatStatsService,
   getDashboardQueueSnapshotService,
   getDashboardRecentBookingsService,
   getDashboardSessionsTodayService,
@@ -18,6 +20,8 @@ import {
   getDashboardTodayRevenueService,
 } from '@/services/dashboard/get-dashboard-metrics.service'
 import type {
+  DashboardApprovalStats,
+  DashboardFloatStats,
   DashboardKpiCount,
   DashboardQueueSnapshot,
   DashboardRecentBookingRow,
@@ -50,9 +54,35 @@ export async function getDashboardSessionsTodayAction(): Promise<DashboardKpiCou
   return getDashboardSessionsTodayService()
 }
 
-export async function getDashboardNewPatientsAction(): Promise<DashboardKpiCount> {
-  await requireDashboardModule(DASHBOARD_MODULES.newPatients)
-  return getDashboardNewPatientsService()
+const EMPTY_APPROVAL_STATS: DashboardApprovalStats = {
+  toAttend: 0,
+  mineOpen: 0,
+  cancels: 0,
+  refunds: 0,
+  deposits: 0,
+}
+
+export async function getDashboardApprovalStatsAction(): Promise<DashboardApprovalStats> {
+  const allowed = await checkRouteAccess('/approvals')
+  const session = await getServerSession(authOptions)
+  if (!allowed || !session?.user?.id) return EMPTY_APPROVAL_STATS
+  return getDashboardApprovalStatsService({
+    userId: session.user.id,
+    permissions: session.user.permissions,
+    isAdmin: session.user.userType === userTypes.admin,
+  })
+}
+
+const EMPTY_FLOAT_STATS: DashboardFloatStats = { toApprove: 0, toReceive: 0 }
+
+export async function getDashboardFloatStatsAction(): Promise<DashboardFloatStats> {
+  const [bulk, transfers] = await Promise.all([
+    checkRouteAccess('/bulk-cashier'),
+    checkRouteAccess('/float-transfers'),
+  ])
+  const session = await getServerSession(authOptions)
+  if ((!bulk && !transfers) || !session?.user?.id) return EMPTY_FLOAT_STATS
+  return getDashboardFloatStatsService(session.user.id)
 }
 
 export async function getDashboardRecentBookingsAction(): Promise<
