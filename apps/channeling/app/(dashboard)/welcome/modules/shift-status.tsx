@@ -9,7 +9,7 @@ import {
 } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { ArrowRight, CircleDot, PlayCircle } from 'lucide-react'
-import { getCurrentShiftAction } from '@/app/actions/shift.actions'
+import { getDashboardShiftStatusAction } from '@/app/actions/dashboard/dashboard.actions'
 import { SHIFT_STATUS } from '@/types/shift'
 import { useAsyncModule } from '@/app/(dashboard)/welcome/use-async-module'
 
@@ -46,7 +46,7 @@ function ShiftCardSkeleton() {
 
 async function loadCurrentShift() {
   try {
-    return await getCurrentShiftAction()
+    return await getDashboardShiftStatusAction()
   } catch {
     return null
   }

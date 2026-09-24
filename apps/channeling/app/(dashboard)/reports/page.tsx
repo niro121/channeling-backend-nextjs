@@ -1,14 +1,14 @@
 import React, { Suspense } from 'react';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { CustomDataTable } from '@/components/common/custom-data-table';
-import { reportColumns, type ReportListItem } from './columns';
 import { logActivityNonBlocking } from '@/lib/activity-log';
 import Loading from '../loading';
+import { ReportsCatalog } from './reports-catalog';
+import type { ReportCategory, ReportListItem } from './columns';
 
 export const dynamic = 'force-dynamic';
 
-const reportsData: ReportListItem[] = [
+const reportsData: Omit<ReportListItem, 'category'>[] = [
   {
     id: '1',
     rank: 1,
@@ -286,83 +286,55 @@ export default async function ReportsPage() {
     });
   }
 
-  const doctors = reportsData.filter((r) =>
-    [
-      '/reports/arrivals',
-      '/reports/all-doctor-view',
-      '/reports/doctor-leave',
-      '/reports/doctor-appointment-count',
-      '/reports/doctor-balance',
-    ].includes(r.route)
-  );
-  const channel = reportsData.filter((r) =>
-    [
-      '/reports/channel-patient-count-accounting-wise',
-      '/reports/channel-income-accounting-wise',
-      '/reports/channel-discount',
-      '/reports/consultant-payments',
-      '/reports/withholding-tax',
-      '/reports/channel-bookings',
-      '/reports/channel-schedule-with-charges',
-      '/reports/channel-transfer',
-      '/reports/channel-report-receipt-wise',
-      '/reports/room-occupancy',
-      '/reports/no-show-patient',
-    ].includes(r.route)
-  );
-  const agents = reportsData.filter((r) =>
-    [
-      '/reports/channel-agent-reference-book',
-      '/reports/agent-detail',
-      '/reports/agency-statement',
-      '/reports/channel-agent-receipt',
-      '/reports/agent-balance',
-      '/reports/agent-history-credit-limit-update',
-      '/reports/agent-collection-receipt',
-      '/reports/agent-balance-confirmation-letter',
-      '/reports/agent-wise-appointments',
-    ].includes(r.route)
-  );
-  const cashier = reportsData.filter((r) =>
-    [
-      '/reports/all-cashier-summary-detail',
-      '/reports/cashier-summary',
-      '/reports/cashier-drawer-balance',
-      '/reports/daily-returns-summary',
-      '/reports/card-summary-bank-wise',
-      '/reports/cash-book',
-      '/reports/bank-deposits',
-      '/reports/completed-handovers',
-      '/reports/approval-requests',
-    ].includes(r.route)
-  );
-  const smsAndApi = reportsData.filter((r) =>
-    ['/reports/sms-activity', '/reports/api-log', '/reports/user-activity'].includes(r.route)
-  );
+  const categoryByRoute: Record<string, ReportCategory> = {
+    '/reports/arrivals': 'Doctors',
+    '/reports/all-doctor-view': 'Doctors',
+    '/reports/doctor-leave': 'Doctors',
+    '/reports/doctor-appointment-count': 'Doctors',
+    '/reports/doctor-balance': 'Doctors',
+    '/reports/channel-patient-count-accounting-wise': 'Channel',
+    '/reports/channel-income-accounting-wise': 'Channel',
+    '/reports/channel-discount': 'Channel',
+    '/reports/consultant-payments': 'Channel',
+    '/reports/withholding-tax': 'Channel',
+    '/reports/channel-bookings': 'Channel',
+    '/reports/channel-schedule-with-charges': 'Channel',
+    '/reports/channel-transfer': 'Channel',
+    '/reports/channel-report-receipt-wise': 'Channel',
+    '/reports/room-occupancy': 'Channel',
+    '/reports/no-show-patient': 'Channel',
+    '/reports/channel-agent-reference-book': 'Agents',
+    '/reports/agent-detail': 'Agents',
+    '/reports/agency-statement': 'Agents',
+    '/reports/channel-agent-receipt': 'Agents',
+    '/reports/agent-balance': 'Agents',
+    '/reports/agent-history-credit-limit-update': 'Agents',
+    '/reports/agent-collection-receipt': 'Agents',
+    '/reports/agent-balance-confirmation-letter': 'Agents',
+    '/reports/agent-wise-appointments': 'Agents',
+    '/reports/all-cashier-summary-detail': 'Cashier',
+    '/reports/cashier-summary': 'Cashier',
+    '/reports/cashier-drawer-balance': 'Cashier',
+    '/reports/daily-returns-summary': 'Cashier',
+    '/reports/card-summary-bank-wise': 'Cashier',
+    '/reports/cash-book': 'Cashier',
+    '/reports/bank-deposits': 'Cashier',
+    '/reports/completed-handovers': 'Cashier',
+    '/reports/approval-requests': 'Cashier',
+    '/reports/sms-reports': 'SMS & System',
+    '/reports/api-log': 'SMS & System',
+    '/reports/user-activity': 'SMS & System',
+  };
 
-  const sections = [
-    { title: 'Doctors', items: doctors },
-    { title: 'Channel', items: channel },
-    { title: 'Agents', items: agents },
-    { title: 'Cashier', items: cashier },
-    { title: 'SMS & System', items: smsAndApi },
-  ].filter((s) => s.items.length > 0);
+  const reports: ReportListItem[] = reportsData.flatMap((report) => {
+    const category = categoryByRoute[report.route];
+    return category ? [{ ...report, category }] : [];
+  });
 
   return (
-    <div className="overflow-hidden space-y-4">
+    <div className="overflow-hidden">
       <Suspense fallback={<Loading />}>
-        {sections.map((section) => (
-          <CustomDataTable<ReportListItem, unknown>
-            key={section.title}
-            heading={section.title}
-            subHeading=""
-            columns={reportColumns}
-            data={section.items}
-            rowCount={section.items.length}
-            haveBulkDelete={false}
-            showPagination={false}
-          />
-        ))}
+        <ReportsCatalog reports={reports} />
       </Suspense>
     </div>
   );

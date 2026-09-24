@@ -37,8 +37,12 @@ export async function exportBankDepositsReportData(
       userLocation: r.userLocation ?? '-',
       user: r.user ?? '-',
       createdAt: r.createdAt ? moment(r.createdAt).format('YYYY-MM-DD HH:mm:ss') : '-',
-      approvedBy: r.approvedBy ?? '-',
-      approvedAt: r.approvedAt ? moment(r.approvedAt).format('YYYY-MM-DD HH:mm:ss') : '-',
+      requestedBy: [r.requestedBy, r.requestedAt ? moment(r.requestedAt).format('YYYY-MM-DD HH:mm:ss') : null]
+        .filter(Boolean)
+        .join('\n') || '-',
+      approvedBy: [r.approvedBy, r.approvedAt ? moment(r.approvedAt).format('YYYY-MM-DD HH:mm:ss') : null]
+        .filter(Boolean)
+        .join('\n') || '-',
       bankAccount: r.bankAccountName ?? '-',
       total: formatReceiptAmount(r.totalAmount ?? 0),
     }));

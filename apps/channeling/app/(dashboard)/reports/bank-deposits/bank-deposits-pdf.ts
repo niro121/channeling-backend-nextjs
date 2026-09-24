@@ -2,7 +2,7 @@
 
 /**
  * Bank Deposits — PDF ONLY (A4 portrait, matches Print).
- * Columns: No. | Type | Receipt | Details (Loc / User / At / Approved by / Approved at / Remark) | Bank Account | Total
+ * Columns: No. | Type | Receipt | Details (Loc / User / At / Requested by / Approved by / Remark) | Bank Account | Total
  */
 
 import jsPDF from 'jspdf';
@@ -180,15 +180,19 @@ function formatAmount(n: number): string {
 
 type DetailLine = { label: string; value: string };
 
+function displayTime(value: string | undefined | null): string {
+  const s = (value ?? '').trim();
+  if (!s || s === '-' || s === '—') return '—';
+  return s;
+}
+
 function getDetailLines(row: BankDepositsReportExportRow): DetailLine[] {
-  const created = (row.createdAt || '—').replace(/^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}):\d{2}$/, '$1');
-  const approvedAt = (row.approvedAt || '—').replace(/^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}):\d{2}$/, '$1');
   const lines: DetailLine[] = [
     { label: 'Loc', value: row.userLocation || '—' },
     { label: 'User', value: row.user || '—' },
-    { label: 'At', value: created },
+    { label: 'At', value: displayTime(row.createdAt) },
+    { label: 'Requested by', value: row.requestedBy && row.requestedBy !== '-' ? row.requestedBy : '—' },
     { label: 'Approved by', value: row.approvedBy && row.approvedBy !== '-' ? row.approvedBy : '—' },
-    { label: 'Approved at', value: approvedAt === '-' ? '—' : approvedAt },
   ];
   const remark = (row.remarks || '').trim();
   if (remark && remark !== '-') {
