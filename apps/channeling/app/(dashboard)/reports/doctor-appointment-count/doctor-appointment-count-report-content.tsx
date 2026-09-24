@@ -374,24 +374,119 @@ export default function DoctorAppointmentCountReportContent({
     <div className="w-full py-2 space-y-3 doctor-appointment-count-print-root">
       <style>{`
         @media print {
-          .doctor-appointment-count-print-root .overflow-x-auto,
-          .doctor-appointment-count-print-root .overflow-auto {
-            overflow: visible !important;
+          /* Full page width — print only (screen / PDF / Excel unchanged) */
+          .doctor-appointment-count-print-root {
+            width: 100% !important;
+            max-width: none !important;
+            margin-left: 0 !important;
+            margin-right: 0 !important;
+            padding-left: 0 !important;
+            padding-right: 0 !important;
           }
-          .doctor-appointment-count-print-root .rpt-print-root table {
+          .doctor-appointment-count-print-root .rpt-print-root,
+          .doctor-appointment-count-print-root .rpt-print-body,
+          .doctor-appointment-count-print-root .rpt-print-header,
+          .doctor-appointment-count-print-root .rpt-print-summary {
+            width: 100% !important;
+            max-width: none !important;
+            box-sizing: border-box !important;
+          }
+          .doctor-appointment-count-print-root > div {
+            width: 100% !important;
+            max-width: none !important;
+            margin-left: 0 !important;
+            margin-right: 0 !important;
+          }
+          .doctor-appointment-count-print-root .overflow-x-auto,
+          .doctor-appointment-count-print-root .overflow-auto,
+          .doctor-appointment-count-print-root .overflow-hidden,
+          .doctor-appointment-count-print-root .rounded-md {
+            overflow: visible !important;
+            width: 100% !important;
+            max-width: none !important;
+            border-radius: 0 !important;
+            box-shadow: none !important;
+          }
+
+          /* Body — match compact branded PDF layout */
+          .doctor-appointment-count-print-root .rpt-print-root table.dac-print-table {
             table-layout: fixed !important;
             width: 100% !important;
+            max-width: 100% !important;
+            border-collapse: collapse !important;
+            border: 0.5pt solid #000 !important;
           }
-          .doctor-appointment-count-print-root .rpt-print-root th,
-          .doctor-appointment-count-print-root .rpt-print-root td {
-            font-size: 6.5pt !important;
+          /* Consultant | Speciality | 8 counts | Hos | Pro | Total */
+          .doctor-appointment-count-print-root .rpt-print-root table.dac-print-table th:nth-child(1),
+          .doctor-appointment-count-print-root .rpt-print-root table.dac-print-table td:nth-child(1) { width: 16% !important; }
+          .doctor-appointment-count-print-root .rpt-print-root table.dac-print-table th:nth-child(2),
+          .doctor-appointment-count-print-root .rpt-print-root table.dac-print-table td:nth-child(2) { width: 12% !important; }
+          .doctor-appointment-count-print-root .rpt-print-root table.dac-print-table th:nth-child(n+3):nth-child(-n+10),
+          .doctor-appointment-count-print-root .rpt-print-root table.dac-print-table td:nth-child(n+3):nth-child(-n+10) { width: 5% !important; }
+          .doctor-appointment-count-print-root .rpt-print-root table.dac-print-table th:nth-child(11),
+          .doctor-appointment-count-print-root .rpt-print-root table.dac-print-table td:nth-child(11),
+          .doctor-appointment-count-print-root .rpt-print-root table.dac-print-table th:nth-child(12),
+          .doctor-appointment-count-print-root .rpt-print-root table.dac-print-table td:nth-child(12) { width: 8% !important; }
+          .doctor-appointment-count-print-root .rpt-print-root table.dac-print-table th:nth-child(13),
+          .doctor-appointment-count-print-root .rpt-print-root table.dac-print-table td:nth-child(13) { width: 16% !important; }
+
+          .doctor-appointment-count-print-root .rpt-print-root table.dac-print-table th,
+          .doctor-appointment-count-print-root .rpt-print-root table.dac-print-table td {
+            font-size: 5.5pt !important;
             padding: 0.7mm 0.5mm !important;
-            line-height: 1.15 !important;
+            line-height: 1.2 !important;
             white-space: normal !important;
             word-break: break-word !important;
+            overflow-wrap: break-word !important;
+            overflow: hidden !important;
+            text-overflow: clip !important;
+            max-width: none !important;
+            border: 0.5pt solid #000 !important;
+            color: #000 !important;
+            vertical-align: middle !important;
+            box-sizing: border-box !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
           }
-          .doctor-appointment-count-print-root .rpt-print-root thead th {
-            font-size: 6pt !important;
+          .doctor-appointment-count-print-root .rpt-print-root table.dac-print-table thead th {
+            font-size: 5pt !important;
+            font-weight: 700 !important;
+            background: #e8e8e8 !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+          .doctor-appointment-count-print-root .rpt-print-root table.dac-print-table th:nth-child(n+3):nth-child(-n+10),
+          .doctor-appointment-count-print-root .rpt-print-root table.dac-print-table td:nth-child(n+3):nth-child(-n+10) {
+            text-align: center !important;
+            white-space: nowrap !important;
+            font-variant-numeric: tabular-nums !important;
+          }
+          .doctor-appointment-count-print-root .rpt-print-root table.dac-print-table th:nth-child(n+11),
+          .doctor-appointment-count-print-root .rpt-print-root table.dac-print-table td:nth-child(n+11) {
+            text-align: right !important;
+            white-space: nowrap !important;
+            font-variant-numeric: tabular-nums !important;
+          }
+          .doctor-appointment-count-print-root .rpt-print-root table.dac-print-table th:first-child,
+          .doctor-appointment-count-print-root .rpt-print-root table.dac-print-table td:first-child {
+            border-left: 0.7pt solid #000 !important;
+            text-align: left !important;
+          }
+          .doctor-appointment-count-print-root .rpt-print-root table.dac-print-table th:nth-child(2),
+          .doctor-appointment-count-print-root .rpt-print-root table.dac-print-table td:nth-child(2) {
+            text-align: left !important;
+          }
+          .doctor-appointment-count-print-root .rpt-print-root table.dac-print-table th:last-child,
+          .doctor-appointment-count-print-root .rpt-print-root table.dac-print-table td:last-child {
+            border-right: 0.7pt solid #000 !important;
+          }
+          .doctor-appointment-count-print-root .rpt-print-root table.dac-print-table tr.rpt-print-total td {
+            font-weight: 700 !important;
+            background: #f3f3f3 !important;
+          }
+          .doctor-appointment-count-print-root .rpt-print-root tr {
+            break-inside: avoid !important;
+            page-break-inside: avoid !important;
           }
         }
       `}</style>
@@ -501,13 +596,14 @@ export default function DoctorAppointmentCountReportContent({
             <ReportPrintLayout
               reportName="Doctor Appointment Count Report ( By Session Date )"
               pageSize="A4 portrait"
+              pageMargins="7mm 5mm 12mm"
               generatedAt={reportMeta.generatedAt}
               summaryItems={buildSummaryItems(reportMeta)}
             >
               <div className="space-y-3">
                 <div className="print:hidden">{renderReportMetaCard()}</div>
                 <div className="rounded-md border overflow-x-auto">
-                  <Table className="text-[11px] [&_th]:px-1.5 [&_td]:px-1.5 [&_th]:border-r [&_th:last-child]:border-r-0 [&_td]:border-r [&_td:last-child]:border-r-0">
+                  <Table className="dac-print-table text-[11px] [&_th]:px-1.5 [&_td]:px-1.5 [&_th]:border-r [&_th:last-child]:border-r-0 [&_td]:border-r [&_td:last-child]:border-r-0">
                     <TableHeader>
                       <TableRow className="border-b">
                         <TableHead className="text-left">Consultant</TableHead>

@@ -39,6 +39,8 @@ export type DownloadBrandedReportPdfOptions<T> = {
   orientation?: "landscape" | "portrait"
   /** Use smaller fonts/padding so wide tables fit on portrait A4. */
   compactTable?: boolean
+  /** Page margin in mm (left/right/top). Default 10. Use ~5 for fuller page width. */
+  pageMarginMm?: number
 }
 
 function pageSize(doc: jsPDF): { width: number; height: number } {
@@ -287,8 +289,9 @@ export async function downloadBrandedReportPdf<T>({
   logoSrc = RUHUNU_HOSPITAL_LOGO_SRC,
   orientation = "landscape",
   compactTable = false,
+  pageMarginMm = 10,
 }: DownloadBrandedReportPdfOptions<T>): Promise<void> {
-  const margin = 10
+  const margin = pageMarginMm
   const doc = new jsPDF({
     orientation: orientation === "landscape" ? "l" : "p",
     format: "a4",
