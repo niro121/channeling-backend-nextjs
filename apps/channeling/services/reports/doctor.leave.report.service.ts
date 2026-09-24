@@ -233,7 +233,10 @@ export const getDoctorLeaveReportService = async ({
       }
     }
 
-    const sessionMap = new Map<string, { date: Date; startTime: Date; endTime: Date }>();
+    const sessionMap = new Map<
+      string,
+      { date: Date; startTime: Date; endTime: Date; branchName: string }
+    >();
     if (allSessionIds.size > 0) {
       // DoctorSession only decides which doctors to include. A doctor can have
       // leave sessions at several branches, so the row filter has to use the
@@ -253,13 +256,20 @@ export const getDoctorLeaveReportService = async ({
       }
       const sessions = await prisma.session.findMany({
         where: datedSessionWhere,
-        select: { id: true, date: true, startTime: true, endTime: true }
+        select: {
+          id: true,
+          date: true,
+          startTime: true,
+          endTime: true,
+          location: { select: { name: true } }
+        }
       });
       for (const s of sessions) {
         sessionMap.set(s.id, {
           date: s.date,
           startTime: s.startTime,
-          endTime: s.endTime
+          endTime: s.endTime,
+          branchName: s.location?.name ?? ''
         });
       }
     }
@@ -296,6 +306,7 @@ export const getDoctorLeaveReportService = async ({
           leaveId: rec.id,
           sessionId,
           leaveDate: date,
+          branchName: s.branchName || '-',
           sessionStartTime: s.startTime,
           sessionEndTime: s.endTime,
           leaveSessionFormatted: `${day} (${range})`

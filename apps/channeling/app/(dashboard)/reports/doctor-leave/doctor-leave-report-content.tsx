@@ -262,6 +262,7 @@ function DoctorLeaveReportContentInner({
       exportColumns={[
         'Doctor Code',
         'Doctor Name',
+        'Branch',
         'Leave Date',
         'Leave Sessions',
         'Leave Remark',
@@ -275,6 +276,7 @@ function DoctorLeaveReportContentInner({
         [
           'doctorCode',
           'doctorName',
+          'branchName',
           'leaveDate',
           'leaveSessions',
           'leaveRemark',

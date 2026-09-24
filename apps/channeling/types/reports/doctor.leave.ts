@@ -13,6 +13,8 @@ export type DoctorLeaveReportRow = {
   status: number;
   remarks: string | null;
   doctor: { id: string; name: string; code: string };
+  /** Branch of the session on this row. */
+  branchName?: string;
   /** Single session display text (day + time range) */
   leaveSessionFormatted?: string;
   createdUser?: { id: string; name: string; staff?: { code: string } | null } | null;
@@ -35,6 +37,7 @@ export type DoctorLeaveReportQuery = {
 export type DoctorLeaveReportExportRow = {
   doctorCode: string;
   doctorName: string;
+  branchName: string;
   leaveDate: string;
   leaveSessions: string;
   leaveRemark: string;

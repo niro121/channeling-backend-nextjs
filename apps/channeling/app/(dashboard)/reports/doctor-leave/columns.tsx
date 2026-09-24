@@ -25,6 +25,11 @@ export const DoctorLeaveReportColumns: ColumnDef<DoctorLeaveReportRow>[] = [
     cell: ({ row }) => row.original.doctor?.name ?? '-'
   },
   {
+    accessorKey: 'branchName',
+    header: 'Branch',
+    cell: ({ row }) => row.original.branchName || '-'
+  },
+  {
     accessorKey: 'leaveDate',
     header: 'Leave Date',
     cell: ({ row }) => {
