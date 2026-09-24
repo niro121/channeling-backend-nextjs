@@ -1,6 +1,7 @@
 'use server';
 
 import moment from 'moment';
+import { headers } from 'next/headers';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { requirePermission } from '@/lib/server-permissions';
@@ -29,6 +30,11 @@ export async function exportBankDepositsReportData(
       return { success: false, message: result.message ?? 'No data available' };
     }
 
+    const h = await headers();
+    const host = h.get('x-forwarded-host') ?? h.get('host') ?? '';
+    const proto = h.get('x-forwarded-proto') ?? 'https';
+    const origin = host ? `${proto}://${host}` : '';
+
     const mapped: BankDepositsReportExportRow[] = result.data.map((r, index) => ({
       no: String(index + 1),
       transactionType: r.transactionType ?? '-',
@@ -44,6 +50,7 @@ export async function exportBankDepositsReportData(
         .filter(Boolean)
         .join('\n') || '-',
       bankAccount: r.bankAccountName ?? '-',
+      attachment: r.attachmentUrl ? `${origin}${r.attachmentUrl}` : '-',
       total: formatReceiptAmount(r.totalAmount ?? 0),
     }));
 

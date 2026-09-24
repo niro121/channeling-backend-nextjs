@@ -232,8 +232,8 @@ function ContentInner({ currentUserName, bankAccountOptions, userOptions, locati
       }}
       exportData={async () => exportBankDepositsReportData(buildQuery())}
       columns={BankDepositsColumns}
-      exportColumns={['No.', 'Type', 'Receipt No.', 'Remark', 'User Location', 'User', 'Created Date and Time', 'Requested By', 'Approved By', 'Bank Account', 'Total']}
-      exportKeys={['no', 'transactionType', 'receiptNo', 'remarks', 'userLocation', 'user', 'createdAt', 'requestedBy', 'approvedBy', 'bankAccount', 'total']}
+      exportColumns={['No.', 'Type', 'Receipt No.', 'Remark', 'User Location', 'User', 'Created Date and Time', 'Requested By', 'Approved By', 'Bank Account', 'Attachment', 'Total']}
+      exportKeys={['no', 'transactionType', 'receiptNo', 'remarks', 'userLocation', 'user', 'createdAt', 'requestedBy', 'approvedBy', 'bankAccount', 'attachment', 'total']}
       exportTitle="Bank Deposits"
       exportFileName="bank-deposits"
       getRowId={(row) => row.id}
@@ -241,7 +241,7 @@ function ContentInner({ currentUserName, bankAccountOptions, userOptions, locati
         const totalAmount = rows.reduce((acc, r) => acc + (Number(r.totalAmount) || 0), 0);
         return (
           <TableRow className="font-medium bg-muted/50">
-            <TableCell colSpan={10} className="text-left">
+            <TableCell colSpan={11} className="text-left">
               Total
             </TableCell>
             <TableCell className="text-right tabular-nums font-semibold">
