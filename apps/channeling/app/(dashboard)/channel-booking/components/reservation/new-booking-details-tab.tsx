@@ -527,7 +527,7 @@ export function NewBookingDetailsTab() {
           : undefined,
         credit_customer: isCreditCustomer && selectedCreditCustomer ? { id: selectedCreditCustomer.id } : undefined,
         staff: isStaff && selectedStaff ? { id: selectedStaff.id } : undefined,
-        bank: (isCard || isSlip) && selectedBank ? { id: selectedBank.id, name: selectedBank.name } : undefined,
+        bank: (isCard || isSlip || isEWallet) && selectedBank ? { id: selectedBank.id, name: selectedBank.name } : undefined,
         card: isCard ? cardLast4.replace(/\D/g, "").slice(-4) : undefined,
         slip_ref: isSlip ? slipRef.trim() : undefined,
         slip_date: isSlip ? slipDate.trim() : undefined,
@@ -691,7 +691,10 @@ export function NewBookingDetailsTab() {
       if (!slipDate.trim()) typeErrors.slip_date = true
       if (!bankId || !selectedBank) typeErrors.bank = true
     }
-    if (isEWallet && !ewalletRef.trim()) typeErrors.ewallet_ref = true
+    if (isEWallet) {
+      if (!ewalletRef.trim()) typeErrors.ewallet_ref = true
+      if (!bankId || !selectedBank) typeErrors.bank = true
+    }
     if (isVoucherScheme && !voucherCode.trim()) {
       setInvalidFields((prev) => ({ ...prev, voucher_code: true }))
       toast({
@@ -714,7 +717,7 @@ export function NewBookingDetailsTab() {
               : isCard
                 ? "Please enter Last 4 Digits and select Bank."
                 : isEWallet
-                  ? "Please enter E-wallet reference."
+                  ? "Please enter E-wallet reference and select Bank."
                   : "Please enter Bank Reference, Slip Date, and select Bank.",
         variant: "destructive",
       })
@@ -814,13 +817,23 @@ export function NewBookingDetailsTab() {
           return
         }
       }
-      if (line.payment_method === SAVE_PAYMENT_TYPE_E_WALLET && !line.ewallet_ref?.trim()) {
-        toast({
-          title: "E-wallet reference required",
-          description: `Please enter e-wallet reference for mixed payment line ${idx + 1}.`,
-          variant: "destructive",
-        })
-        return
+      if (line.payment_method === SAVE_PAYMENT_TYPE_E_WALLET) {
+        if (!line.bank?.id) {
+          toast({
+            title: "Bank required",
+            description: `Please select a bank for mixed payment line ${idx + 1} (E-Wallet).`,
+            variant: "destructive",
+          })
+          return
+        }
+        if (!line.ewallet_ref?.trim()) {
+          toast({
+            title: "E-wallet reference required",
+            description: `Please enter e-wallet reference for mixed payment line ${idx + 1}.`,
+            variant: "destructive",
+          })
+          return
+        }
       }
     }
     await submitBooking(lines)
@@ -1277,14 +1290,35 @@ export function NewBookingDetailsTab() {
         </div>
       )}
       {isEWallet && (
-        <div className="space-y-0.5">
-          <Input
-            className={`${fieldClass} ${ewalletRefError ? errorClass : ""}`}
-            placeholder="E-wallet reference *"
-            value={ewalletRef}
-            onChange={(e) => setEwalletRef(e.target.value)}
-            required
-          />
+        <div className="grid grid-cols-2 gap-x-3">
+          <div className="space-y-0.5">
+            <Input
+              className={`${fieldClass} ${ewalletRefError ? errorClass : ""}`}
+              placeholder="E-wallet reference *"
+              value={ewalletRef}
+              onChange={(e) => setEwalletRef(e.target.value)}
+              required
+            />
+          </div>
+          <div className="space-y-0.5">
+            <Select
+              value={bankId || undefined}
+              onValueChange={setBankId}
+            >
+              <SelectTrigger
+                className={`${fieldClass} ${bankError ? errorClass : ""} ${!bankId ? "text-placeholder" : ""}`}
+              >
+                <SelectValue placeholder="Select Bank *" />
+              </SelectTrigger>
+              <SelectContent>
+                {banks.map((b) => (
+                  <SelectItem key={b.id} value={b.id} className="text-xs">
+                    {b.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
       )}
 
@@ -1606,7 +1640,7 @@ export function NewBookingDetailsTab() {
             (isStaff && !staffId) ||
             (isCard && (cardLast4.replace(/\D/g, "").length !== 4 || !bankId)) ||
             (isSlip && (!slipRef.trim() || !slipDate.trim() || !bankId)) ||
-            (isEWallet && !ewalletRef.trim())
+            (isEWallet && (!ewalletRef.trim() || !bankId))
           }
           onClick={handleBookNow}
           className="h-8 bg-primary text-primary-foreground hover:bg-primary/90 text-xs shrink-0 gap-1.5 disabled:opacity-50 disabled:pointer-events-none"
@@ -1965,23 +1999,51 @@ export function NewBookingDetailsTab() {
                   </div>
                 )}
                 {line.payment_method === SAVE_PAYMENT_TYPE_E_WALLET && (
-                  <div className="space-y-1">
-                    <p className="text-[11px] text-muted-foreground">
-                      E-wallet reference <span className="text-destructive">*</span>
-                    </p>
-                    <Input
-                      className={fieldClass}
-                      placeholder="E-wallet reference"
-                      required
-                      value={line.ewallet_ref}
-                      onChange={(e) =>
-                        setMixedLines((prev) =>
-                          prev.map((row, rowIdx) =>
-                            rowIdx === idx ? { ...row, ewallet_ref: e.target.value } : row
+                  <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_220px] gap-2">
+                    <div className="space-y-1">
+                      <p className="text-[11px] text-muted-foreground">
+                        Bank <span className="text-destructive">*</span>
+                      </p>
+                      <Select
+                        value={line.bank_id || undefined}
+                        onValueChange={(v) =>
+                          setMixedLines((prev) =>
+                            prev.map((row, rowIdx) =>
+                              rowIdx === idx ? { ...row, bank_id: v } : row
+                            )
                           )
-                        )
-                      }
-                    />
+                        }
+                      >
+                        <SelectTrigger className={fieldClass}>
+                          <SelectValue placeholder="Select Bank" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {banks.map((b) => (
+                            <SelectItem key={b.id} value={b.id} className="text-xs">
+                              {b.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-[11px] text-muted-foreground text-right">
+                        E-wallet reference <span className="text-destructive">*</span>
+                      </p>
+                      <Input
+                        className={fieldClass}
+                        placeholder="E-wallet reference"
+                        required
+                        value={line.ewallet_ref}
+                        onChange={(e) =>
+                          setMixedLines((prev) =>
+                            prev.map((row, rowIdx) =>
+                              rowIdx === idx ? { ...row, ewallet_ref: e.target.value } : row
+                            )
+                          )
+                        }
+                      />
+                    </div>
                   </div>
                 )}
                 <Button

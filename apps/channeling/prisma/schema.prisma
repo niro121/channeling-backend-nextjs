@@ -1320,6 +1320,28 @@ model JournalLine {
   @@index([accountId, journalId])
 }
 
+/// One row per public API call (`/api/public/*`), written by `withPublicApiLog`.
+model ApiLog {
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  createdAt    DateTime @default(now())
+  /// Wall time for the handler, in milliseconds.
+  durationMs   Int
+  method       String
+  endpoint     String
+  /// Request id returned as `x-request-id`. Also used by the API Log report UUID search.
+  uuid         String
+  /// OAuth client_id when the caller sent a Bearer token or a token request body.
+  clientId     String?
+  statusCode   Int
+  errorStatus  Boolean
+  requestBody  String?
+  responseBody String?
+
+  @@index([createdAt(sort: Desc)])
+  @@index([uuid])
+  @@index([clientId])
+}
+
 model Log {
   id          String    @id @default(auto()) @map("_id") @db.ObjectId
   status      LogStatus // INFO, ERROR
