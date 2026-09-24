@@ -5,6 +5,7 @@ import { authOptions } from '@/lib/auth';
 import DoctorLeaveForm from '../../doctor-leave-form';
 import { BackButton } from '@/components/common/back-button';
 import { getDoctorById } from '@/app/actions/doctor.actions';
+import { getLocationOptions } from '@/app/actions/doctor.sessions.action';
 
 type PageProps = {
   params: Promise<{
@@ -18,7 +19,10 @@ export default async function AddDoctorLeavePage({ params }: PageProps) {
   const session = await getServerSession(authOptions);
   const user = session?.user;
 
-  const { data, success } = await getDoctorById(id);
+  const [{ data, success }, locationOptions] = await Promise.all([
+    getDoctorById(id),
+    getLocationOptions()
+  ]);
 
   if (!success || !data) {
     notFound();
@@ -38,6 +42,7 @@ export default async function AddDoctorLeavePage({ params }: PageProps) {
         <DoctorLeaveForm
           doctorId={data.id}
           doctorName={doctorName}
+          branchOptions={locationOptions.data ?? []}
           doctorLeave={null}
           isEditPage={false}
           user={{

@@ -2,6 +2,7 @@ export type Session = {
   id: string;
   date: Date;
   location: string;
+  locationId?: string;
   startTime: string;
   endTime: string;
   /** Set when mapping from API; used for “session already started” UI. */
@@ -25,6 +26,7 @@ export type DoctorLeave = {
   status: number; // 0 = leave active (on leave), 1 = leave cancelled (matches Prisma DoctorLeave.status)
   doctor: Doctor
   doctorId: string;
+  locationId?: string | null;
   createdBy: string | null;
   updatedBy: string | null;
   createdAt: Date;
@@ -39,6 +41,8 @@ export type DoctorLeaveFormProps = {
   sendSms: boolean;
   status: number; // 0 = leave active (on leave), 1 = leave cancelled (matches Prisma DoctorLeave.status)
   doctorId: string;
+  /** Branch this leave is for. Required when creating a leave. */
+  locationId?: string | null;
 };
 
 /** Doctor summary included in list responses */
@@ -60,6 +64,8 @@ export type GetDoctorLeavesParams = {
   doctorId: string;
   fromDate?: string; // YYYY-MM-DD
   toDate?: string; // YYYY-MM-DD
+  /** Location id. Omit or `__all__` to include every branch. */
+  branchId?: string;
 };
 
 export type GetDoctorLeavesQuery = {
@@ -68,6 +74,7 @@ export type GetDoctorLeavesQuery = {
   doctorId: string;
   fromDate?: string; // YYYY-MM-DD
   toDate?: string; // YYYY-MM-DD
+  branchId?: string;
 };
 
 /** Filter option for combos (e.g. doctor select) */
@@ -80,6 +87,8 @@ export type GetActiveSession = {
   doctorId: string;
   fromDate: string;
   toDate: string;
+  /** When set, only sessions at this branch are returned. */
+  locationId?: string;
 };
 
 /** Params for fetching session IDs already used by other leaves (to disallow double-booking) */
