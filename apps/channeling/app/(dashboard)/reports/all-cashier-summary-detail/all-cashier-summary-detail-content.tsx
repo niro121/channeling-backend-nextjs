@@ -1,0 +1,603 @@
+'use client';
+
+import React, { useState } from 'react';
+import { Button } from '@/components/ui/button';
+import { DateTimeRangePicker } from '@/components/common/date-time-range-picker';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { useToast } from '@/components/hooks/use-toast';
+import { FileSpreadsheet, FileText, Loader2, Printer, SearchIcon, X } from 'lucide-react';
+import { getAllCashierSummaryDetailReportData } from '@/app/actions/reports/all-cashier-summary-detail.action';
+import { formatReceiptAmount } from '@/lib/format-money';
+import { formatReportRangeLabel } from '@/lib/format-report-range-label';
+import { formatExportFileName } from '@/lib/utils';
+import { ReportUserSelect } from '@/components/common/user-select';
+import { ReportGenerationDetailsCard } from '@/components/common/report-generation-details';
+import {
+  ReportPrintLayout,
+  toBrandedPdfSummaryItems,
+} from '@/components/common/report-print';
+import type { ReportPrintSummaryItem } from '@/components/common/report-print';
+import type {
+  AllCashierUserDetailRow,
+  AllCashierUserSummaryRow,
+  CashierSummaryPaymentAmounts,
+} from '@/types/report';
+import {
+  AllCashierSummaryDetailPrintLayout,
+  ShiftHandoverMarks,
+} from './all-cashier-summary-detail-print-layout';
+import { downloadAllCashierSummaryDetailReportPdf } from './all-cashier-summary-detail-pdf';
+import { downloadAllCashierSummaryDetailReportExcel } from './all-cashier-summary-detail-excel';
+
+type Props = {
+  initialUserOptions: Array<{ id: string; name: string }>;
+  initialLocationOptions: Array<{ id: string; name: string }>;
+  currentUserName: string;
+};
+
+const PAYMENT_COLUMNS: { key: keyof CashierSummaryPaymentAmounts; label: string }[] = [
+  { key: 'cash', label: 'Cash' },
+  { key: 'creditCard', label: 'Credit Card' },
+  { key: 'slip', label: 'Slip' },
+  { key: 'cheque', label: 'Cheque' },
+  { key: 'agent', label: 'Agent' },
+  { key: 'agentCredit', label: 'Credit' },
+  { key: 'eWallet', label: 'E-wallet' },
+];
+
+const AMOUNT_HEAD =
+  'acs-amt text-right tabular-nums lining-nums min-w-[5rem] !px-2 py-1 text-[11px] font-medium whitespace-nowrap';
+const AMOUNT_CELL =
+  'acs-amt text-right tabular-nums lining-nums font-mono text-[11px] leading-snug min-w-[5rem] !px-2 py-0.5 whitespace-nowrap';
+const RECEIPTS_HEAD = 'acs-receipts text-right tabular-nums';
+const RECEIPTS_CELL = 'acs-receipts text-right tabular-nums';
+const SHIFTS_HEAD = 'acs-shifts min-w-[190px]';
+const SHIFTS_CELL = 'acs-shifts align-top';
+
+function formatAmount(n: number | undefined | null): string {
+  const num = Number(n);
+  if (!Number.isFinite(num)) return '0.00';
+  return formatReceiptAmount(num);
+}
+
+function getDefaultDateTimeRange(): { from: string; to: string } {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, '0');
+  const d = String(now.getDate()).padStart(2, '0');
+  return { from: `${y}-${m}-${d}T00:00`, to: `${y}-${m}-${d}T23:59` };
+}
+
+export default function AllCashierSummaryDetailContent({
+  initialUserOptions,
+  initialLocationOptions,
+  currentUserName,
+}: Props) {
+  const { toast } = useToast();
+  const [loading, setLoading] = useState(false);
+  const [fromDateTime, setFromDateTime] = useState<string>(() => getDefaultDateTimeRange().from);
+  const [toDateTime, setToDateTime] = useState<string>(() => getDefaultDateTimeRange().to);
+  const [userId, setUserId] = useState<string>('__all__');
+  const [locationId, setLocationId] = useState<string>('__all__');
+  const [format, setFormat] = useState<'summary' | 'detail'>('summary');
+  const [summaryRows, setSummaryRows] = useState<AllCashierUserSummaryRow[]>([]);
+  const [detailRows, setDetailRows] = useState<AllCashierUserDetailRow[]>([]);
+  const [grandTotals, setGrandTotals] = useState<CashierSummaryPaymentAmounts | null>(null);
+  const [totalReceipts, setTotalReceipts] = useState(0);
+  const [loadingExcel, setLoadingExcel] = useState(false);
+  const [reportMeta, setReportMeta] = useState<{
+    from: string;
+    to: string;
+    userLabel: string;
+    locationLabel: string;
+    format: 'summary' | 'detail';
+    generatedAt: string;
+    generatedBy: string;
+  } | null>(null);
+
+  const userOptions = initialUserOptions;
+
+  const buildSummaryItems = (meta: {
+    from: string;
+    to: string;
+    userLabel: string;
+    locationLabel: string;
+    format: 'summary' | 'detail';
+    generatedAt: string;
+    generatedBy: string;
+  }): ReportPrintSummaryItem[] => [
+    { label: 'Period', value: formatReportRangeLabel(meta.from, meta.to) },
+    { label: 'Staff', value: meta.userLabel },
+    { label: 'Branch', value: meta.locationLabel },
+    { label: 'Report Type', value: meta.format === 'detail' ? 'Detail' : 'Summary' },
+    { label: 'Generated By', value: meta.generatedBy },
+    { label: 'Generated At', value: meta.generatedAt },
+  ];
+
+  const renderReportMetaCard = (meta: {
+    from: string;
+    to: string;
+    userLabel: string;
+    locationLabel: string;
+    format: 'summary' | 'detail';
+    generatedAt: string;
+    generatedBy: string;
+  }) => (
+    <ReportGenerationDetailsCard
+      items={[
+        {
+          label: 'Filters',
+          value: (
+            <>
+              User: {meta.userLabel} | Branch: {meta.locationLabel} | Range:{' '}
+              {formatReportRangeLabel(meta.from, meta.to)} | Format:{' '}
+              {meta.format === 'detail' ? 'Detail' : 'Summary'}
+            </>
+          ),
+          smColSpan: 2,
+        },
+        { label: 'Generated by', value: <span className="font-semibold">{meta.generatedBy}</span> },
+        { label: 'Generated at', value: <span className="font-semibold">{meta.generatedAt}</span> },
+      ]}
+    />
+  );
+
+  const runSearch = async () => {
+    if (!fromDateTime || !toDateTime) {
+      toast({ variant: 'destructive', title: 'Validation Error', description: 'Please select from/to date & time' });
+      return;
+    }
+    setLoading(true);
+    try {
+      const res = await getAllCashierSummaryDetailReportData({
+        userId,
+        locationId,
+        dateFrom: fromDateTime,
+        dateTo: toDateTime,
+        format,
+      });
+      if (!res.success) {
+        toast({ variant: 'destructive', title: 'Error', description: res.message || 'Failed to load report' });
+        setSummaryRows([]);
+        setDetailRows([]);
+        setGrandTotals(null);
+        setTotalReceipts(0);
+        setReportMeta(null);
+        return;
+      }
+      setSummaryRows(res.summaryRows);
+      setDetailRows(res.detailRows);
+      setGrandTotals(res.grandTotals);
+      setTotalReceipts(res.totalReceipts);
+      setReportMeta({
+        from: fromDateTime,
+        to: toDateTime,
+        userLabel: userOptions.find((u) => u.id === userId)?.name ?? 'All Users',
+        locationLabel: initialLocationOptions.find((l) => l.id === locationId)?.name ?? 'All Branches',
+        format,
+        generatedAt: new Date().toLocaleString(),
+        generatedBy: currentUserName,
+      });
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : 'Failed to load report';
+      toast({ variant: 'destructive', title: 'Error', description: msg });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const downloadExcel = async () => {
+    if (!reportMeta) {
+      toast({ variant: 'destructive', title: 'No data', description: 'Run a search first to download Excel.' });
+      return;
+    }
+    const hasRows =
+      reportMeta.format === 'summary' ? summaryRows.length > 0 : detailRows.length > 0;
+    if (!hasRows && !grandTotals) {
+      toast({ variant: 'destructive', title: 'No data', description: 'Run a search first to download Excel.' });
+      return;
+    }
+
+    setLoadingExcel(true);
+    try {
+      const fileName = `${formatExportFileName('all-cashier-summary-detail')}.xlsx`;
+      const reportName = 'All Cashier Summary and Detail Report';
+      const summaryItems = toBrandedPdfSummaryItems(buildSummaryItems(reportMeta));
+
+      if (reportMeta.format === 'summary') {
+        await downloadAllCashierSummaryDetailReportExcel({
+          mode: 'summary',
+          reportName,
+          summaryItems,
+          generatedAt: reportMeta.generatedAt,
+          summaryRows,
+          grandTotals,
+          totalReceipts,
+          fileName,
+          sheetName: 'All Cashier Summary',
+        });
+        return;
+      }
+
+      await downloadAllCashierSummaryDetailReportExcel({
+        mode: 'detail',
+        reportName,
+        summaryItems,
+        generatedAt: reportMeta.generatedAt,
+        detailRows,
+        grandTotals,
+        totalReceipts,
+        fileName,
+        sheetName: 'All Cashier Detail',
+      });
+    } catch (error: unknown) {
+      toast({
+        variant: 'destructive',
+        title: 'Excel export failed',
+        description: error instanceof Error ? error.message : 'Unable to generate Excel.',
+      });
+    } finally {
+      setLoadingExcel(false);
+    }
+  };
+
+  const downloadPdf = async () => {
+    if (!reportMeta) {
+      toast({ variant: 'destructive', title: 'No data', description: 'Run a search first to download PDF.' });
+      return;
+    }
+    const hasRows =
+      reportMeta.format === 'summary' ? summaryRows.length > 0 : detailRows.length > 0;
+    if (!hasRows && !grandTotals) {
+      toast({ variant: 'destructive', title: 'No data', description: 'Run a search first to download PDF.' });
+      return;
+    }
+
+    const summaryItems = toBrandedPdfSummaryItems(buildSummaryItems(reportMeta));
+    const fileName = `${formatExportFileName('all-cashier-summary-detail')}.pdf`;
+    const reportName = 'All Cashier Summary and Detail Report';
+
+    if (reportMeta.format === 'summary') {
+      await downloadAllCashierSummaryDetailReportPdf({
+        mode: 'summary',
+        reportName,
+        summaryItems,
+        generatedAt: reportMeta.generatedAt,
+        summaryRows,
+        grandTotals,
+        totalReceipts,
+        fileName,
+      });
+      return;
+    }
+
+    await downloadAllCashierSummaryDetailReportPdf({
+      mode: 'detail',
+      reportName,
+      summaryItems,
+      generatedAt: reportMeta.generatedAt,
+      detailRows,
+      grandTotals,
+      totalReceipts,
+      fileName,
+    });
+  };
+
+  return (
+    <div className="w-full py-2 space-y-3 all-cashier-summary-detail-report-root">
+      <Card className="print:hidden">
+        <CardHeader className="pb-2">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+            <div>
+              <CardTitle className="text-xl font-bold">All Cashier Summary and Detail Report</CardTitle>
+              <CardDescription className="text-xs mt-0.5">
+                Summary aggregates receipts by cashier. Detail shows section-wise totals per cashier.
+              </CardDescription>
+            </div>
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" onClick={() => window.print()} className="gap-2"><Printer />Print</Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  void downloadPdf().catch((error: unknown) => {
+                    toast({
+                      variant: 'destructive',
+                      title: 'PDF export failed',
+                      description:
+                        error instanceof Error ? error.message : 'Unable to generate PDF.',
+                    });
+                  });
+                }}
+                className="gap-2"
+              >
+                <FileText />
+                PDF
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  void downloadExcel();
+                }}
+                disabled={loadingExcel}
+                className="gap-2"
+              >
+                {loadingExcel ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <FileSpreadsheet className="h-4 w-4" />
+                )}
+                Excel
+              </Button>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex flex-wrap items-end gap-4">
+            <DateTimeRangePicker
+              label="Date & time range"
+              from={fromDateTime}
+              to={toDateTime}
+              onChange={({ from, to }) => {
+                setFromDateTime(from ?? '');
+                setToDateTime(to ?? '');
+              }}
+            />
+            <div>
+              <label className="text-sm font-semibold mb-2 block">Branch</label>
+              <div className="flex items-center gap-1">
+                <Select value={locationId} onValueChange={setLocationId}>
+                  <SelectTrigger className="w-[200px]"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {initialLocationOptions.map((opt) => (
+                      <SelectItem key={opt.id} value={opt.id}>{opt.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {locationId !== '__all__' ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    className="h-9 w-9 shrink-0"
+                    aria-label="Clear branch"
+                    onClick={() => setLocationId('__all__')}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                ) : null}
+              </div>
+            </div>
+            <ReportUserSelect
+              userOptions={userOptions}
+              value={userId}
+              onChange={setUserId}
+              label="Select User"
+              widthClassName="w-[200px]"
+            />
+            <div>
+              <label className="text-sm font-semibold mb-2 block">Format</label>
+              <Select value={format} onValueChange={(v) => setFormat(v as 'summary' | 'detail')}>
+                <SelectTrigger className="w-[140px]"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="summary">Summary</SelectItem>
+                  <SelectItem value="detail">Detail</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <Button size="sm" onClick={runSearch} disabled={loading} className="h-10 gap-2">
+              <SearchIcon className="h-4 w-4" />Search
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {!reportMeta && (
+        <Card className="border-dashed print:hidden">
+          <CardContent className="py-8">
+            <p className="text-sm font-medium text-muted-foreground">Search to view report details.</p>
+          </CardContent>
+        </Card>
+      )}
+
+      {reportMeta && (
+        <Card className="bg-muted/20 print:shadow-none print:border-0 print:bg-white">
+          <CardHeader className="py-2 print:hidden">
+            <CardTitle className="text-base">All Cashier Summary and Detail Report</CardTitle>
+            <CardDescription className="text-xs mt-0.5">
+              All-cashier report with summary/detail modes for the selected filters.
+            </CardDescription>
+            {renderReportMetaCard(reportMeta)}
+          </CardHeader>
+          <CardContent className="space-y-3 py-2">
+            <ReportPrintLayout
+              reportName="All Cashier Summary and Detail Report"
+              pageSize="A4 landscape"
+              generatedAt={reportMeta.generatedAt}
+              summaryItems={buildSummaryItems(reportMeta)}
+            >
+              <AllCashierSummaryDetailPrintLayout generatedAt={reportMeta.generatedAt} />
+              {loading ? (
+                <div className="text-center py-8">Loading...</div>
+              ) : (
+                <>
+                  <div className="acs-screen-table">
+                    {reportMeta.format === 'summary' ? (
+                      <div className="rounded-md border overflow-x-auto">
+                        <Table className="text-[11px] [&_th]:px-1.5 [&_td]:px-1.5 [&_th]:border-r [&_th:last-child]:border-r-0 [&_td]:border-r [&_td:last-child]:border-r-0">
+                          <TableHeader>
+                            <TableRow className="border-b">
+                              <TableHead className="w-10 text-right">No.</TableHead>
+                              <TableHead className="pr-0">User</TableHead>
+                              <TableHead className={RECEIPTS_HEAD}>Receipts</TableHead>
+                              {PAYMENT_COLUMNS.map((c) => (
+                                <TableHead key={c.key} className={AMOUNT_HEAD}>
+                                  {c.label}
+                                </TableHead>
+                              ))}
+                              <TableHead className={SHIFTS_HEAD}>Shifts</TableHead>
+                              <TableHead className="text-center">Checked By</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {summaryRows.map((r, i) => (
+                              <TableRow key={r.userId} className="border-b border-border/50">
+                                <TableCell className="text-center tabular-nums">{i + 1}</TableCell>
+                                <TableCell className="pr-0">{r.userName}</TableCell>
+                                <TableCell className={RECEIPTS_CELL}>{r.receiptCount}</TableCell>
+                                {PAYMENT_COLUMNS.map((c) => (
+                                  <TableCell key={c.key} className={AMOUNT_CELL}>
+                                    {formatAmount(r[c.key])}
+                                  </TableCell>
+                                ))}
+                                <TableCell className={SHIFTS_CELL}>
+                                  <ShiftHandoverMarks shifts={r.shifts} />
+                                </TableCell>
+                                <TableCell className="text-center">
+                                  <div
+                                    className="min-h-10 border-b-2 border-dotted border-foreground/45 mx-auto block w-[130px]"
+                                    aria-hidden
+                                  />
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                            {grandTotals && (
+                              <TableRow className="font-medium bg-muted/50">
+                                <TableCell colSpan={3} className="text-left">
+                                  Total
+                                </TableCell>
+                                {PAYMENT_COLUMNS.map((c) => (
+                                  <TableCell key={c.key} className={`${AMOUNT_CELL} font-semibold`}>
+                                    {formatAmount(grandTotals[c.key])}
+                                  </TableCell>
+                                ))}
+                                <TableCell />
+                                <TableCell />
+                              </TableRow>
+                            )}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        {detailRows.map((u, idx) => (
+                          <div key={u.userId} className="rounded-md border overflow-x-auto">
+                            <Table className="text-[11px] [&_th]:px-1.5 [&_td]:px-1.5 [&_th]:border-r [&_td]:border-r">
+                              <TableHeader>
+                                <TableRow className="border-b">
+                                  <TableHead className="w-10 text-right">No.</TableHead>
+                                  <TableHead className="pr-0">User</TableHead>
+                                  <TableHead>Section</TableHead>
+                                  <TableHead className={RECEIPTS_HEAD}>Receipts</TableHead>
+                                  {PAYMENT_COLUMNS.map((c) => (
+                                    <TableHead key={c.key} className={AMOUNT_HEAD}>
+                                      {c.label}
+                                    </TableHead>
+                                  ))}
+                                  <TableHead className={SHIFTS_HEAD}>Shifts</TableHead>
+                                  <TableHead className="text-center">Checked By</TableHead>
+                                </TableRow>
+                              </TableHeader>
+                              <TableBody>
+                                {u.sections.map((s, i) => (
+                                  <TableRow
+                                    key={`${u.userId}-${s.key}`}
+                                    className="border-b border-border/50"
+                                  >
+                                    <TableCell className="text-center tabular-nums">
+                                      {i === 0 ? idx + 1 : ''}
+                                    </TableCell>
+                                    <TableCell className="pr-0">
+                                      {i === 0 ? u.userName : ''}
+                                    </TableCell>
+                                    <TableCell>{s.title}</TableCell>
+                                    <TableCell className={RECEIPTS_CELL}>{s.receiptCount}</TableCell>
+                                    {PAYMENT_COLUMNS.map((c) => (
+                                      <TableCell key={c.key} className={AMOUNT_CELL}>
+                                        {formatAmount(s.totals[c.key])}
+                                      </TableCell>
+                                    ))}
+                                    {i === 0 && (
+                                      <>
+                                        <TableCell
+                                          rowSpan={u.sections.length + 1}
+                                          className={SHIFTS_CELL}
+                                        >
+                                          <ShiftHandoverMarks shifts={u.shifts} />
+                                        </TableCell>
+                                        <TableCell
+                                          rowSpan={u.sections.length + 1}
+                                          className="text-center"
+                                        >
+                                          <div
+                                            className="min-h-10 border-b-2 border-dotted border-foreground/45 mx-auto block w-[130px]"
+                                            aria-hidden
+                                          />
+                                        </TableCell>
+                                      </>
+                                    )}
+                                  </TableRow>
+                                ))}
+                                <TableRow className="font-medium bg-muted/50">
+                                  <TableCell colSpan={3}>User Total</TableCell>
+                                  <TableCell className={RECEIPTS_CELL}>{u.receiptCount}</TableCell>
+                                  {PAYMENT_COLUMNS.map((c) => (
+                                    <TableCell key={c.key} className={`${AMOUNT_CELL} font-semibold`}>
+                                      {formatAmount(u.totals[c.key])}
+                                    </TableCell>
+                                  ))}
+                                </TableRow>
+                              </TableBody>
+                            </Table>
+                          </div>
+                        ))}
+                        {grandTotals && (
+                          <div className="rounded-md border overflow-x-auto">
+                            <Table className="text-[11px] [&_th]:px-1.5 [&_td]:px-1.5 [&_th]:border-r [&_th:last-child]:border-r-0 [&_td]:border-r [&_td:last-child]:border-r-0">
+                              <TableHeader>
+                                <TableRow className="border-b">
+                                  <TableHead colSpan={4}>Grand Total</TableHead>
+                                  {PAYMENT_COLUMNS.map((c) => (
+                                    <TableHead key={c.key} className={AMOUNT_HEAD}>
+                                      {c.label}
+                                    </TableHead>
+                                  ))}
+                                  <TableHead />
+                                  <TableHead />
+                                </TableRow>
+                              </TableHeader>
+                              <TableBody>
+                                <TableRow className="font-medium bg-muted/50">
+                                  <TableCell colSpan={4}>Total</TableCell>
+                                  {PAYMENT_COLUMNS.map((c) => (
+                                    <TableCell key={c.key} className={`${AMOUNT_CELL} font-semibold`}>
+                                      {formatAmount(grandTotals[c.key])}
+                                    </TableCell>
+                                  ))}
+                                  <TableCell />
+                                  <TableCell />
+                                </TableRow>
+                              </TableBody>
+                            </Table>
+                          </div>
+                        )}
+                        <div className="acs-total-receipts rounded-md border border-primary/20 bg-primary/[0.03] px-3 py-2 text-[11px]">
+                          <span className="text-muted-foreground">Total receipts in report:</span>{' '}
+                          <span className="font-semibold">{totalReceipts}</span>
+                        </div>
+                        <div className="print:hidden">{renderReportMetaCard(reportMeta)}</div>
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
+            </ReportPrintLayout>
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+}

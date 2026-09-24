@@ -1,0 +1,1083 @@
+"use client"
+
+import React, { useEffect, useMemo, useRef, useState } from "react"
+import { Form, Formik, FormikHelpers } from "formik"
+import * as Yup from "yup"
+import { useToast } from "@/components/hooks/use-toast"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import { ReferenceSelect } from "@/components/common/reference-select"
+import type { ReferenceSelectOption } from "@/types/reference"
+import { addLedgerTransaction } from "@/app/actions/ledger/add-ledger-transaction.action"
+import { requestBankDepositSlipUploadAction, listShiftBillsForBankDepositAction } from "@/app/actions/ledger/bank-deposit-slip.actions"
+import {
+  LEDGER_TRANSACTION_TYPES,
+  type LedgerTransactionType,
+} from "@/services/ledger/create-ledger-receipt.service"
+import { RECEIPT_PAYMENT_METHOD } from "@/types/receipt"
+import {
+  BANK_DEPOSIT_SLIP_MAX_BYTES,
+} from "@/types/approval-request"
+import { compressBillImage } from "@/lib/compress-bill-image"
+import { cn } from "@/lib/utils"
+import {
+  SHIFT_BILL_KIND_LABELS,
+  shiftBillUploaderTag,
+  type ShiftBillAttachmentDto,
+} from "@/types/shift-bill-attachment"
+import { Camera, ImagePlus, Images, Loader2, X } from "lucide-react"
+import Link from "next/link"
+
+const AGENCY_TYPES_FOR_VALIDATION: string[] = [
+  "AGENCY_DEBIT_NOTE",
+  "AGENCY_CREDIT_NOTE",
+  "AGENCY_DEPOSIT",
+  "AGENCY_WITHDRAW",
+]
+const BANK_DEPOSIT_TYPE = "BANK_DEPOSIT"
+const BRANCH_INCOME_EXPENSE_TYPES: string[] = ["BRANCH_INCOME", "BRANCH_EXPENSE"]
+
+function usesAssignedUserLocation(type: string): boolean {
+  return (
+    AGENCY_TYPES_FOR_VALIDATION.includes(type) ||
+    type === BANK_DEPOSIT_TYPE ||
+    BRANCH_INCOME_EXPENSE_TYPES.includes(type)
+  )
+}
+
+type LedgerFormValues = {
+  transactionType: LedgerTransactionType
+  branchId: string
+  agencyId: string
+  bankAccountId: string
+  amount: string
+  remarks: string
+  paymentMethod: number
+  bankId: string
+  cardReference: string
+  slipReference: string
+  slipDate: string
+}
+
+const validationSchema = Yup.object({
+  transactionType: Yup.string()
+    .oneOf(LEDGER_TRANSACTION_TYPES as unknown as string[])
+    .required("Transaction type is required"),
+  branchId: Yup.string().when("transactionType", {
+    is: (type: string) => !usesAssignedUserLocation(type),
+    then: (schema) => schema.required("Please select a branch."),
+    otherwise: (schema) => schema,
+  }),
+  agencyId: Yup.string().when("transactionType", {
+    is: (type: string) => AGENCY_TYPES_FOR_VALIDATION.includes(type),
+    then: (schema) => schema.required("Please select an agency."),
+    otherwise: (schema) => schema,
+  }),
+  bankAccountId: Yup.string().when("transactionType", {
+    is: (type: string) => type === "BANK_DEPOSIT",
+    then: (schema) => schema.required("Please select a bank account."),
+    otherwise: (schema) => schema,
+  }),
+  amount: Yup.string()
+    .required("Amount is required")
+    .test("positive", "Enter a valid positive amount.", (val) => {
+      if (!val?.trim()) return false
+      const n = parseFloat(val)
+      return !Number.isNaN(n) && n > 0
+    }),
+  remarks: Yup.string().required("Remarks are required").trim(),
+  paymentMethod: Yup.number().required(),
+  bankId: Yup.string().when(["transactionType", "paymentMethod"], {
+    is: (transactionType: string, paymentMethod: number) =>
+      transactionType === "AGENCY_DEPOSIT" &&
+      paymentMethod !== RECEIPT_PAYMENT_METHOD.CASH,
+    then: (schema) => schema.required("Please select a bank for non-cash payment methods."),
+    otherwise: (schema) => schema,
+  }),
+  cardReference: Yup.string().when(["transactionType", "paymentMethod"], {
+    is: (transactionType: string, paymentMethod: number) =>
+      transactionType === "AGENCY_DEPOSIT" &&
+      (paymentMethod === RECEIPT_PAYMENT_METHOD.CREDIT_CARD ||
+        paymentMethod === RECEIPT_PAYMENT_METHOD.E_WALLET),
+    then: (schema) =>
+      schema.test("paymentRef", "", function (val) {
+        const pm = this.parent.paymentMethod
+        if (pm === RECEIPT_PAYMENT_METHOD.CREDIT_CARD) {
+          if ((val?.replace(/\D/g, "") ?? "").length !== 4) {
+            return this.createError({ message: "Enter last 4 digits of card." })
+          }
+        }
+        if (pm === RECEIPT_PAYMENT_METHOD.E_WALLET && !val?.trim()) {
+          return this.createError({ message: "Enter e-wallet reference." })
+        }
+        return true
+      }),
+    otherwise: (schema) => schema,
+  }),
+  slipReference: Yup.string().when(["transactionType", "paymentMethod"], {
+    is: (transactionType: string, paymentMethod: number) =>
+      transactionType === "AGENCY_DEPOSIT" &&
+      (paymentMethod === RECEIPT_PAYMENT_METHOD.SLIP ||
+        paymentMethod === RECEIPT_PAYMENT_METHOD.CHECK),
+    then: (schema) =>
+      schema.test("refRequired", "", function (val) {
+        if (val?.trim()) return true
+        const pm = this.parent.paymentMethod
+        return this.createError({
+          message:
+            pm === RECEIPT_PAYMENT_METHOD.CHECK
+              ? "Enter cheque number."
+              : "Enter slip reference.",
+        })
+      }),
+    otherwise: (schema) => schema,
+  }),
+  slipDate: Yup.string().when(["transactionType", "paymentMethod"], {
+    is: (transactionType: string, paymentMethod: number) =>
+      transactionType === "AGENCY_DEPOSIT" &&
+      (paymentMethod === RECEIPT_PAYMENT_METHOD.SLIP ||
+        paymentMethod === RECEIPT_PAYMENT_METHOD.CHECK),
+    then: (schema) =>
+      schema.test("dateRequired", "", function (val) {
+        if (val?.trim()) return true
+        const pm = this.parent.paymentMethod
+        return this.createError({
+          message:
+            pm === RECEIPT_PAYMENT_METHOD.CHECK
+              ? "Select cheque date."
+              : "Select slip date.",
+        })
+      }),
+    otherwise: (schema) => schema,
+  }),
+})
+
+const TRANSACTION_TYPE_LABELS: Record<LedgerTransactionType, string> = {
+  BRANCH_INCOME: "Branch Income",
+  BRANCH_EXPENSE: "Branch Expense",
+  AGENCY_DEBIT_NOTE: "Agency Debit Note",
+  AGENCY_CREDIT_NOTE: "Agency Credit Note",
+  AGENCY_DEPOSIT: "Agency Deposit",
+  AGENCY_WITHDRAW: "Agency Withdraw",
+  BANK_DEPOSIT: "Bank Deposit",
+}
+
+const AGENCY_TYPES: LedgerTransactionType[] = [
+  "AGENCY_DEBIT_NOTE",
+  "AGENCY_CREDIT_NOTE",
+  "AGENCY_DEPOSIT",
+  "AGENCY_WITHDRAW",
+]
+
+const PAYMENT_OPTIONS = [
+  { value: RECEIPT_PAYMENT_METHOD.CASH, label: "Cash" },
+  { value: RECEIPT_PAYMENT_METHOD.CREDIT_CARD, label: "Credit Card" },
+  { value: RECEIPT_PAYMENT_METHOD.SLIP, label: "Slip" },
+  { value: RECEIPT_PAYMENT_METHOD.CHECK, label: "Cheque" },
+  { value: RECEIPT_PAYMENT_METHOD.E_WALLET, label: "E-Wallet" },
+]
+
+/** Restrict to non-negative numbers with at most 2 decimal places. */
+function formatAmountInput(value: string): string {
+  let v = value.replace(/[^\d.]/g, "")
+  const parts = v.split(".")
+  if (parts.length > 2) v = parts[0] + "." + parts.slice(1).join("")
+  if (v.includes(".")) {
+    const [intPart, decPart] = v.split(".")
+    v = intPart + "." + decPart.slice(0, 2)
+  }
+  return v
+}
+
+/** Format amount for display (always 2 decimal places when valid). */
+function formatAmountDisplay(value: string): string {
+  if (value === "" || value === undefined) return ""
+  const num = parseFloat(value)
+  if (Number.isNaN(num) || num < 0) return value
+  return num.toFixed(2)
+}
+
+type BankOption = { id: string; name: string }
+type BankAccountOption = {
+  id: string
+  name: string
+  accountNumber: string
+  locationId: string
+  locationName: string
+  locationCode: string
+  glAccountId: string | null
+  glAccountName: string | null
+  glAccountCode: string | null
+}
+
+type LedgerTransactionFormProps = {
+  locations: ReferenceSelectOption[]
+  agencies: ReferenceSelectOption[]
+  banks: BankOption[]
+  bankAccounts: BankAccountOption[]
+  userLocationId?: string | null
+  userLocationName?: string | null
+  /** Called after a transaction is successfully added (e.g. to close dialog and refresh) */
+  onSuccess?: () => void
+  /** If provided, called with receiptId when user submitted via "Add transaction and print" (after onSuccess). Use to open print view. */
+  onSuccessWithReceiptId?: (receiptId: string) => void | Promise<void>
+  /** Types this user is allowed to record. Others are omitted from the list. */
+  allowedTransactionTypes: LedgerTransactionType[]
+}
+
+export function LedgerTransactionForm({
+  locations,
+  agencies,
+  banks,
+  bankAccounts,
+  userLocationId = null,
+  userLocationName = null,
+  onSuccess,
+  onSuccessWithReceiptId,
+  allowedTransactionTypes,
+}: LedgerTransactionFormProps) {
+  const { toast } = useToast()
+  const [lastReceiptNo, setLastReceiptNo] = useState<string | null>(null)
+  const printAfterSubmitRef = useRef(false)
+  const slipInputRef = useRef<HTMLInputElement>(null)
+  const slipCameraInputRef = useRef<HTMLInputElement>(null)
+  const [slipFile, setSlipFile] = useState<File | null>(null)
+  const [slipPreviewUrl, setSlipPreviewUrl] = useState<string | null>(null)
+  const [slipPreviewObjectUrl, setSlipPreviewObjectUrl] = useState<string | null>(null)
+  const [selectedShiftBill, setSelectedShiftBill] = useState<ShiftBillAttachmentDto | null>(null)
+  const [shiftPickerOpen, setShiftPickerOpen] = useState(false)
+  const [shiftBills, setShiftBills] = useState<ShiftBillAttachmentDto[]>([])
+  const [shiftBillsLoading, setShiftBillsLoading] = useState(false)
+  const [shiftBillsError, setShiftBillsError] = useState<string | null>(null)
+  const [slipRequiredError, setSlipRequiredError] = useState<string | null>(null)
+  const formSchema = useMemo(
+    () =>
+      validationSchema.shape({
+        transactionType: Yup.string()
+          .oneOf([...allowedTransactionTypes])
+          .required("Transaction type is required"),
+      }),
+    [allowedTransactionTypes]
+  )
+
+  useEffect(() => {
+    return () => {
+      if (slipPreviewObjectUrl) URL.revokeObjectURL(slipPreviewObjectUrl)
+    }
+  }, [slipPreviewObjectUrl])
+
+  function revokeSlipObjectUrl() {
+    if (slipPreviewObjectUrl) {
+      URL.revokeObjectURL(slipPreviewObjectUrl)
+      setSlipPreviewObjectUrl(null)
+    }
+  }
+
+  function clearSlipImage() {
+    revokeSlipObjectUrl()
+    setSlipFile(null)
+    setSlipPreviewUrl(null)
+    setSelectedShiftBill(null)
+    setShiftPickerOpen(false)
+    setSlipRequiredError(null)
+    if (slipInputRef.current) slipInputRef.current.value = ""
+    if (slipCameraInputRef.current) slipCameraInputRef.current.value = ""
+  }
+
+  function handleSlipSelect(file: File | undefined) {
+    if (!file) return
+    if (!file.type.startsWith("image/")) {
+      toast({ title: "Please choose an image.", variant: "destructive" })
+      return
+    }
+    setSlipRequiredError(null)
+    revokeSlipObjectUrl()
+    const url = URL.createObjectURL(file)
+    setSlipPreviewObjectUrl(url)
+    setSlipFile(file)
+    setSlipPreviewUrl(url)
+    setSelectedShiftBill(null)
+    setShiftPickerOpen(false)
+  }
+
+  function handleSelectShiftBill(item: ShiftBillAttachmentDto) {
+    setSlipRequiredError(null)
+    revokeSlipObjectUrl()
+    setSlipFile(null)
+    setSelectedShiftBill(item)
+    setSlipPreviewUrl(item.thumbUrl)
+    setShiftPickerOpen(false)
+    if (slipInputRef.current) slipInputRef.current.value = ""
+    if (slipCameraInputRef.current) slipCameraInputRef.current.value = ""
+  }
+
+  async function loadShiftBills() {
+    setShiftBillsLoading(true)
+    setShiftBillsError(null)
+    const result = await listShiftBillsForBankDepositAction()
+    if (!result.success) {
+      setShiftBillsError(result.error)
+      setShiftBills([])
+    } else {
+      setShiftBills(result.data)
+    }
+    setShiftBillsLoading(false)
+  }
+
+  async function handleFromThisShift() {
+    const next = !shiftPickerOpen
+    setShiftPickerOpen(next)
+    if (next) await loadShiftBills()
+  }
+
+  const initialValues: LedgerFormValues = {
+    transactionType: allowedTransactionTypes[0] ?? "BRANCH_INCOME",
+    branchId: "",
+    agencyId: "",
+    bankAccountId: "",
+    amount: "",
+    remarks: "",
+    paymentMethod: RECEIPT_PAYMENT_METHOD.CASH,
+    bankId: "",
+    cardReference: "",
+    slipReference: "",
+    slipDate: "",
+  }
+
+  async function handleSubmit(
+    values: LedgerFormValues,
+    { setSubmitting, setValues, setErrors, setTouched }: FormikHelpers<LedgerFormValues>
+  ) {
+    const isAgencyType = AGENCY_TYPES.includes(values.transactionType)
+    if (!allowedTransactionTypes.includes(values.transactionType)) {
+      toast({
+        title: "Not allowed",
+        description: "You don't have permission to record this transaction type.",
+        variant: "destructive",
+      })
+      setSubmitting(false)
+      return
+    }
+    const isBankDeposit = values.transactionType === BANK_DEPOSIT_TYPE
+    const isBranchIncomeOrExpense = BRANCH_INCOME_EXPENSE_TYPES.includes(values.transactionType)
+    const effectiveBranchId = usesAssignedUserLocation(values.transactionType)
+      ? (userLocationId ?? "")
+      : values.branchId
+    if (usesAssignedUserLocation(values.transactionType) && !effectiveBranchId.trim()) {
+      toast({
+        title: "Validation",
+        description: isBankDeposit
+          ? "You must have a branch assigned to record bank deposits."
+          : isBranchIncomeOrExpense
+            ? "You must have a branch assigned to record branch income or expense."
+            : "You must have a branch assigned to record agency transactions.",
+        variant: "destructive",
+      })
+      setSubmitting(false)
+      return
+    }
+
+    const amountNum = parseFloat(values.amount)
+    if (isBankDeposit && !slipFile && !selectedShiftBill) {
+      setSlipRequiredError("A deposit slip photo is required.")
+      toast({
+        title: "Validation",
+        description: "Attach a deposit slip photo before requesting a bank deposit.",
+        variant: "destructive",
+      })
+      setSubmitting(false)
+      return
+    }
+    try {
+      let slipImageKey: string | undefined
+      if (isBankDeposit && slipFile) {
+        const blob = await compressBillImage(slipFile)
+        if (blob.size > BANK_DEPOSIT_SLIP_MAX_BYTES) {
+          toast({
+            title: "Image too large",
+            description: "Deposit slip must be 2 MB or smaller after compression.",
+            variant: "destructive",
+          })
+          setSubmitting(false)
+          return
+        }
+        const requested = await requestBankDepositSlipUploadAction({
+          contentType: "image/jpeg",
+          sizeBytes: blob.size,
+        })
+        if (!requested.success) {
+          toast({
+            title: "Could not upload slip",
+            description: requested.error,
+            variant: "destructive",
+          })
+          setSubmitting(false)
+          return
+        }
+        const put = await fetch(requested.uploadUrl, {
+          method: "PUT",
+          headers: { "Content-Type": "image/jpeg" },
+          body: blob,
+        })
+        if (!put.ok) {
+          toast({
+            title: "Could not upload slip",
+            description: "Upload to storage failed. Try again.",
+            variant: "destructive",
+          })
+          setSubmitting(false)
+          return
+        }
+        slipImageKey = requested.slipKey
+      }
+
+      const result = await addLedgerTransaction({
+        transactionType: values.transactionType,
+        branchId: effectiveBranchId,
+        agencyId: isAgencyType ? values.agencyId : null,
+        amount: amountNum,
+        remarks: values.remarks.trim(),
+        paymentMethod: values.transactionType === "AGENCY_DEPOSIT" ? values.paymentMethod : undefined,
+        bank:
+          values.transactionType === "AGENCY_DEPOSIT" &&
+          values.paymentMethod !== RECEIPT_PAYMENT_METHOD.CASH &&
+          values.bankId
+            ? banks.find((b) => b.id === values.bankId)?.name ?? ""
+            : undefined,
+        bankId:
+          values.transactionType === "AGENCY_DEPOSIT" && values.paymentMethod !== RECEIPT_PAYMENT_METHOD.CASH
+            ? values.bankId || undefined
+            : undefined,
+        bankAccountId:
+          values.transactionType === "BANK_DEPOSIT"
+            ? values.bankAccountId || undefined
+            : undefined,
+        cardReference:
+          values.transactionType === "AGENCY_DEPOSIT" &&
+          (values.paymentMethod === RECEIPT_PAYMENT_METHOD.CREDIT_CARD ||
+            values.paymentMethod === RECEIPT_PAYMENT_METHOD.E_WALLET)
+            ? values.cardReference.trim()
+            : undefined,
+        slipReference:
+          values.transactionType === "AGENCY_DEPOSIT" &&
+          (values.paymentMethod === RECEIPT_PAYMENT_METHOD.SLIP ||
+            values.paymentMethod === RECEIPT_PAYMENT_METHOD.CHECK)
+            ? values.slipReference.trim()
+            : undefined,
+        slipDate:
+          values.transactionType === "AGENCY_DEPOSIT" &&
+          (values.paymentMethod === RECEIPT_PAYMENT_METHOD.SLIP ||
+            values.paymentMethod === RECEIPT_PAYMENT_METHOD.CHECK)
+            ? values.slipDate
+            : undefined,
+        slipImageKey,
+        slipImageContentType: slipImageKey ? "image/jpeg" : undefined,
+        slipImageName: slipImageKey ? slipFile?.name : undefined,
+        shiftBillAttachmentId:
+          isBankDeposit && !slipImageKey && selectedShiftBill ? selectedShiftBill.id : undefined,
+      })
+
+      if (result.success) {
+        if ("pendingApproval" in result && result.pendingApproval) {
+          toast({
+            title: "Deposit requested",
+            description: "Waiting for approval. Nothing has been posted to the ledger yet.",
+          })
+          setValues({
+            ...values,
+            amount: "",
+            remarks: "",
+            bankAccountId: "",
+            cardReference: "",
+            slipReference: "",
+            slipDate: "",
+            bankId: "",
+          })
+          clearSlipImage()
+          onSuccess?.()
+          printAfterSubmitRef.current = false
+          setSubmitting(false)
+          return
+        }
+        if (!("receiptId" in result) || !("receiptNoString" in result)) {
+          toast({
+            title: "Error",
+            description: "Unexpected response after recording the transaction.",
+            variant: "destructive",
+          })
+          setSubmitting(false)
+          return
+        }
+        setLastReceiptNo(result.receiptNoString)
+        toast({
+          title: "Transaction recorded",
+          description: `Receipt ${result.receiptNoString} created.`,
+        })
+        setValues({
+          ...values,
+          amount: "",
+          remarks: "",
+          bankAccountId: "",
+          cardReference: "",
+          slipReference: "",
+          slipDate: "",
+          bankId: "",
+        })
+        onSuccess?.()
+        if (printAfterSubmitRef.current && result.receiptId) {
+          printAfterSubmitRef.current = false
+          await onSuccessWithReceiptId?.(result.receiptId)
+        }
+        setSubmitting(false)
+        return
+      }
+
+      if (result.errorCode === "VALIDATION" && result.issues && Object.keys(result.issues).length > 0) {
+        const fieldErrors: Record<string, string> = {}
+        for (const [key, messages] of Object.entries(result.issues)) {
+          const msg = Array.isArray(messages) && messages.length > 0 ? messages[0] : undefined
+          if (msg) fieldErrors[key] = msg
+        }
+        setErrors(fieldErrors)
+        setTouched(
+          Object.keys(fieldErrors).reduce((acc, k) => ({ ...acc, [k]: true }), {} as Record<string, boolean>)
+        )
+      }
+      toast({
+        title: "Error",
+        description: result.message,
+        variant: "destructive",
+      })
+      setSubmitting(false)
+    } catch (err) {
+      toast({
+        title: "Error",
+        description: err instanceof Error ? err.message : "Something went wrong",
+        variant: "destructive",
+      })
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  return (
+    <Formik
+      initialValues={initialValues}
+      validationSchema={formSchema}
+      onSubmit={handleSubmit}
+      enableReinitialize
+    >
+      {(formik) => {
+        const isAgencyType = AGENCY_TYPES.includes(formik.values.transactionType)
+        const isAgencyDeposit = formik.values.transactionType === "AGENCY_DEPOSIT"
+        const isBankDeposit = formik.values.transactionType === "BANK_DEPOSIT"
+        const isBranchIncomeOrExpense = BRANCH_INCOME_EXPENSE_TYPES.includes(
+          formik.values.transactionType
+        )
+        const showAssignedBranch = isAgencyType || isBranchIncomeOrExpense
+        const showPaymentDetails = isAgencyDeposit
+        const showBank = showPaymentDetails && formik.values.paymentMethod !== RECEIPT_PAYMENT_METHOD.CASH
+        const isCard = formik.values.paymentMethod === RECEIPT_PAYMENT_METHOD.CREDIT_CARD
+        const isEWallet = formik.values.paymentMethod === RECEIPT_PAYMENT_METHOD.E_WALLET
+        const isSlip = formik.values.paymentMethod === RECEIPT_PAYMENT_METHOD.SLIP
+        const isCheque = formik.values.paymentMethod === RECEIPT_PAYMENT_METHOD.CHECK
+
+        return (
+          <Form className="space-y-6 rounded-lg border bg-card p-6 shadow-sm">
+            <div className="space-y-2">
+              <Label htmlFor="transactionType">Transaction type</Label>
+              <Select
+                value={formik.values.transactionType}
+                onValueChange={(v) => {
+                  formik.setFieldValue("transactionType", v)
+                  if (v !== BANK_DEPOSIT_TYPE) clearSlipImage()
+                }}
+              >
+                <SelectTrigger id="transactionType">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {allowedTransactionTypes.map((t) => (
+                    <SelectItem key={t} value={t}>
+                      {TRANSACTION_TYPE_LABELS[t]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {!isAgencyType && !isBankDeposit && !isBranchIncomeOrExpense && (
+              <div className="space-y-2">
+                <Label htmlFor="branchId">Branch</Label>
+                <ReferenceSelect
+                  options={locations}
+                  value={formik.values.branchId}
+                  onChange={(v) => formik.setFieldValue("branchId", v)}
+                  placeholder="Select branch"
+                  label="Branch"
+                  required
+                  className="w-full"
+                />
+                {formik.errors.branchId && (
+                  <p className="text-sm text-destructive">{formik.errors.branchId}</p>
+                )}
+              </div>
+            )}
+
+            {isBankDeposit && (
+              <div className="space-y-2">
+                <Label htmlFor="bankAccountId">Bank account</Label>
+                <Select
+                  value={formik.values.bankAccountId}
+                  onValueChange={(v) => formik.setFieldValue("bankAccountId", v)}
+                >
+                  <SelectTrigger id="bankAccountId">
+                    <SelectValue placeholder="Select bank account" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {bankAccounts
+                      .map((b) => (
+                        <SelectItem key={b.id} value={b.id}>
+                          {`${b.name} - ${b.accountNumber}${b.glAccountCode ? ` [${b.glAccountCode}]` : ""}`}
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+                {formik.errors.bankAccountId && (
+                  <p className="text-sm text-destructive">{formik.errors.bankAccountId}</p>
+                )}
+              </div>
+            )}
+
+            {showAssignedBranch && (
+              <div className="space-y-2">
+                <Label>Branch</Label>
+                <p className="text-sm text-muted-foreground">
+                  {userLocationId
+                    ? userLocationName
+                      ? `Your branch: ${userLocationName}`
+                      : "Your branch will be used"
+                    : isBranchIncomeOrExpense
+                      ? "You must have a branch assigned to record branch income or expense."
+                      : "You must have a branch assigned to record agency transactions."}
+                </p>
+              </div>
+            )}
+
+            {isAgencyType && (
+              <div className="space-y-2">
+                <Label htmlFor="agencyId">Agency</Label>
+                <ReferenceSelect
+                  options={agencies}
+                  value={formik.values.agencyId}
+                  onChange={(v) => formik.setFieldValue("agencyId", v)}
+                  placeholder="Select agency"
+                  label="Agency"
+                  required
+                  className="w-full"
+                />
+                {formik.errors.agencyId && (
+                  <p className="text-sm text-destructive">{formik.errors.agencyId}</p>
+                )}
+              </div>
+            )}
+
+            {showPaymentDetails && (
+              <div className="space-y-2">
+                <Label>Payment method</Label>
+                <Select
+                  value={String(formik.values.paymentMethod)}
+                  onValueChange={(v) => {
+                    formik.setFieldValue("paymentMethod", Number(v))
+                    formik.setFieldValue("bankId", "")
+                    formik.setFieldValue("cardReference", "")
+                    formik.setFieldValue("slipReference", "")
+                    formik.setFieldValue("slipDate", "")
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {PAYMENT_OPTIONS.map((o) => (
+                      <SelectItem key={o.value} value={String(o.value)}>
+                        {o.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            {showBank && (
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="bankId">Bank</Label>
+                  <Select
+                    value={formik.values.bankId}
+                    onValueChange={(v) => formik.setFieldValue("bankId", v)}
+                  >
+                    <SelectTrigger id="bankId">
+                      <SelectValue placeholder="Select bank" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {banks.map((b) => (
+                        <SelectItem key={b.id} value={b.id}>
+                          {b.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {formik.errors.bankId && (
+                    <p className="text-sm text-destructive">{formik.errors.bankId}</p>
+                  )}
+                </div>
+                {isCard && (
+                  <div className="space-y-2">
+                    <Label htmlFor="cardReference">Card (last 4 digits)</Label>
+                    <Input
+                      id="cardReference"
+                      value={formik.values.cardReference}
+                      onChange={(e) =>
+                        formik.setFieldValue(
+                          "cardReference",
+                          e.target.value.replace(/\D/g, "").slice(0, 4)
+                        )
+                      }
+                      placeholder="1234"
+                      maxLength={4}
+                    />
+                    {formik.errors.cardReference && (
+                      <p className="text-sm text-destructive">{formik.errors.cardReference}</p>
+                    )}
+                  </div>
+                )}
+                {isEWallet && (
+                  <div className="space-y-2">
+                    <Label htmlFor="cardReference">
+                      E-wallet reference <span className="text-destructive">*</span>
+                    </Label>
+                    <Input
+                      id="cardReference"
+                      value={formik.values.cardReference}
+                      onChange={(e) => formik.setFieldValue("cardReference", e.target.value)}
+                      onBlur={formik.handleBlur}
+                      placeholder="E-wallet reference"
+                      required
+                    />
+                    {formik.errors.cardReference && (
+                      <p className="text-sm text-destructive">{formik.errors.cardReference}</p>
+                    )}
+                  </div>
+                )}
+                {isSlip && (
+                  <>
+                    <div className="space-y-2">
+                      <Label htmlFor="slipReference">
+                        Slip reference <span className="text-destructive">*</span>
+                      </Label>
+                      <Input
+                        id="slipReference"
+                        value={formik.values.slipReference}
+                        onChange={(e) => formik.setFieldValue("slipReference", e.target.value)}
+                        placeholder="Slip reference"
+                      />
+                      {formik.errors.slipReference && (
+                        <p className="text-sm text-destructive">{formik.errors.slipReference}</p>
+                      )}
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="slipDate">
+                        Slip date <span className="text-destructive">*</span>
+                      </Label>
+                      <Input
+                        id="slipDate"
+                        type="date"
+                        value={formik.values.slipDate}
+                        onChange={(e) => formik.setFieldValue("slipDate", e.target.value)}
+                        required
+                        className="text-foreground"
+                      />
+                      {formik.errors.slipDate && (
+                        <p className="text-sm text-destructive">{formik.errors.slipDate}</p>
+                      )}
+                    </div>
+                  </>
+                )}
+                {isCheque && (
+                  <>
+                    <div className="space-y-2">
+                      <Label htmlFor="chequeNumber">
+                        Cheque No <span className="text-destructive">*</span>
+                      </Label>
+                      <Input
+                        id="chequeNumber"
+                        value={formik.values.slipReference}
+                        onChange={(e) => formik.setFieldValue("slipReference", e.target.value)}
+                        placeholder="Cheque number"
+                      />
+                      {formik.errors.slipReference && (
+                        <p className="text-sm text-destructive">{formik.errors.slipReference}</p>
+                      )}
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="chequeDate">
+                        Cheque date <span className="text-destructive">*</span>
+                      </Label>
+                      <Input
+                        id="chequeDate"
+                        type="date"
+                        value={formik.values.slipDate}
+                        onChange={(e) => formik.setFieldValue("slipDate", e.target.value)}
+                        required
+                        className="text-foreground"
+                      />
+                      {formik.errors.slipDate && (
+                        <p className="text-sm text-destructive">{formik.errors.slipDate}</p>
+                      )}
+                    </div>
+                  </>
+                )}
+              </>
+            )}
+
+            <div className="space-y-2">
+              <Label htmlFor="amount">Amount (LKR)</Label>
+              <Input
+                id="amount"
+                type="text"
+                inputMode="decimal"
+                value={formik.values.amount}
+                onChange={(e) => formik.setFieldValue("amount", formatAmountInput(e.target.value))}
+                onBlur={(e) => {
+                  formik.handleBlur(e)
+                  const v = formik.values.amount
+                  if (v !== "") {
+                    const formatted = formatAmountDisplay(v)
+                    if (formatted !== v) formik.setFieldValue("amount", formatted)
+                  }
+                }}
+                placeholder="0.00"
+              />
+              {formik.errors.amount && (
+                <p className="text-sm text-destructive">{formik.errors.amount}</p>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="remarks">Remarks <span className="text-destructive">*</span></Label>
+              <Input
+                id="remarks"
+                value={formik.values.remarks}
+                onChange={(e) => formik.setFieldValue("remarks", e.target.value)}
+                onBlur={formik.handleBlur}
+                placeholder="Enter remarks"
+              />
+              {formik.errors.remarks && (
+                <p className="text-sm text-destructive">{formik.errors.remarks}</p>
+              )}
+            </div>
+
+            {isBankDeposit && (
+              <div className="space-y-2">
+                <Label htmlFor="depositSlip">
+                  Deposit slip <span className="text-destructive">*</span>
+                </Label>
+                <input
+                  ref={slipInputRef}
+                  id="depositSlip"
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp,image/*"
+                  className="hidden"
+                  onChange={(e) => handleSlipSelect(e.target.files?.[0])}
+                />
+                <input
+                  ref={slipCameraInputRef}
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  className="hidden"
+                  onChange={(e) => handleSlipSelect(e.target.files?.[0])}
+                />
+                {slipPreviewUrl ? (
+                  <div className="space-y-1">
+                    <div className="relative w-fit">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={slipPreviewUrl}
+                        alt="Deposit slip preview"
+                        className="h-36 w-auto max-w-full rounded-md border object-contain bg-muted"
+                      />
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="secondary"
+                        className="absolute top-1 right-1 h-7 w-7"
+                        onClick={clearSlipImage}
+                        aria-label="Remove deposit slip"
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                    {selectedShiftBill && (
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="text-xs text-muted-foreground">
+                          From this shift
+                          {selectedShiftBill.kind
+                            ? ` · ${SHIFT_BILL_KIND_LABELS[selectedShiftBill.kind]}`
+                            : ""}
+                          {selectedShiftBill.note ? ` · ${selectedShiftBill.note}` : ""}
+                        </p>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          className="h-7 px-2 text-xs"
+                          onClick={() => void handleFromThisShift()}
+                        >
+                          Change
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => slipCameraInputRef.current?.click()}
+                      className="gap-2"
+                    >
+                      <Camera className="h-4 w-4" />
+                      Take photo
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => slipInputRef.current?.click()}
+                      className="gap-2"
+                    >
+                      <ImagePlus className="h-4 w-4" />
+                      Choose file
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={shiftPickerOpen ? "secondary" : "outline"}
+                      onClick={() => void handleFromThisShift()}
+                      className="gap-2"
+                    >
+                      <Images className="h-4 w-4" />
+                      From this shift
+                    </Button>
+                  </div>
+                )}
+                {shiftPickerOpen && (
+                  <div className="rounded-md border p-2 space-y-2">
+                    {shiftBillsLoading ? (
+                      <p className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        Loading shift photos…
+                      </p>
+                    ) : shiftBillsError ? (
+                      <p className="text-xs text-destructive">{shiftBillsError}</p>
+                    ) : shiftBills.length === 0 ? (
+                      <p className="text-xs text-muted-foreground">
+                        No photos on this shift. Capture them from the camera on the shift bar, or take a photo here.
+                      </p>
+                    ) : (
+                      <div className="grid grid-cols-3 gap-2">
+                        {shiftBills.map((item) => {
+                          const label = item.kind ? SHIFT_BILL_KIND_LABELS[item.kind] : "Bill"
+                          const selected = selectedShiftBill?.id === item.id
+                          return (
+                            <button
+                              key={item.id}
+                              type="button"
+                              onClick={() => handleSelectShiftBill(item)}
+                              className={cn(
+                                "relative overflow-hidden rounded-md border bg-muted text-left",
+                                selected && "ring-2 ring-primary ring-offset-1"
+                              )}
+                            >
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img
+                                src={item.thumbUrl}
+                                alt={label}
+                                className="aspect-square h-full w-full object-cover"
+                              />
+                              <span className="block px-1.5 py-1">
+                                <span className="block truncate text-[11px] font-medium">{label}</span>
+                                <span className="mt-0.5 block truncate text-[10px] text-muted-foreground">
+                                  {shiftBillUploaderTag(item)}
+                                </span>
+                              </span>
+                            </button>
+                          )
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )}
+                {slipRequiredError && (
+                  <p className="text-sm text-destructive">{slipRequiredError}</p>
+                )}
+                <p className="text-xs text-muted-foreground">
+                  A photo of the bank slip is required. Take one, choose a file, or attach a photo already captured on this shift. JPEG, PNG, or WebP, up to 2 MB.
+                </p>
+              </div>
+            )}
+            {isBankDeposit && (
+              <p className="text-sm text-muted-foreground">
+                Bank deposits are sent for approval. The ledger receipt and till deduction happen only after a manager approves.{" "}
+                <Link href="/approvals" className="underline font-medium hover:no-underline">
+                  Open Approval Center
+                </Link>
+              </p>
+            )}
+            {lastReceiptNo && (
+              <p className="text-sm text-muted-foreground">
+                Last receipt: <span className="font-medium text-foreground">{lastReceiptNo}</span>
+              </p>
+            )}
+
+            <div className="flex flex-wrap gap-2">
+              <Button type="submit" disabled={formik.isSubmitting}>
+                {formik.isSubmitting
+                  ? isBankDeposit && (slipFile || selectedShiftBill)
+                    ? "Attaching slip…"
+                    : "Saving…"
+                  : isBankDeposit
+                    ? "Request deposit"
+                    : "Add transaction"}
+              </Button>
+              {onSuccessWithReceiptId && !isBankDeposit && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={formik.isSubmitting}
+                  onClick={() => {
+                    printAfterSubmitRef.current = true
+                    formik.submitForm()
+                  }}
+                >
+                  {formik.isSubmitting ? "Saving…" : "Add transaction and print"}
+                </Button>
+              )}
+            </div>
+          </Form>
+        )
+      }}
+    </Formik>
+  )
+}

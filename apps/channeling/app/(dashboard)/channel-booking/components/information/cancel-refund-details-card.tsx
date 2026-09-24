@@ -1,0 +1,105 @@
+"use client"
+
+import type { CancelOrRefundDetailsView, ReceiptRowView } from "@/services/channel-booking/get-booking-details.service"
+import { Ban } from "lucide-react"
+import { PrintReceiptButton } from "../print-receipt-button"
+
+function formatRs(amount: number): string {
+  return `Rs. ${amount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+}
+
+function Row({
+  label,
+  value,
+  highlight,
+}: {
+  label: string
+  value: string
+  highlight?: boolean
+}) {
+  return (
+    <div
+      className={`flex justify-between gap-2 py-1.5 border-b border-border/40 last:border-0 text-xs ${highlight ? "bg-primary/10 rounded px-2 -mx-0.5" : ""}`}
+    >
+      <span className={highlight ? "font-semibold text-foreground" : "text-muted-foreground"}>
+        {label}
+      </span>
+      <span className={highlight ? "font-semibold text-foreground" : "text-foreground text-right break-words"}>
+        {value}
+      </span>
+    </div>
+  )
+}
+
+export function CancelRefundDetailsCard({
+  details,
+  paymentReceiptId,
+}: {
+  details: CancelOrRefundDetailsView
+  paymentReceiptId?: string | null
+}) {
+  const hasRefund = details.refundAmount !== 0 || details.refundReceipts.length > 0
+  return (
+    <div className="flex flex-1 flex-col min-h-0 rounded-lg border border-red-200/80 bg-red-50 dark:bg-red-950/30 dark:border-red-800/50">
+      <div className="flex items-center gap-2 p-3 border-b border-red-200/70 dark:border-red-800/50">
+        <Ban className="size-5 text-red-600 dark:text-red-400 shrink-0" aria-hidden />
+        <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+          Cancel / refund details
+        </span>
+        {paymentReceiptId ? (
+          <div className="ml-auto">
+            <PrintReceiptButton
+              receiptId={paymentReceiptId}
+              className="bg-red-700 hover:bg-red-800 text-white"
+            />
+          </div>
+        ) : null}
+      </div>
+      <div className="flex-1 min-h-0 overflow-y-auto p-3 space-y-2">
+        {details.refundAmount !== 0 && (
+          <Row label="Refund amount" value={formatRs(Math.abs(details.refundAmount))} highlight />
+        )}
+        {details.refundReason ? (
+          <Row label="Cancel / refund remark" value={details.refundReason} />
+        ) : null}
+        {details.approvals.map((approval, index) => (
+          <Row key={`${approval.label}-${index}`} label={approval.label} value={approval.value} highlight />
+        ))}
+        {details.refundReceipts.length > 0 ? (
+          <>
+            <div className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground pt-1">
+              Refund receipt(s)
+            </div>
+            {details.refundReceipts.map((r) => (
+              <RefundReceiptRow key={r.id} row={r} />
+            ))}
+          </>
+        ) : null}
+        {!hasRefund && (
+          <p className="text-xs text-muted-foreground py-1">Canceled with no refund.</p>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function RefundReceiptRow({ row }: { row: ReceiptRowView }) {
+  return (
+    <div className="rounded border border-border/40 bg-background/50 p-2 space-y-0.5 text-xs">
+      <div className="flex items-start gap-2">
+        <div className="min-w-0 flex-1">
+          <Row label="Receipt No." value={row.receiptNoString} />
+        </div>
+        <PrintReceiptButton
+          receiptId={row.id}
+          iconOnly
+          className="text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
+        />
+      </div>
+      <Row label="Payment by" value={row.paymentMethodName} />
+      <Row label="Amount" value={formatRs(row.amount)} highlight />
+      <Row label="Processed" value={row.processedBy} />
+      {row.remarks ? <Row label="Remarks" value={row.remarks} /> : null}
+    </div>
+  )
+}
