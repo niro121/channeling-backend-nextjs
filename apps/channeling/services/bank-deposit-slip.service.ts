@@ -249,7 +249,8 @@ export async function getBankDepositSlipForView(params: {
   const canSeeDeposits =
     isAdmin ||
     hasPermission(params.permissions, "approvals", APPROVAL_ACTION.VIEW) ||
-    hasPermission(params.permissions, "approvals", APPROVAL_ACTION.APPROVE_BANK_DEPOSIT)
+    hasPermission(params.permissions, "approvals", APPROVAL_ACTION.APPROVE_BANK_DEPOSIT) ||
+    hasPermission(params.permissions, "reports", "view")
   if (!isAdmin && !isOwner && !canSeeDeposits) {
     return { success: false, status: 403, error: "You don't have permission to view this photo." }
   }

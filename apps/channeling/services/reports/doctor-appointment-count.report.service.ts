@@ -159,28 +159,37 @@ export async function getDoctorAppointmentCountReportService(
 
       row.paid += paymentCount;
 
-      if (b.status === 2 || b.canceledAt) {
-        row.cancel += refundCount;
+      // refund: 0 none, 1 professional only, 2 hospital only, 3 full cancel.
+      // A paid cancel (refund 3) belongs in Cancel only. Hos/Pro Refund are partial refunds.
+      const isFullCancel = b.status === 2 || Boolean(b.canceledAt) || refundType === 3;
+      if (isFullCancel) {
+        row.cancel += refundType === 3 ? Math.max(refundCount, 1) : refundCount;
       }
-      if (refundType === 2 || refundType === 3) {
-        row.hosRefund += refundCount;
+      if (refundType === 2) {
+        row.hosRefund += Math.max(refundCount, 1);
       }
-      if (refundType === 1 || refundType === 3) {
-        row.proRefund += refundCount;
+      if (refundType === 1) {
+        row.proRefund += Math.max(refundCount, 1);
       }
 
-      row.hosValid = Math.max(0, row.paid - row.hosRefund);
-      row.proValid = Math.max(0, row.paid - row.proRefund);
-      row.nettValid = Math.max(0, row.paid - Math.max(row.cancel, row.hosRefund, row.proRefund));
+      // Canceled bookings contribute no fee. An unpaid cancel has no refund amount stored,
+      // so subtracting refund fields alone would still add its hospital and professional fees.
+      if (!isFullCancel) {
+        const hosNet = Math.max(0, (b.hospitalFee ?? 0) - (b.hospitalFeeDiscount ?? 0) - (b.refundAmountHospitalFee ?? 0));
+        const proNet = Math.max(
+          0,
+          (b.professionalFee ?? 0) - (b.professionsalFeeDiscount ?? 0) - (b.refundAmountProfessionalFee ?? 0)
+        );
+        row.hos += hosNet;
+        row.pro += proNet;
+        row.total += hosNet + proNet;
+      }
+    }
 
-      const hosNet = Math.max(0, (b.hospitalFee ?? 0) - (b.hospitalFeeDiscount ?? 0) - (b.refundAmountHospitalFee ?? 0));
-      const proNet = Math.max(
-        0,
-        (b.professionalFee ?? 0) - (b.professionsalFeeDiscount ?? 0) - (b.refundAmountProfessionalFee ?? 0)
-      );
-      row.hos += hosNet;
-      row.pro += proNet;
-      row.total += hosNet + proNet;
+    for (const row of grouped.values()) {
+      row.hosValid = Math.max(0, row.paid - row.cancel - row.hosRefund);
+      row.proValid = Math.max(0, row.paid - row.cancel - row.proRefund);
+      row.nettValid = Math.max(0, row.paid - row.cancel - Math.max(row.hosRefund, row.proRefund));
     }
 
     const data = Array.from(grouped.values()).sort((a, b) => {
