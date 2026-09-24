@@ -376,10 +376,10 @@ export function Bookings() {
                     const displayName = [b.title, b.name].filter(Boolean).join(" ") || "—"
                     const agentStaff =
                       b.method === 2
-                        ? b.agencyCode || b.agencyRef || "—"
+                        ? b.agencyCode || "—"
                         : b.method === 3
-                          ? b.staffCode || b.staffId || "—"
-                          : b.staffId || "—"
+                          ? b.staffCode || "—"
+                          : "—"
                     return (
                       <tr
                         key={b.id}
