@@ -730,13 +730,12 @@ function SectionBlock({
                   </>
                 ) : (
                   <>
-                    <TableHead className="py-1 text-[11px] font-medium text-left">
+                    <TableHead className="ucs-patient py-1 text-[11px] font-medium text-left">
                       {isAgencyBillSection ? 'Agency' : 'Patient'}
                     </TableHead>
                     <TableHead className="ucs-consultant py-1 text-[11px] font-medium text-left">Consultant</TableHead>
                   </>
-                )}
-                {PAYMENT_COLUMNS.map((c) => (
+                )}                {PAYMENT_COLUMNS.map((c) => (
                   <TableHead key={c.key} className={AMOUNT_HEAD}>
                     {c.label}
                   </TableHead>
@@ -753,8 +752,12 @@ function SectionBlock({
                         ? row.txCreated.toLocaleString()
                         : String(row.txCreated ?? '')}
                     </div>
-                    <div className="ucs-stack-line text-[9px] text-muted-foreground leading-tight mt-0.5">
+                    {/* Screen: full shift range; print: user name + code only */}
+                    <div className="ucs-stack-line ucs-tx-full text-[9px] text-muted-foreground leading-tight mt-0.5">
                       {row.shiftLabel ?? '—'}
+                    </div>
+                    <div className="ucs-stack-line ucs-tx-compact hidden text-[9px] text-muted-foreground leading-tight mt-0.5">
+                      {row.shiftUserLabel ?? '—'}
                     </div>
                   </TableCell>
                   <TableCell className="ucs-session py-0.5 text-[11px] text-left">{row.sessionDateTime ?? '—'}</TableCell>
@@ -769,7 +772,7 @@ function SectionBlock({
                     </>
                   ) : (
                     <>
-                      <TableCell className="py-0.5 text-[11px] text-left">{row.patient ?? '—'}</TableCell>
+                      <TableCell className="ucs-patient py-0.5 text-[11px] text-left">{row.patient ?? '—'}</TableCell>
                       <TableCell className="ucs-consultant py-0.5 text-[11px] text-left">{row.consultant ?? '—'}</TableCell>
                     </>
                   )}

@@ -51,9 +51,9 @@ const AMOUNT_COL_MM = 18;
 /**
  * Meta column widths matching print (mm):
  * No | Tx | Session | Receipt | Patient | Consultant
- * Receipt narrower / Consultant wider by the same amount as print.
+ * Print: Tx compact (date/time + user/code); Patient = Consultant.
  */
-const META_WIDTHS_MM = [7, 54, 28, 28, 16, 18] as const;
+const META_WIDTHS_MM = [7, 40, 28, 28, 24, 24] as const;
 
 function formatAmount(n: number | undefined | null): string {
   const num = Number(n);
@@ -86,7 +86,8 @@ function txLabel(row: CashierSummaryReportLineItem): string {
     row.txCreated instanceof Date
       ? row.txCreated.toLocaleString()
       : String(row.txCreated ?? '—');
-  return `${tx}\n${row.shiftLabel ?? '—'}`;
+  // Match print: date/time + user name/code only (no shift start–end range)
+  return `${tx}\n${row.shiftUserLabel ?? '—'}`;
 }
 
 function pageSize(doc: jsPDF): { width: number; height: number } {
