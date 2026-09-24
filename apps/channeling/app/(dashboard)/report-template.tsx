@@ -182,6 +182,16 @@ export interface ReportTemplateProps<T, E = T> {
   /** `@page` size for branded browser print (default: A4 landscape). */
   printPageSize?: string;
   /**
+   * Optional `@page` margin shorthand for branded browser print.
+   * e.g. "7mm 5mm 12mm" — keeps Generated/page footers via ReportPrintLayout.
+   */
+  printPageMargins?: string;
+  /**
+   * PDF page margin in mm (default 10). Lower values (e.g. 5) widen the table
+   * to fill more of the page — same intent as print side-margin reduction.
+   */
+  pdfPageMarginMm?: number;
+  /**
    * PDF/Excel page orientation. When omitted, follows `printPageSize`
    * (portrait if that string includes "portrait", otherwise landscape).
    */
@@ -229,6 +239,8 @@ function ReportTemplateContent<T, E = T>({
   generationDetails,
   printSummaryItemsOnly = false,
   printPageSize = 'A4 landscape',
+  printPageMargins,
+  pdfPageMarginMm,
   exportOrientation,
   renderPrintContent,
 }: ReportTemplateProps<T, E>) {
@@ -456,9 +468,10 @@ function ReportTemplateContent<T, E = T>({
         fileName: args.fileName,
         orientation: isPortrait ? 'portrait' : 'landscape',
         compactTable: isPortrait,
+        pageMarginMm: pdfPageMarginMm,
       });
     },
-    [printSummaryItems, lastRun?.generatedAt, printPageSize, exportOrientation]
+    [printSummaryItems, lastRun?.generatedAt, printPageSize, exportOrientation, pdfPageMarginMm]
   );
 
   const handleBrandedExcelDownload = React.useCallback(
@@ -592,6 +605,7 @@ function ReportTemplateContent<T, E = T>({
             <ReportPrintLayout
               reportName={title}
               pageSize={printPageSize}
+              pageMargins={printPageMargins}
               generatedAt={lastRun?.generatedAt ?? ''}
               summaryItems={printSummaryItems}
             >

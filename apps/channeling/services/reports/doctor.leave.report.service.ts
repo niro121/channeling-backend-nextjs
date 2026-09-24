@@ -235,7 +235,7 @@ export const getDoctorLeaveReportService = async ({
 
     const sessionMap = new Map<
       string,
-      { date: Date; startTime: Date; endTime: Date; branchName: string }
+      { date: Date; startTime: Date; endTime: Date; branchName: string | null }
     >();
     if (allSessionIds.size > 0) {
       // DoctorSession only decides which doctors to include. A doctor can have
@@ -261,7 +261,7 @@ export const getDoctorLeaveReportService = async ({
           date: true,
           startTime: true,
           endTime: true,
-          location: { select: { name: true } }
+          location: { select: { name: true } },
         }
       });
       for (const s of sessions) {
@@ -269,7 +269,7 @@ export const getDoctorLeaveReportService = async ({
           date: s.date,
           startTime: s.startTime,
           endTime: s.endTime,
-          branchName: s.location?.name ?? ''
+          branchName: s.location?.name ?? null,
         });
       }
     }
@@ -309,6 +309,7 @@ export const getDoctorLeaveReportService = async ({
           branchName: s.branchName || '-',
           sessionStartTime: s.startTime,
           sessionEndTime: s.endTime,
+          branchNamee: s.branchName,
           leaveSessionFormatted: `${day} (${range})`
         });
       }

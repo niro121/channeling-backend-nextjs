@@ -69,31 +69,82 @@ function DoctorArrivalsReportContentInner({
     <>
       <style>{`
         @media print {
+          /* Use full printable width — kill container max-width / auto side margins */
+          .doctor-arrivals-report-root,
+          .doctor-arrivals-report-root.container {
+            width: 100% !important;
+            max-width: none !important;
+            margin-left: 0 !important;
+            margin-right: 0 !important;
+            padding-left: 0 !important;
+            padding-right: 0 !important;
+          }
+          .doctor-arrivals-report-root .rpt-template-card,
+          .doctor-arrivals-report-root .rpt-print-root,
+          .doctor-arrivals-report-root .rpt-print-body,
+          .doctor-arrivals-report-root .rpt-print-header,
+          .doctor-arrivals-report-root .rpt-print-summary {
+            width: 100% !important;
+            max-width: none !important;
+            box-sizing: border-box !important;
+          }
+
           .doctor-arrivals-report-root .rpt-print-root table {
             table-layout: fixed !important;
             width: 100% !important;
+            max-width: 100% !important;
+            border-collapse: collapse !important;
+            border: 0.5pt solid #000 !important;
           }
           .doctor-arrivals-report-root .rpt-print-root th,
           .doctor-arrivals-report-root .rpt-print-root td {
             font-size: 6.5pt !important;
-            padding: 0.7mm 0.5mm !important;
+            padding: 0.8mm 0.6mm !important;
             line-height: 1.15 !important;
             white-space: normal !important;
             word-break: break-word !important;
-            overflow: visible !important;
+            overflow-wrap: break-word !important;
+            overflow: hidden !important;
             text-overflow: clip !important;
             max-width: none !important;
+            border: 0.5pt solid #000 !important;
+            color: #000 !important;
+            vertical-align: top !important;
+            box-sizing: border-box !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
           }
           .doctor-arrivals-report-root .rpt-print-root thead th {
             font-size: 6pt !important;
+            font-weight: 700 !important;
+            background: #e8e8e8 !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+          .doctor-arrivals-report-root .rpt-print-root th:first-child,
+          .doctor-arrivals-report-root .rpt-print-root td:first-child {
+            border-left: 0.7pt solid #000 !important;
+          }
+          .doctor-arrivals-report-root .rpt-print-root th:last-child,
+          .doctor-arrivals-report-root .rpt-print-root td:last-child {
+            border-right: 0.7pt solid #000 !important;
           }
           .doctor-arrivals-report-root .rpt-print-root svg {
             display: none !important;
           }
-          .doctor-arrivals-report-root .rpt-print-root [class*="truncate"] {
+          .doctor-arrivals-report-root .rpt-print-root [class*="truncate"],
+          .doctor-arrivals-report-root .rpt-print-root .whitespace-nowrap,
+          .doctor-arrivals-report-root .rpt-print-root .max-w-28,
+          .doctor-arrivals-report-root .rpt-print-root .max-w-40,
+          .doctor-arrivals-report-root .rpt-print-root [class*="max-w-"] {
             overflow: visible !important;
             text-overflow: clip !important;
             white-space: normal !important;
+            max-width: none !important;
+          }
+          .doctor-arrivals-report-root .rpt-print-root tr {
+            break-inside: avoid !important;
+            page-break-inside: avoid !important;
           }
         }
       `}</style>
@@ -102,6 +153,7 @@ function DoctorArrivalsReportContentInner({
       description="View doctor arrival and departure by session with filters for date & time, institution, branch, department, speciality, and doctor"
       filterButtonLabel="Search"
       printPageSize="A4 portrait"
+      printPageMargins="7mm 5mm 12mm"
       containerClassName="container mx-auto py-3 space-y-4 doctor-arrivals-report-root"
       generationDetails={{
         generatedBy: currentUserName,

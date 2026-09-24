@@ -9,8 +9,8 @@ type Props = {
 };
 
 /**
- * Print-only A4 portrait for Bank Deposits (9 screen columns → compact).
- * Columns: No. | Type | Receipt | Details (Loc / User / At / Requested by / Approved by / Remark) | Bank Account | Total
+ * Print-only A4 portrait for Bank Deposits.
+ * Columns: No. | Type | Receipt | Details | Bank Account | Attachment | Total
  * Branded header comes from ReportPrintLayout via ReportTemplate.
  */
 export function BankDepositsPrintLayout({ rows }: Props) {
@@ -171,11 +171,12 @@ export function BankDepositsPrintLayout({ rows }: Props) {
           }
 
           .bank-deposits-report-root .bd-c0 { width: 5% !important; }
-          .bank-deposits-report-root .bd-c1 { width: 12% !important; }
-          .bank-deposits-report-root .bd-c2 { width: 12% !important; }
-          .bank-deposits-report-root .bd-c3 { width: 34% !important; }
-          .bank-deposits-report-root .bd-c4 { width: 22% !important; }
-          .bank-deposits-report-root .bd-c5 { width: 15% !important; }
+          .bank-deposits-report-root .bd-c1 { width: 11% !important; }
+          .bank-deposits-report-root .bd-c2 { width: 11% !important; }
+          .bank-deposits-report-root .bd-c3 { width: 28% !important; }
+          .bank-deposits-report-root .bd-c4 { width: 18% !important; }
+          .bank-deposits-report-root .bd-c5 { width: 12% !important; }
+          .bank-deposits-report-root .bd-c6 { width: 15% !important; }
         }
       `}</style>
 
@@ -187,6 +188,7 @@ export function BankDepositsPrintLayout({ rows }: Props) {
           <col className="bd-c3" />
           <col className="bd-c4" />
           <col className="bd-c5" />
+          <col className="bd-c6" />
         </colgroup>
         <thead>
           <tr>
@@ -195,13 +197,14 @@ export function BankDepositsPrintLayout({ rows }: Props) {
             <th className="bd-c2">Receipt</th>
             <th className="bd-c3">Details</th>
             <th className="bd-c4">Bank Account</th>
-            <th className="bd-c5 bd-right">Total</th>
+            <th className="bd-c5">Attachment</th>
+            <th className="bd-c6 bd-right">Total</th>
           </tr>
         </thead>
         <tbody>
           {rows.length === 0 ? (
             <tr>
-              <td colSpan={6} className="bd-center">
+              <td colSpan={7} className="bd-center">
                 No records found.
               </td>
             </tr>
@@ -263,17 +266,26 @@ export function BankDepositsPrintLayout({ rows }: Props) {
                     <td className="bd-c4">
                       <span className="bd-line bd-clamp2">{r.bankAccountName || '—'}</span>
                     </td>
-                    <td className="bd-c5 bd-right bd-nums bd-strong">
+                    <td className="bd-c5">
+                      {r.attachmentUrl ? (
+                        <a href={r.attachmentUrl} target="_blank" rel="noopener noreferrer">
+                          View slip
+                        </a>
+                      ) : (
+                        '—'
+                      )}
+                    </td>
+                    <td className="bd-c6 bd-right bd-nums bd-strong">
                       {formatReceiptAmount(Number(r.totalAmount) || 0)}
                     </td>
                   </tr>
                 );
               })}
               <tr className="bd-total">
-                <td className="bd-c0" colSpan={5}>
+                <td className="bd-c0" colSpan={6}>
                   Total
                 </td>
-                <td className="bd-c5 bd-right bd-nums">
+                <td className="bd-c6 bd-right bd-nums">
                   {formatReceiptAmount(totalAmount)}
                 </td>
               </tr>
