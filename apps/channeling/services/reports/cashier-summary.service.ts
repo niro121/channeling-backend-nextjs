@@ -55,16 +55,35 @@ function formatSessionDateTime(session: { date: Date; startTime?: Date | null } 
   return d.toLocaleDateString('en-CA', { dateStyle: 'short' });
 }
 
-function formatShiftLabel(
-  shift: { startedAt: Date; endedAt?: Date | null; user?: { id?: string; name: string | null; staff?: { code: string | null } | null } | null } | null
-): string | null {
+type ShiftLabelSource = {
+  startedAt: Date;
+  endedAt?: Date | null;
+  user?: { id?: string; name: string | null; staff?: { code: string | null } | null } | null;
+} | null;
+
+function formatShiftUserLabel(shift: ShiftLabelSource): string | null {
+  if (!shift) return null;
+  return formatUserDisplayName(shift.user?.name, shift.user?.id, shift.user?.staff?.code);
+}
+
+function formatShiftLabel(shift: ShiftLabelSource): string | null {
   if (!shift) return null;
   const start = new Date(shift.startedAt).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' });
   const end = shift.endedAt
     ? new Date(shift.endedAt).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' })
     : 'Ongoing';
-  const userName = formatUserDisplayName(shift.user?.name, shift.user?.id, shift.user?.staff?.code);
+  const userName = formatShiftUserLabel(shift) ?? 'Unknown user';
   return `${userName} (${start} - ${end})`;
+}
+
+function shiftLabelFields(shift: ShiftLabelSource): {
+  shiftLabel: string | null;
+  shiftUserLabel: string | null;
+} {
+  return {
+    shiftLabel: formatShiftLabel(shift),
+    shiftUserLabel: formatShiftUserLabel(shift),
+  };
 }
 
 function doctorNameFromJournalLines(
@@ -202,7 +221,7 @@ export async function getCashierSummaryReportService(
     const amounts = receiptToAmounts(r.paymentMethod, r.amount, r.type, r.paymentLines);
     return {
       txCreated: r.createdAt,
-      shiftLabel: formatShiftLabel(r.shift),
+      ...shiftLabelFields(r.shift),
       sessionDateTime,
       billId: bookingDisplayId(b),
       receiptId: r.receiptNoString,
@@ -244,7 +263,7 @@ export async function getCashierSummaryReportService(
     const amounts = receiptToAmounts(r.paymentMethod, r.amount, r.type, r.paymentLines);
     return {
       txCreated: r.createdAt,
-      shiftLabel: formatShiftLabel(r.shift),
+      ...shiftLabelFields(r.shift),
       sessionDateTime,
       billId: bookingDisplayId(b),
       receiptId: r.receiptNoString,
@@ -281,7 +300,7 @@ export async function getCashierSummaryReportService(
     const amounts = receiptToAmounts(r.paymentMethod, r.amount, r.type, r.paymentLines);
     return {
       txCreated: r.createdAt,
-      shiftLabel: formatShiftLabel(r.shift),
+      ...shiftLabelFields(r.shift),
       sessionDateTime,
       billId: bookingDisplayId(b),
       receiptId: r.receiptNoString,
@@ -313,7 +332,7 @@ export async function getCashierSummaryReportService(
     const amounts = receiptToAmounts(r.paymentMethod, r.amount, r.type, r.paymentLines);
     return {
       txCreated: r.createdAt,
-      shiftLabel: formatShiftLabel(r.shift),
+      ...shiftLabelFields(r.shift),
       sessionDateTime,
       billId: bookingDisplayId(b),
       receiptId: r.receiptNoString,
@@ -354,7 +373,7 @@ export async function getCashierSummaryReportService(
     const amounts = receiptToAmounts(r.paymentMethod, r.amount, r.type, r.paymentLines);
     return {
       txCreated: r.createdAt,
-      shiftLabel: formatShiftLabel(r.shift),
+      ...shiftLabelFields(r.shift),
       sessionDateTime,
       billId: bookingDisplayId(b),
       receiptId: r.receiptNoString,
@@ -390,7 +409,7 @@ export async function getCashierSummaryReportService(
     const amounts = receiptToAmounts(r.paymentMethod, r.amount, r.type, r.paymentLines);
     return {
       txCreated: r.createdAt,
-      shiftLabel: formatShiftLabel(r.shift),
+      ...shiftLabelFields(r.shift),
       sessionDateTime,
       billId: bookingDisplayId(b),
       receiptId: r.receiptNoString,
@@ -447,7 +466,7 @@ export async function getCashierSummaryReportService(
     const amounts = receiptToAmounts(r.paymentMethod, r.amount, r.type, r.paymentLines);
     return {
       txCreated: r.createdAt,
-      shiftLabel: formatShiftLabel(r.shift),
+      ...shiftLabelFields(r.shift),
       sessionDateTime: null,
       billId: null,
       receiptId: r.receiptNoString,
@@ -475,7 +494,7 @@ export async function getCashierSummaryReportService(
     const amounts = receiptToAmounts(r.paymentMethod, r.amount, r.type, r.paymentLines);
     return {
       txCreated: r.createdAt,
-      shiftLabel: formatShiftLabel(r.shift),
+      ...shiftLabelFields(r.shift),
       sessionDateTime: null,
       billId: null,
       receiptId: r.receiptNoString,
@@ -590,7 +609,7 @@ export async function getCashierSummaryReportService(
     );
     return {
       txCreated: r.createdAt,
-      shiftLabel: formatShiftLabel(r.shift),
+      ...shiftLabelFields(r.shift),
       sessionDateTime: null,
       billId: null,
       receiptId: r.receiptNoString,
@@ -640,7 +659,7 @@ export async function getCashierSummaryReportService(
             : 'Bank Withdraw';
     return {
       txCreated: r.createdAt,
-      shiftLabel: formatShiftLabel(r.shift),
+      ...shiftLabelFields(r.shift),
       sessionDateTime: null,
       billId: null,
       receiptId: r.receiptNoString,

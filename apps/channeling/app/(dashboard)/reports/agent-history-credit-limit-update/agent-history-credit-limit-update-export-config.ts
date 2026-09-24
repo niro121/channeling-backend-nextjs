@@ -30,6 +30,14 @@ export type AhcluCompactRow = {
   dateTime: string;
 };
 
+export function limitTypeShortLabel(
+  limitType: AgentHistoryCreditLimitUpdateReportRow['limitType']
+): string {
+  if (limitType === 'soft') return 'Soft';
+  if (limitType === 'credit') return 'Credit';
+  return 'Hard';
+}
+
 export function hardLimitFieldLabel(
   row: Pick<AgentHistoryCreditLimitUpdateReportRow, 'limitType' | 'hardLimitField'>
 ): string {
@@ -48,7 +56,7 @@ export function mapAhcluCompactFromReportRow(
   row: AgentHistoryCreditLimitUpdateReportRow,
   index: number
 ): AhcluCompactRow {
-  const limitType = row.limitType === 'soft' ? 'Soft' : 'Hard';
+  const limitType = limitTypeShortLabel(row.limitType);
   const field =
     row.limitType === 'hard' ? `\n${hardLimitFieldLabel(row)}` : '';
   const date = row.createdAt ? moment(row.createdAt).format('YYYY-MM-DD') : '—';

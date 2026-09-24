@@ -244,28 +244,29 @@ export function CashierSummaryPrintLayout({
 
           /*
             Tx / Receipt: stay inside cell (no bleed into next column).
-            Line 1 stays one line; line 2 wraps inside the column if long.
-            All stack lines use body size 6.5pt.
+            Print: Tx shows date/time + user name/code only (no shift range) → narrower;
+            same Δ goes to Patient/Agency.
           */
           .cashier-summary-report-root .ucs-tx-shift {
-            width: 54mm !important;
-            min-width: 54mm !important;
-            max-width: 54mm !important;
+            width: 40mm !important;
+            min-width: 40mm !important;
+            max-width: 40mm !important;
             overflow: hidden !important;
+          }
+          .cashier-summary-report-root .ucs-patient,
+          .cashier-summary-report-root .ucs-consultant {
+            width: 24mm !important;
+            min-width: 24mm !important;
+            max-width: 24mm !important;
+            overflow: hidden !important;
+            word-break: break-word !important;
+            overflow-wrap: break-word !important;
           }
           .cashier-summary-report-root .ucs-receipt-bill {
             width: 28mm !important;
             min-width: 28mm !important;
             max-width: 28mm !important;
             overflow: hidden !important;
-          }
-          .cashier-summary-report-root .ucs-consultant {
-            width: 18mm !important;
-            min-width: 18mm !important;
-            max-width: 18mm !important;
-            overflow: hidden !important;
-            word-break: break-word !important;
-            overflow-wrap: break-word !important;
           }
           .cashier-summary-report-root .ucs-session {
             width: 28mm !important;
@@ -281,12 +282,19 @@ export function CashierSummaryPrintLayout({
             line-height: 1.1 !important;
             font-size: 6.5pt !important;
           }
+          /* Print: hide full shift range; show compact user name + code */
+          .cashier-summary-report-root .ucs-tx-shift .ucs-tx-full {
+            display: none !important;
+          }
+          .cashier-summary-report-root .ucs-tx-shift .ucs-tx-compact {
+            display: block !important;
+          }
           .cashier-summary-report-root .ucs-tx-shift .ucs-stack-line:first-child,
           .cashier-summary-report-root .ucs-receipt-bill .ucs-stack-line:first-child {
             white-space: nowrap !important;
             overflow: hidden !important;
           }
-          .cashier-summary-report-root .ucs-tx-shift .ucs-stack-line:last-child,
+          .cashier-summary-report-root .ucs-tx-shift .ucs-tx-compact,
           .cashier-summary-report-root .ucs-receipt-bill .ucs-stack-line:last-child {
             white-space: normal !important;
             overflow-wrap: break-word !important;

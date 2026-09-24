@@ -25,15 +25,17 @@ export const AgentHistoryCreditLimitUpdateColumns: ColumnDef<AgentHistoryCreditL
     accessorKey: 'limitType',
     header: 'Limit Type',
     cell: ({ row }) => {
-      const t = row.getValue<'soft' | 'hard'>('limitType');
-      return t === 'soft' ? 'Soft' : 'Hard';
+      const t = row.getValue<'soft' | 'hard' | 'credit'>('limitType');
+      if (t === 'soft') return 'Soft';
+      if (t === 'credit') return 'Credit';
+      return 'Hard';
     },
   },
   {
     accessorKey: 'hardLimitField',
     header: 'Hard Limit Field',
     cell: ({ row }) => {
-      const limitType = row.getValue<'soft' | 'hard'>('limitType');
+      const limitType = row.getValue<'soft' | 'hard' | 'credit'>('limitType');
       const field = row.getValue<'minBalanceAllowed' | 'maxBalanceAllowed' | null>('hardLimitField');
       if (limitType !== 'hard') return '-';
       if (field === 'minBalanceAllowed') return 'Minimum balance';

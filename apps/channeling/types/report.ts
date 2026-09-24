@@ -392,7 +392,10 @@ export type CashierSummaryPaymentAmounts = {
 
 export type CashierSummaryReportLineItem = {
   txCreated: Date;
+  /** Full shift label for screen: user (name+code) + shift start–end range */
   shiftLabel: string | null;
+  /** Print-compact: user name + staff code only (no shift range) */
+  shiftUserLabel: string | null;
   sessionDateTime: string | null;
   billId: string | null;
   receiptId: string;
