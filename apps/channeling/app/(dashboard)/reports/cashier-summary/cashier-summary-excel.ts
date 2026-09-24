@@ -374,8 +374,14 @@ function writeCreditCashFooter(
   const agentTotal = Number(totals.agent);
   const grandCombined = creditSectionTotal + cashSectionTotal;
 
+  // Main table col A is narrow (No.); merge A–B for labels, put values in C
+  // so names like "Credit Card Total" / "Grand Total" are fully visible.
+  const labelEndCol = 2;
+  const valueCol = 3;
+  const footerEndCol = 3;
+
   let row = startRow;
-  sheet.mergeCells(row, 1, row, 2);
+  sheet.mergeCells(row, 1, row, footerEndCol);
   sheet.getCell(row, 1).value = 'CASHIER SUMMARY (CREDIT VS CASH)';
   sheet.getCell(row, 1).font = { bold: true, size: 8, name: 'Arial' };
   row += 1;
@@ -386,33 +392,40 @@ function writeCreditCashFooter(
     opts?: { bold?: boolean; fill?: string; header?: boolean }
   ) => {
     if (opts?.header) {
-      sheet.mergeCells(row, 1, row, 2);
+      sheet.mergeCells(row, 1, row, footerEndCol);
       const cell = sheet.getCell(row, 1);
       cell.value = label;
       cell.font = { bold: true, size: 8, name: 'Arial' };
       cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE8E8E8' } };
       cell.border = thinBorder;
-      sheet.getCell(row, 2).border = thinBorder;
-      sheet.getCell(row, 2).fill = {
-        type: 'pattern',
-        pattern: 'solid',
-        fgColor: { argb: 'FFE8E8E8' },
-      };
+      for (let c = 2; c <= footerEndCol; c++) {
+        sheet.getCell(row, c).border = thinBorder;
+        sheet.getCell(row, c).fill = {
+          type: 'pattern',
+          pattern: 'solid',
+          fgColor: { argb: 'FFE8E8E8' },
+        };
+      }
     } else {
+      sheet.mergeCells(row, 1, row, labelEndCol);
       const left = sheet.getCell(row, 1);
-      const right = sheet.getCell(row, 2);
+      const right = sheet.getCell(row, valueCol);
       left.value = label;
       right.value = value;
       left.numFmt = '@';
       right.numFmt = '@';
       left.font = { size: 8, name: 'Arial', bold: Boolean(opts?.bold) };
       right.font = { size: 8, name: 'Arial', bold: Boolean(opts?.bold) };
-      left.border = thinBorder;
-      right.border = thinBorder;
+      left.alignment = { horizontal: 'left', vertical: 'middle', wrapText: false };
       right.alignment = { horizontal: 'right', vertical: 'middle' };
+      left.border = thinBorder;
+      sheet.getCell(row, labelEndCol).border = thinBorder;
+      right.border = thinBorder;
       if (opts?.fill) {
-        left.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: opts.fill } };
-        right.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: opts.fill } };
+        const fill = { type: 'pattern' as const, pattern: 'solid' as const, fgColor: { argb: opts.fill } };
+        left.fill = fill;
+        sheet.getCell(row, labelEndCol).fill = fill;
+        right.fill = fill;
       }
     }
     sheet.getRow(row).height = 16;
