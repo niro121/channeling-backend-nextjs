@@ -3,7 +3,7 @@
 import type { Prisma } from '@prisma/client';
 import prisma from '@/lib/prisma';
 import { RECEIPT_METHOD } from '@/types/receipt';
-import { APPROVAL_REQUEST_TYPE } from '@/types/approval-request';
+import { APPROVAL_REQUEST_TYPE, type BankDepositSnapshot } from '@/types/approval-request';
 import { formatUserDisplayName } from '@/lib/helpers/user-display.helper';
 import { getInclusiveDaySpan, getReportMaxRangeDays, getReportMaxRecords } from '@/lib/report-limits';
 import { parseReportDateTime } from '@/lib/parse-report-datetime';
@@ -45,6 +45,20 @@ function parseFromTo(dateFrom: string, dateTo: string): { start: Date; end: Date
 function normAll(v: string | undefined): string {
   const s = (v ?? '').trim();
   return s || '__all__';
+}
+
+function attachmentFromApproval(approval: {
+  id: string;
+  paymentLines: unknown;
+}): { url: string | null; name: string | null } {
+  const raw = approval.paymentLines;
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    return { url: null, name: null };
+  }
+  const snap = raw as BankDepositSnapshot;
+  if (!snap.slip_image_key) return { url: null, name: null };
+  const name = (snap.slip_image_name ?? '').trim() || 'Deposit slip';
+  return { url: `/api/approval-attachments/${approval.id}`, name };
 }
 
 export async function getBankDepositsReportService(
@@ -161,9 +175,11 @@ export async function getBankDepositsReportService(
             type: APPROVAL_REQUEST_TYPE.BANK_DEPOSIT,
           },
           select: {
+            id: true,
             receiptId: true,
             createdAt: true,
             approvedAt: true,
+            paymentLines: true,
             requestedBy: { select: { id: true, name: true, staff: { select: { code: true } } } },
             approvedBy: { select: { id: true, name: true, staff: { select: { code: true } } } },
           },
@@ -199,6 +215,7 @@ export async function getBankDepositsReportService(
     const u = r.createdBy ? userById.get(r.createdBy) ?? null : null;
     const userLabel = u?.name ? formatUserDisplayName(u.name, u.id, u.staff?.code) : null;
     const approval = approvalByReceiptId.get(r.id) ?? null;
+    const attachment = approval ? attachmentFromApproval(approval) : { url: null, name: null };
     const requester = approval?.requestedBy ?? null;
     const requestedByLabel = requester
       ? formatUserDisplayName(requester.name, requester.id, requester.staff?.code)
@@ -227,6 +244,8 @@ export async function getBankDepositsReportService(
       approvedAt: approval?.approvedAt ?? null,
       bankAccountId: r.bankId ?? null,
       bankAccountName: mappedBankAccountName ?? ((r.bank ?? '').trim() || null),
+      attachmentUrl: attachment.url,
+      attachmentName: attachment.name,
       totalAmount,
       count: 1,
     };

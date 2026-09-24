@@ -29,6 +29,10 @@ export type BankDepositsReportRow = {
   approvedAt: Date | null;
   bankAccountId: string | null;
   bankAccountName: string | null;
+  /** Relative URL to the deposit-slip image, when one was attached. */
+  attachmentUrl: string | null;
+  /** File name of the attached deposit slip. */
+  attachmentName: string | null;
   totalAmount: number;
   count: number;
 };
@@ -44,6 +48,7 @@ export type BankDepositsReportExportRow = {
   requestedBy: string;
   approvedBy: string;
   bankAccount: string;
+  attachment: string;
   total: string;
 };
 

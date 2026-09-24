@@ -2,7 +2,7 @@
 
 /**
  * Bank Deposits — PDF ONLY (A4 portrait, matches Print).
- * Columns: No. | Type | Receipt | Details (Loc / User / At / Requested by / Approved by / Remark) | Bank Account | Total
+ * Columns: No. | Type | Receipt | Details | Bank Account | Attachment | Total
  */
 
 import jsPDF from 'jspdf';
@@ -14,7 +14,7 @@ import {
 } from '@/components/common/report-print';
 import type { BankDepositsReportExportRow } from '@/types/reports/bank-deposits';
 
-const COL_PERCENTS = [5, 12, 12, 34, 22, 15] as const;
+const COL_PERCENTS = [5, 11, 11, 28, 18, 12, 15] as const;
 
 function pageSize(doc: jsPDF): { width: number; height: number } {
   return {
@@ -238,7 +238,7 @@ export async function downloadBankDepositsReportPdf({
   COL_PERCENTS.forEach((pct, i) => {
     columnStyles[i] = {
       cellWidth: (tableWidth * pct) / 100,
-      halign: i === 0 ? 'center' : i === 5 ? 'right' : 'left',
+      halign: i === 0 ? 'center' : i === 6 ? 'right' : 'left',
     };
   });
 
@@ -249,16 +249,17 @@ export async function downloadBankDepositsReportPdf({
       r.receiptNo || '—',
       detailsHeightText(getDetailLines(r)),
       r.bankAccount || '—',
+      r.attachment && r.attachment !== '-' ? 'View slip' : '—',
       r.total || '0.00',
     ]),
     [
-      { content: 'Total', colSpan: 5, styles: { halign: 'left' } },
+      { content: 'Total', colSpan: 6, styles: { halign: 'left' } },
       formatAmount(totalAmount),
     ],
   ];
 
   autoTable(doc, {
-    head: [['No.', 'Type', 'Receipt', 'Details', 'Bank Account', 'Total']],
+    head: [['No.', 'Type', 'Receipt', 'Details', 'Bank Account', 'Attachment', 'Total']],
     body,
     startY,
     margin: { left: margin, right: margin, bottom: 12 },
@@ -291,6 +292,13 @@ export async function downloadBankDepositsReportPdf({
         hook.cell.styles.fillColor = [243, 243, 243];
         return;
       }
+      if (hook.column.index === 5) {
+        const row = rows[hook.row.index];
+        const url = row?.attachment;
+        if (url && url !== '-' && url !== '—') {
+          hook.cell.styles.textColor = [0, 80, 180];
+        }
+      }
       if (hook.column.index === 3) {
         const row = rows[hook.row.index];
         if (row) {
@@ -305,6 +313,12 @@ export async function downloadBankDepositsReportPdf({
       }
     },
     didDrawCell: (hook) => {
+      if (hook.section === 'body' && hook.column.index === 5 && hook.row.index < rows.length) {
+        const url = rows[hook.row.index]?.attachment;
+        if (url && url !== '-' && url !== '—') {
+          doc.link(hook.cell.x, hook.cell.y, hook.cell.width, hook.cell.height, { url });
+        }
+      }
       const lines = (hook.cell as typeof hook.cell & CellWithDetailLines).bdDetailLines;
       if (!lines?.length) return;
 

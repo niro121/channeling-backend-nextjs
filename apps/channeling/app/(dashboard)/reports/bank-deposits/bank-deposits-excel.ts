@@ -2,7 +2,7 @@
 
 /**
  * Bank Deposits — Excel ONLY (A4 portrait, matches Print / PDF).
- * Columns: No. | Type | Receipt | Details (Loc / User / At / Requested by / Approved by / Remark) | Bank Account | Total
+ * Columns: No. | Type | Receipt | Details | Bank Account | Attachment | Total
  */
 
 import ExcelJS from 'exceljs';
@@ -14,10 +14,10 @@ import {
 } from '@/components/common/report-print';
 import type { BankDepositsReportExportRow } from '@/types/reports/bank-deposits';
 
-const HEADERS = ['No.', 'Type', 'Receipt', 'Details', 'Bank Account', 'Total'] as const;
+const HEADERS = ['No.', 'Type', 'Receipt', 'Details', 'Bank Account', 'Attachment', 'Total'] as const;
 
-/** ~ PDF COL_PERCENTS [5, 12, 12, 34, 22, 15] */
-const COLUMN_WIDTHS = [5, 12, 12, 34, 20, 12];
+/** ~ PDF COL_PERCENTS [5, 11, 11, 28, 18, 12, 15] */
+const COLUMN_WIDTHS = [5, 12, 12, 32, 18, 16, 12];
 
 let cachedLogoBase64: string | null | undefined;
 
@@ -315,7 +315,7 @@ export async function downloadBankDepositsReportExcel({
     cell.border = thinBorder;
     cell.alignment = {
       vertical: 'middle',
-      horizontal: c === 0 ? 'center' : c === 5 ? 'right' : 'left',
+      horizontal: c === 0 ? 'center' : c === 6 ? 'right' : 'left',
       wrapText: true,
     };
   }
@@ -354,14 +354,27 @@ export async function downloadBankDepositsReportExcel({
       r.receiptNo || '—',
       detailsRichText(lines),
       r.bankAccount || '—',
+      r.attachment && r.attachment !== '-' ? r.attachment : '—',
       r.total || '0.00',
     ];
     for (let c = 0; c < colCount; c++) {
       const cell = sheet.getCell(row, c + 1);
+      const attachmentUrl = r.attachment;
+      if (c === 5 && attachmentUrl && attachmentUrl !== '-' && attachmentUrl !== '—') {
+        cell.value = { text: 'View slip', hyperlink: attachmentUrl };
+        applyCellBase(cell, { horizontal: 'left' });
+        cell.font = {
+          size: 8,
+          name: 'Arial',
+          color: { argb: 'FF0563C1' },
+          underline: true,
+        };
+        continue;
+      }
       cell.value = values[c]!;
       applyCellBase(cell, {
-        horizontal: c === 0 ? 'center' : c === 5 ? 'right' : 'left',
-        bold: c === 5,
+        horizontal: c === 0 ? 'center' : c === 6 ? 'right' : 'left',
+        bold: c === 6,
       });
     }
     sheet.getRow(row).height = Math.max(48, lines.length * 14);
@@ -369,8 +382,8 @@ export async function downloadBankDepositsReportExcel({
   }
 
   if (rows.length > 0) {
-    sheet.mergeCells(row, 1, row, 5);
-    for (let c = 1; c <= 5; c++) {
+    sheet.mergeCells(row, 1, row, 6);
+    for (let c = 1; c <= 6; c++) {
       applyCellBase(sheet.getCell(row, c), {
         horizontal: 'left',
         bold: true,
@@ -378,7 +391,7 @@ export async function downloadBankDepositsReportExcel({
       });
     }
     sheet.getCell(row, 1).value = 'Total';
-    const totalCell = sheet.getCell(row, 6);
+    const totalCell = sheet.getCell(row, 7);
     totalCell.value = formatAmount(totalAmount);
     applyCellBase(totalCell, {
       horizontal: 'right',

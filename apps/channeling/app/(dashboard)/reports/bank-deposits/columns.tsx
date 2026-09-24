@@ -126,6 +126,28 @@ export const BankDepositsColumns: ColumnDef<BankDepositsReportRow>[] = [
     ),
   },
   {
+    id: 'attachment',
+    header: 'Attachment',
+    cell: ({ row }) => {
+      const url = row.original.attachmentUrl;
+      const name = row.original.attachmentName || 'View slip';
+      if (!url) {
+        return <span className={rowTextClass(row.original.transactionType)}>-</span>;
+      }
+      return (
+        <a
+          href={url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-primary underline underline-offset-2"
+          title={name}
+        >
+          View
+        </a>
+      );
+    },
+  },
+  {
     accessorKey: 'totalAmount',
     header: () => <span className="text-right block">Total</span>,
     cell: ({ row }) => {
