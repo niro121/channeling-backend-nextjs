@@ -29,9 +29,10 @@ export function AgentCollectionReceiptPrintLayout({ rows }: Props) {
       acc.card += Number(r.cardAmount) || 0;
       acc.cheque += Number(r.chequeAmount) || 0;
       acc.slip += Number(r.slipAmount) || 0;
+      acc.eWallet += Number(r.eWalletAmount) || 0;
       return acc;
     },
-    { receipt: 0, cash: 0, card: 0, cheque: 0, slip: 0 }
+    { receipt: 0, cash: 0, card: 0, cheque: 0, slip: 0, eWallet: 0 }
   );
 
   return (
@@ -267,6 +268,10 @@ export function AgentCollectionReceiptPrintLayout({ rows }: Props) {
                     <span className="acr-k">Slip</span>
                     {formatReceiptAmount(r.slipAmount ?? 0)}
                   </span>
+                  <span className="acr-line">
+                    <span className="acr-k">E-Wallet</span>
+                    {formatReceiptAmount(r.eWalletAmount ?? 0)}
+                  </span>
                 </td>
                 <td className="acr-c5">
                   <span className="acr-line">
@@ -315,6 +320,10 @@ export function AgentCollectionReceiptPrintLayout({ rows }: Props) {
               <span className="acr-line">
                 <span className="acr-k">Slip</span>
                 {formatReceiptAmount(totals.slip)}
+              </span>
+              <span className="acr-line">
+                <span className="acr-k">E-Wallet</span>
+                {formatReceiptAmount(totals.eWallet)}
               </span>
             </td>
             <td className="acr-c5" />

@@ -40,6 +40,7 @@ export type AgentHistoryCreditLimitUpdateReportExportRow = {
   updatedValue: string;
   delta: string;
   changedBy: string;
+  remark: string;
   dateTime: string;
 };
 

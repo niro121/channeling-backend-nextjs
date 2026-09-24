@@ -27,17 +27,6 @@ export async function getChannelScheduleWithChargesReportService(
     } = query;
 
     const trimmedDoctorId = doctorId?.trim();
-    const hasAnyFilter =
-      Boolean(institutionId && institutionId !== '__all__' && institutionId !== '') ||
-      Boolean(locationId && locationId !== '__all__' && locationId !== '') ||
-      Boolean(departmentId && departmentId !== '__all__' && departmentId !== '') ||
-      Boolean(specialityId && specialityId !== '__all__' && specialityId !== '') ||
-      Boolean(trimmedDoctorId && trimmedDoctorId !== '__all__') ||
-      Boolean(reportType && reportType !== '__all__' && reportType !== '');
-
-    if (!hasAnyFilter) {
-      return { success: true, data: [], totalRecords: 0 };
-    }
 
     const where: Prisma.DoctorSessionWhereInput = {};
 
@@ -57,14 +46,13 @@ export async function getChannelScheduleWithChargesReportService(
       where.departmentId = departmentId;
     }
 
-    // Report Type filter
-    if (reportType && reportType !== '__all__') {
+    // Report Type filter. dayType 8 = specific date; 1–7 = recurring weekdays.
+    // "All" (missing / __all__) applies no type filter, so both kinds are returned.
+    if (reportType && reportType !== '__all__' && reportType !== '') {
       if (reportType === 'specific_date') {
-        // Apply-to sessions are treated as "Specific Date"
-        where.applyTo = { not: null };
+        where.dayType = 8;
       } else if (reportType === 'weekday') {
         where.dayType = { in: [1, 2, 3, 4, 5, 6, 7] };
-        where.applyTo = null;
       }
     }
 

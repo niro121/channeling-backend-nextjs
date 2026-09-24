@@ -1,3 +1,4 @@
+import { withPublicApiLog } from "@/lib/public-api-log"
 import { NextRequest, NextResponse } from "next/server"
 import { publicApiCorsHeaders } from "@/lib/public-api-cors"
 import { getPublicApiClient } from "@/lib/public-api-auth"
@@ -17,7 +18,7 @@ export async function OPTIONS() {
   return withCors(new NextResponse(null, { status: 204 }))
 }
 
-export async function GET(
+export const GET = withPublicApiLog(async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ agencyId: string }> }
 ) {
@@ -55,4 +56,4 @@ export async function GET(
   }
 
   return withCors(NextResponse.json(result.data))
-}
+})

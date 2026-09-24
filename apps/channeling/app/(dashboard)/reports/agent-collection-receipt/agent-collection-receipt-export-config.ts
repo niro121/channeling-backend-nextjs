@@ -65,6 +65,7 @@ export function mapAcrCompactFromReportRow(
       `Card ${formatReceiptAmount(row.cardAmount ?? 0)}`,
       `Cheque ${formatReceiptAmount(row.chequeAmount ?? 0)}`,
       `Slip ${formatReceiptAmount(row.slipAmount ?? 0)}`,
+      `E-Wallet ${formatReceiptAmount(row.eWalletAmount ?? 0)}`,
     ].join('\n'),
     paymentRefs: [
       `Slip ${dash(row.slipRef)}${row.slipDate ? ` · ${row.slipDate}` : ''}`,
@@ -102,6 +103,7 @@ export function mapAcrCompactFromExportRow(
       `Card ${row.creditCard || formatReceiptAmount(0)}`,
       `Cheque ${row.cheque || formatReceiptAmount(0)}`,
       `Slip ${row.slip || formatReceiptAmount(0)}`,
+      `E-Wallet ${row.eWallet || formatReceiptAmount(0)}`,
     ].join('\n'),
     paymentRefs: [
       `Slip ${dash(row.slipRef)}${row.slipDate && row.slipDate !== '-' ? ` · ${row.slipDate}` : ''}`,
@@ -124,9 +126,10 @@ export function buildAcrCompactRowsFromExport(
       acc.card += parseAmount(r.creditCard);
       acc.cheque += parseAmount(r.cheque);
       acc.slip += parseAmount(r.slip);
+      acc.eWallet += parseAmount(r.eWallet);
       return acc;
     },
-    { receipt: 0, cash: 0, card: 0, cheque: 0, slip: 0 }
+    { receipt: 0, cash: 0, card: 0, cheque: 0, slip: 0, eWallet: 0 }
   );
 
   body.push({
@@ -140,6 +143,7 @@ export function buildAcrCompactRowsFromExport(
       `Card ${formatReceiptAmount(totals.card)}`,
       `Cheque ${formatReceiptAmount(totals.cheque)}`,
       `Slip ${formatReceiptAmount(totals.slip)}`,
+      `E-Wallet ${formatReceiptAmount(totals.eWallet)}`,
     ].join('\n'),
     paymentRefs: '',
     isTotal: true,

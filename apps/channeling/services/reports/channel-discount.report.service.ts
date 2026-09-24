@@ -114,6 +114,7 @@ export async function getChannelDiscountReportService(query: ChannelDiscountRepo
         receiptPaymentMethod: true,
         receiptNoString: true,
         receiptNoCreatedAt: true,
+        refundReceiptNoString: true,
         refundReceiptCreatedAt: true,
         refund: true,
         hospitalFee: true,
@@ -171,7 +172,6 @@ export async function getChannelDiscountReportService(query: ChannelDiscountRepo
         sessionDate: r.session?.date ?? null,
         sessionStartTime: r.sessionStartTime ?? null,
         sessionEndTime: r.sessionEndTime ?? null,
-        billNo: r.receiptNoString ?? '-',
         patientName: `${r.title ?? ''} ${r.name ?? ''}`.trim(),
         doctor: `${r.doctor?.title ?? ''} ${r.doctor?.name ?? ''} (${r.doctor?.code ?? '-'})`.trim(),
         autoDiscountScheme: r.autoDiscountId ? (discountById.get(r.autoDiscountId) ?? '-') : '-',
@@ -182,6 +182,7 @@ export async function getChannelDiscountReportService(query: ChannelDiscountRepo
         out.push({
           ...common,
           id: `${r.id}-payment`,
+          billNo: r.receiptNoString ?? '-',
           bookingDate: r.receiptNoCreatedAt ?? null,
           type: `${bookingType}-${paymentType}`,
           hospitalFee,
@@ -202,6 +203,7 @@ export async function getChannelDiscountReportService(query: ChannelDiscountRepo
         out.push({
           ...common,
           id: `${r.id}-refund`,
+          billNo: r.refundReceiptNoString ?? '-',
           bookingDate: r.refundReceiptCreatedAt ?? null,
           type: `${bookingType}-${paymentType}-REVERSAL`,
           hospitalFee: reversalHospitalFee,
