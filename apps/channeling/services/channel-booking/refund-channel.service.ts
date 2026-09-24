@@ -444,11 +444,17 @@ export async function refundChannelService(
           // Outflow: store as negative so receipt.amount and booking.refundAmount are negative (convention for refunds)
           amount: -1 * refundAmount,
           bank:
-            paidReceipt && (refundTo === SAVE_PAYMENT_TYPE_CREDIT_CARD || refundTo === SAVE_PAYMENT_TYPE_SLIP)
+            paidReceipt &&
+            (refundTo === SAVE_PAYMENT_TYPE_CREDIT_CARD ||
+              refundTo === SAVE_PAYMENT_TYPE_SLIP ||
+              refundTo === SAVE_PAYMENT_TYPE_E_WALLET)
               ? paidReceipt.bank
               : "",
           bankId:
-            paidReceipt && (refundTo === SAVE_PAYMENT_TYPE_CREDIT_CARD || refundTo === SAVE_PAYMENT_TYPE_SLIP)
+            paidReceipt &&
+            (refundTo === SAVE_PAYMENT_TYPE_CREDIT_CARD ||
+              refundTo === SAVE_PAYMENT_TYPE_SLIP ||
+              refundTo === SAVE_PAYMENT_TYPE_E_WALLET)
               ? paidReceipt.bankId
               : null,
           cardReference:
@@ -649,11 +655,17 @@ export async function refundChannelService(
         // Outflow: store as negative (same convention as cancel/refund)
         amount: -1 * totalRefund,
         bank:
-          paidReceipt && (refundTo === SAVE_PAYMENT_TYPE_CREDIT_CARD || refundTo === SAVE_PAYMENT_TYPE_SLIP)
+          paidReceipt &&
+          (refundTo === SAVE_PAYMENT_TYPE_CREDIT_CARD ||
+            refundTo === SAVE_PAYMENT_TYPE_SLIP ||
+            refundTo === SAVE_PAYMENT_TYPE_E_WALLET)
             ? paidReceipt.bank
             : "",
         bankId:
-          paidReceipt && (refundTo === SAVE_PAYMENT_TYPE_CREDIT_CARD || refundTo === SAVE_PAYMENT_TYPE_SLIP)
+          paidReceipt &&
+          (refundTo === SAVE_PAYMENT_TYPE_CREDIT_CARD ||
+            refundTo === SAVE_PAYMENT_TYPE_SLIP ||
+            refundTo === SAVE_PAYMENT_TYPE_E_WALLET)
             ? paidReceipt.bankId
             : null,
         cardReference:

@@ -11,6 +11,7 @@ import type {
   AgentHistoryCreditLimitUpdateReportRow,
 } from '@/types/reports/agent-history-credit-limit-update';
 import { getAgentHistoryCreditLimitUpdateReportService } from '@/services/reports/agent-history-credit-limit-update.report.service';
+import { creditLimitChangeRemark } from '@/lib/credit-limit-change-remark';
 
 export async function getAgentHistoryCreditLimitUpdateReportData(
   query: AgentHistoryCreditLimitUpdateReportQuery
@@ -61,6 +62,7 @@ export async function exportAgentHistoryCreditLimitUpdateReportData(
       updatedValue: r.newValue == null ? '-' : String(r.newValue.toFixed(2)),
       delta: r.delta == null ? '-' : String(r.delta.toFixed(2)),
       changedBy: r.changedByUserName ?? r.changedByUserId ?? '-',
+      remark: creditLimitChangeRemark(r.metadata, '-'),
       dateTime: moment(r.createdAt).format('YYYY-MM-DD HH:mm:ss'),
     }));
 

@@ -4,6 +4,7 @@ import type { ColumnDef } from '@tanstack/react-table';
 import moment from 'moment';
 import type { AgentHistoryCreditLimitUpdateReportRow } from '@/types/reports/agent-history-credit-limit-update';
 import { formatLKR } from '@/lib/format-money';
+import { creditLimitChangeRemark } from '@/lib/credit-limit-change-remark';
 
 export const AgentHistoryCreditLimitUpdateColumns: ColumnDef<AgentHistoryCreditLimitUpdateReportRow>[] = [
   {
@@ -73,6 +74,11 @@ export const AgentHistoryCreditLimitUpdateColumns: ColumnDef<AgentHistoryCreditL
     accessorKey: 'changedByUserName',
     header: 'Changed by',
     cell: ({ row }) => row.getValue<string>('changedByUserName') ?? '-',
+  },
+  {
+    id: 'remark',
+    header: 'Remark',
+    cell: ({ row }) => creditLimitChangeRemark(row.original.metadata),
   },
   {
     accessorKey: 'createdAt',
