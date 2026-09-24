@@ -162,7 +162,9 @@ export async function getBankDepositsReportService(
           },
           select: {
             receiptId: true,
+            createdAt: true,
             approvedAt: true,
+            requestedBy: { select: { id: true, name: true, staff: { select: { code: true } } } },
             approvedBy: { select: { id: true, name: true, staff: { select: { code: true } } } },
           },
         })
@@ -197,6 +199,10 @@ export async function getBankDepositsReportService(
     const u = r.createdBy ? userById.get(r.createdBy) ?? null : null;
     const userLabel = u?.name ? formatUserDisplayName(u.name, u.id, u.staff?.code) : null;
     const approval = approvalByReceiptId.get(r.id) ?? null;
+    const requester = approval?.requestedBy ?? null;
+    const requestedByLabel = requester
+      ? formatUserDisplayName(requester.name, requester.id, requester.staff?.code)
+      : null;
     const approver = approval?.approvedBy ?? null;
     const approvedByLabel = approver
       ? formatUserDisplayName(approver.name, approver.id, approver.staff?.code)
@@ -215,6 +221,8 @@ export async function getBankDepositsReportService(
       userLocation: userLocationLabel,
       user: userLabel,
       createdAt: r.createdAt ?? null,
+      requestedBy: requestedByLabel,
+      requestedAt: approval?.createdAt ?? null,
       approvedBy: approvedByLabel,
       approvedAt: approval?.approvedAt ?? null,
       bankAccountId: r.bankId ?? null,

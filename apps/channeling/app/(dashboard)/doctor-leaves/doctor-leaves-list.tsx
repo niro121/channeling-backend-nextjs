@@ -16,21 +16,25 @@ import { DoctorLeavesRefreshProvider } from './doctor-leaves-refresh-context';
 interface DoctorLeavesListProps {
   doctorId: string | undefined;
   doctorName: string | undefined;
+  branchId: string | undefined;
   fromDate: string | undefined;
   toDate: string | undefined;
   page?: string;
   limit?: string;
   doctorOptions?: { id: string; name: string }[];
+  branchOptions?: { id: string; name: string }[];
 }
 
 export default function DoctorLeavesList({
   doctorId,
   doctorName,
+  branchId,
   fromDate,
   toDate,
   page = '0',
   limit = '10',
-  doctorOptions
+  doctorOptions,
+  branchOptions
 }: DoctorLeavesListProps) {
   const [data, setData] = useState<DoctorLeaveListItem[]>([]);
   const [totalRecords, setTotalRecords] = useState(0);
@@ -43,7 +47,7 @@ export default function DoctorLeavesList({
   // Reset dirty when applied params change (user clicked Apply)
   useEffect(() => {
     setFiltersDirty(false);
-  }, [doctorId, fromDate, toDate]);
+  }, [doctorId, branchId, fromDate, toDate]);
 
   useEffect(() => {
     if (!doctorId) {
@@ -59,6 +63,7 @@ export default function DoctorLeavesList({
 
     getDoctorLeaves({
       doctorId,
+      branchId,
       fromDate,
       toDate,
       page,
@@ -90,7 +95,7 @@ export default function DoctorLeavesList({
     return () => {
       cancelled = true;
     };
-  }, [doctorId, fromDate, toDate, page, limit, refreshTrigger]);
+  }, [doctorId, branchId, fromDate, toDate, page, limit, refreshTrigger]);
 
   if (loading) return <Loading />;
 
@@ -122,22 +127,27 @@ export default function DoctorLeavesList({
           <div className="flex flex-col sm:flex-row gap-3 flex-1 min-w-0">
             <FilterSection
               doctorOptions={doctorOptions ?? []}
+              branchOptions={branchOptions ?? []}
               doctorId={doctorId}
+              branchId={branchId}
               fromDate={fromDate}
               toDate={toDate}
               onValuesChange={(values) => {
                 const applied = {
                   doctorId: doctorId ?? '',
+                  branchId: branchId && branchId !== '__all__' ? branchId : '__all__',
                   fromDate: fromDate ?? '',
                   toDate: toDate ?? ''
                 };
                 const current = {
                   doctorId: values.doctorId ?? '',
+                  branchId: values.branchId && values.branchId !== '__all__' ? values.branchId : '__all__',
                   fromDate: values.fromDate ?? '',
                   toDate: values.toDate ?? ''
                 };
                 setFiltersDirty(
                   applied.doctorId !== current.doctorId ||
+                    applied.branchId !== current.branchId ||
                     applied.fromDate !== current.fromDate ||
                     applied.toDate !== current.toDate
                 );
@@ -149,6 +159,8 @@ export default function DoctorLeavesList({
           <AddBtnSection
             doctorId={doctorId}
             doctorName={doctorName}
+            branchId={branchId}
+            branchOptions={branchOptions}
             filtersApplied={!filtersDirty}
           />
         }

@@ -151,6 +151,9 @@ export async function getAgentCollectionReceiptReportService(
     const chequeAmount = lines
       .filter((line) => line.paymentMethod === RECEIPT_PAYMENT_METHOD.CHECK)
       .reduce((sum, line) => sum + line.amount, 0)
+    const eWalletAmount = lines
+      .filter((line) => line.paymentMethod === RECEIPT_PAYMENT_METHOD.E_WALLET)
+      .reduce((sum, line) => sum + line.amount, 0)
     const slipRefs = Array.from(
       new Set(
         lines
@@ -198,7 +201,8 @@ export async function getAgentCollectionReceiptReportService(
             (line) =>
               line.paymentMethod === RECEIPT_PAYMENT_METHOD.CREDIT_CARD ||
               line.paymentMethod === RECEIPT_PAYMENT_METHOD.SLIP ||
-              line.paymentMethod === RECEIPT_PAYMENT_METHOD.CHECK
+              line.paymentMethod === RECEIPT_PAYMENT_METHOD.CHECK ||
+              line.paymentMethod === RECEIPT_PAYMENT_METHOD.E_WALLET
           )
           .map((line) => (line.bank ?? "").trim())
           .filter((value) => value.length > 0)
@@ -219,6 +223,7 @@ export async function getAgentCollectionReceiptReportService(
       cardAmount,
       chequeAmount,
       slipAmount,
+      eWalletAmount,
       slipRef:
         slipRefs.length > 0
           ? slipRefs.join(", ")
@@ -258,6 +263,7 @@ export async function getAgentCollectionReceiptReportService(
     if (pm === RECEIPT_PAYMENT_METHOD.CREDIT_CARD) return row.cardAmount > 0
     if (pm === RECEIPT_PAYMENT_METHOD.SLIP) return row.slipAmount > 0
     if (pm === RECEIPT_PAYMENT_METHOD.CHECK) return row.chequeAmount > 0
+    if (pm === RECEIPT_PAYMENT_METHOD.E_WALLET) return row.eWalletAmount !== 0
     return true
   });
 

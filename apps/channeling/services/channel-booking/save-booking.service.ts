@@ -143,8 +143,11 @@ function buildMixedLinesFromSaveInput(input: SaveBookingInput, amountToUse: numb
     ) {
       return { error: "Slip payment lines require bank, slip reference, and slip date." }
     }
-    if (line.paymentMethod === SAVE_PAYMENT_TYPE_E_WALLET && !line.cardReference.trim()) {
-      return { error: "E-wallet payment lines require a reference." }
+    if (
+      line.paymentMethod === SAVE_PAYMENT_TYPE_E_WALLET &&
+      (!line.bankId || !line.cardReference.trim())
+    ) {
+      return { error: "E-wallet payment lines require both bank and a reference." }
     }
   }
   const total = lines.reduce((sum, line) => sum + line.amount, 0)
@@ -358,11 +361,20 @@ export async function saveBookingService(
       message: "Credit Customer is required for this payment type.",
     }
   }
-  if (input.payment_type === SAVE_PAYMENT_TYPE_E_WALLET && !input.ewallet_ref?.trim()) {
-    return {
-      success: false,
-      errorCode: "INVALID_INPUT",
-      message: "E-wallet reference is required for E-wallet payment.",
+  if (input.payment_type === SAVE_PAYMENT_TYPE_E_WALLET) {
+    if (!input.ewallet_ref?.trim()) {
+      return {
+        success: false,
+        errorCode: "INVALID_INPUT",
+        message: "E-wallet reference is required for E-wallet payment.",
+      }
+    }
+    if (!input.bank?.id) {
+      return {
+        success: false,
+        errorCode: "INVALID_INPUT",
+        message: "Bank is required for E-wallet payment.",
+      }
     }
   }
 

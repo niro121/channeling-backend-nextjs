@@ -81,8 +81,11 @@ function buildMixedLinesFromSettleInput(input: SettleBookingInput, amount: numbe
     ) {
       return { error: "Slip payment lines require bank, slip reference, and slip date." }
     }
-    if (line.paymentMethod === SAVE_PAYMENT_TYPE_E_WALLET && !line.cardReference.trim()) {
-      return { error: "E-wallet payment lines require a reference." }
+    if (
+      line.paymentMethod === SAVE_PAYMENT_TYPE_E_WALLET &&
+      (!line.bankId || !line.cardReference.trim())
+    ) {
+      return { error: "E-wallet payment lines require both bank and a reference." }
     }
   }
   const total = lines.reduce((sum, line) => sum + line.amount, 0)
@@ -223,11 +226,20 @@ export async function settleBookingService(
       }
     }
   }
-  if (input.settle_method === SAVE_PAYMENT_TYPE_E_WALLET && !input.ewallet_ref?.trim()) {
-    return {
-      success: false,
-      errorCode: "missing_ewallet_reference",
-      message: "E-wallet reference is required when settling via E-Wallet.",
+  if (input.settle_method === SAVE_PAYMENT_TYPE_E_WALLET) {
+    if (!input.ewallet_ref?.trim()) {
+      return {
+        success: false,
+        errorCode: "missing_ewallet_reference",
+        message: "E-wallet reference is required when settling via E-Wallet.",
+      }
+    }
+    if (!input.bank?.id) {
+      return {
+        success: false,
+        errorCode: "missing_bank",
+        message: "Bank is required when settling via E-Wallet.",
+      }
     }
   }
 

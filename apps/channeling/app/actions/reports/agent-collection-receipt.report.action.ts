@@ -45,6 +45,7 @@ export async function exportAgentCollectionReceiptReportData(
       creditCard: formatReceiptAmount(r.cardAmount ?? 0),
       cheque: formatReceiptAmount(r.chequeAmount ?? 0),
       slip: formatReceiptAmount(r.slipAmount ?? 0),
+      eWallet: formatReceiptAmount(r.eWalletAmount ?? 0),
       slipRef: r.slipRef ?? '-',
       slipDate: r.slipDate ?? '-',
       chequeRef: r.chequeRef ?? '-',

@@ -4,6 +4,7 @@ import moment from 'moment';
 import { formatLKR } from '@/lib/format-money';
 import type { AgentHistoryCreditLimitUpdateReportRow } from '@/types/reports/agent-history-credit-limit-update';
 import { hardLimitFieldLabel, limitTypeShortLabel } from './agent-history-credit-limit-update-export-config';
+import { creditLimitChangeRemark } from '@/lib/credit-limit-change-remark';
 
 type Props = {
   rows: AgentHistoryCreditLimitUpdateReportRow[];
@@ -11,7 +12,7 @@ type Props = {
 
 /**
  * Print-only compact A4 portrait for Agent History (Credit Limit Update).
- * Columns: No. | Agent | Limit | Values | Changed by | Date & Time
+ * Columns: No. | Agent | Limit | Values | Changed by | Remark | Date & Time
  */
 export function AgentHistoryCreditLimitUpdatePrintLayout({ rows }: Props) {
   return (
@@ -160,11 +161,12 @@ export function AgentHistoryCreditLimitUpdatePrintLayout({ rows }: Props) {
           }
 
           .agent-history-credit-limit-update-report-root .ahclu-c0 { width: 5% !important; }
-          .agent-history-credit-limit-update-report-root .ahclu-c1 { width: 22% !important; }
-          .agent-history-credit-limit-update-report-root .ahclu-c2 { width: 16% !important; }
-          .agent-history-credit-limit-update-report-root .ahclu-c3 { width: 24% !important; }
-          .agent-history-credit-limit-update-report-root .ahclu-c4 { width: 16% !important; }
-          .agent-history-credit-limit-update-report-root .ahclu-c5 { width: 17% !important; }
+          .agent-history-credit-limit-update-report-root .ahclu-c1 { width: 18% !important; }
+          .agent-history-credit-limit-update-report-root .ahclu-c2 { width: 12% !important; }
+          .agent-history-credit-limit-update-report-root .ahclu-c3 { width: 20% !important; }
+          .agent-history-credit-limit-update-report-root .ahclu-c4 { width: 14% !important; }
+          .agent-history-credit-limit-update-report-root .ahclu-c5 { width: 18% !important; }
+          .agent-history-credit-limit-update-report-root .ahclu-c6 { width: 13% !important; }
         }
       `}</style>
 
@@ -176,6 +178,7 @@ export function AgentHistoryCreditLimitUpdatePrintLayout({ rows }: Props) {
           <col className="ahclu-c3" />
           <col className="ahclu-c4" />
           <col className="ahclu-c5" />
+          <col className="ahclu-c6" />
         </colgroup>
         <thead>
           <tr>
@@ -184,7 +187,8 @@ export function AgentHistoryCreditLimitUpdatePrintLayout({ rows }: Props) {
             <th className="ahclu-c2">Limit</th>
             <th className="ahclu-c3">Values</th>
             <th className="ahclu-c4">Changed by</th>
-            <th className="ahclu-c5">Date & Time</th>
+            <th className="ahclu-c5">Remark</th>
+            <th className="ahclu-c6">Date & Time</th>
           </tr>
         </thead>
         <tbody>
@@ -239,6 +243,11 @@ export function AgentHistoryCreditLimitUpdatePrintLayout({ rows }: Props) {
                   </span>
                 </td>
                 <td className="ahclu-c5">
+                  <span className="ahclu-line ahclu-clamp2">
+                    {creditLimitChangeRemark(r.metadata)}
+                  </span>
+                </td>
+                <td className="ahclu-c6">
                   {r.createdAt ? (
                     <>
                       <span className="ahclu-line">

@@ -70,12 +70,21 @@ const saveBookingSchema = z.object({
   hmisPatientId: z.string().optional().nullable(),
   hmisMrn: z.string().optional().nullable(),
 }).superRefine((data, ctx) => {
-  if (data.payment_type === SAVE_PAYMENT_TYPE_E_WALLET && !data.ewallet_ref?.trim()) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      path: ["ewallet_ref"],
-      message: "E-wallet reference is required for E-wallet payment.",
-    })
+  if (data.payment_type === SAVE_PAYMENT_TYPE_E_WALLET) {
+    if (!data.ewallet_ref?.trim()) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["ewallet_ref"],
+        message: "E-wallet reference is required for E-wallet payment.",
+      })
+    }
+    if (!data.bank?.id?.trim()) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["bank"],
+        message: "Bank is required for E-wallet payment.",
+      })
+    }
   }
 
   if (data.payment_type === SAVE_PAYMENT_TYPE_SLIP) {
@@ -176,6 +185,16 @@ const saveBookingSchema = z.object({
         code: z.ZodIssueCode.custom,
         path: ["payment_lines", idx, "slip_date"],
         message: "Slip date is required for slip payment lines.",
+      })
+    }
+    if (
+      line.payment_method === SAVE_PAYMENT_TYPE_E_WALLET &&
+      !line.bank?.id?.trim()
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["payment_lines", idx, "bank"],
+        message: "Bank is required for e-wallet payment lines.",
       })
     }
     if (

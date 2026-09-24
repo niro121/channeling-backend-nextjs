@@ -16,6 +16,18 @@ export {
 // Available resources in the system
 export const RESOURCES: ResourceWithOptionalActions[] = [
   { id: "users", name: "Users" },
+  {
+    id: "dashboard",
+    name: "Dashboard",
+    customActions: [
+      { id: "shift-status", name: "Active shift" },
+      { id: "today-bookings", name: "Today's bookings" },
+      { id: "today-revenue", name: "Today's revenue" },
+      { id: "sessions-today", name: "Sessions today" },
+      { id: "recent-bookings", name: "Recent bookings" },
+      { id: "queue-snapshot", name: "Queue snapshot" },
+    ],
+  },
   { id: "channel-booking", name: "Channel Booking" },
   { id: "channel-booking-date", name: "Channel Booking – Change Date", actions: ["view"], actionLabels: { view: "Change Date" } },
   {

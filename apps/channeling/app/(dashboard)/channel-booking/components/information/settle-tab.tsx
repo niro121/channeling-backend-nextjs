@@ -450,7 +450,7 @@ export function SettleTab({ onSettleSuccess }: { onSettleSuccess?: () => void })
   const showSlip = settleMethod === SAVE_PAYMENT_TYPE_SLIP
   const showEWallet = settleMethod === SAVE_PAYMENT_TYPE_E_WALLET
   const isMixed = settleMethod === SAVE_PAYMENT_TYPE_MIXED
-  const showBank = showCard || showSlip
+  const showBank = showCard || showSlip || showEWallet
   const mixedTotal = mixedLines.reduce((sum, line) => sum + (Number(line.amount) || 0), 0)
   const mixedRemaining = amount - mixedTotal
 
@@ -464,10 +464,10 @@ export function SettleTab({ onSettleSuccess }: { onSettleSuccess?: () => void })
       })
       return
     }
-    if (showEWallet && !ewalletRef.trim()) {
+    if (showEWallet && (!ewalletRef.trim() || !bankId)) {
       toast({
-        title: "E-wallet reference required",
-        description: "Please enter the e-wallet reference before settling.",
+        title: "E-wallet details required",
+        description: "Please enter the e-wallet reference and select a bank before settling.",
         variant: "destructive",
       })
       return
@@ -618,13 +618,23 @@ export function SettleTab({ onSettleSuccess }: { onSettleSuccess?: () => void })
           return
         }
       }
-      if (line.payment_method === SAVE_PAYMENT_TYPE_E_WALLET && !line.ewallet_ref?.trim()) {
-        toast({
-          title: "E-wallet reference required",
-          description: `Please enter e-wallet reference for mixed payment line ${idx + 1}.`,
-          variant: "destructive",
-        })
-        return
+      if (line.payment_method === SAVE_PAYMENT_TYPE_E_WALLET) {
+        if (!line.bank?.id) {
+          toast({
+            title: "Bank required",
+            description: `Please select a bank for mixed payment line ${idx + 1} (E-Wallet).`,
+            variant: "destructive",
+          })
+          return
+        }
+        if (!line.ewallet_ref?.trim()) {
+          toast({
+            title: "E-wallet reference required",
+            description: `Please enter e-wallet reference for mixed payment line ${idx + 1}.`,
+            variant: "destructive",
+          })
+          return
+        }
       }
     }
     await handleSettle(lines)
@@ -709,7 +719,9 @@ export function SettleTab({ onSettleSuccess }: { onSettleSuccess?: () => void })
       )}
       {showBank && (
         <div className="space-y-1.5">
-          <label className="text-xs font-medium text-foreground">Bank</label>
+          <label className="text-xs font-medium text-foreground">
+            Bank <span className="text-destructive">*</span>
+          </label>
           <Select value={bankId || undefined} onValueChange={setBankId}>
             <SelectTrigger className="w-full text-xs">
               <SelectValue placeholder="Select Bank" />
@@ -782,10 +794,10 @@ export function SettleTab({ onSettleSuccess }: { onSettleSuccess?: () => void })
       <Button
         className="w-full bg-primary text-primary-foreground hover:bg-primary/90"
         onClick={() => {
-          if (showEWallet && !ewalletRef.trim()) {
+          if (showEWallet && (!ewalletRef.trim() || !bankId)) {
             toast({
-              title: "E-wallet reference required",
-              description: "Please enter the e-wallet reference before settling.",
+              title: "E-wallet details required",
+              description: "Please enter the e-wallet reference and select a bank before settling.",
               variant: "destructive",
             })
             return
@@ -973,23 +985,51 @@ export function SettleTab({ onSettleSuccess }: { onSettleSuccess?: () => void })
                   </div>
                 )}
                 {line.payment_method === SAVE_PAYMENT_TYPE_E_WALLET && (
-                  <div className="space-y-1">
-                    <p className="text-[11px] text-muted-foreground">
-                      E-wallet reference <span className="text-destructive">*</span>
-                    </p>
-                    <Input
-                      className="text-xs"
-                      placeholder="E-wallet reference"
-                      required
-                      value={line.ewallet_ref}
-                      onChange={(e) =>
-                        setMixedLines((prev) =>
-                          prev.map((row, rowIdx) =>
-                            rowIdx === idx ? { ...row, ewallet_ref: e.target.value } : row
+                  <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_220px] gap-2">
+                    <div className="space-y-1">
+                      <p className="text-[11px] text-muted-foreground">
+                        Bank <span className="text-destructive">*</span>
+                      </p>
+                      <Select
+                        value={line.bank_id || undefined}
+                        onValueChange={(v) =>
+                          setMixedLines((prev) =>
+                            prev.map((row, rowIdx) =>
+                              rowIdx === idx ? { ...row, bank_id: v } : row
+                            )
                           )
-                        )
-                      }
-                    />
+                        }
+                      >
+                        <SelectTrigger className="text-xs">
+                          <SelectValue placeholder="Select Bank" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {banks.map((b) => (
+                            <SelectItem key={b.id} value={b.id} className="text-xs">
+                              {b.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-[11px] text-muted-foreground text-right">
+                        E-wallet reference <span className="text-destructive">*</span>
+                      </p>
+                      <Input
+                        className="text-xs"
+                        placeholder="E-wallet reference"
+                        required
+                        value={line.ewallet_ref}
+                        onChange={(e) =>
+                          setMixedLines((prev) =>
+                            prev.map((row, rowIdx) =>
+                              rowIdx === idx ? { ...row, ewallet_ref: e.target.value } : row
+                            )
+                          )
+                        }
+                      />
+                    </div>
                   </div>
                 )}
                 <Button

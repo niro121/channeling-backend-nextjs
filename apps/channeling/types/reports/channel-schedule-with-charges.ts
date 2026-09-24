@@ -7,9 +7,9 @@ export type ChannelScheduleWithChargesReportQuery = {
   specialityId?: string;
   doctorId?: string;
   /**
-   * '__all__' / undefined => no day-type filter
-   * 'specific_date' => applyTo sessions
-   * 'weekday' => recurring weekday sessions
+   * '__all__' / undefined => both specific-date and weekday sessions
+   * 'specific_date' => dayType 8
+   * 'weekday' => dayType 1–7
    */
   reportType?: string;
 };

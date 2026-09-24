@@ -306,9 +306,10 @@ export const getDoctorLeaveReportService = async ({
           leaveId: rec.id,
           sessionId,
           leaveDate: date,
+          branchName: s.branchName || '-',
           sessionStartTime: s.startTime,
           sessionEndTime: s.endTime,
-          branchName: s.branchName,
+          branchNamee: s.branchName,
           leaveSessionFormatted: `${day} (${range})`
         });
       }

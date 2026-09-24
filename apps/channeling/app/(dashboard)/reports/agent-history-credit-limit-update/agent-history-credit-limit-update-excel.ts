@@ -54,9 +54,9 @@ function colLetter(index1Based: number): string {
   return s;
 }
 
-const COL_COUNT = 6;
+const COL_COUNT = 7;
 /** Proportional to AHCLU_PDF_COL_PERCENTS. */
-const COLUMN_WIDTHS = [6, 26, 18, 28, 18, 16];
+const COLUMN_WIDTHS = [6, 22, 14, 24, 16, 22, 14];
 
 const thinBorder: Partial<ExcelJS.Borders> = {
   top: { style: 'thin', color: { argb: 'FF000000' } },

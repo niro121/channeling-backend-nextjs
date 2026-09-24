@@ -1,11 +1,18 @@
 import prisma from '@/lib/prisma'
-import {
-  getColomboMonthRange,
-  getColomboSessionDateRange,
-} from '@/lib/dashboard-date-range'
+import { getColomboSessionDateRange } from '@/lib/dashboard-date-range'
 import { formatTimeSriLanka, normalizeSessionTime } from '@/lib/utils'
 import { getChannelRoomDashboardService } from '@/services/channel-room/get-channel-room-dashboard.service'
+import { getApprovalAccess } from '@/services/approval-request.service'
+import type { Permissions } from '@/types/user-group'
+import {
+  APPROVAL_REQUEST_STATUS,
+  APPROVAL_REQUEST_TYPE,
+  OPEN_APPROVAL_STATUSES,
+} from '@/types/approval-request'
+import { FLOAT_REQUEST_STATUS } from '@/types/float-request'
 import type {
+  DashboardApprovalStats,
+  DashboardFloatStats,
   DashboardKpiCount,
   DashboardQueueSnapshot,
   DashboardRecentBookingRow,
@@ -33,8 +40,9 @@ export async function getDashboardTodayBookingsService(): Promise<DashboardKpiCo
 }
 
 /**
- * Today's revenue: nett collected from paid bookings for today's sessions
- * (amount − refundAmount).
+ * Today's revenue: nett collected from paid bookings for today's sessions.
+ * Refund receipts store booking.refundAmount as a negative outflow (legacy rows
+ * may be positive), so the refund is always taken as a magnitude and subtracted.
  */
 export async function getDashboardTodayRevenueService(): Promise<DashboardRevenueKpi> {
   const rows = await prisma.booking.findMany({
@@ -46,7 +54,7 @@ export async function getDashboardTodayRevenueService(): Promise<DashboardRevenu
   })
   const value = rows.reduce((sum, row) => {
     const amount = Number(row.amount ?? 0)
-    const refund = Number(row.refundAmount ?? 0)
+    const refund = Math.abs(Number(row.refundAmount ?? 0))
     return sum + Math.max(0, amount - refund)
   }, 0)
   return { value }
@@ -59,15 +67,6 @@ export async function getDashboardSessionsTodayService(): Promise<DashboardKpiCo
       status: ACTIVE_SESSION_STATUS,
       date: sessionDateFilter(),
     },
-  })
-  return { value: count }
-}
-
-/** Patients created in the current Colombo calendar month. */
-export async function getDashboardNewPatientsService(): Promise<DashboardKpiCount> {
-  const { start, end } = getColomboMonthRange()
-  const count = await prisma.patient.count({
-    where: { createdAt: { gte: start, lte: end } },
   })
   return { value: count }
 }
@@ -138,4 +137,85 @@ export async function getDashboardQueueSnapshotService(): Promise<DashboardQueue
     },
     { activeRooms: 0, waiting: 0, shown: 0, noShow: 0 }
   )
+}
+
+const EMPTY_APPROVAL_STATS: DashboardApprovalStats = {
+  toAttend: 0,
+  mineOpen: 0,
+  cancels: 0,
+  refunds: 0,
+  deposits: 0,
+}
+
+/**
+ * Approval center counts for this user: pending items they can attend
+ * (not their own), split by type, plus their own still-open requests.
+ */
+export async function getDashboardApprovalStatsService(input: {
+  userId: string
+  permissions: Permissions | null | undefined
+  isAdmin: boolean
+}): Promise<DashboardApprovalStats> {
+  const access = getApprovalAccess(input.permissions, input.isAdmin)
+  if (!access.canOpen) return EMPTY_APPROVAL_STATS
+
+  const attendTypes: string[] = []
+  if (access.canSeeCancels) attendTypes.push(APPROVAL_REQUEST_TYPE.CHANNEL_CANCEL)
+  if (access.canSeeRefunds) attendTypes.push(APPROVAL_REQUEST_TYPE.CHANNEL_REFUND)
+  if (access.canSeeDeposits) attendTypes.push(APPROVAL_REQUEST_TYPE.BANK_DEPOSIT)
+
+  const attendBase = {
+    status: APPROVAL_REQUEST_STATUS.PENDING,
+    requestedById: { not: input.userId },
+    type: { in: attendTypes },
+  }
+
+  const [toAttend, cancels, refunds, deposits, mineOpen] = await Promise.all([
+    access.canAttend && attendTypes.length > 0
+      ? prisma.approvalRequest.count({ where: attendBase })
+      : Promise.resolve(0),
+    access.canSeeCancels
+      ? prisma.approvalRequest.count({
+          where: { ...attendBase, type: APPROVAL_REQUEST_TYPE.CHANNEL_CANCEL },
+        })
+      : Promise.resolve(0),
+    access.canSeeRefunds
+      ? prisma.approvalRequest.count({
+          where: { ...attendBase, type: APPROVAL_REQUEST_TYPE.CHANNEL_REFUND },
+        })
+      : Promise.resolve(0),
+    access.canSeeDeposits
+      ? prisma.approvalRequest.count({
+          where: { ...attendBase, type: APPROVAL_REQUEST_TYPE.BANK_DEPOSIT },
+        })
+      : Promise.resolve(0),
+    access.canSeeMine
+      ? prisma.approvalRequest.count({
+          where: {
+            requestedById: input.userId,
+            status: { in: [...OPEN_APPROVAL_STATUSES] },
+          },
+        })
+      : Promise.resolve(0),
+  ])
+
+  return { toAttend, mineOpen, cancels, refunds, deposits }
+}
+
+/**
+ * Float requests this user must act on: pending ones assigned to them as
+ * bulk cashier, and approved ones they still need to receive.
+ */
+export async function getDashboardFloatStatsService(
+  userId: string
+): Promise<DashboardFloatStats> {
+  const [toApprove, toReceive] = await Promise.all([
+    prisma.floatRequest.count({
+      where: { bulkCashierId: userId, status: FLOAT_REQUEST_STATUS.PENDING },
+    }),
+    prisma.floatRequest.count({
+      where: { requestedById: userId, status: FLOAT_REQUEST_STATUS.APPROVED },
+    }),
+  ])
+  return { toApprove, toReceive }
 }

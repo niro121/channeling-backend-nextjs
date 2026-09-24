@@ -10,7 +10,7 @@ type Props = {
 
 /**
  * Print-only A4 portrait for Bank Deposits (9 screen columns → compact).
- * Columns: No. | Type | Receipt | Details (Loc / User / At / Approved by / Approved at / Remark) | Bank Account | Total
+ * Columns: No. | Type | Receipt | Details (Loc / User / At / Requested by / Approved by / Remark) | Bank Account | Total
  * Branded header comes from ReportPrintLayout via ReportTemplate.
  */
 export function BankDepositsPrintLayout({ rows }: Props) {
@@ -211,12 +211,16 @@ export function BankDepositsPrintLayout({ rows }: Props) {
                 const isWithdraw = r.transactionType === 'Bank Withdraw';
                 const created =
                   r.createdAt != null
-                    ? moment(r.createdAt).format('YYYY-MM-DD HH:mm')
+                    ? moment(r.createdAt).format('YYYY-MM-DD HH:mm:ss')
                     : '—';
-                const approvedAt =
-                  r.approvedAt != null
-                    ? moment(r.approvedAt).format('YYYY-MM-DD HH:mm')
-                    : '—';
+                const requested =
+                  [r.requestedBy, r.requestedAt != null ? moment(r.requestedAt).format('YYYY-MM-DD HH:mm:ss') : null]
+                    .filter(Boolean)
+                    .join(' · ') || '—';
+                const approved =
+                  [r.approvedBy, r.approvedAt != null ? moment(r.approvedAt).format('YYYY-MM-DD HH:mm:ss') : null]
+                    .filter(Boolean)
+                    .join(' · ') || '—';
                 return (
                   <tr key={r.id} className={isWithdraw ? 'bd-withdraw' : undefined}>
                     <td className="bd-c0 bd-center">{i + 1}</td>
@@ -242,12 +246,12 @@ export function BankDepositsPrintLayout({ rows }: Props) {
                         {created}
                       </span>
                       <span className="bd-line bd-clamp2">
-                        <span className="bd-k">Approved by</span>
-                        {r.approvedBy || '—'}
+                        <span className="bd-k">Requested by</span>
+                        {requested}
                       </span>
-                      <span className="bd-line bd-muted">
-                        <span className="bd-k">Approved at</span>
-                        {approvedAt}
+                      <span className="bd-line bd-clamp2">
+                        <span className="bd-k">Approved by</span>
+                        {approved}
                       </span>
                       {r.remarks ? (
                         <span className="bd-line bd-muted bd-clamp2">
