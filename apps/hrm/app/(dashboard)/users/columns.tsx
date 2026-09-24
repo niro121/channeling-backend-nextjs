@@ -88,20 +88,34 @@ export const userColumns: ColumnDef<HrmUser>[] = [
   {
     id: 'updated',
     header: 'Updated',
-    cell: ({ row }) => (
-      <span className="text-xs text-muted-foreground whitespace-nowrap">
-        {formatDateTime(row.original.updatedAt)}
-      </span>
-    ),
+    cell: ({ row }) => {
+      const date = row.original.updatedAt;
+      const updatedBy = row.original.updatedUser?.name;
+      return (
+        <div className="flex flex-col gap-1">
+          <span className="text-xs">{updatedBy || '—'}</span>
+          <span className="text-xs text-muted-foreground whitespace-nowrap">
+            {formatDateTime(date)}
+          </span>
+        </div>
+      );
+    },
   },
   {
     id: 'created',
     header: 'Created',
-    cell: ({ row }) => (
-      <span className="text-xs text-muted-foreground whitespace-nowrap">
-        {formatDateTime(row.original.createdAt)}
-      </span>
-    ),
+    cell: ({ row }) => {
+      const date = row.original.createdAt;
+      const createdBy = row.original.createdUser?.name;
+      return (
+        <div className="flex flex-col gap-1">
+          <span className="text-xs">{createdBy || '—'}</span>
+          <span className="text-xs text-muted-foreground whitespace-nowrap">
+            {formatDateTime(date)}
+          </span>
+        </div>
+      );
+    },
   },
   {
     id: 'actions',

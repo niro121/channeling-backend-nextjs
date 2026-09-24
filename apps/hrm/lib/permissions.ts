@@ -2,6 +2,7 @@ import { Permissions } from '@archmage/shared';
 
 export const ROUTE_TO_RESOURCE: Record<string, string> = {
   '/user-groups': 'users',
+  '/users': 'users',
   '/staff': 'staff',
   '/leave-types': 'leave-types',
   '/leave-entitlement': 'leave-entitlement',
@@ -28,7 +29,6 @@ export const ROUTE_TO_RESOURCE: Record<string, string> = {
   '/locations': 'organizations',
   '/zones': 'organizations',
   '/rooms': 'organizations',
-  '/users': 'users',
   '/attendance': 'attendance',
   '/rfid-attendance': 'attendance',
   '/attendance-daily': 'attendance',

@@ -2,12 +2,7 @@ import React, { Suspense } from 'react';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { getServerSession } from 'next-auth';
-import {
-  BulkDeleteButton,
-  Button,
-  CustomDataTable,
-  SearchInput
-} from '@archmage/ui';
+import { BulkDeleteButton, Button, CustomDataTable } from '@archmage/ui';
 import { Plus } from 'lucide-react';
 import Loading from '../loading';
 import { authOptions } from '@/lib/auth';
@@ -15,9 +10,11 @@ import { checkPermission, checkRouteAccess } from '@/lib/server-permissions';
 import { logActivityNonBlocking } from '@/lib/activity-log';
 import { ExportWrapper } from '../export-wrapper';
 import { userColumns } from './columns';
+import UserFilterSection from './filter-section';
 import {
   bulkDeleteUsers,
   getAllUsers,
+  getAllUsersOptions,
   getUsersExport
 } from '@/app/actions/user-usergrp-actions/user.actions';
 
@@ -26,6 +23,8 @@ type SearchParams = {
     page?: string;
     limit?: string;
     keyword?: string;
+    userId?: string;
+    status?: string;
   }>;
 };
 
@@ -46,11 +45,23 @@ export default async function UsersPage({ searchParams }: SearchParams) {
   }
 
   const params = await searchParams;
-  const { data, totalRecords } = await getAllUsers({
-    page: params?.page,
-    limit: params?.limit,
-    keyword: params?.keyword
-  });
+  const [{ data, totalRecords }, { data: userOptionsData }] = await Promise.all(
+    [
+      getAllUsers({
+        page: params?.page,
+        limit: params?.limit,
+        keyword: params?.keyword,
+        userId: params?.userId,
+        status: params?.status
+      }),
+      getAllUsersOptions({ activeOnly: false })
+    ]
+  );
+
+  const userOptions = (userOptionsData ?? []).map((user) => ({
+    id: user.id,
+    name: user.name
+  }));
 
   const canAdd = await checkPermission('users', 'add');
 
@@ -58,7 +69,9 @@ export default async function UsersPage({ searchParams }: SearchParams) {
     'use server';
 
     const exportResponse = await getUsersExport({
-      keyword: params?.keyword
+      keyword: params?.keyword,
+      userId: params?.userId,
+      status: params?.status
     });
 
     if (!exportResponse.success || !exportResponse.data?.length) {
@@ -101,40 +114,43 @@ export default async function UsersPage({ searchParams }: SearchParams) {
           deleteServerAction={bulkDeleteUsers}
           getBulkDeleteDescription={bulkDeleteDescription}
           toolbarLeft={
+            <UserFilterSection
+              userOptions={userOptions}
+              userId={params?.userId}
+              keyword={params?.keyword}
+              status={params?.status}
+            />
+          }
+          toolbarRight={
             <div className="flex flex-col gap-3 flex-1 min-w-0">
-              <div className="flex flex-col sm:flex-row gap-3 items-start">
-                <div className="relative w-full sm:max-w-sm">
-                  <SearchInput
-                    name="keyword"
-                    placeholder="Search by name, email"
-                    className="pl-8 w-full h-9"
-                  />
-                </div>
+              <div className="flex items-start gap-2 shrink-0">
+                <BulkDeleteButton />
+                {canAdd ? (
+                  <Link href="/users/add">
+                    <Button size="sm" className="gap-1.5 h-9 cursor-pointer">
+                      <Plus className="h-4 w-4" />
+                      <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">
+                        Add New
+                      </span>
+                    </Button>
+                  </Link>
+                ) : null}
               </div>
-              <div className="flex items-center">
+              <div className="flex items-center justify-end">
                 <ExportWrapper
                   serverData={handleExport}
-                  columns={['User Name', 'Email', 'User Group', 'Linked Staff', 'Status']}
+                  columns={[
+                    'User Name',
+                    'Email',
+                    'User Group',
+                    'Linked Staff',
+                    'Status'
+                  ]}
                   keys={['name', 'email', 'userGroup', 'staff', 'status']}
                   title="Users List"
                   fileName="users"
                 />
               </div>
-            </div>
-          }
-          toolbarRight={
-            <div className="flex items-start gap-2 shrink-0">
-              <BulkDeleteButton />
-              {canAdd ? (
-                <Link href="/users/add">
-                  <Button size="sm" className="gap-1.5 h-9 cursor-pointer">
-                    <Plus className="h-4 w-4" />
-                    <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">
-                      Add New
-                    </span>
-                  </Button>
-                </Link>
-              ) : null}
             </div>
           }
           hideAutoBulkDelete
