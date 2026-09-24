@@ -3,12 +3,23 @@
 import Link from 'next/link';
 import { ColumnDef } from '@tanstack/react-table';
 
+export const REPORT_CATEGORIES = [
+  'Doctors',
+  'Channel',
+  'Agents',
+  'Cashier',
+  'SMS & System',
+] as const;
+
+export type ReportCategory = (typeof REPORT_CATEGORIES)[number];
+
 export type ReportListItem = {
   id: string;
   rank: number;
   masterData: string;
   description: string;
   route: string;
+  category: ReportCategory;
 };
 
 export const reportColumns: ColumnDef<ReportListItem>[] = [

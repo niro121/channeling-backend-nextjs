@@ -247,6 +247,7 @@ function ContentInner({ currentUserName, locationOptions, agencyOptions }: Props
         'Credit Card',
         'Cheque',
         'Slip',
+        'E-Wallet',
         'Slip Ref',
         'Slip Date',
         'Cheque No',
@@ -268,6 +269,7 @@ function ContentInner({ currentUserName, locationOptions, agencyOptions }: Props
           'creditCard',
           'cheque',
           'slip',
+          'eWallet',
           'slipRef',
           'slipDate',
           'chequeRef',
@@ -288,9 +290,10 @@ function ContentInner({ currentUserName, locationOptions, agencyOptions }: Props
             acc.card += Number(r.cardAmount) || 0;
             acc.cheque += Number(r.chequeAmount) || 0;
             acc.slip += Number(r.slipAmount) || 0;
+            acc.eWallet += Number(r.eWalletAmount) || 0;
             return acc;
           },
-          { receipt: 0, cash: 0, card: 0, cheque: 0, slip: 0 }
+          { receipt: 0, cash: 0, card: 0, cheque: 0, slip: 0, eWallet: 0 }
         );
         return (
           <TableRow className="font-medium bg-muted/50">
@@ -302,6 +305,7 @@ function ContentInner({ currentUserName, locationOptions, agencyOptions }: Props
             <TableCell className="text-right tabular-nums">{formatReceiptAmount(totals.card)}</TableCell>
             <TableCell className="text-right tabular-nums">{formatReceiptAmount(totals.cheque)}</TableCell>
             <TableCell className="text-right tabular-nums">{formatReceiptAmount(totals.slip)}</TableCell>
+            <TableCell className="text-right tabular-nums">{formatReceiptAmount(totals.eWallet)}</TableCell>
             <TableCell colSpan={6} />
           </TableRow>
         );

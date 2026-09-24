@@ -1,6 +1,6 @@
 /**
  * Agent History (Credit Limit Update) — shared compact helpers for Print / PDF / Excel.
- * Columns: No. | Agent | Limit | Values | Changed by | Date & Time
+ * Columns: No. | Agent | Limit | Values | Changed by | Remark | Date & Time
  */
 
 import moment from 'moment';
@@ -9,6 +9,7 @@ import type {
   AgentHistoryCreditLimitUpdateReportExportRow,
   AgentHistoryCreditLimitUpdateReportRow,
 } from '@/types/reports/agent-history-credit-limit-update';
+import { creditLimitChangeRemark } from '@/lib/credit-limit-change-remark';
 
 export const AHCLU_PDF_HEADERS = [
   'No.',
@@ -16,10 +17,11 @@ export const AHCLU_PDF_HEADERS = [
   'Limit',
   'Values',
   'Changed by',
+  'Remark',
   'Date & Time',
 ] as const;
 
-export const AHCLU_PDF_COL_PERCENTS = [5, 22, 16, 24, 16, 17] as const;
+export const AHCLU_PDF_COL_PERCENTS = [5, 18, 12, 20, 14, 18, 13] as const;
 
 export type AhcluCompactRow = {
   no: string;
@@ -27,6 +29,7 @@ export type AhcluCompactRow = {
   limit: string;
   values: string;
   changedBy: string;
+  remark: string;
   dateTime: string;
 };
 
@@ -68,6 +71,7 @@ export function mapAhcluCompactFromReportRow(
     limit: `${limitType}${field}`,
     values: `Before ${moneyOrDash(row.oldValue)}\nUpdated ${moneyOrDash(row.newValue)}\nDelta ${moneyOrDash(row.delta)}`,
     changedBy: row.changedByUserName || '—',
+    remark: creditLimitChangeRemark(row.metadata),
     dateTime: time ? `${date}\n${time}` : date,
   };
 }
@@ -103,6 +107,7 @@ export function mapAhcluCompactFromExportRow(
     limit: `${limitType}${field}`,
     values: `Before ${before}\nUpdated ${updated}\nDelta ${delta}`,
     changedBy: row.changedBy || '—',
+    remark: !row.remark || row.remark === '-' ? '—' : row.remark,
     dateTime: time ? `${date}\n${time}` : date,
   };
 }
@@ -114,5 +119,5 @@ export function buildAhcluCompactRowsFromExport(
 }
 
 export function ahcluPdfCompactRow(row: AhcluCompactRow): string[] {
-  return [row.no, row.agent, row.limit, row.values, row.changedBy, row.dateTime];
+  return [row.no, row.agent, row.limit, row.values, row.changedBy, row.remark, row.dateTime];
 }

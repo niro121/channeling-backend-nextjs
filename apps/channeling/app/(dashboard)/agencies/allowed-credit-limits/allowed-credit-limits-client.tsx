@@ -6,6 +6,7 @@ import { CustomDataTable } from '@/components/common/custom-data-table';
 import { SearchInput } from '@/components/common/search';
 import { Agency, AGENCY_VIOLATION_REASON_ALLOWED_AT_HARD_CAP } from '@/types/agency';
 import { formatLKR } from '@/lib/format-money';
+import { formatCreditLimitChangeSource } from '@/lib/credit-limit-change-remark';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -43,17 +44,7 @@ import {
 } from '@/components/ui/table';
 
 function formatAllowedLimitHistorySource(sourceKey: string | null): string {
-  if (!sourceKey) {
-    return 'Legacy (source not recorded)';
-  }
-  const map: Record<string, string> = {
-    agency_edit: 'Agency edit',
-    agency_allowed_credit_limits_page: 'Allowed limits page',
-    agency_created: 'Agency created',
-    violation_cleared_manually: 'Violation cleared (manual)',
-    agency_deposit_violation_auto_clear: 'Deposit (auto-clear)'
-  };
-  return map[sourceKey] ?? sourceKey.replace(/_/g, ' ');
+  return formatCreditLimitChangeSource(sourceKey) ?? 'Legacy (source not recorded)';
 }
 
 function truncateMiddle(s: string, maxLen: number): string {

@@ -17,13 +17,17 @@ type AddDoctorLeaveDialogProps = {
   onOpenChange: React.Dispatch<React.SetStateAction<boolean>>;
   doctorId: string;
   doctorName?: string;
+  branchOptions?: { id: string; name: string }[];
+  defaultBranchId?: string;
 };
 
 export default function AddDoctorLeaveDialog({
   open,
   onOpenChange,
   doctorId,
-  doctorName
+  doctorName,
+  branchOptions,
+  defaultBranchId
 }: AddDoctorLeaveDialogProps) {
   const { data: session } = useSession();
   const router = useRouter();
@@ -45,6 +49,8 @@ export default function AddDoctorLeaveDialog({
         <DoctorLeaveForm
           doctorId={doctorId}
           doctorName={doctorName || ''}
+          branchOptions={branchOptions}
+          defaultBranchId={defaultBranchId}
           doctorLeave={null}
           user={{
             id: session?.user?.id,

@@ -38,18 +38,32 @@ export async function exportDoctorLeaveReportData(
     if (!result.success || !result.data?.length) {
       return { success: false, message: result.message ?? result.error?.message ?? 'No data available' };
     }
-    const mapped: DoctorLeaveReportExportRow[] = result.data.map((row: any) => ({
-      doctorCode: row.doctor?.code ?? '-',
-      doctorName: row.doctor?.name ?? '-',
-      leaveDate: row.leaveDate ? moment(row.leaveDate).format('DD/MM/YYYY') : '-',
-      leaveSessions: row.leaveSessionFormatted ?? '-',
-      leaveRemark: row.remarks ?? '-',
-      leaveCreator: row.createdUser?.name ?? '-',
-      leaveCreatorAt: row.createdAt ? moment(row.createdAt).format('DD/MM/YYYY hh:mm A') : '-',
-      leaveUpdator: row.updatedUser?.name ?? '-',
-      leaveUpdatorAt: row.updatedAt ? moment(row.updatedAt).format('DD/MM/YYYY hh:mm A') : '-',
-      status: row.status === 1 ? 'Active' : 'Cancel',
-    }));
+    const formatUserAt = (
+      user: { name?: string | null; staff?: { code?: string | null } | null } | null | undefined,
+      at: Date | string | null | undefined
+    ): string => {
+      const name = user?.name?.trim() || '—';
+      const code = user?.staff?.code?.trim();
+      const displayName = code ? `${name} (${code})` : name;
+      const date = at ? moment(at).format('DD/MM/YYYY hh:mm A') : '—';
+      return `${displayName}\n${date}`;
+    };
+
+    const mapped: DoctorLeaveReportExportRow[] = result.data.map((row: any) => {
+      const leaveDate = row.leaveDate ? moment(row.leaveDate) : null;
+      const dateLine = leaveDate?.isValid() ? leaveDate.format('Do MMMM YYYY') : '-';
+      const sessionTimes = row.leaveSessionFormatted ?? '-';
+      return {
+        doctorCode: row.doctor?.code ?? '-',
+        doctorName: row.doctor?.name ?? '-',
+        branch: row.branchName?.trim() || '—',
+        leaveDate: leaveDate?.isValid() ? leaveDate.format('DD/MM/YYYY') : '-',
+        leaveSessions: `${dateLine}\n${sessionTimes}`,
+        leaveRemark: row.remarks ?? '-',
+        leaveUpdator: formatUserAt(row.updatedUser, row.updatedAt),
+        leaveCreator: formatUserAt(row.createdUser, row.createdAt),
+      };
+    });
     const session = await getServerSession(authOptions);
     if (session?.user?.id) {
       logActivityNonBlocking({

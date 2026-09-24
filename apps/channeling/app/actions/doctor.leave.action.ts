@@ -40,7 +40,8 @@ export const getDoctorLeaves = async (sort: GetDoctorLeavesParams) => {
         : parseInt(process.env.DEFAULT_PER_PAGE ?? '10'),
       doctorId: sort.doctorId ?? undefined,
       fromDate: sort.fromDate ?? undefined,
-      toDate: sort.toDate ?? undefined
+      toDate: sort.toDate ?? undefined,
+      branchId: sort.branchId ?? undefined
     };
 
     const response = await getDoctorLeavesService(newFilter);

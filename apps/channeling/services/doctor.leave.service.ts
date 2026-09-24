@@ -42,6 +42,7 @@ const sessionItemSchema = z.object({
 
 const doctorLeaveBaseSchema = z.object({
   doctorId: z.string().min(1, 'Doctor ID is required'),
+  locationId: z.string().min(1, 'Branch is required'),
   fromDate: z.coerce.date(),
   toDate: z.coerce.date(),
   remarks: z.string().max(500).optional().nullable(),
@@ -190,12 +191,77 @@ async function getLockedSessionIdsForDoctor(
 // ================ //
 
 // ==== GET LEAVES FOR A SPECIFIC DOCTOR ==== //
+function isBranchFilter(branchId: string | undefined): branchId is string {
+  return Boolean(branchId && branchId !== '__all__' && /^[a-fA-F0-9]{24}$/.test(branchId));
+}
+
+/** Keep leaves that include at least one session at the selected branch. */
+async function filterLeavesByBranch<T extends { sessions?: unknown }>(
+  records: T[],
+  branchId: string
+): Promise<T[]> {
+  const sessionIds = new Set<string>();
+  for (const rec of records) {
+    for (const id of normalizeDoctorLeaveSessionsJson(rec.sessions)) {
+      sessionIds.add(id);
+    }
+  }
+  if (sessionIds.size === 0) {
+    return records.filter(
+      (rec) => (rec as { locationId?: string | null }).locationId === branchId
+    );
+  }
+
+  const branchSessions = await prisma.session.findMany({
+    where: {
+      id: { in: Array.from(sessionIds) },
+      locationId: branchId
+    },
+    select: { id: true }
+  });
+  const branchSessionIds = new Set(branchSessions.map((s) => s.id));
+
+  return records.filter((rec) => {
+    const stored = (rec as { locationId?: string | null }).locationId;
+    if (stored) return stored === branchId;
+    return normalizeDoctorLeaveSessionsJson(rec.sessions).some((id) =>
+      branchSessionIds.has(id)
+    );
+  });
+}
+
+/** Every session must belong to the same branch. Returns that location id. */
+async function assertSessionsBelongToBranch(
+  sessionIds: string[],
+  locationId: string
+): Promise<{ ok: true } | { ok: false; message: string }> {
+  if (sessionIds.length === 0) {
+    return { ok: false, message: 'At least one session is required' };
+  }
+  const sessions = await prisma.session.findMany({
+    where: { id: { in: sessionIds } },
+    select: { id: true, locationId: true }
+  });
+  if (sessions.length !== sessionIds.length) {
+    return { ok: false, message: 'One or more selected sessions were not found' };
+  }
+  const foreign = sessions.filter((s) => s.locationId !== locationId);
+  if (foreign.length > 0) {
+    return {
+      ok: false,
+      message: 'A leave can only include sessions from one branch'
+    };
+  }
+  return { ok: true };
+}
+
 export const getDoctorLeavesService = async ({
   page = 0,
   limit = 10,
   doctorId,
   fromDate,
-  toDate
+  toDate,
+  branchId
 }: GetDoctorLeavesQuery): Promise<{
   success: boolean;
   data?: any[];
@@ -224,19 +290,35 @@ export const getDoctorLeavesService = async ({
       whereClause.fromDate = { lte: rangeToInclusive };
     }
 
+    const leaveQuery = {
+      where: whereClause,
+      orderBy: { fromDate: 'desc' as const },
+      include: {
+        doctor: {
+          select: { id: true, name: true, code: true }
+        },
+        createdUser: { select: { id: true, name: true } },
+        updatedUser: { select: { id: true, name: true } }
+      }
+    };
+
+    // Branch lives on Session, not DoctorLeave. Load the doctor's leaves, then
+    // keep rows that include at least one session at that location.
+    if (isBranchFilter(branchId)) {
+      const records = await prisma.doctorLeave.findMany(leaveQuery);
+      const filtered = await filterLeavesByBranch(records, branchId);
+      return {
+        success: true,
+        data: filtered.slice(skip, skip + limit),
+        totalRecords: filtered.length
+      };
+    }
+
     const [records, totalRecords] = await Promise.all([
       prisma.doctorLeave.findMany({
         skip,
         take: limit,
-        where: whereClause,
-        orderBy: { fromDate: 'desc' },
-        include: {
-          doctor: {
-            select: { id: true, name: true, code: true }
-          },
-          createdUser: { select: { id: true, name: true } },
-          updatedUser: { select: { id: true, name: true } }
-        }
+        ...leaveQuery
       }),
       prisma.doctorLeave.count({
         where: whereClause
@@ -266,7 +348,8 @@ export const getDoctorLeavesService = async ({
 export const getActiveSessionsService = async ({
   doctorId,
   fromDate,
-  toDate
+  toDate,
+  locationId
 }: GetActiveSession): Promise<{
   success: boolean;
   data?: any[];
@@ -277,7 +360,8 @@ export const getActiveSessionsService = async ({
   try {
     const whereClause: Prisma.SessionWhereInput = {
       doctorId,
-      status: 1 // ✅ ACTIVE sessions only
+      status: 1, // ✅ ACTIVE sessions only
+      ...(locationId && locationId !== '__all__' ? { locationId } : {})
     };
 
     // Date filtering (Session.date is DateTime)
@@ -335,7 +419,8 @@ export const getActiveSessionsService = async ({
 export const getCanceledSessionsService = async ({
   doctorId,
   fromDate,
-  toDate
+  toDate,
+  locationId
 }: GetActiveSession): Promise<{
   success: boolean;
   data?: any[];
@@ -346,7 +431,8 @@ export const getCanceledSessionsService = async ({
   try {
     const whereClause: Prisma.SessionWhereInput = {
       doctorId,
-      status: 0 // canceled / on leave
+      status: 0, // canceled / on leave
+      ...(locationId && locationId !== '__all__' ? { locationId } : {})
     };
 
     if (fromDate && toDate) {
@@ -539,6 +625,7 @@ export const createDoctorLeaveService = async (
     const sessionIds = normalizeSessions(payload);
     const toValidate = {
       doctorId: payload.doctorId,
+      locationId: payload.locationId ?? undefined,
       fromDate: payload.fromDate,
       toDate: payload.toDate,
       remarks: payload.remarks ?? undefined,
@@ -560,6 +647,14 @@ export const createDoctorLeaveService = async (
     }
 
     const data = parsed.data;
+    const branchCheck = await assertSessionsBelongToBranch(
+      sessionIds,
+      data.locationId
+    );
+    if (!branchCheck.ok) {
+      return { success: false, error: { message: branchCheck.message } };
+    }
+
     const lockedIds = await getLockedSessionIdsForDoctor(
       data.doctorId,
       undefined
@@ -591,6 +686,7 @@ export const createDoctorLeaveService = async (
         sendSms: normalizeSendSms(data.sendSms),
         status: data.status,
         doctor: { connect: { id: data.doctorId } },
+        location: { connect: { id: data.locationId } },
         createdUser: userRelation,
         updatedUser: userRelation
       },
@@ -658,9 +754,15 @@ export const updateDoctorLeaveService = async (
           ? []
           : normalizeSessionsArray(rawSel);
 
+    const locationId =
+      payload.locationId ??
+      (existing as { locationId?: string | null }).locationId ??
+      undefined;
+
     const toValidate = {
       id,
       doctorId: payload.doctorId ?? existing.doctorId,
+      locationId,
       fromDate: payload.fromDate ?? existing.fromDate,
       toDate: payload.toDate ?? existing.toDate,
       remarks:
@@ -705,6 +807,23 @@ export const updateDoctorLeaveService = async (
       };
     }
     const newSessionIds = effectiveNewIds;
+    const branchId = data.locationId ?? locationId;
+    if (newSessionIds.length > 0) {
+      if (!branchId) {
+        return {
+          success: false,
+          error: { message: 'Branch is required' }
+        };
+      }
+      const branchCheck = await assertSessionsBelongToBranch(
+        newSessionIds,
+        branchId
+      );
+      if (!branchCheck.ok) {
+        return { success: false, error: { message: branchCheck.message } };
+      }
+    }
+
     const lockedIds = await getLockedSessionIdsForDoctor(
       data.doctorId ?? existing.doctorId,
       id
@@ -742,6 +861,7 @@ export const updateDoctorLeaveService = async (
         sessions: sessionsJson,
         sendSms: data.sendSms ?? existing.sendSms ?? 0,
         status: leaveStatus,
+        ...(branchId ? { location: { connect: { id: branchId } } } : {}),
         updatedUser: userRelation,
         updatedAt: new Date()
       },

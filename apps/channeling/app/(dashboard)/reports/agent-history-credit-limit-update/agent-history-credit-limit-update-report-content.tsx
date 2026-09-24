@@ -259,6 +259,7 @@ function ContentInner({ agentOptions, userOptions, currentUserName }: Props) {
         'Updated Value',
         'Delta',
         'Changed by',
+        'Remark',
         'Date & Time',
       ]}
       exportKeys={
@@ -272,6 +273,7 @@ function ContentInner({ agentOptions, userOptions, currentUserName }: Props) {
           'updatedValue',
           'delta',
           'changedBy',
+          'remark',
           'dateTime',
         ] as (keyof AgentHistoryCreditLimitUpdateReportExportRow)[]
       }

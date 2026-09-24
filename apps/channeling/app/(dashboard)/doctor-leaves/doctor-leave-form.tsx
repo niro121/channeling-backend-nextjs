@@ -37,6 +37,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import { useDoctorLeavesRefetch } from './doctor-leaves-refresh-context';
+import { Combobox } from '@/components/common/combobox';
 
 const SESSION_STARTED_TOOLTIP =
   'This session has already started (or its start time is now or in the past). It cannot be added to or removed from this leave.';
@@ -98,6 +99,9 @@ function isSessionStartOnOrBeforeNow(s: Session): boolean {
 type LeaveFormProps = {
   doctorId: string;
   doctorName: string;
+  branchOptions?: { id: string; name: string }[];
+  /** Branch chosen on the list filter, used as the default for a new leave. */
+  defaultBranchId?: string;
   doctorLeave: DoctorLeave | null;
   isEditPage?: boolean;
   user?: {
@@ -113,6 +117,8 @@ type LeaveFormProps = {
 export default function DoctorLeaveForm({
   doctorId,
   doctorName,
+  branchOptions = [],
+  defaultBranchId,
   doctorLeave,
   user,
   onClose,
@@ -134,6 +140,11 @@ export default function DoctorLeaveForm({
   /** Session IDs already used by another leave for this doctor — not selectable for this leave */
   const [lockedSessionIds, setLockedSessionIds] = React.useState<Set<string>>(new Set());
   const [sessionsTab, setSessionsTab] = React.useState<'active' | 'selected'>('active');
+  const lockedBranchId = doctorLeave?.locationId ?? '';
+  const [branchId, setBranchId] = React.useState<string>(
+    lockedBranchId ||
+      (defaultBranchId && defaultBranchId !== '__all__' ? defaultBranchId : '')
+  );
   const [dateRange, setDateRange] = React.useState<{
     fromDate?: Date;
     toDate?: Date;
@@ -153,7 +164,10 @@ export default function DoctorLeaveForm({
       sesssions: doctorLeave?.sessions ?? [],
       sendSms: Boolean(doctorLeave?.sendSms),
       status: doctorLeave?.status ?? 0,
-      doctorId: doctorLeave?.doctorId ?? doctorId
+      doctorId: doctorLeave?.doctorId ?? doctorId,
+      locationId:
+        doctorLeave?.locationId ??
+        (defaultBranchId && defaultBranchId !== '__all__' ? defaultBranchId : '')
     }),
     [
       doctorLeave?.id,
@@ -179,6 +193,8 @@ export default function DoctorLeaveForm({
     () =>
       Yup.object({
         doctorId: Yup.string().required(),
+
+        locationId: Yup.string().required('Branch is required'),
 
         fromDate: Yup.date().required('From date is required'),
 
@@ -349,6 +365,7 @@ export default function DoctorLeaveForm({
       id: raw.id,
       date,
       location: raw.location?.name ?? '',
+      locationId: raw.location?.id ?? raw.locationId ?? '',
       startTime: formatSessionTime(raw.startTime, raw.date),
       endTime: formatSessionTime(raw.endTime, raw.date),
       startAt: getSessionStartAt(raw.startTime, date)
@@ -358,6 +375,8 @@ export default function DoctorLeaveForm({
   React.useEffect(() => {
     if (
       !doctorId ||
+      !branchId ||
+      branchId === '__all__' ||
       !dateRange.fromDate ||
       !dateRange.toDate ||
       dateRange.toDate < dateRange.fromDate
@@ -374,7 +393,7 @@ export default function DoctorLeaveForm({
 
     const fromStr = moment(dateRange.fromDate).format('YYYY-MM-DD');
     const toStr = moment(dateRange.toDate).format('YYYY-MM-DD');
-    const fetchKey = `${doctorId}|${fromStr}|${toStr}`;
+    const fetchKey = `${doctorId}|${branchId}|${fromStr}|${toStr}`;
     if (sessionsFetchKeyRef.current !== fetchKey) {
       sessionsFetchKeyRef.current = fetchKey;
       setRemovedSessions([]);
@@ -383,8 +402,18 @@ export default function DoctorLeaveForm({
     setSessionsLoading(true);
 
     Promise.all([
-      getAllActiveSessions({ doctorId, fromDate: fromStr, toDate: toStr }),
-      getCanceledSessions({ doctorId, fromDate: fromStr, toDate: toStr }),
+      getAllActiveSessions({
+        doctorId,
+        fromDate: fromStr,
+        toDate: toStr,
+        locationId: branchId
+      }),
+      getCanceledSessions({
+        doctorId,
+        fromDate: fromStr,
+        toDate: toStr,
+        locationId: branchId
+      }),
       getSessionIdsLockedByOtherLeaves({
         doctorId,
         excludeLeaveId: doctorLeave?.id ?? undefined
@@ -419,7 +448,7 @@ export default function DoctorLeaveForm({
       .finally(() => setSessionsLoading(false));
     // Intentionally omit `doctorLeave?.sessions`: it is a new array reference on many parent renders and
     // would refetch and previously cleared `removedSessions` after the user deselects on-leave sessions (edit only).
-  }, [doctorId, dateRange.fromDate, dateRange.toDate, doctorLeave?.id]);
+  }, [doctorId, branchId, dateRange.fromDate, dateRange.toDate, doctorLeave?.id]);
 
   return (
     <Formik
@@ -509,6 +538,7 @@ export default function DoctorLeaveForm({
 
         const handleAddToLeave = (session: Session) => {
           if (isSessionStartOnOrBeforeNow(session)) return;
+          if (session.locationId && branchId && session.locationId !== branchId) return;
           const current = formik.values.sesssions;
           if (current.some((s) => getSessionId(s) === session.id)) return;
           formik.setFieldValue('sesssions', [...current, session]);
@@ -577,6 +607,42 @@ export default function DoctorLeaveForm({
                   aria-readonly
                 >
                   DR. {doctorName}
+                </div>
+              </div>
+              <div className={styleClasses.parentDiv}>
+                <Label className={styleClasses.labelClassName}>
+                  Branch<span className="text-red-600"> *</span>
+                </Label>
+                <div className={styleClasses.inputClassName}>
+                  {lockedBranchId ? (
+                    <div className="flex h-9 w-full items-center rounded-md border border-input bg-muted px-3 text-sm text-muted-foreground">
+                      {branchOptions.find((o) => o.id === lockedBranchId)?.name ??
+                        'This branch'}
+                    </div>
+                  ) : (
+                    <Combobox
+                      label="Select branch"
+                      options={branchOptions.filter((o) => o.id !== '__all__')}
+                      value={formik.values.locationId || branchId}
+                      defaultValue=""
+                      onChange={(v) => {
+                        const next = v || '';
+                        setBranchId(next);
+                        formik.setFieldValue('locationId', next);
+                        formik.setFieldValue('sesssions', []);
+                        setRemovedSessions([]);
+                      }}
+                    />
+                  )}
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    A leave covers one branch. Only sessions at the selected branch can be added.
+                  </p>
+                  {formik.touched.locationId &&
+                  typeof formik.errors.locationId === 'string' ? (
+                    <p className="mt-1 text-sm text-destructive">
+                      {formik.errors.locationId}
+                    </p>
+                  ) : null}
                 </div>
               </div>
               <div className={styleClasses.parentDiv}>
@@ -712,9 +778,14 @@ export default function DoctorLeaveForm({
                         {sessionsLoading && (
                           <Loader className="w-4 h-4 animate-spin absolute left-1/2 top-1/4" />
                         )}
-                        {!sessionsLoading && activeSessions.length === 0 && (
+                        {!sessionsLoading && !branchId && (
                           <p className="text-muted-foreground text-center text-sm w-full py-4">
-                            No active sessions in this range, or all are already
+                            Select a branch to see its sessions.
+                          </p>
+                        )}
+                        {!sessionsLoading && branchId && activeSessions.length === 0 && (
+                          <p className="text-muted-foreground text-center text-sm w-full py-4">
+                            No active sessions at this branch in this range, or all are already
                             on leave.
                           </p>
                         )}

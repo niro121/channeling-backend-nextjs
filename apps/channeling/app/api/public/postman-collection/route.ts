@@ -1,3 +1,4 @@
+import { withPublicApiLog } from "@/lib/public-api-log"
 import { NextRequest, NextResponse } from "next/server"
 import { readFileSync } from "fs"
 import { join } from "path"
@@ -6,7 +7,7 @@ import { join } from "path"
  * GET /api/public/postman-collection
  * Returns the Postman collection with baseUrl set to the request origin (dynamic Next URL).
  */
-export async function GET(request: NextRequest) {
+export const GET = withPublicApiLog(async function GET(request: NextRequest) {
   try {
     const origin = new URL(request.url).origin
     const path = join(process.cwd(), "public", "assets", "public-api.postman_collection.json")
@@ -34,4 +35,4 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})
