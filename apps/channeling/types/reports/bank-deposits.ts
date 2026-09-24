@@ -19,6 +19,10 @@ export type BankDepositsReportRow = {
   userLocation: string | null;
   user: string | null;
   createdAt: Date | null;
+  /** User who approved the linked bank-deposit request. */
+  approvedBy: string | null;
+  /** When the linked bank-deposit request was approved. */
+  approvedAt: Date | null;
   bankAccountId: string | null;
   bankAccountName: string | null;
   totalAmount: number;
@@ -33,6 +37,8 @@ export type BankDepositsReportExportRow = {
   userLocation: string;
   user: string;
   createdAt: string;
+  approvedBy: string;
+  approvedAt: string;
   bankAccount: string;
   total: string;
 };

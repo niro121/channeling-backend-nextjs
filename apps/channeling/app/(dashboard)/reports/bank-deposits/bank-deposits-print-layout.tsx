@@ -10,7 +10,7 @@ type Props = {
 
 /**
  * Print-only A4 portrait for Bank Deposits (9 screen columns → compact).
- * Columns: No. | Type | Receipt | Details (Loc / User / At / Remark) | Bank Account | Total
+ * Columns: No. | Type | Receipt | Details (Loc / User / At / Approved by / Approved at / Remark) | Bank Account | Total
  * Branded header comes from ReportPrintLayout via ReportTemplate.
  */
 export function BankDepositsPrintLayout({ rows }: Props) {
@@ -213,6 +213,10 @@ export function BankDepositsPrintLayout({ rows }: Props) {
                   r.createdAt != null
                     ? moment(r.createdAt).format('YYYY-MM-DD HH:mm')
                     : '—';
+                const approvedAt =
+                  r.approvedAt != null
+                    ? moment(r.approvedAt).format('YYYY-MM-DD HH:mm')
+                    : '—';
                 return (
                   <tr key={r.id} className={isWithdraw ? 'bd-withdraw' : undefined}>
                     <td className="bd-c0 bd-center">{i + 1}</td>
@@ -236,6 +240,14 @@ export function BankDepositsPrintLayout({ rows }: Props) {
                       <span className="bd-line bd-muted">
                         <span className="bd-k">At</span>
                         {created}
+                      </span>
+                      <span className="bd-line bd-clamp2">
+                        <span className="bd-k">Approved by</span>
+                        {r.approvedBy || '—'}
+                      </span>
+                      <span className="bd-line bd-muted">
+                        <span className="bd-k">Approved at</span>
+                        {approvedAt}
                       </span>
                       {r.remarks ? (
                         <span className="bd-line bd-muted bd-clamp2">
