@@ -66,31 +66,114 @@ function DoctorLeaveReportContentInner({
     <>
       <style>{`
         @media print {
+          /* Full printable width — same as PDF with 5mm side margins */
+          .doctor-leave-report-root,
+          .doctor-leave-report-root.container {
+            width: 100% !important;
+            max-width: none !important;
+            margin-left: 0 !important;
+            margin-right: 0 !important;
+            padding-left: 0 !important;
+            padding-right: 0 !important;
+          }
+          .doctor-leave-report-root .rpt-template-card,
+          .doctor-leave-report-root .rpt-print-root,
+          .doctor-leave-report-root .rpt-print-body,
+          .doctor-leave-report-root .rpt-print-header,
+          .doctor-leave-report-root .rpt-print-summary {
+            width: 100% !important;
+            max-width: none !important;
+            box-sizing: border-box !important;
+          }
+          .doctor-leave-report-root .overflow-x-auto,
+          .doctor-leave-report-root .overflow-auto,
+          .doctor-leave-report-root .overflow-hidden,
+          .doctor-leave-report-root .rounded-lg,
+          .doctor-leave-report-root .rounded-md {
+            overflow: visible !important;
+            width: 100% !important;
+            max-width: none !important;
+            border-radius: 0 !important;
+            box-shadow: none !important;
+          }
+
+          /* Body table — match compact branded PDF (5.5pt / 5pt, fixed proportions) */
           .doctor-leave-report-root .rpt-print-root table {
             table-layout: fixed !important;
             width: 100% !important;
+            max-width: 100% !important;
+            border-collapse: collapse !important;
+            border: 0.5pt solid #000 !important;
           }
+          /* Code | Name | Branch | Date | Session | Remark | Updater | Creator */
+          .doctor-leave-report-root .rpt-print-root table th:nth-child(1),
+          .doctor-leave-report-root .rpt-print-root table td:nth-child(1) { width: 9% !important; }
+          .doctor-leave-report-root .rpt-print-root table th:nth-child(2),
+          .doctor-leave-report-root .rpt-print-root table td:nth-child(2) { width: 14% !important; }
+          .doctor-leave-report-root .rpt-print-root table th:nth-child(3),
+          .doctor-leave-report-root .rpt-print-root table td:nth-child(3) { width: 11% !important; }
+          .doctor-leave-report-root .rpt-print-root table th:nth-child(4),
+          .doctor-leave-report-root .rpt-print-root table td:nth-child(4) { width: 8% !important; }
+          .doctor-leave-report-root .rpt-print-root table th:nth-child(5),
+          .doctor-leave-report-root .rpt-print-root table td:nth-child(5) { width: 16% !important; }
+          .doctor-leave-report-root .rpt-print-root table th:nth-child(6),
+          .doctor-leave-report-root .rpt-print-root table td:nth-child(6) { width: 12% !important; }
+          .doctor-leave-report-root .rpt-print-root table th:nth-child(7),
+          .doctor-leave-report-root .rpt-print-root table td:nth-child(7) { width: 15% !important; }
+          .doctor-leave-report-root .rpt-print-root table th:nth-child(8),
+          .doctor-leave-report-root .rpt-print-root table td:nth-child(8) { width: 15% !important; }
+
           .doctor-leave-report-root .rpt-print-root th,
           .doctor-leave-report-root .rpt-print-root td {
-            font-size: 6.5pt !important;
+            font-size: 5.5pt !important;
             padding: 0.7mm 0.5mm !important;
-            line-height: 1.15 !important;
+            line-height: 1.2 !important;
             white-space: normal !important;
             word-break: break-word !important;
-            overflow: visible !important;
+            overflow-wrap: break-word !important;
+            overflow: hidden !important;
             text-overflow: clip !important;
             max-width: none !important;
+            border: 0.5pt solid #000 !important;
+            color: #000 !important;
+            vertical-align: top !important;
+            box-sizing: border-box !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
           }
           .doctor-leave-report-root .rpt-print-root thead th {
-            font-size: 6pt !important;
+            font-size: 5pt !important;
+            font-weight: 700 !important;
+            background: #e8e8e8 !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+          .doctor-leave-report-root .rpt-print-root th:first-child,
+          .doctor-leave-report-root .rpt-print-root td:first-child {
+            border-left: 0.7pt solid #000 !important;
+          }
+          .doctor-leave-report-root .rpt-print-root th:last-child,
+          .doctor-leave-report-root .rpt-print-root td:last-child {
+            border-right: 0.7pt solid #000 !important;
           }
           .doctor-leave-report-root .rpt-print-root svg {
             display: none !important;
           }
-          .doctor-leave-report-root .rpt-print-root [class*="truncate"] {
+          .doctor-leave-report-root .rpt-print-root [class*="truncate"],
+          .doctor-leave-report-root .rpt-print-root .whitespace-nowrap,
+          .doctor-leave-report-root .rpt-print-root [class*="max-w-"] {
             overflow: visible !important;
             text-overflow: clip !important;
             white-space: normal !important;
+            max-width: none !important;
+            width: auto !important;
+          }
+          .doctor-leave-report-root .rpt-print-root .text-muted-foreground {
+            color: #333 !important;
+          }
+          .doctor-leave-report-root .rpt-print-root tr {
+            break-inside: avoid !important;
+            page-break-inside: avoid !important;
           }
         }
       `}</style>
@@ -99,6 +182,8 @@ function DoctorLeaveReportContentInner({
       description="View doctor leave records with date range and filter by institution, branch, department, speciality, and doctor"
       filterButtonLabel="Search"
       printPageSize="A4 portrait"
+      printPageMargins="7mm 5mm 12mm"
+      pdfPageMarginMm={5}
       containerClassName="container mx-auto py-3 space-y-4 doctor-leave-report-root"
       generationDetails={{
         generatedBy: currentUserName,
@@ -262,27 +347,23 @@ function DoctorLeaveReportContentInner({
       exportColumns={[
         'Doctor Code',
         'Doctor Name',
+        'Branch',
         'Leave Date',
-        'Leave Sessions',
+        'Leave Session',
         'Leave Remark',
-        'Leave Creator',
-        'Leave Create At',
         'Leave Updater',
-        'Leave Update At',
-        'Status'
+        'Leave Creator',
       ]}
       exportKeys={
         [
           'doctorCode',
           'doctorName',
+          'branch',
           'leaveDate',
           'leaveSessions',
           'leaveRemark',
-          'leaveCreator',
-          'leaveCreatorAt',
           'leaveUpdator',
-          'leaveUpdatorAt',
-          'status'
+          'leaveCreator',
         ] as (keyof DoctorLeaveReportExportRow)[]
       }
       exportTitle="Doctor Leave Report"
