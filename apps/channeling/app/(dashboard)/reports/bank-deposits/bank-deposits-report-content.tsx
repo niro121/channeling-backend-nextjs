@@ -232,8 +232,8 @@ function ContentInner({ currentUserName, bankAccountOptions, userOptions, locati
       }}
       exportData={async () => exportBankDepositsReportData(buildQuery())}
       columns={BankDepositsColumns}
-      exportColumns={['No.', 'Type', 'Receipt No.', 'Remark', 'User Location', 'User', 'Created Date and Time', 'Approved By', 'Approved At', 'Bank Account', 'Total']}
-      exportKeys={['no', 'transactionType', 'receiptNo', 'remarks', 'userLocation', 'user', 'createdAt', 'approvedBy', 'approvedAt', 'bankAccount', 'total']}
+      exportColumns={['No.', 'Type', 'Receipt No.', 'Remark', 'User Location', 'User', 'Created Date and Time', 'Requested By', 'Approved By', 'Bank Account', 'Total']}
+      exportKeys={['no', 'transactionType', 'receiptNo', 'remarks', 'userLocation', 'user', 'createdAt', 'requestedBy', 'approvedBy', 'bankAccount', 'total']}
       exportTitle="Bank Deposits"
       exportFileName="bank-deposits"
       getRowId={(row) => row.id}
