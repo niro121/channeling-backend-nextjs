@@ -269,11 +269,14 @@ export function getDatesForSalaryCycle(cycleId: string): {
   };
 }
 
+const SALARY_GENERATION_MONTHS_BEFORE = 6;
+const SALARY_GENERATION_MONTHS_AFTER = 2;
+
 /** Rolling month options for the cycle dropdown (UI helper, not sample payroll rows). */
 export function buildSalaryCycleOptions(
   referenceDate: Date = new Date(),
-  monthsBefore = 6,
-  monthsAfter = 2
+  monthsBefore = SALARY_GENERATION_MONTHS_BEFORE,
+  monthsAfter = SALARY_GENERATION_MONTHS_AFTER
 ): SalaryCycleOption[] {
   const options: SalaryCycleOption[] = [];
 

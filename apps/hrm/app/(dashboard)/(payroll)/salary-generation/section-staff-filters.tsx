@@ -1,7 +1,7 @@
 'use client';
 
 import { Suspense } from 'react';
-import { Button, Combobox, Selector, useToast } from '@archmage/ui';
+import { Button, Combobox, Selector, Separator, useToast } from '@archmage/ui';
 import { FilterWrapper } from '@/app/(dashboard)/filter-wrapper';
 import { INSTITUTION_OPTIONS } from '@/types/institution';
 import { STAFF_CATEGORY_OPTIONS } from '@/types/staff-employment-options';
@@ -9,6 +9,7 @@ import type {
   SalaryFilterOption,
   SalaryGenerationStaffFilters
 } from '@/types/payroll';
+import { Label } from '@archmage/ui';
 
 type FilterValues = Record<string, string | undefined>;
 
@@ -76,6 +77,12 @@ function SectionStaffFiltersInner({
         ))}
       </div>
 
+      <Separator />
+
+      <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+        Select Staff To Generate Salary For
+      </h2>
+
       <FilterWrapper
         key={[
           initialValues.staffId,
@@ -96,53 +103,101 @@ function SectionStaffFiltersInner({
       >
         {({ values, setValue }) => (
           <>
-            <Combobox
-              label="Employee"
-              options={staffOptions}
-              value={values.staffId ?? ''}
-              defaultValue=""
-              onChange={(v) => setValue('staffId', v)}
-              clearable
-            />
-            <Selector
-              label="Institution"
-              options={INSTITUTION_OPTIONS}
-              value={values.institution}
-              defaultValue="__all__"
-              onChange={(v) => setValue('institution', v)}
-            />
-            <Combobox
-              label="Department"
-              options={departmentOptions}
-              value={values.departmentId ?? ''}
-              defaultValue=""
-              onChange={(v) => setValue('departmentId', v)}
-              clearable
-            />
-            <Combobox
-              label="Staff Category"
-              options={staffCategoryOptions}
-              value={values.staffCategory ?? ''}
-              defaultValue=""
-              onChange={(v) => setValue('staffCategory', v)}
-              clearable
-            />
-            <Combobox
-              label="Designation"
-              options={designationOptions}
-              value={values.designationId ?? ''}
-              defaultValue=""
-              onChange={(v) => setValue('designationId', v)}
-              clearable
-            />
-            <Combobox
-              label="Roster"
-              options={rosterOptions}
-              value={values.rosterId ?? ''}
-              defaultValue=""
-              onChange={(v) => setValue('rosterId', v)}
-              clearable
-            />
+            <div className="space-y-2">
+              <Label
+                htmlFor="paysheet-component-search"
+                className="text-xs uppercase text-muted-foreground"
+              >
+                Select Employee
+              </Label>
+              <Combobox
+                label="Employee"
+                options={staffOptions}
+                value={values.staffId ?? ''}
+                defaultValue=""
+                onChange={(v) => setValue('staffId', v)}
+                clearable
+              />
+            </div>
+            <div className="space-y-2">
+              <Label
+                htmlFor="paysheet-component-search"
+                className="text-xs uppercase text-muted-foreground"
+              >
+                Select Institution
+              </Label>
+              <Selector
+                label="Institution"
+                options={INSTITUTION_OPTIONS}
+                value={values.institution}
+                defaultValue="__all__"
+                onChange={(v) => setValue('institution', v)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label
+                htmlFor="paysheet-component-search"
+                className="text-xs uppercase text-muted-foreground"
+              >
+                Select Department
+              </Label>
+              <Combobox
+                label="Department"
+                options={departmentOptions}
+                value={values.departmentId ?? ''}
+                defaultValue=""
+                onChange={(v) => setValue('departmentId', v)}
+                clearable
+              />
+            </div>
+            <div className="space-y-2">
+              <Label
+                htmlFor="paysheet-component-search"
+                className="text-xs uppercase text-muted-foreground"
+              >
+                Select Staff Category
+              </Label>
+              <Combobox
+                label="Staff Category"
+                options={staffCategoryOptions}
+                value={values.staffCategory ?? ''}
+                defaultValue=""
+                onChange={(v) => setValue('staffCategory', v)}
+                clearable
+              />
+            </div>
+            <div className="space-y-2">
+              <Label
+                htmlFor="paysheet-component-search"
+                className="text-xs uppercase text-muted-foreground"
+              >
+                Select Designation
+              </Label>
+              <Combobox
+                label="Designation"
+                options={designationOptions}
+                value={values.designationId ?? ''}
+                defaultValue=""
+                onChange={(v) => setValue('designationId', v)}
+                clearable
+              />
+            </div>
+            <div className="space-y-2">
+              <Label
+                htmlFor="paysheet-component-search"
+                className="text-xs uppercase text-muted-foreground"
+              >
+                Select Roster
+              </Label>
+              <Combobox
+                label="Roster"
+                options={rosterOptions}
+                value={values.rosterId ?? ''}
+                defaultValue=""
+                onChange={(v) => setValue('rosterId', v)}
+                clearable
+              />
+            </div>
           </>
         )}
       </FilterWrapper>
