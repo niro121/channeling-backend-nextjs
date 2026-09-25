@@ -117,62 +117,26 @@ export function ChannelScheduleWithChargesPrintLayout({ rows }: Props) {
         @media print {
           @page {
             size: A4 portrait;
-            margin: 6mm 7mm 11mm;
+            margin: 6mm 5mm 18mm;
           }
-          .channel-schedule-charges-report-root .rpt-print-header {
-            margin-bottom: 1mm !important;
+          .channel-schedule-charges-report-root,
+          .channel-schedule-charges-report-root.container {
+            width: 100% !important;
+            max-width: none !important;
+            margin-left: 0 !important;
+            margin-right: 0 !important;
+            padding-left: 0 !important;
+            padding-right: 0 !important;
           }
-          .channel-schedule-charges-report-root .rpt-print-brand-row {
-            height: 9mm !important;
-            gap: 4mm !important;
-          }
-          .channel-schedule-charges-report-root .rpt-print-logo {
-            height: 9mm !important;
-            max-width: 36mm !important;
-          }
-          .channel-schedule-charges-report-root .rpt-print-titles {
-            height: 9mm !important;
-            padding: 1.2mm 0 0.2mm !important;
-          }
-          .channel-schedule-charges-report-root .rpt-print-org {
-            height: 3.4mm !important;
-            font-size: 11pt !important;
-          }
-          .channel-schedule-charges-report-root .rpt-print-title-gap {
-            height: 0.5mm !important;
-          }
-          .channel-schedule-charges-report-root .rpt-print-report-name {
-            height: 3.4mm !important;
-            font-size: 9pt !important;
-          }
-          .channel-schedule-charges-report-root .rpt-print-rule {
-            margin-top: 1mm !important;
-          }
-          .channel-schedule-charges-report-root .rpt-print-summary {
-            margin-top: 1mm !important;
-          }
-          .channel-schedule-charges-report-root .rpt-print-summary-bar {
-            padding: 0.5mm 1.5mm !important;
-            font-size: 6.5pt !important;
-            letter-spacing: 0.08em !important;
-          }
-          .channel-schedule-charges-report-root .rpt-print-summary-grid {
-            grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
-            gap: 0.6mm 2mm !important;
-            padding: 0.8mm 1.5mm !important;
-          }
-          .channel-schedule-charges-report-root .rpt-print-label {
-            margin: 0 0 0.15mm !important;
-            font-size: 5.5pt !important;
-            letter-spacing: 0.04em !important;
-          }
-          .channel-schedule-charges-report-root .rpt-print-value {
-            font-size: 6.5pt !important;
-            line-height: 1.08 !important;
-            font-weight: 600 !important;
-          }
-          .channel-schedule-charges-report-root .rpt-print-body {
-            margin-top: 1mm !important;
+          .channel-schedule-charges-report-root .rpt-print-root,
+          .channel-schedule-charges-report-root .rpt-print-body,
+          .channel-schedule-charges-report-root .rpt-print-header,
+          .channel-schedule-charges-report-root .rpt-print-summary,
+          .channel-schedule-charges-report-root .csc-print-root,
+          .channel-schedule-charges-report-root .csc-print-table {
+            width: 100% !important;
+            max-width: none !important;
+            box-sizing: border-box !important;
           }
 
           .csc-print-root {
@@ -207,31 +171,30 @@ export function ChannelScheduleWithChargesPrintLayout({ rows }: Props) {
             display: table-header-group;
           }
           .csc-print-table th {
-            font-size: 5.75pt;
+            font-size: 6pt;
             font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 0.03em;
             text-align: left;
-            padding: 0.5mm 0.7mm;
-            border: 0.45pt solid #000;
+            padding: 0.6mm 0.8mm;
+            border: 0.5pt solid #000;
             background: #f3f3f3;
             color: #000 !important;
-            line-height: 1.1;
+            line-height: 1.15;
+            white-space: normal;
+            word-break: normal;
+            overflow-wrap: break-word;
             -webkit-print-color-adjust: exact;
             print-color-adjust: exact;
           }
           .csc-print-table td {
             vertical-align: top;
-            padding: 0.55mm 0.7mm;
-            border-left: 0.45pt solid #bbb;
-            border-right: 0.45pt solid #bbb;
-            border-bottom: 0.4pt solid #999;
-            border-top: 0;
+            padding: 0.7mm 0.8mm;
+            border: 0.4pt solid #999;
             font-size: 6.5pt;
-            line-height: 1.12;
+            line-height: 1.2;
             color: #000 !important;
-            word-break: break-word;
-            overflow-wrap: anywhere;
+            white-space: normal;
+            word-break: normal;
+            overflow-wrap: break-word;
           }
           .csc-print-table tbody tr {
             break-inside: avoid !important;

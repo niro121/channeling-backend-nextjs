@@ -130,6 +130,7 @@ function ChannelReportReceiptWiseContentInner(props: ChannelReportReceiptWiseCon
       description="Shows all receipts by created date/time range. Filter by receipt type as needed."
       filterButtonLabel="Search"
       printPageSize="A4 portrait"
+      printPageMargins="6mm 5mm 18mm"
       containerClassName="container mx-auto py-3 space-y-4 receipt-report-root"
       renderPrintContent={(rows) => <ChannelReportReceiptWisePrintLayout rows={rows} />}
       customDownloadPdf={handlePdfDownload}

@@ -16,6 +16,7 @@ import type { WithholdingTaxReportExportRow, WithholdingTaxReportQuery, Withhold
 import { formatLKR } from '@/lib/format-money';
 import { TableCell, TableRow } from '@/components/ui/table';
 import { formatReportRangeLabel } from '@/lib/format-report-range-label';
+import moment from 'moment';
 
 type Props = {
   currentUserName: string;
@@ -23,6 +24,110 @@ type Props = {
   locationOptions: Array<{ id: string; name: string }>;
   specialityOptions: Array<{ id: string; name: string }>;
 };
+
+const PDF_HEADERS = [
+  'S.No',
+  'Doc Date',
+  'Doc No',
+  'Consultant',
+  'Speciality',
+  'Remarks',
+  'Total Amt',
+  'Tax %',
+  'Holding Tax',
+  'Net Amt',
+] as const;
+
+function pdfText(value: string | number | null | undefined): string {
+  if (value === undefined || value === null) return '-';
+  return String(value);
+}
+
+function twoLineDate(value: Date | null): React.ReactNode {
+  if (!value) return '-';
+  const d = moment(value);
+  return (
+    <>
+      {d.format('DD/MM/YYYY')}
+      <br />
+      {d.format('HH:mm')}
+    </>
+  );
+}
+
+function twoLineConsultant(value: string | null | undefined): React.ReactNode {
+  const name = (value ?? '').trim();
+  if (!name || name === '-') return '-';
+  const parts = name.split(/\s+/);
+  if (parts.length < 2) return name;
+  const mid = Math.ceil(parts.length / 2);
+  return (
+    <>
+      {parts.slice(0, mid).join(' ')}
+      <br />
+      {parts.slice(mid).join(' ')}
+    </>
+  );
+}
+
+/** Print body: same columns and cell values as the branded PDF, including Total. */
+function renderWithholdingTaxPrint(rows: WithholdingTaxReportRow[]) {
+  const totalAmt = rows.reduce((sum, row) => sum + (Number(row.totalAmt) || 0), 0);
+  const holdingTax = rows.reduce((sum, row) => sum + (Number(row.holdingTax) || 0), 0);
+  const netAmt = rows.reduce((sum, row) => sum + (Number(row.netAmt) || 0), 0);
+
+  return (
+    <table className="wht-pdf-table">
+      <colgroup>
+        <col className="wht-col-no" />
+        <col className="wht-col-date" />
+        <col className="wht-col-doc" />
+        <col className="wht-col-name" />
+        <col className="wht-col-spec" />
+        <col className="wht-col-remarks" />
+        <col className="wht-col-amt" />
+        <col className="wht-col-tax" />
+        <col className="wht-col-amt" />
+        <col className="wht-col-amt" />
+      </colgroup>
+      <thead>
+        <tr>
+          {PDF_HEADERS.map((label) => (
+            <th key={label}>{label}</th>
+          ))}
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map((row) => (
+          <tr key={row.id}>
+            <td>{pdfText(row.sNo)}</td>
+            <td className="wht-two-line">{twoLineDate(row.docDate)}</td>
+            <td>{pdfText(row.docNo)}</td>
+            <td className="wht-two-line">{twoLineConsultant(row.consultant)}</td>
+            <td>{pdfText(row.speciality)}</td>
+            <td className="wht-remarks">{pdfText(row.remarks)}</td>
+            <td>{pdfText(row.totalAmt ?? 0)}</td>
+            <td>{pdfText(row.taxPercent ?? 0)}</td>
+            <td>{pdfText(row.holdingTax ?? 0)}</td>
+            <td>{pdfText(row.netAmt ?? 0)}</td>
+          </tr>
+        ))}
+        <tr className="rpt-print-total">
+          <td>Total</td>
+          <td />
+          <td />
+          <td />
+          <td />
+          <td />
+          <td>{String(totalAmt)}</td>
+          <td />
+          <td>{String(holdingTax)}</td>
+          <td>{String(netAmt)}</td>
+        </tr>
+      </tbody>
+    </table>
+  );
+}
 
 /** Default from = today 00:00, to = today 23:59 in YYYY-MM-DDTHH:mm (same as Userwise Cashier report). */
 function getDefaultDateTimeRange(): { fromDateTime: string; toDateTime: string } {
@@ -55,36 +160,98 @@ function ContentInner({
     <>
       <style>{`
         @media print {
-          .withholding-tax-report-root .rpt-print-root table {
+          .withholding-tax-report-root,
+          .withholding-tax-report-root.container {
+            width: 100% !important;
+            max-width: none !important;
+            margin-left: 0 !important;
+            margin-right: 0 !important;
+            padding-left: 0 !important;
+            padding-right: 0 !important;
+          }
+          .withholding-tax-report-root .rpt-print-root,
+          .withholding-tax-report-root .rpt-print-body {
+            width: 100% !important;
+            max-width: none !important;
+            box-sizing: border-box !important;
+          }
+          .withholding-tax-report-root .rpt-print-body .overflow-x-auto,
+          .withholding-tax-report-root .rpt-print-body .overflow-auto,
+          .withholding-tax-report-root .rpt-print-body .overflow-hidden,
+          .withholding-tax-report-root .rpt-print-body .rounded-lg,
+          .withholding-tax-report-root .rpt-print-body .rounded-md {
+            overflow: visible !important;
+            width: 100% !important;
+            max-width: none !important;
+            border-radius: 0 !important;
+            box-shadow: none !important;
+          }
+          .withholding-tax-report-root .rpt-print-root table.wht-pdf-table {
             table-layout: fixed !important;
             width: 100% !important;
+            max-width: 100% !important;
+            border-collapse: collapse !important;
+            border: 0.5pt solid #000 !important;
           }
-          .withholding-tax-report-root .rpt-print-root th,
-          .withholding-tax-report-root .rpt-print-root td {
-            font-size: 6pt !important;
-            padding: 0.6mm 0.4mm !important;
-            line-height: 1.1 !important;
+          .withholding-tax-report-root .rpt-print-root table.wht-pdf-table col.wht-col-no { width: 4% !important; }
+          .withholding-tax-report-root .rpt-print-root table.wht-pdf-table col.wht-col-date { width: 10% !important; }
+          .withholding-tax-report-root .rpt-print-root table.wht-pdf-table col.wht-col-doc { width: 8% !important; }
+          .withholding-tax-report-root .rpt-print-root table.wht-pdf-table col.wht-col-name { width: 11% !important; }
+          .withholding-tax-report-root .rpt-print-root table.wht-pdf-table col.wht-col-spec { width: 11% !important; }
+          .withholding-tax-report-root .rpt-print-root table.wht-pdf-table col.wht-col-remarks { width: 26% !important; }
+          .withholding-tax-report-root .rpt-print-root table.wht-pdf-table col.wht-col-amt { width: 8% !important; }
+          .withholding-tax-report-root .rpt-print-root table.wht-pdf-table col.wht-col-tax { width: 6% !important; }
+          .withholding-tax-report-root .rpt-print-root table.wht-pdf-table th,
+          .withholding-tax-report-root .rpt-print-root table.wht-pdf-table td {
+            font-size: 7pt !important;
+            font-weight: 400 !important;
+            padding: 1mm 0.8mm !important;
+            line-height: 1.2 !important;
+            text-align: left !important;
             white-space: normal !important;
-            word-break: break-word !important;
+            word-break: normal !important;
+            overflow-wrap: break-word !important;
             overflow: hidden !important;
-          }
-          .withholding-tax-report-root .rpt-print-root th *,
-          .withholding-tax-report-root .rpt-print-root td * {
-            font-size: inherit !important;
-            line-height: inherit !important;
+            border: 0.5pt solid #000 !important;
             color: #000 !important;
+            background: #fff !important;
+            vertical-align: top !important;
+            box-sizing: border-box !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
           }
-          .withholding-tax-report-root .rpt-print-root thead th {
-            font-size: 5.5pt !important;
+          .withholding-tax-report-root .rpt-print-root table.wht-pdf-table thead th {
+            font-size: 6.5pt !important;
+            font-weight: 700 !important;
+            background: #e8e8e8 !important;
+            vertical-align: middle !important;
           }
-          .withholding-tax-report-root .rpt-print-root tr {
+          .withholding-tax-report-root .rpt-print-root table.wht-pdf-table td.wht-remarks {
+            white-space: normal !important;
+            word-break: normal !important;
+            overflow-wrap: break-word !important;
+          }
+          .withholding-tax-report-root .rpt-print-root table.wht-pdf-table td:nth-child(n+7) {
+            text-align: right !important;
+            white-space: nowrap !important;
+            font-variant-numeric: tabular-nums !important;
+          }
+          .withholding-tax-report-root .rpt-print-root table.wht-pdf-table th:first-child,
+          .withholding-tax-report-root .rpt-print-root table.wht-pdf-table td:first-child {
+            border-left: 0.7pt solid #000 !important;
+            text-align: center !important;
+          }
+          .withholding-tax-report-root .rpt-print-root table.wht-pdf-table th:last-child,
+          .withholding-tax-report-root .rpt-print-root table.wht-pdf-table td:last-child {
+            border-right: 0.7pt solid #000 !important;
+          }
+          .withholding-tax-report-root .rpt-print-root table.wht-pdf-table tr.rpt-print-total td {
+            font-weight: 700 !important;
+            background: #f3f3f3 !important;
+          }
+          .withholding-tax-report-root .rpt-print-root table.wht-pdf-table tr {
             break-inside: avoid !important;
             page-break-inside: avoid !important;
-          }
-          .withholding-tax-report-root .rpt-print-root [class*="truncate"] {
-            overflow: visible !important;
-            text-overflow: clip !important;
-            white-space: normal !important;
           }
         }
       `}</style>
@@ -94,6 +261,7 @@ function ContentInner({
       filterButtonLabel="Search"
       skipFetchWhenNoParams={true}
       printPageSize="A4 portrait"
+      printPageMargins="7mm 5mm 18mm"
       containerClassName="container mx-auto py-3 space-y-4 withholding-tax-report-root"
       generationDetails={{
         generatedBy: currentUserName,
@@ -258,6 +426,7 @@ function ContentInner({
       }}
       initialEmptyMessage="No withholding tax records found. Select filters and click Search."
       emptyMessage="No withholding tax records found for the selected filters."
+      renderPrintContent={renderWithholdingTaxPrint}
     />
     </>
   );

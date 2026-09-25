@@ -153,7 +153,7 @@ function DoctorArrivalsReportContentInner({
       description="View doctor arrival and departure by session with filters for date & time, institution, branch, department, speciality, and doctor"
       filterButtonLabel="Search"
       printPageSize="A4 portrait"
-      printPageMargins="7mm 5mm 12mm"
+      printPageMargins="7mm 5mm 18mm"
       containerClassName="container mx-auto py-3 space-y-4 doctor-arrivals-report-root"
       generationDetails={{
         generatedBy: currentUserName,

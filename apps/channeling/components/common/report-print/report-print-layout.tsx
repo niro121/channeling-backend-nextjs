@@ -97,13 +97,20 @@ export function ReportPrintLayout({
             @top-right { content: ""; }
             @bottom-left {
               content: "Generated: ${cssString(generatedAt)}";
-              font-size: 8pt;
+              font-family: Arial, Helvetica, sans-serif;
+              font-size: 9pt;
+              font-weight: 700;
               color: #000;
+              /* Sit at the top of the bottom margin so hardware margins do not clip it */
+              vertical-align: top;
             }
             @bottom-right {
               content: "Page " counter(page) " of " counter(pages);
-              font-size: 8pt;
+              font-family: Arial, Helvetica, sans-serif;
+              font-size: 9pt;
+              font-weight: 700;
               color: #000;
+              vertical-align: top;
             }
           }
 

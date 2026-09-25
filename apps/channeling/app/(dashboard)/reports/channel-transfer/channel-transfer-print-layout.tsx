@@ -19,7 +19,7 @@ export function ChannelTransferPrintLayout({ rows }: Props) {
         @media print {
           @page {
             size: A4 portrait;
-            margin: 6mm 7mm 11mm;
+            margin: 6mm 5mm 18mm;
           }
           .channel-transfer-report-root .rpt-print-header {
             margin-bottom: 1mm !important;
