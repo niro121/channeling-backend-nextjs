@@ -99,15 +99,6 @@ function SectionFiltersInner({
       >
         {({ values, setValue }) => (
           <div className="grid w-full gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            <Combobox
-              label="Employee"
-              options={staffOptions}
-              value={values.staffId ?? ''}
-              defaultValue=""
-              onChange={(v) => setValue('staffId', v)}
-              clearable
-              triggerClassName='self-end'
-            />
             <div className="space-y-2">
               <Label
                 htmlFor="paysheet-staff-code"
@@ -144,6 +135,15 @@ function SectionFiltersInner({
                 />
               </div>
             </div>
+            <Combobox
+              label="Employee"
+              options={staffOptions}
+              value={values.staffId ?? ''}
+              defaultValue=""
+              onChange={(v) => setValue('staffId', v)}
+              clearable
+              triggerClassName='self-end'
+            />
             <Combobox
               label="Paysheet Component"
               options={componentOptions}
