@@ -211,6 +211,7 @@ From `lib/permissions.ts` / `RESOURCES` (keep these in sync when editing).
 | `/staff-specialities` | `staff-specialities` | Staff Specialities |
 | `/manage-rosters` | `manage-rosters` | Manage Rosters |
 | `/paysheet-components` | `paysheet-components` | Paysheet Components |
+| `/hrm-variables` | `hrm-variables` | HRM Variable (EPF/ETF/PAYE) |
 | `/shift-types` | `shift-roster` | Shift Types *(Roster & Shifts template master — not HR Admin; Manage Shifts deferred — HR_ADMINISTRATION_GUIDE section 34)* |
 | `/leave-requests` | `leave-requests` | Leave Requests |
 | `/leave-types` | `leave-types` | Leave Types |

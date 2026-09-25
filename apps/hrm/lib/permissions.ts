@@ -6,6 +6,7 @@ export const ROUTE_TO_RESOURCE: Record<string, string> = {
   '/staff': 'staff',
   // HR-Admin
   '/paysheet-components': 'paysheet-components',
+  '/hrm-variables': 'hrm-variables',
   '/leave-types': 'leave-types',
   '/leave-entitlement': 'leave-entitlement',
   '/leave-management': 'leave-management',

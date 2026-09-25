@@ -43,6 +43,7 @@ import {
   PlayCircle,
   Cog,
   ListChecks,
+  Percent,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { canAccessRoute } from "@/lib/permissions";
@@ -417,7 +418,8 @@ export function DesktopSidebar({ session, className }: { session: Session | null
           hasAccess('/staff-grades') ||
           hasAccess('/staff-specialities') ||
           hasAccess('/manage-rosters') ||
-          hasAccess('/paysheet-components')) && (
+          hasAccess('/paysheet-components') ||
+          hasAccess('/hrm-variables')) && (
           <SidebarGroup label="HR Administration">
             <SidebarCollapsible
               label="HR Administration"
@@ -428,7 +430,8 @@ export function DesktopSidebar({ session, className }: { session: Session | null
                 '/staff-grades',
                 '/staff-specialities',
                 '/manage-rosters',
-                '/paysheet-components'
+                '/paysheet-components',
+                '/hrm-variables'
               ]}
               defaultOpen
             >
@@ -472,6 +475,13 @@ export function DesktopSidebar({ session, className }: { session: Session | null
                   href="/paysheet-components"
                   label="Paysheet Components"
                   icon={<ListChecks className="h-5 w-5" />}
+                />
+              )}
+              {hasAccess('/hrm-variables') && (
+                <NavLink
+                  href="/hrm-variables"
+                  label="HRM Variable (EPF/ETF/PAYE)"
+                  icon={<Percent className="h-5 w-5" />}
                 />
               )}
             </SidebarCollapsible>
