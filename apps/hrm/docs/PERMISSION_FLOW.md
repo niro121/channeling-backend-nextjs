@@ -210,7 +210,8 @@ From `lib/permissions.ts` / `RESOURCES` (keep these in sync when editing).
 | `/staff-grades` | `staff-grades` | Area / Staff Grade |
 | `/staff-specialities` | `staff-specialities` | Staff Specialities |
 | `/manage-rosters` | `manage-rosters` | Manage Rosters |
-| `/shift-types` | `shift-roster` | Shift Types *(Roster & Shifts template master — not HR Admin; Manage Shifts deferred — HR_ADMINISTRATION_GUIDE §34)* |
+| `/paysheet-components` | `paysheet-components` | Paysheet Components |
+| `/shift-types` | `shift-roster` | Shift Types *(Roster & Shifts template master — not HR Admin; Manage Shifts deferred — HR_ADMINISTRATION_GUIDE section 34)* |
 | `/leave-requests` | `leave-requests` | Leave Requests |
 | `/leave-types` | `leave-types` | Leave Types |
 | `/leave-entitlement` | `leave-entitlement` | Leave Entitlement |

@@ -5,28 +5,27 @@ Use with:
 
 - `apps/hrm/docs/HRM_DEVELOPMENT_GUIDELINES.md` ? layered architecture, checklists
 - `apps/hrm/docs/PERMISSION_FLOW.md` ? Auth User Group grants
-- `apps/hrm/docs/ROSTER_SHIFTS_MANAGER_GUIDE.md` ? downstream consumer of `HolidayCalendar`; **Shift Types** is the current shift template master (Manage Shifts deferred ? �34)
+- `apps/hrm/docs/ROSTER_SHIFTS_MANAGER_GUIDE.md` ? downstream consumer of `HolidayCalendar`; **Shift Types** is the current shift template master (Manage Shifts deferred ? §34)
 - `apps/hrm/docs/LEAVE_MANAGER_GUIDE.md` ? future holiday-aware leave day counting
 
 **Status:** HR Administration sidebar group is live.  
-**Shipped (CRUD):** Holiday Calendar � Designations � Area / Staff Grade � Staff Specialities � Manage Rosters.  
-**Strategy:** Finish remaining **HR Admin master modules** first, then run a single **cross-manager integration** wave (Staff, Roster & Shifts, Leave).  
-**Build path (each module):** Doc/types ? UI-first master?detail ? Prisma/Zod service ? Actions ? live CRUD.  
-**Do not** wire Staff / Roster / Leave consumers until the related master is shipped (or that master is explicitly out of scope for the wave).
+**Shipped (CRUD):** Holiday Calendar · Designations · Area / Staff Grade · Staff Specialities · Manage Rosters · **Paysheet Components**.  
+**Strategy:** **Module-wise** — plan and ship one HR Admin module at a time (doc → UI → CRUD). Do not pre-order a fixed P1→P5 queue; pick the next module when starting it.  
+**Build path (each module):** Doc/types → UI-first master–detail → Prisma/Zod service → Actions → live CRUD.  
+**Cross-manager integration** (Staff / Roster / Leave / Payroll consumers) stays deferred until the related master is ready (section 32).
 
 ### Coverage in this document
 
-
-| Module                                  | Status                                                    | Detail sections |
-| --------------------------------------- | --------------------------------------------------------- | --------------- |
-| Holiday Calendar                        | Shipped                                                   | �2?12           |
-| Designation Management                  | Shipped (D0?D5); D6/D7 deferred                           | �13?18          |
-| Area / Staff Grade                      | Shipped (G0?G5); G6/G7 deferred                           | �19?24          |
-| Manage Rosters                          | Shipped (R0?R5); R6/R7 deferred                           | �25?30          |
-| Staff Specialities                      | Shipped (CRUD + Staff General multi-select)               | �35             |
-| Manage Shifts                           | **Not required for current system** ? deferred / optional | �34             |
-| Remaining masters + integration backlog | Tracking only                                             | �31?33          |
-
+| Module | Status | Detail sections |
+|--------|--------|-----------------|
+| Holiday Calendar | Shipped | sections 2–12 |
+| Designation Management | Shipped (D0–D5); D6/D7 deferred | sections 13–18 |
+| Area / Staff Grade | Shipped (G0–G5); G6/G7 deferred | sections 19–24 |
+| Manage Rosters | Shipped (R0–R5); R6/R7 deferred | sections 25–30 |
+| Staff Specialities | Shipped | section 35 |
+| Paysheet Components | Shipped (PC0–PC4); PC5 Payroll consumer deferred | section 36 |
+| Manage Shifts | Not required for current system — deferred / optional | section 34 |
+| Candidate masters + integration backlog | Catalog only (no fixed order) | sections 31–33 |
 
 ---
 
@@ -48,6 +47,7 @@ Collapsible group **HR Administration** (add links only when a module ships ? do
 | Area / Staff Grade | `/staff-grades`       | `staff-grades`       |
 | Staff Specialities | `/staff-specialities` | `staff-specialities` |
 | Manage Rosters     | `/manage-rosters`     | `manage-rosters`     |
+| Paysheet Components | `/paysheet-components` | `paysheet-components` |
 
 
 
@@ -62,13 +62,14 @@ Collapsible group **HR Administration** (add links only when a module ships ? do
 | Area / staff grades              | **Area / Staff Grade**                          | CRUD shipped; Staff/Roster select still placeholder                      |
 | Staff specialities               | **Staff Specialities**                          | CRUD + Staff General multi-select (`specialityIds`); HRM-only            |
 | Roster groups (team/ward)        | **Manage Rosters**                              | Business code `CHN` ? period code `SR-n`; Staff/Roster still placeholder |
-| Shift templates (timings, flags) | **Roster & Shifts ? Shift Types** (`ShiftType`) | Current system master ? **not** duplicated in HR Admin (see �34)         |
-| Manage Shifts (legacy mock)      | **Deferred / optional** (�34)                   | Only if product requires roster-scoped catalogs + leave/prev-next rules  |
-| Departments                      | **Backlog** (�31)                               | Placeholders in Staff, Manage Rosters, Roster filters                    |
-| Units / wards                    | **Backlog** (�31)                               | Heavy use in Roster & Shifts; may nest under Department                  |
-| Institutions                     | **Backlog** (�31)                               | Staff Employment placeholder                                             |
-| Salary cycle                     | **Backlog** (�31)                               | Appears on Overnight / payroll-adjacent Roster UI                        |
-| Salary structures                | **Backlog** (�31)                               | Listed in permission map; not built                                      |
+| Shift templates (timings, flags) | **Roster & Shifts ? Shift Types** (`ShiftType`) | Current system master ? **not** duplicated in HR Admin (see §34)         |
+| Manage Shifts (legacy mock)      | **Deferred / optional** (§34)                   | Only if product requires roster-scoped catalogs + leave/prev-next rules  |
+| Departments                      | **Backlog** (§31)                               | Placeholders in Staff, Manage Rosters, Roster filters                    |
+| Units / wards                    | **Backlog** (§31)                               | Heavy use in Roster & Shifts; may nest under Department                  |
+| Institutions                     | **Backlog** (§31)                               | Staff Employment placeholder                                             |
+| Paysheet components               | **Paysheet Components** (section 36)        | System/Custom master; Assign Paysheet consumes later |
+| Salary cycle                     | **Backlog** (§31)                               | Appears on Overnight / payroll-adjacent Roster UI                        |
+| Salary structures                | **Backlog** (§31)                               | Listed in permission map; not built                                      |
 | Shift templates for holidays     | Roster & Shifts (`ShiftType.holidayEligible`)   | Consumes holiday dates; does not define them                             |
 | PH duty allocations              | Roster & Shifts                                 | Joins `RosterAllocation` ? `HolidayCalendar`                             |
 | Leave day counting               | Leave                                           | Future: skip holidays when computing `days`                              |
@@ -286,9 +287,9 @@ Match the **Manage Holiday** mock: left register, right detail + mini calendar ?
 ? Search                       ?  ? [ Save ]                               ?
 ? ???????????????????????????? ?  ? NAME *          [________________]    ?
 ? ? Christmas Day            ? ?  ? SELECT DAY TYPE * [ Poya ? ]          ?
-? ? 2026-12-25 � Public      ? ?  ? HOLIDAY DATE *  [ 27/08/2026 ]        ?
+? ? 2026-12-25 · Public      ? ?  ? HOLIDAY DATE *  [ 27/08/2026 ]        ?
 ? ? Nikini Poya (selected)   ? ?  ? ?? Impact ??????????????????????????  ?
-? ? 2026-08-27 � Poya        ? ?  ? ? Payroll PH allowance?          ?  ?
+? ? 2026-08-27 · Poya        ? ?  ? ? Payroll PH allowance?          ?  ?
 ? ???????????????????????????? ?  ? ? Shifts default to PH template? ?  ?
 ? [ + Add ]  [ Delete ]        ?  ? ? Leave requests skip counting?    ?  ?
 ?                              ?  ? ??????????????????????????????????  ?
@@ -642,7 +643,7 @@ apps/hrm/
 | **D7 ? Roster integration (deferred)** | Roster filters/snapshots consume designation master consistently          |
 
 
-**D0?D5 shipped.** D6/D7 wait for the **cross-manager integration wave** after remaining HR Admin masters (�31).
+**D0?D5 shipped.** D6/D7 wait for the **cross-manager integration wave** after remaining HR Admin masters (§31).
 
 ---
 
@@ -826,11 +827,11 @@ apps/hrm/
 | **G3 ? Schema & service**              | Prisma model, Zod CRUD, unique name, `SG-n` codes                           | **Done**        |
 | **G4 ? Actions**                       | Permissions, activity log, revalidate                                       | **Done**        |
 | **G5 ? Wire CRUD**                     | Page + detail form use real actions; sample data removed                    | **Done**        |
-| **G6 ? Staff integration (deferred)**  | Staff Employment `staffGrade` selects from this master                      | Later ? see �32 |
-| **G7 ? Roster integration (deferred)** | Roster filters consume this master                                          | Later ? see �32 |
+| **G6 ? Staff integration (deferred)**  | Staff Employment `staffGrade` selects from this master                      | Later ? see §32 |
+| **G7 ? Roster integration (deferred)** | Roster filters consume this master                                          | Later ? see §32 |
 
 
-**G0?G5 shipped.** G6/G7 wait for the **cross-manager integration wave** after remaining HR Admin masters (�31).
+**G0?G5 shipped.** G6/G7 wait for the **cross-manager integration wave** after remaining HR Admin masters (§31).
 
 ---
 
@@ -979,11 +980,11 @@ Derived (UI / later queries, not stored on the model):
 ?? ~35% Rosters ???????????????  ?? ~65% Roster Details ?????????????????????
 ? Search                      ?  ? Name *              [ CHANNEL ]         ?
 ? ??????????????????????????? ?  ? Department *        [ Channel ? ]       ?
-? ? ACCOUNTS � 10 staff     ? ?  ? Shifts / person / day * [ 3 ]           ?
-? ? CHANNEL � 32 staff (sel)? ?  ? Roster code         [ CHN ]             ?
-? ? ADMINISTRATION � 29 ?   ? ?  ? ? Active shifts ? ? Linked dept ? ?    ?
+? ? ACCOUNTS · 10 staff     ? ?  ? Shifts / person / day * [ 3 ]           ?
+? ? CHANNEL · 32 staff (sel)? ?  ? Roster code         [ CHN ]             ?
+? ? ADMINISTRATION · 29 ?   ? ?  ? ? Active shifts ? ? Linked dept ? ?    ?
 ? ??????????????????????????? ?  ? [ Cancel ] [ Delete ]         [ Save ]  ?
-?                             ?  ? Created by ? � Last updated ?           ?
+?                             ?  ? Created by ? · Last updated ?           ?
 ???????????????????????????????  ???????????????????????????????????????????
 ```
 
@@ -1044,11 +1045,11 @@ apps/hrm/
 | **R3 ? Schema & service**                       | Prisma `ManageRoster`, Zod CRUD, unique name + unique code                  | Done            |
 | **R4 ? Actions**                                | Permissions, activity log, revalidate                                       | Done            |
 | **R5 ? Wire CRUD**                              | Live list + mutations; sample data removed                                  | Done            |
-| **R6 ? Staff integration (deferred)**           | Staff Employment roster select from this master                             | Later ? see �32 |
-| **R7 ? Roster & Shifts integration (deferred)** | Filters/options + enforce shifts-per-person; keep `SR-n` for periods        | Later ? see �32 |
+| **R6 ? Staff integration (deferred)**           | Staff Employment roster select from this master                             | Later ? see §32 |
+| **R7 ? Roster & Shifts integration (deferred)** | Filters/options + enforce shifts-per-person; keep `SR-n` for periods        | Later ? see §32 |
 
 
-**R0?R5** shipped. R6/R7 wait for the **cross-manager integration wave** after remaining HR Admin masters (�31). Prefer shipping **Departments** first so Manage Rosters can drop its department placeholder enum.
+**R0?R5** shipped. R6/R7 wait for the **cross-manager integration wave** after remaining HR Admin masters (§31). Prefer shipping **Departments** first so Manage Rosters can drop its department placeholder enum.
 
 ---
 
@@ -1071,52 +1072,46 @@ apps/hrm/
 
 
 
-## 31. Remaining HR Admin modules (backlog)
+## 31. Candidate HR Admin modules (catalog — module-wise)
 
-Track here until each module gets its own detailed sections (same pattern as Holiday / Designation / Grade / Roster).  
-**Do not add sidebar links until CRUD ships.** Prefer master?detail under `(hr-admin)/`, one Auth resource per screen.
+Track candidates here until each module gets its own detailed section.  
+**Planning rule:** no fixed priority queue. When starting a module, document it, then UI-first, then CRUD.  
+**Do not add sidebar links until at least the UI shell ships.** Prefer master–detail under `(hr-admin)/`, one Auth resource per screen.
 
-### Suggested build order
+### Catalog (unordered)
 
+| Module (working name) | Likely route | Likely resource | Notes |
+|----------------------|--------------|-----------------|-------|
+| **Paysheet Components** | `/paysheet-components` | `paysheet-components` | **Shipped** (PC0–PC4) — see section 36; PC5 deferred |
+| **Departments** | `/departments` | `departments` | Unblocks Manage Rosters / Staff / Roster filters |
+| **Units / Wards** | `/units` (TBD) | `units` (TBD) | Confirm nested under Department vs separate |
+| **Institutions** | `/institutions` (TBD) | `institutions` (TBD) | Staff Employment placeholder |
+| **Salary Cycle** | `/salary-cycles` (TBD) | `salary-cycles` (TBD) | Overnight / payroll prep |
+| **Salary Structures** | `/salary-structures` | `salary-structures` | Permission map name exists |
+| **Manage Shifts** | `/manage-shifts` (TBD) | `manage-shifts` (TBD) | Deferred — see section 34 |
 
-| Priority | Module (working name) | Likely route           | Likely resource       | Why next                                                                       |
-| -------- | --------------------- | ---------------------- | --------------------- | ------------------------------------------------------------------------------ |
-| **P1**   | **Departments**       | `/departments`         | `departments`         | Unblocks Manage Rosters `departmentId`, Staff Employment, Roster filters       |
-| **P2**   | **Units / Wards**     | `/units` (TBD)         | `units` (TBD)         | Roster & Shifts filters/snapshots; confirm if nested under Department          |
-| **P3**   | **Institutions**      | `/institutions` (TBD)  | `institutions` (TBD)  | Staff Employment still uses `INSTITUTION_OPTIONS` placeholder                  |
-| **P4**   | **Salary Cycle**      | `/salary-cycles` (TBD) | `salary-cycles` (TBD) | Overnight / payroll-adjacent Roster columns; payroll prep                      |
-| **P5**   | **Salary Structures** | `/salary-structures`   | `salary-structures`   | Already named in permission map; payroll prep                                  |
-| **?**    | **Manage Shifts**     | `/manage-shifts` (TBD) | `manage-shifts` (TBD) | **Not in current build wave** ? see �34 (Shift Types already covers templates) |
-
-
-> **Positions:** `/positions` appears in the legacy permission map. Prefer treating **Designations** as the job-title master unless product requires a separate Positions screen.  
-> **Manage Shifts:** Do **not** add a sidebar link or start CRUD until product explicitly chooses Option A/B/C in �34. Default for the current system: **keep Shift Types**; skip HR Admin Manage Shifts.
-
-
+> **Positions:** Prefer **Designations** as the job-title master unless product requires a separate Positions screen.  
+> **Manage Shifts:** Do not start until product locks Option A/B/C in section 34.
 
 ### Placeholder sources to replace later
 
+| Consumer | Placeholder file / pattern | Replace with |
+|----------|----------------------------|--------------|
+| Staff Employment | `types/staff-employment-options.ts` | Live masters when each module ships |
+| Manage Rosters | `MANAGE_ROSTER_DEPARTMENTS` | Departments master |
+| Roster & Shifts | Filter option loaders / snapshots | Departments, Units, Designations, Rosters, Grades |
+| Assign Paysheet | Component options | Paysheet Components master (after CRUD) |
 
-| Consumer         | Placeholder file / pattern                                                           | Replace with                                            |
-| ---------------- | ------------------------------------------------------------------------------------ | ------------------------------------------------------- |
-| Staff Employment | `types/staff-employment-options.ts` (`DEPARTMENT_OPTIONS`, `INSTITUTION_OPTIONS`, ?) | Live masters                                            |
-| Staff Employment | Same file (`STAFF_DESIGNATION_OPTIONS`, `STAFF_GRADE_OPTIONS`, `ROSTER_OPTIONS`)     | Designation / Staff Grade / Manage Roster masters (�32) |
-| Manage Rosters   | `MANAGE_ROSTER_DEPARTMENTS` in `types/manage-roster.ts`                              | Departments master                                      |
-| Roster & Shifts  | Filter option loaders / snapshot strings                                             | Departments, Units, Designations, Rosters, Grades       |
-
-
-
-
-### Per-module checklist (copy when starting a new master)
+### Per-module checklist (copy when starting)
 
 - [ ] Guide section drafted (product surface, domain, UI map, phases)
-- [ ] Types + sample data (UI-first)
+- [ ] Types + constants (no sample data required for UI-first)
 - [ ] Route + sidebar + breadcrumbs + permission resource
-- [ ] Master?detail Formik/Yup UI (actions at bottom of detail)
+- [ ] Master–detail Formik/Yup UI (actions at bottom of detail)
 - [ ] Prisma model + Zod service + unique guards / codes
 - [ ] Server actions (permissions, activity log, revalidate)
-- [ ] Wire live CRUD; remove sample data
-- [ ] Leave Staff/Roster integration for �32 unless explicitly in-scope
+- [ ] Wire live CRUD
+- [ ] Leave consumer integration for section 32 unless explicitly in-scope
 
 ---
 
@@ -1152,9 +1147,9 @@ Track here until each module gets its own detailed sections (same pattern as Hol
 | **INT-R4** | Enforce Manage Roster `shiftsPerPersonPerDay` where scheduling rules apply                                                                   | Manage Rosters + R7          | Deferred            |
 | **INT-R5** | Department / Unit filters and snapshots from masters                                                                                         | Departments (P1), Units (P2) | Blocked             |
 | **INT-R6** | Manage Rosters summary: assigned staff count (match `employment.roster` ? code)                                                              | INT-S3                       | Deferred            |
-| **INT-R7** | Manage Rosters summary: active shift **template** count (from `ShiftType` today; roster-scoped only if Manage Shifts / Option A ships ? �34) | Optional                     | Deferred            |
+| **INT-R7** | Manage Rosters summary: active shift **template** count (from `ShiftType` today; roster-scoped only if Manage Shifts / Option A ships ? §34) | Optional                     | Deferred            |
 | **INT-R8** | Confirm Holiday Calendar ownership notes in Roster guide (stub language is outdated)                                                         | Holiday Calendar             | Docs follow-up      |
-| **INT-R9** | If Manage Shifts ships: wire Roster & Shifts to one shift master (deprecate dual editors)                                                    | �34 Option A/B               | Not started / gated |
+| **INT-R9** | If Manage Shifts ships: wire Roster & Shifts to one shift master (deprecate dual editors)                                                    | §34 Option A/B               | Not started / gated |
 
 
 
@@ -1172,7 +1167,7 @@ Track here until each module gets its own detailed sections (same pattern as Hol
 
 ### Integration wave checklist
 
-- [ ] Product confirms which �31 masters are in-scope for the wave
+- [ ] Product confirms which §31 masters are in-scope for the wave
 - [ ] Staff Employment options loaded from live list actions (not static arrays)
 - [ ] Stored keys documented (code vs ObjectId) per field
 - [ ] Roster filter option loaders updated
@@ -1184,14 +1179,13 @@ Track here until each module gets its own detailed sections (same pattern as Hol
 
 
 
-## 33. Recommended next steps
+## 33. How to pick the next module
 
-1. **Manual QA** shipped modules (Holiday, Designation, Staff Grade, Manage Rosters) if not already signed off.
-2. **Start P1 ? Departments:** document in this guide ? UI-first ? CRUD (same shell as Designations).
-3. **Clarify P2 Units** with product (separate master vs children of Department).
-4. Continue **P3?P5** as needed for payroll / institution scope.
-5. **Do not** start Manage Shifts unless product locks �34 Option A or B; default is keep **Shift Types**.
-6. Only then run **�32 integration wave** (batch Staff Employment + Roster filters together).
+1. Choose the next HR Admin module from the **section 31 catalog** (or a new product ask).
+2. Add/expand its guide section, then ship UI-first, then CRUD.
+3. Keep **section 32** integration deferred until the related masters exist.
+4. **Do not** start Manage Shifts unless section 34 Option A or B is locked.
+5. Pick the next module from the **section 31 catalog** when ready. Paysheet Components CRUD is shipped; **PC5** (Assign Paysheet link) stays deferred.
 
 ---
 
@@ -1209,7 +1203,7 @@ That screen is **not required for the current HRM system to function.**
 | ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------ |
 | Shift **templates** (name, start/end, duration, night/overnight/holiday flags) | **Roster & Shifts ? Shift Types** (`ShiftType`, `/shift-types`, codes `SHF-n`) |
 | Roster **groups** (CHANNEL / `CHN`)                                            | **HR Admin ? Manage Rosters**                                                  |
-| Putting templates on staff � dates                                             | Shift Roster, Duty, Amendments, Night/Overnight/PH (all use `shiftTypeId`)     |
+| Putting templates on staff × dates                                             | Shift Roster, Duty, Amendments, Night/Overnight/PH (all use `shiftTypeId`)     |
 | Standing staff ? shift rule                                                    | Shift Assignment                                                               |
 
 
@@ -1240,7 +1234,7 @@ Staff membership / employment             Shift Assignment
 | Manage Rosters           | Roster *groups*              | ACCOUNTS / CHANNEL ? `CHN`         |
 | Manage Shifts (if built) | Shift *templates per roster* | For ACCOUNTS: `8.30-5`, `DO`, `PH` |
 | Shift Types (today)      | Hospital-wide templates      | `SHF-1` Day 08:00?16:00            |
-| Roster & Shifts ops      | Staff � date allocations     | Cell uses a template id            |
+| Roster & Shifts ops      | Staff × date allocations     | Cell uses a template id            |
 
 
 
@@ -1333,4 +1327,118 @@ Staff General stores `hrDetails.specialityIds: string[]` (master ObjectIds). Mul
 
 ---
 
-*Last updated: Sep 2026 - Staff Specialities shipped (section 35); Manage Shifts deferred (section 34); remaining HR Admin backlog sections 31-33 unchanged (P1 Departments next).*
+
+## 36. Paysheet Components
+
+| Route | Resource | Role |
+|-------|----------|------|
+| `/paysheet-components` | `paysheet-components` | Master list + detail for system and custom paysheet components |
+
+**Permission:** dedicated Auth User Group resource `paysheet-components` (display name **Paysheet Components**).  
+Keep separate from Payroll `payroll` (Assign Paysheet / generation).
+
+**Activity keys:**
+
+| Action | Key |
+|--------|-----|
+| Page visit | `paysheet-components.visited` |
+| Create | `paysheet-components.created` |
+| Update | `paysheet-components.updated` |
+| Delete | `paysheet-components.deleted` |
+
+### Locked product decisions
+
+| Topic | Decision |
+|-------|----------|
+| Surface | **One route**, **two tabs**: System based / Custom — same form |
+| Who creates | HR creates rows on **both** tabs |
+| Layout | Master–detail; Cancel / Delete / Save at **bottom of detail** |
+| Code | Auto `PSC-n` (UI shows Auto until CRUD) |
+| Order no | Free integer; **unique per tab** (`kind`) |
+| Types | Constants in `types/paysheet-component.ts`; store `typeId` |
+| Included for | Constants in same file; store `includedForIds: string[]` |
+| Percentage | Field shown when `typeId === percentage_allowance` |
+| Sample data | **None** for UI-first |
+| Downstream | Do **not** link Assign Paysheet / Salary Structures until this module CRUD is done |
+
+### Constants (store ids)
+
+**Kinds:** `system` | `custom`
+
+**Types:** `basic_salary`, `fixed_allowance`, `percentage_allowance`, `fixed_deduction`, `loan`, `advance`, `ot`
+
+**Included for:** `epf`, `etf`, `pay_tax`, `ot`, `no_pay`, `ph`, `allowances_ph_day_off`
+
+### Domain (planned Prisma)
+
+| Field | Rule |
+|-------|------|
+| `code` | Unique auto `PSC-n` |
+| `name` | Required |
+| `kind` | `system` \| `custom` |
+| `typeId` | One of type constants |
+| `orderNo` | Int; unique with `kind` |
+| `percentage` | Nullable; required when percentage allowance |
+| `includedForIds` | String array of included-for ids |
+| Audit | `createdAt` / `updatedAt` / `createdBy` / `updatedBy` |
+
+### UI map
+
+```
+CommonManagerHeader: Paysheet Components
+Tabs: [ System based ] [ Custom ]
+
+┌─ Components ──────────┐  ┌─ Component Detail ─────────────────────┐
+│ Search                │  │ Name *                                 │
+│ list (name, type,     │  │ Code (auto)     Order No *             │
+│  order, code)         │  │ Component Type *   Percentage %?       │
+│ [ + Add ]             │  │ Included for (toggle cards)            │
+└───────────────────────┘  │ [ Cancel ] [ Delete ]        [ Save ]  │
+                           │ Created by … · Last updated …          │
+                           └────────────────────────────────────────┘
+```
+
+### File layout
+
+```
+apps/hrm/
+  app/(dashboard)/(hr-admin)/paysheet-components/
+    page.tsx
+    paysheet-component-workspace.tsx
+    paysheet-component-ui-context.tsx
+    section-paysheet-component-list.tsx
+    section-paysheet-component-detail.tsx
+  types/paysheet-component.ts
+  # later:
+  app/actions/hr-admin-actions/paysheet-component.actions.ts
+  services/hr-admin-services/paysheet-component.service.ts
+  lib/mappers/paysheet-component-form.mapper.ts
+```
+
+### Development phases
+
+| Phase | Deliverable | Status |
+|-------|-------------|--------|
+| **PC0 — Doc & types & UI shell** | Guide; constants; empty master–detail + tabs; nav/permissions | **Done** |
+| **PC1 — Interactive polish** | Validation, % field, included-for toggles, order uniqueness (UI) | **Done** |
+| **PC2 — Schema & service** | Prisma model, Zod CRUD, `PSC-n`, unique `(kind, orderNo)` | **Done** |
+| **PC3 — Actions** | Permissions, activity log, revalidate | **Done** |
+| **PC4 — Wire CRUD** | Live list + mutations; local preview removed | **Done** |
+| **PC5 — Payroll consumer (deferred)** | Assign Paysheet options from this master | Later |
+
+### Testing checklist (manual)
+
+- [ ] Route `/paysheet-components` loads live data
+- [ ] Tabs switch System / Custom and filter the list
+- [ ] Add highlights detail and focuses name
+- [ ] Component type select shows all seven constants
+- [ ] Percentage field appears only for percentage allowance
+- [ ] Included-for toggles select/deselect; ids persist after refresh
+- [ ] Cancel / Delete / Save at bottom of detail
+- [ ] Delete disabled for new records
+- [ ] Duplicate order no on same tab shows a field error
+- [ ] Create / update / delete persist after refresh
+
+---
+
+*Last updated: Sep 2026 — Paysheet Components PC0–PC4 CRUD shipped (section 36); PC5 deferred; module-wise planning (sections 31–33).*

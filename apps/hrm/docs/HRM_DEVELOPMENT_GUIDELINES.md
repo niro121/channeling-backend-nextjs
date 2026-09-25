@@ -7,7 +7,7 @@ Leave features: see **`LEAVE_MANAGER_GUIDE.md`** (models, UI map, business rules
 Overtime features: see **`OVERTIME_MANAGER_GUIDE.md`** (UI-first shell, then dynamic phases).  
 Roster & Shifts: see **`ROSTER_SHIFTS_MANAGER_GUIDE.md`** (UI-first Shift Roster, then dynamic phases).  
 Staff Attendance (RFID / finger-scan): see **`STAFF_ATTENDANCE_ARCHITECTURE.md`** (architecture, device install, ingest API, day rules, phased plan). In-app hub: **`/attendance`** (Guide).  
-HR Administration: see **`docs/HR_ADMINISTRATION_GUIDE.md`** (shipped masters + §31 remaining backlog; Staff/Roster integration deferred in §32; **Manage Shifts deferred** in §34 — Shift Types under Roster & Shifts remains the template master).
+HR Administration: see **`docs/HR_ADMINISTRATION_GUIDE.md`** (module-wise planning; Paysheet Components PC0 in section 36; Manage Shifts deferred in section 34).
 
 Related Channeling docs (patterns only; do not copy Channeling’s single-form staff UI into HRM):
 

@@ -32,6 +32,7 @@ const PATH_NAMES = [
   { path: 'staff-grades', name: 'Area / Staff Grade' },
   { path: 'staff-specialities', name: 'Staff Specialities' },
   { path: 'manage-rosters', name: 'Manage Rosters' },
+  { path: 'paysheet-components', name: 'Paysheet Components' },
   { path: 'attendance', name: 'Attendance Guide' },
   { path: 'rfid-attendance', name: 'RFID Attendance' },
   { path: 'attendance-corrections', name: 'Corrections' },

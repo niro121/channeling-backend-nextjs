@@ -416,7 +416,8 @@ export function DesktopSidebar({ session, className }: { session: Session | null
           hasAccess('/designations') ||
           hasAccess('/staff-grades') ||
           hasAccess('/staff-specialities') ||
-          hasAccess('/manage-rosters')) && (
+          hasAccess('/manage-rosters') ||
+          hasAccess('/paysheet-components')) && (
           <SidebarGroup label="HR Administration">
             <SidebarCollapsible
               label="HR Administration"
@@ -426,7 +427,8 @@ export function DesktopSidebar({ session, className }: { session: Session | null
                 '/designations',
                 '/staff-grades',
                 '/staff-specialities',
-                '/manage-rosters'
+                '/manage-rosters',
+                '/paysheet-components'
               ]}
               defaultOpen
             >
@@ -463,6 +465,13 @@ export function DesktopSidebar({ session, className }: { session: Session | null
                   href="/manage-rosters"
                   label="Manage Rosters"
                   icon={<ClipboardList className="h-5 w-5" />}
+                />
+              )}
+              {hasAccess('/paysheet-components') && (
+                <NavLink
+                  href="/paysheet-components"
+                  label="Paysheet Components"
+                  icon={<ListChecks className="h-5 w-5" />}
                 />
               )}
             </SidebarCollapsible>

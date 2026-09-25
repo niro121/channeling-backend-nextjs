@@ -728,6 +728,27 @@ model ManageRoster {
   @@index([departmentId])
 }
 
+model PaysheetComponent {
+  id             String   @id @default(auto()) @map("_id") @db.ObjectId
+  code           String   @unique // PSC-n
+  name           String
+  kind           String // system | custom
+  typeId         String // basic_salary | fixed_allowance | …
+  orderNo        Int
+  percentage     Float?
+  includedForIds String[] @default([])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy String?  @db.ObjectId
+  updatedBy String?  @db.ObjectId
+
+  @@unique([kind, orderNo])
+  @@index([kind])
+  @@index([typeId])
+  @@index([name])
+}
+
 /* ---------------------------------
 ORGANIZATION — DEPARTMENT
 --------------------------------- */

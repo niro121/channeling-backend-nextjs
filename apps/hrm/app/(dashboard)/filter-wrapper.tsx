@@ -16,6 +16,8 @@ interface FilterWrapperProps {
   showClearButton?: boolean;
   /** Label for the Clear button (default: "Clear"). */
   clearButtonLabel?: string;
+  /** Query keys to keep on Clear (e.g. tab `kind`). */
+  preserveQueryKeys?: string[];
   /** Called when the Apply/Search button is clicked. Receives the new URLSearchParams for immediate fetch. */
   onApplyClick?: (params?: URLSearchParams) => void;
   /** Called when filter values change (e.g. user changed dropdown). Use to clear list until Search is clicked. */
@@ -44,6 +46,7 @@ export function FilterWrapper({
   showApplyButton = true,
   showClearButton = false,
   clearButtonLabel = "Clear",
+  preserveQueryKeys = [],
   onApplyClick,
   onValuesChange,
   children,
@@ -146,13 +149,19 @@ export function FilterWrapper({
         input.value = "";
       });
     }
+    const params = new URLSearchParams();
+    for (const key of preserveQueryKeys) {
+      const value = searchParams.get(key);
+      if (value) params.set(key, value);
+    }
+    const queryString = params.toString();
     startTransition(() => {
-      router.push(pathname);
+      router.push(queryString ? `${pathname}?${queryString}` : pathname);
     });
   };
 
   return (
-    <div className="flex flex-wrap items-center gap-3">
+    <div className="flex flex-wrap items-end gap-3">
       {children({ values, setValue })}
 
       {(showApplyButton || showClearButton) && (
