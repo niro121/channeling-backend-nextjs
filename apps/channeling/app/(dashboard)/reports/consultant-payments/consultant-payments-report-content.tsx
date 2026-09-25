@@ -17,6 +17,70 @@ import { ConsultantPaymentsReportColumns } from './columns';
 import Loading from '@/app/(dashboard)/loading'
 import type { ConsultantPaymentsReportRow } from '@/types/report';
 import { formatLKR } from '@/lib/format-money';
+import moment from 'moment';
+
+const PDF_HEADERS = [
+  'S.No',
+  'Branch',
+  'Consultant',
+  'Consultant Code',
+  'Payment Receipt',
+  'Channel Receipt',
+  'Consultation Date/Session Time',
+  'Patient Name',
+  'Mode of Pay',
+  'Consultation Charge',
+  'Discount Amount',
+  'WHT',
+  'Net Amount',
+  'Payment Status',
+  'Paid By',
+  'Paid Date',
+  'Handed By',
+] as const;
+
+function pdfCell(value: string | number | null | undefined): string {
+  if (value === undefined || value === null || value === '') return '-';
+  return String(value);
+}
+
+/** Print body uses the same columns and cell values as the branded PDF. */
+function renderConsultantPaymentsPrint(rows: ConsultantPaymentsReportRow[]) {
+  return (
+    <table className="cpr-pdf-table">
+      <thead>
+        <tr>
+          {PDF_HEADERS.map((label) => (
+            <th key={label}>{label}</th>
+          ))}
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map((row) => (
+          <tr key={row.id}>
+            <td>{pdfCell(row.sNo)}</td>
+            <td>{pdfCell(row.branch)}</td>
+            <td>{pdfCell(row.consultant)}</td>
+            <td>{pdfCell(row.consultantCode)}</td>
+            <td>{pdfCell(row.paymentReceipt)}</td>
+            <td>{pdfCell(row.channelReceipt)}</td>
+            <td>{pdfCell(row.consultationSession)}</td>
+            <td>{pdfCell(row.patientName)}</td>
+            <td>{pdfCell(row.modeOfPay)}</td>
+            <td>{pdfCell(row.consultationCharge ?? 0)}</td>
+            <td>{pdfCell(row.discountAmount ?? 0)}</td>
+            <td>{pdfCell(row.whtAmount ?? 0)}</td>
+            <td>{pdfCell(row.netAmount ?? 0)}</td>
+            <td>{pdfCell(row.paymentStatus)}</td>
+            <td>{pdfCell(row.paidBy)}</td>
+            <td>{row.paidDate ? moment(row.paidDate).format('DD/MM/YYYY HH:mm') : '-'}</td>
+            <td>{pdfCell(row.handedBy)}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
 
 type ConsultantPaymentsReportContentProps = {
   currentUserName: string;
@@ -77,18 +141,58 @@ function ConsultantPaymentsReportContentInner({
     <>
       <style>{`
         @media print {
+          .consultant-payments-report-root,
+          .consultant-payments-report-root.container {
+            width: 100% !important;
+            max-width: none !important;
+            margin-left: 0 !important;
+            margin-right: 0 !important;
+            padding-left: 0 !important;
+            padding-right: 0 !important;
+          }
+          .consultant-payments-report-root .rpt-print-root,
+          .consultant-payments-report-root .rpt-print-body {
+            width: 100% !important;
+            max-width: none !important;
+            box-sizing: border-box !important;
+          }
+          .consultant-payments-report-root .rpt-print-body .overflow-x-auto,
+          .consultant-payments-report-root .rpt-print-body .overflow-auto,
+          .consultant-payments-report-root .rpt-print-body .overflow-hidden,
+          .consultant-payments-report-root .rpt-print-body .rounded-lg,
+          .consultant-payments-report-root .rpt-print-body .rounded-md {
+            overflow: visible !important;
+            width: 100% !important;
+            max-width: none !important;
+            border-radius: 0 !important;
+            box-shadow: none !important;
+          }
           .consultant-payments-report-root .rpt-print-root table {
             table-layout: fixed !important;
             width: 100% !important;
+            max-width: 100% !important;
+            border-collapse: collapse !important;
+            border: 0.5pt solid #000 !important;
           }
           .consultant-payments-report-root .rpt-print-root th,
           .consultant-payments-report-root .rpt-print-root td {
+            width: auto !important;
             font-size: 5.5pt !important;
-            padding: 0.5mm 0.35mm !important;
-            line-height: 1.1 !important;
+            font-weight: 400 !important;
+            padding: 0.7mm !important;
+            line-height: 1.15 !important;
+            text-align: left !important;
             white-space: normal !important;
             word-break: break-word !important;
+            overflow-wrap: anywhere !important;
             overflow: hidden !important;
+            border: 0.5pt solid #000 !important;
+            color: #000 !important;
+            background: #fff !important;
+            vertical-align: middle !important;
+            box-sizing: border-box !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
           }
           .consultant-payments-report-root .rpt-print-root th *,
           .consultant-payments-report-root .rpt-print-root td * {
@@ -98,15 +202,24 @@ function ConsultantPaymentsReportContentInner({
           }
           .consultant-payments-report-root .rpt-print-root thead th {
             font-size: 5pt !important;
+            font-weight: 700 !important;
+            background: #e8e8e8 !important;
+          }
+          .consultant-payments-report-root .rpt-print-root th:first-child,
+          .consultant-payments-report-root .rpt-print-root td:first-child {
+            border-left: 0.7pt solid #000 !important;
+          }
+          .consultant-payments-report-root .rpt-print-root th:last-child,
+          .consultant-payments-report-root .rpt-print-root td:last-child {
+            border-right: 0.7pt solid #000 !important;
+          }
+          .consultant-payments-report-root .rpt-print-root tr.rpt-print-total td {
+            font-weight: 700 !important;
+            background: #f3f3f3 !important;
           }
           .consultant-payments-report-root .rpt-print-root tr {
             break-inside: avoid !important;
             page-break-inside: avoid !important;
-          }
-          .consultant-payments-report-root .rpt-print-root [class*="truncate"] {
-            overflow: visible !important;
-            text-overflow: clip !important;
-            white-space: normal !important;
           }
         }
       `}</style>
@@ -116,6 +229,7 @@ function ConsultantPaymentsReportContentInner({
       filterButtonLabel="Search"
       skipFetchWhenNoParams={true}
       printPageSize="A4 portrait"
+      printPageMargins="7mm 5mm 18mm"
       containerClassName="container mx-auto py-3 space-y-4 consultant-payments-report-root"
       generationDetails={{
         generatedBy: currentUserName,
@@ -380,6 +494,7 @@ function ConsultantPaymentsReportContentInner({
       }}
       initialEmptyMessage="No consultant payments found. Select filters and click Search."
       emptyMessage="No consultant payments found for the selected filters."
+      renderPrintContent={renderConsultantPaymentsPrint}
     />
     </>
   );

@@ -274,24 +274,85 @@ export default function ChannelIncomeAccountingWiseReportContent({
     <div className="w-full py-2 space-y-3 channel-income-print-root">
       <style>{`
         @media print {
-          .channel-income-print-root .overflow-x-auto,
-          .channel-income-print-root .overflow-auto {
-            overflow: visible !important;
+          .channel-income-print-root {
+            width: 100% !important;
+            max-width: none !important;
+            margin-left: 0 !important;
+            margin-right: 0 !important;
+            padding-left: 0 !important;
+            padding-right: 0 !important;
           }
-          .channel-income-print-root .rpt-print-root table {
+          .channel-income-print-root .rpt-print-root,
+          .channel-income-print-root .rpt-print-body,
+          .channel-income-print-root .rpt-print-header,
+          .channel-income-print-root .rpt-print-summary {
+            width: 100% !important;
+            max-width: none !important;
+            box-sizing: border-box !important;
+          }
+          .channel-income-print-root > div {
+            width: 100% !important;
+            max-width: none !important;
+            margin-left: 0 !important;
+            margin-right: 0 !important;
+          }
+          /* Table wrappers only — do not strip the shared print header / summary box */
+          .channel-income-print-root .rpt-print-body .overflow-x-auto,
+          .channel-income-print-root .rpt-print-body .overflow-auto,
+          .channel-income-print-root .rpt-print-body .overflow-hidden,
+          .channel-income-print-root .rpt-print-body .rounded-md {
+            overflow: visible !important;
+            width: 100% !important;
+            max-width: none !important;
+            border: none !important;
+            border-radius: 0 !important;
+            box-shadow: none !important;
+          }
+
+          /* Body matches branded PDF compact table */
+          .channel-income-print-root .rpt-print-root table.cin-print-table {
             table-layout: fixed !important;
             width: 100% !important;
+            max-width: 100% !important;
+            border-collapse: collapse !important;
+            border: 0.5pt solid #000 !important;
           }
-          .channel-income-print-root .rpt-print-root th,
-          .channel-income-print-root .rpt-print-root td {
-            font-size: 8pt !important;
-            padding: 1mm 0.8mm !important;
-            line-height: 1.2 !important;
+          .channel-income-print-root .rpt-print-root table.cin-print-table th,
+          .channel-income-print-root .rpt-print-root table.cin-print-table td {
+            width: auto !important;
+            font-size: 5.5pt !important;
+            font-weight: 400 !important;
+            padding: 0.7mm !important;
+            line-height: 1.15 !important;
+            text-align: left !important;
             white-space: normal !important;
             word-break: break-word !important;
+            overflow-wrap: anywhere !important;
+            overflow: hidden !important;
+            border: 0.5pt solid #000 !important;
+            color: #000 !important;
+            background: #fff !important;
+            vertical-align: middle !important;
+            box-sizing: border-box !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
           }
-          .channel-income-print-root .rpt-print-root thead th {
-            font-size: 7.5pt !important;
+          .channel-income-print-root .rpt-print-root table.cin-print-table thead th {
+            font-size: 5pt !important;
+            font-weight: 700 !important;
+            background: #e8e8e8 !important;
+          }
+          .channel-income-print-root .rpt-print-root table.cin-print-table th:first-child,
+          .channel-income-print-root .rpt-print-root table.cin-print-table td:first-child {
+            border-left: 0.7pt solid #000 !important;
+          }
+          .channel-income-print-root .rpt-print-root table.cin-print-table th:last-child,
+          .channel-income-print-root .rpt-print-root table.cin-print-table td:last-child {
+            border-right: 0.7pt solid #000 !important;
+          }
+          .channel-income-print-root .rpt-print-root table.cin-print-table tr.rpt-print-total td {
+            font-weight: 700 !important;
+            background: #f3f3f3 !important;
           }
           .channel-income-print-root .rpt-print-root tr {
             break-inside: avoid !important;
@@ -398,13 +459,14 @@ export default function ChannelIncomeAccountingWiseReportContent({
             <ReportPrintLayout
               reportName="Channel Income Report (Accounting Wise)"
               pageSize="A4 portrait"
+              pageMargins="7mm 5mm 18mm"
               generatedAt={reportMeta.generatedAt}
               summaryItems={buildSummaryItems(reportMeta)}
             >
               <div className="space-y-3">
                 <div className="print:hidden">{renderReportMetaCard()}</div>
                 <div className="rounded-md border overflow-x-auto">
-                  <Table className="text-[11px] [&_th]:px-1.5 [&_td]:px-1.5 [&_th]:border-r [&_th:last-child]:border-r-0 [&_td]:border-r [&_td:last-child]:border-r-0">
+                  <Table className="cin-print-table text-[11px] [&_th]:px-1.5 [&_td]:px-1.5 [&_th]:border-r [&_th:last-child]:border-r-0 [&_td]:border-r [&_td:last-child]:border-r-0">
                     <TableHeader>
                       <TableRow className="bg-muted/40 text-muted-foreground">
                         <TableHead className="text-center font-semibold w-10">#</TableHead>
