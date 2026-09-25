@@ -182,7 +182,7 @@ function DoctorBalanceReportContentInner({
       description="Doctor payable balances as of a selected date, from linked PAYABLE accounts."
       filterButtonLabel="Search"
       printPageSize="A4 portrait"
-      printPageMargins="7mm 5mm 12mm"
+      printPageMargins="7mm 5mm 18mm"
       containerClassName="container mx-auto py-3 space-y-4 doctor-balance-report-root"
       tableClassName="text-[11px] [&_th]:px-1.5 [&_td]:px-1.5 [&_th]:border-r [&_th:last-child]:border-r-0 [&_td]:border-r [&_td:last-child]:border-r-0"
       initialFilterValues={{ asOfDate: defaultAsOfDate }}

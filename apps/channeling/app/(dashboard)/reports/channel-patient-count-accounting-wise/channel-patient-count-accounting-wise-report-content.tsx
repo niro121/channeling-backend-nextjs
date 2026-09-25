@@ -357,28 +357,161 @@ export default function ChannelPatientCountAccountingWiseReportContent({
     <div className="w-full py-2 space-y-3 channel-patient-count-print-root">
       <style>{`
         @media print {
-          .channel-patient-count-print-root .overflow-x-auto,
-          .channel-patient-count-print-root .overflow-auto {
-            overflow: visible !important;
+          /* Full page — print only */
+          .channel-patient-count-print-root {
+            width: 100% !important;
+            max-width: none !important;
+            margin-left: 0 !important;
+            margin-right: 0 !important;
+            padding-left: 0 !important;
+            padding-right: 0 !important;
           }
+          .channel-patient-count-print-root .rpt-print-root,
+          .channel-patient-count-print-root .rpt-print-body,
+          .channel-patient-count-print-root .rpt-print-header,
+          .channel-patient-count-print-root .rpt-print-summary {
+            width: 100% !important;
+            max-width: none !important;
+            box-sizing: border-box !important;
+          }
+          .channel-patient-count-print-root > div {
+            width: 100% !important;
+            max-width: none !important;
+            margin-left: 0 !important;
+            margin-right: 0 !important;
+          }
+          /* Table wrappers only — do not strip the shared print header / summary box */
+          .channel-patient-count-print-root .rpt-print-body .overflow-x-auto,
+          .channel-patient-count-print-root .rpt-print-body .overflow-auto,
+          .channel-patient-count-print-root .rpt-print-body .overflow-hidden,
+          .channel-patient-count-print-root .rpt-print-body .rounded-md {
+            overflow: visible !important;
+            width: 100% !important;
+            max-width: none !important;
+            border: none !important;
+            border-radius: 0 !important;
+            box-shadow: none !important;
+          }
+
+          .channel-patient-count-print-root .cpc-section-title {
+            display: block !important;
+            margin: 2mm 0 1mm !important;
+            font-size: 8pt !important;
+            font-weight: 700 !important;
+            color: #000 !important;
+            background: transparent !important;
+            border: none !important;
+            padding: 0 !important;
+          }
+
           .channel-patient-count-print-root .rpt-print-root table {
             table-layout: fixed !important;
             width: 100% !important;
+            max-width: 100% !important;
+            border-collapse: collapse !important;
+            border: 0.5pt solid #000 !important;
           }
           .channel-patient-count-print-root .rpt-print-root th,
           .channel-patient-count-print-root .rpt-print-root td {
-            font-size: 6pt !important;
-            padding: 0.6mm 0.4mm !important;
-            line-height: 1.1 !important;
+            font-size: 5.5pt !important;
+            padding: 0.7mm 0.4mm !important;
+            line-height: 1.15 !important;
             white-space: normal !important;
             word-break: break-word !important;
+            overflow-wrap: break-word !important;
+            overflow: hidden !important;
+            border: 0.5pt solid #000 !important;
+            color: #000 !important;
+            background: #fff !important;
+            vertical-align: middle !important;
+            box-sizing: border-box !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
           }
           .channel-patient-count-print-root .rpt-print-root thead th {
-            font-size: 5.5pt !important;
+            font-size: 5pt !important;
+            font-weight: 700 !important;
+            background: #e8e8e8 !important;
+          }
+          .channel-patient-count-print-root .rpt-print-root th:first-child,
+          .channel-patient-count-print-root .rpt-print-root td:first-child {
+            border-left: 0.7pt solid #000 !important;
+          }
+          .channel-patient-count-print-root .rpt-print-root th:last-child,
+          .channel-patient-count-print-root .rpt-print-root td:last-child {
+            border-right: 0.7pt solid #000 !important;
+          }
+          .channel-patient-count-print-root .rpt-print-root .text-muted-foreground {
+            color: #000 !important;
+          }
+          .channel-patient-count-print-root .rpt-print-root tr.rpt-print-total td {
+            font-weight: 700 !important;
+            background: #f3f3f3 !important;
           }
           .channel-patient-count-print-root .rpt-print-root tr {
             break-inside: avoid !important;
             page-break-inside: avoid !important;
+          }
+
+          /* Bill Counts — headers wrap; counts stay one line */
+          .channel-patient-count-print-root .cpc-count-table th,
+          .channel-patient-count-print-root .cpc-count-table td {
+            overflow: hidden !important;
+            white-space: normal !important;
+            word-break: break-word !important;
+          }
+          .channel-patient-count-print-root .cpc-count-table th:nth-child(1),
+          .channel-patient-count-print-root .cpc-count-table td:nth-child(1) {
+            width: 4% !important;
+            text-align: center !important;
+          }
+          .channel-patient-count-print-root .cpc-count-table th:nth-child(2),
+          .channel-patient-count-print-root .cpc-count-table td:nth-child(2) {
+            width: 16% !important;
+            text-align: left !important;
+          }
+          .channel-patient-count-print-root .cpc-count-table th:nth-child(n+3),
+          .channel-patient-count-print-root .cpc-count-table td:nth-child(n+3) {
+            width: 7.27% !important;
+            text-align: center !important;
+            font-variant-numeric: tabular-nums !important;
+          }
+
+          /*
+            Revenue: 21 columns. Headers wrap so the full name shows.
+            Amounts use a smaller size and may wrap so digits are not cut off.
+          */
+          .channel-patient-count-print-root .cpc-rev-table th,
+          .channel-patient-count-print-root .cpc-rev-table td {
+            font-size: 4.5pt !important;
+            padding: 0.5mm 0.25mm !important;
+            line-height: 1.1 !important;
+            overflow: hidden !important;
+            white-space: normal !important;
+            word-break: break-word !important;
+            overflow-wrap: anywhere !important;
+          }
+          .channel-patient-count-print-root .cpc-rev-table thead th {
+            font-size: 4pt !important;
+            line-height: 1.05 !important;
+            font-weight: 700 !important;
+          }
+          .channel-patient-count-print-root .cpc-rev-table th:nth-child(1),
+          .channel-patient-count-print-root .cpc-rev-table td:nth-child(1) {
+            width: 3% !important;
+            text-align: center !important;
+          }
+          .channel-patient-count-print-root .cpc-rev-table th:nth-child(2),
+          .channel-patient-count-print-root .cpc-rev-table td:nth-child(2) {
+            width: 10% !important;
+            text-align: left !important;
+            overflow-wrap: break-word !important;
+          }
+          .channel-patient-count-print-root .cpc-rev-table th:nth-child(n+3),
+          .channel-patient-count-print-root .cpc-rev-table td:nth-child(n+3) {
+            width: 4.58% !important;
+            text-align: right !important;
+            font-variant-numeric: tabular-nums !important;
           }
         }
       `}</style>
@@ -481,15 +614,32 @@ export default function ChannelPatientCountAccountingWiseReportContent({
             <ReportPrintLayout
               reportName="Channel Patient Count (Accounting Wise)"
               pageSize="A4 portrait"
+              pageMargins="7mm 5mm 18mm"
               generatedAt={reportMeta.generatedAt}
               summaryItems={buildSummaryItems(reportMeta)}
             >
               <div className="space-y-3">
                 <div className="print:hidden">{renderReportMetaCard()}</div>
+                <div className="cpc-section-title hidden">Bill Counts</div>
                 <div className="rounded-md border overflow-x-auto">
-                  <Table className="text-[11px] [&_th]:px-1.5 [&_td]:px-1.5 [&_th]:border-r [&_th:last-child]:border-r-0 [&_td]:border-r [&_td:last-child]:border-r-0">
+                  <Table className="cpc-count-table text-[11px] [&_th]:px-1.5 [&_td]:px-1.5 [&_th]:border-r [&_th:last-child]:border-r-0 [&_td]:border-r [&_td:last-child]:border-r-0">
                     <TableHeader>
-                      <TableRow className="bg-muted/40 text-muted-foreground">
+                      <TableRow className="hidden print:table-row">
+                        <TableHead>#</TableHead>
+                        <TableHead>Booking Type</TableHead>
+                        <TableHead>Paid-Paid</TableHead>
+                        <TableHead>Paid-Pending</TableHead>
+                        <TableHead>Paid-Net</TableHead>
+                        <TableHead>Cancel-Paid</TableHead>
+                        <TableHead>Cancel-Pending</TableHead>
+                        <TableHead>Cancel-Net</TableHead>
+                        <TableHead>Refund-Hos</TableHead>
+                        <TableHead>Refund-Pro</TableHead>
+                        <TableHead>Total-Paid</TableHead>
+                        <TableHead>Total-Pending</TableHead>
+                        <TableHead>Total-Net</TableHead>
+                      </TableRow>
+                      <TableRow className="bg-muted/40 text-muted-foreground print:hidden">
                         <TableHead rowSpan={2} className="text-center font-semibold">#</TableHead>
                         <TableHead rowSpan={2} className="font-semibold">Booking Type</TableHead>
                         <TableHead colSpan={3} className="text-center font-semibold">Paid Bill Count</TableHead>
@@ -497,7 +647,7 @@ export default function ChannelPatientCountAccountingWiseReportContent({
                         <TableHead colSpan={2} className="text-center font-semibold">Refund Bill Count</TableHead>
                         <TableHead colSpan={3} className="text-center font-semibold">Total Count</TableHead>
                       </TableRow>
-                      <TableRow className="bg-muted/30 text-muted-foreground">
+                      <TableRow className="bg-muted/30 text-muted-foreground print:hidden">
                         <TableHead className="text-center font-medium">Paid</TableHead>
                         <TableHead className="text-center font-medium">Pending</TableHead>
                         <TableHead className="text-center font-medium">Net</TableHead>
@@ -551,12 +701,35 @@ export default function ChannelPatientCountAccountingWiseReportContent({
                 </div>
 
                 <div className="rounded-md border overflow-x-auto">
-                  <div className="px-3 py-2 border-b bg-muted/40 text-sm font-semibold text-foreground">
+                  <div className="cpc-section-title px-3 py-2 border-b bg-muted/40 text-sm font-semibold text-foreground">
                     Revenue Breakdown
                   </div>
-                  <Table className="text-[11px] [&_th]:px-1.5 [&_td]:px-1.5 [&_th]:border-r [&_th:last-child]:border-r-0 [&_td]:border-r [&_td:last-child]:border-r-0">
+                  <Table className="cpc-rev-table text-[11px] [&_th]:px-1.5 [&_td]:px-1.5 [&_th]:border-r [&_th:last-child]:border-r-0 [&_td]:border-r [&_td:last-child]:border-r-0">
                     <TableHeader>
-                      <TableRow className="bg-muted/40 text-muted-foreground">
+                      <TableRow className="hidden print:table-row">
+                        <TableHead>#</TableHead>
+                        <TableHead>Booking Type</TableHead>
+                        <TableHead>Paid Hos Fee</TableHead>
+                        <TableHead>Paid Hos Dis</TableHead>
+                        <TableHead>Paid Pro Fee</TableHead>
+                        <TableHead>Paid Pro Dis</TableHead>
+                        <TableHead>Paid Hos Total</TableHead>
+                        <TableHead>Cancel Hos Fee</TableHead>
+                        <TableHead>Cancel Hos Dis</TableHead>
+                        <TableHead>Cancel Pro Fee</TableHead>
+                        <TableHead>Cancel Pro Dis</TableHead>
+                        <TableHead>Cancel Hos Total</TableHead>
+                        <TableHead>Refund Hos</TableHead>
+                        <TableHead>Refund Pro</TableHead>
+                        <TableHead>Nett Hos Fee</TableHead>
+                        <TableHead>Nett Hos Dis</TableHead>
+                        <TableHead>Nett Pro Fee</TableHead>
+                        <TableHead>Nett Pro Dis</TableHead>
+                        <TableHead>Nett Hos Total</TableHead>
+                        <TableHead>Pending Hos</TableHead>
+                        <TableHead>Pending Pro</TableHead>
+                      </TableRow>
+                      <TableRow className="bg-muted/40 text-muted-foreground print:hidden">
                         <TableHead rowSpan={2} className="text-center font-semibold">#</TableHead>
                         <TableHead rowSpan={2} className="font-semibold">Booking Type</TableHead>
                         <TableHead colSpan={5} className="text-center font-semibold">Paid Revenue</TableHead>
@@ -565,7 +738,7 @@ export default function ChannelPatientCountAccountingWiseReportContent({
                         <TableHead colSpan={5} className="text-center font-semibold">Nett Revenue</TableHead>
                         <TableHead colSpan={2} className="text-center font-semibold">Pending Revenue</TableHead>
                       </TableRow>
-                      <TableRow className="bg-muted/30 text-muted-foreground">
+                      <TableRow className="bg-muted/30 text-muted-foreground print:hidden">
                         <TableHead className="text-right font-medium">Hos Fee</TableHead>
                         <TableHead className="text-right font-medium">Hos Dis</TableHead>
                         <TableHead className="text-right font-medium">Pro Fee</TableHead>
