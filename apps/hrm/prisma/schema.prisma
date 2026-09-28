@@ -785,6 +785,28 @@ model HrmPayeSlab {
   @@index([fromSalary])
 }
 
+model SalaryCycle {
+  id             String    @id @default(auto()) @map("_id") @db.ObjectId
+  institutionId  Int // 0=RH, 1=RHD, 2=RHT, 3=RPS
+  salaryFromDate DateTime
+  salaryToDate   DateTime
+  advanceFromDate DateTime?
+  advanceToDate   DateTime?
+  otFromDate      DateTime?
+  otToDate        DateTime?
+  dayOffFromDate  DateTime?
+  dayOffToDate    DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy String?  @db.ObjectId
+  updatedBy String?  @db.ObjectId
+
+  @@unique([institutionId, salaryFromDate, salaryToDate])
+  @@index([institutionId])
+  @@index([salaryFromDate])
+}
+
 /* ---------------------------------
 ORGANIZATION
 --------------------------------- */

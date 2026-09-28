@@ -20,6 +20,7 @@ export const RESOURCES: ResourceWithOptionalActions[] = [
   // HR-Admin
   { id: 'paysheet-components', name: 'Paysheet Components' },
   { id: 'hrm-variables', name: 'HRM Variable (EPF/ETF/PAYE)' },
+  { id: 'salary-cycles', name: 'Salary Cycle' },
   { id: 'leave-types', name: 'Leave Types' },
   { id: 'leave-entitlement', name: 'Leave Entitlement' },
   { id: 'leave-management', name: 'Leave Management' },

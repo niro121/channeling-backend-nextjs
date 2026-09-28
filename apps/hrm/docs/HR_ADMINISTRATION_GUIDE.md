@@ -9,7 +9,7 @@ Use with:
 - `apps/hrm/docs/LEAVE_MANAGER_GUIDE.md` ? future holiday-aware leave day counting
 
 **Status:** HR Administration sidebar group is live.  
-**Shipped (CRUD):** Holiday Calendar · Designations · Area / Staff Grade · Staff Specialities · Manage Rosters · **Paysheet Components** · **HRM Variable (EPF/ETF/PAYE)**.  
+**Shipped (CRUD):** Holiday Calendar · Designations · Area / Staff Grade · Staff Specialities · Manage Rosters · **Paysheet Components** · **HRM Variable (EPF/ETF/PAYE)** · **Salary Cycle**.  
 **Strategy:** **Module-wise** — plan and ship one HR Admin module at a time (doc → UI → CRUD). Do not pre-order a fixed P1→P5 queue; pick the next module when starting it.  
 **Build path (each module):** Doc/types → UI-first master–detail → Prisma/Zod service → Actions → live CRUD.  
 **Cross-manager integration** (Staff / Roster / Leave / Payroll consumers) stays deferred until the related master is ready (section 32).
@@ -25,6 +25,7 @@ Use with:
 | Staff Specialities | Shipped | section 35 |
 | Paysheet Components | Shipped (PC0–PC4); PC5 Payroll consumer deferred | section 36 |
 | HRM Variable (EPF/ETF/PAYE) | Shipped (HV0–HV4); HV5 Payroll consumer deferred | section 37 |
+| Salary Cycle | Shipped (SC0–SC4); SC5 consumers deferred | section 38 |
 | Manage Shifts | Not required for current system — deferred / optional | section 34 |
 | Candidate masters + integration backlog | Catalog only (no fixed order) | sections 31–33 |
 
@@ -50,6 +51,7 @@ Collapsible group **HR Administration** (add links only when a module ships ? do
 | Manage Rosters     | `/manage-rosters`     | `manage-rosters`     |
 | Paysheet Components | `/paysheet-components` | `paysheet-components` |
 | HRM Variable (EPF/ETF/PAYE) | `/hrm-variables` | `hrm-variables` |
+| Salary Cycle | `/salary-cycles` | `salary-cycles` |
 
 
 
@@ -71,7 +73,7 @@ Collapsible group **HR Administration** (add links only when a module ships ? do
 | Institutions                     | **Backlog** (§31)                               | Staff Employment placeholder                                             |
 | Paysheet components               | **Paysheet Components** (section 36)        | System/Custom master; Assign Paysheet consumes later |
 | EPF / ETF rates + PAYE slabs      | **HRM Variable** (section 37)               | Singleton rates + progressive slabs; payroll consumer later |
-| Salary cycle                     | **Backlog** (§31)                               | Appears on Overnight / payroll-adjacent Roster UI                        |
+| Salary cycle                     | **Salary Cycle** (section 38)               | Per-institution windows; payroll / overnight consumer later |
 | Salary structures                | **Backlog** (§31)                               | Listed in permission map; not built                                      |
 | Shift templates for holidays     | Roster & Shifts (`ShiftType.holidayEligible`)   | Consumes holiday dates; does not define them                             |
 | PH duty allocations              | Roster & Shifts                                 | Joins `RosterAllocation` ? `HolidayCalendar`                             |
@@ -1087,10 +1089,10 @@ Track candidates here until each module gets its own detailed section.
 |----------------------|--------------|-----------------|-------|
 | **Paysheet Components** | `/paysheet-components` | `paysheet-components` | **Shipped** (PC0–PC4) — see section 36; PC5 deferred |
 | **HRM Variable (EPF/ETF/PAYE)** | `/hrm-variables` | `hrm-variables` | **Shipped** (HV0–HV4) — see section 37; HV5 deferred |
+| **Salary Cycle** | `/salary-cycles` | `salary-cycles` | **Shipped** (SC0–SC4) — see section 38; SC5 deferred |
 | **Departments** | `/departments` | `departments` | Unblocks Manage Rosters / Staff / Roster filters |
 | **Units / Wards** | `/units` (TBD) | `units` (TBD) | Confirm nested under Department vs separate |
-| **Institutions** | `/institutions` (TBD) | `institutions` (TBD) | Staff Employment placeholder |
-| **Salary Cycle** | `/salary-cycles` (TBD) | `salary-cycles` (TBD) | Overnight / payroll prep |
+| **Institutions** | `/institutions` (TBD) | `institutions` (TBD) | Staff Employment placeholder — options today in `types/institution.ts` |
 | **Salary Structures** | `/salary-structures` | `salary-structures` | Permission map name exists |
 | **Manage Shifts** | `/manage-shifts` (TBD) | `manage-shifts` (TBD) | Deferred — see section 34 |
 
@@ -1519,4 +1521,97 @@ apps/hrm/
 
 ---
 
-*Last updated: Sep 2026 — HRM Variable HV0–HV4 CRUD shipped (section 37); HV5 deferred; Paysheet Components PC0–PC4 shipped; module-wise planning (sections 31–33).*
+## 38. Salary Cycle
+
+Per-institution payroll period windows (salary, advance, OT, day-off / PH).
+
+| Item | Decision |
+|------|----------|
+| Route | `/salary-cycles` |
+| Resource | `salary-cycles` (display: **Salary Cycle**) |
+| Scope | Per `institutionId` from `types/institution.ts` (`INSTITUTION_LIST`) |
+| Unique key | `(institutionId, salaryFromDate, salaryToDate)` — no overlapping salary windows per institution |
+| Layout | Institution selector + master–detail list + detail form |
+| List actions | Add Cycle · Delete (alert-dialog) · Fill |
+| Detail | Save + `ExportWrapper` (Excel / PDF / Print) |
+| Sample data | **None** |
+| Downstream | Salary Generation / Overnight still use synthetic months until SC5 |
+
+### Windows
+
+| Window | Fields | Required |
+|--------|--------|----------|
+| Salary | from / to (date) | Yes |
+| Advance | from / to (date) | No |
+| OT | from / to (datetime at CRUD; date picker in UI shell) | No |
+| Day-off / PH | from / to (datetime at CRUD; date picker in UI shell) | No |
+
+**Fill** (from salary-from month): advance 1st–20th; OT & Day-off/PH = 15th previous month 00:00 → 14th of salary month 23:59.
+
+### Domain (Prisma)
+
+| Field | Rule |
+|-------|------|
+| `institutionId` | Int (0–3) |
+| `salaryFromDate` / `salaryToDate` | Required DateTime (normalized start/end of day) |
+| `advanceFromDate` / `advanceToDate` | Optional |
+| `otFromDate` / `otToDate` | Optional |
+| `dayOffFromDate` / `dayOffToDate` | Optional |
+| Unique | `(institutionId, salaryFromDate, salaryToDate)` + app-level overlap check |
+| Audit | `createdAt` / `updatedAt` / `createdBy` / `updatedBy` |
+
+### UI map
+
+```
+CommonManagerHeader: Manage Salary Cycle
+[ Institution selector ]
+
+┌─ Salary Cycles ─────┐  ┌─ Detail ─────────────────────────────────┐
+│ Search              │  │ Institution · Cycle label · month banner │
+│ list of ranges      │  │ Salary / Advance / OT / Day-off windows  │
+│ [+ Add] [Delete]    │  │ [ Fill ] [ Save ] [ ExportWrapper ]      │
+│ [ Fill ]            │  │ Created / Updated                        │
+└─────────────────────┘  └──────────────────────────────────────────┘
+```
+
+### File layout
+
+```
+apps/hrm/
+  app/(dashboard)/(hr-admin)/salary-cycles/
+    page.tsx
+    salary-cycle-workspace.tsx
+    salary-cycle-ui-context.tsx
+    section-salary-cycle-list.tsx
+    section-salary-cycle-detail.tsx
+  types/salary-cycle.ts
+  app/actions/hr-admin-actions/salary-cycle.actions.ts
+  services/hr-admin-services/salary-cycle.service.ts
+  lib/mappers/salary-cycle-form.mapper.ts
+```
+
+### Development phases
+
+| Phase | Deliverable | Status |
+|-------|-------------|--------|
+| **SC0 — Doc & types & UI shell** | Guide; types; empty master–detail; institution selector; nav | **Done** |
+| **SC1 — Interactive polish** | Yup, Fill, overlap check, delete alert, ExportWrapper | **Done** |
+| **SC2 — Schema & service** | Prisma + Zod CRUD | **Done** |
+| **SC3 — Actions** | Permissions, activity log, revalidate | **Done** |
+| **SC4 — Wire CRUD** | Live list + mutations | **Done** |
+| **SC5 — Consumers (deferred)** | Salary Generation / Roster overnight options from this master | Later |
+
+### Testing checklist (manual)
+
+- [ ] Route `/salary-cycles` loads persisted cycles (or empty)
+- [ ] Institution selector filters the list
+- [ ] Add Cycle + Save persists after refresh
+- [ ] Fill derives advance / OT / day-off from salary-from month
+- [ ] Overlapping salary window is rejected by the service
+- [ ] Delete shows alert-dialog then removes and persists
+- [ ] ExportWrapper Excel / PDF / Print available after save
+- [ ] Auth User Group can grant `salary-cycles`
+
+---
+
+*Last updated: Sep 2026 — Salary Cycle SC0–SC4 CRUD shipped (section 38); SC5 deferred; module-wise planning (sections 31–33).*

@@ -419,7 +419,8 @@ export function DesktopSidebar({ session, className }: { session: Session | null
           hasAccess('/staff-specialities') ||
           hasAccess('/manage-rosters') ||
           hasAccess('/paysheet-components') ||
-          hasAccess('/hrm-variables')) && (
+          hasAccess('/hrm-variables') ||
+          hasAccess('/salary-cycles')) && (
           <SidebarGroup label="HR Administration">
             <SidebarCollapsible
               label="HR Administration"
@@ -431,7 +432,8 @@ export function DesktopSidebar({ session, className }: { session: Session | null
                 '/staff-specialities',
                 '/manage-rosters',
                 '/paysheet-components',
-                '/hrm-variables'
+                '/hrm-variables',
+                '/salary-cycles'
               ]}
               defaultOpen
             >
@@ -482,6 +484,13 @@ export function DesktopSidebar({ session, className }: { session: Session | null
                   href="/hrm-variables"
                   label="HRM Variable (EPF/ETF/PAYE)"
                   icon={<Percent className="h-5 w-5" />}
+                />
+              )}
+              {hasAccess('/salary-cycles') && (
+                <NavLink
+                  href="/salary-cycles"
+                  label="Salary Cycle"
+                  icon={<CalendarRange className="h-5 w-5" />}
                 />
               )}
             </SidebarCollapsible>
