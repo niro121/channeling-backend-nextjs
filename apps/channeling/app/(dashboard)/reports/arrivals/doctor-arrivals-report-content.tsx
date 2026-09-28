@@ -146,6 +146,10 @@ function DoctorArrivalsReportContentInner({
             break-inside: avoid !important;
             page-break-inside: avoid !important;
           }
+          /* Group title row repeats the doctor name already shown in the Doctor Name column */
+          .doctor-arrivals-report-root .rpt-print-root tr:has(td[colspan]) {
+            display: none !important;
+          }
         }
       `}</style>
       <ReportTemplate<DoctorArrivalsReportRow, DoctorArrivalsReportExportRow>
