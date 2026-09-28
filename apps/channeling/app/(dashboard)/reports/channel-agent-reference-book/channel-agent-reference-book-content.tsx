@@ -144,6 +144,7 @@ function ChannelAgentReferenceBookReportContentInner({
       description="View channel agent reference book information with filters"
       filterButtonLabel="Search"
       printPageSize="A4 portrait"
+      printPageMargins="6mm 5mm 18mm"
       exportOrientation="portrait"
       containerClassName="container mx-auto py-3 space-y-4 channel-agent-reference-book-report-root"
       renderPrintContent={(rows) => <ChannelAgentReferenceBookPrintLayout rows={rows} />}
