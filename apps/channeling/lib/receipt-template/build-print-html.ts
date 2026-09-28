@@ -286,6 +286,7 @@ function buildSailsBookingReceiptHtml(placeholders: ReceiptPlaceholderMap): stri
   const hospitalDiscount = (placeholders.hospital_fee_discount ?? "").trim()
   const professionalDiscount = (placeholders.professional_fee_discount ?? "").trim()
   const refundReceiptNo = (placeholders.refund_receipt_no ?? "").trim()
+  const refundReason = (placeholders.refund_reason ?? "").trim()
   const approvedBy = (placeholders.approved_by ?? "").trim()
   const debiter = (placeholders.debiter ?? "").trim()
   const showProfessional = (placeholders.show_professional_bill ?? "").trim() === "1"
@@ -296,6 +297,7 @@ function buildSailsBookingReceiptHtml(placeholders: ReceiptPlaceholderMap): stri
     invoiceRow("Number", placeholders.appointment_no ?? "", { strongLabel: true, huge: true }),
     invoiceRow("Name", placeholders.patient_name ?? ""),
     refundReceiptNo ? invoiceRow("Refund Invoice No", refundReceiptNo) : "",
+    refundReason ? invoiceRow("Refund Remarks", refundReason) : "",
     invoiceRow("Invoice No", placeholders.bill_no ?? ""),
     invoiceRow("Phone", placeholders.phone ?? placeholders.tel ?? ""),
     invoiceRow("Appointment Type", placeholders.booking_method ?? ""),
