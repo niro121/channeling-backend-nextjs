@@ -21,11 +21,11 @@ import {
 } from '@archmage/ui';
 import {
   EMPTY_PAYSHEET_ASSIGNMENT_FORM,
-  PAYSHEET_COMPONENT_OPTIONS,
   type PaysheetAssignmentFormValues,
   type PaysheetAssignmentRecord,
   type PaysheetStaffOption
 } from '@/types/payroll';
+import type { PaysheetComponentOption } from '@/types/paysheet-component';
 import type { PaysheetFormSheetMode } from './assign-paysheet-ui-context';
 
 type SheetAssignmentFormProps = {
@@ -33,6 +33,7 @@ type SheetAssignmentFormProps = {
   mode: PaysheetFormSheetMode;
   record: PaysheetAssignmentRecord | null;
   staffOptions?: PaysheetStaffOption[];
+  componentOptions?: PaysheetComponentOption[];
   onOpenChange: (open: boolean) => void;
 };
 
@@ -74,17 +75,13 @@ export default function SheetAssignmentForm({
   mode,
   record,
   staffOptions = [],
+  componentOptions = [],
   onOpenChange
 }: SheetAssignmentFormProps) {
   const { toast } = useToast();
   const [formKey, setFormKey] = useState(0);
 
   const initialValues = useMemo(() => recordToFormValues(record), [record]);
-
-  const componentOptions = PAYSHEET_COMPONENT_OPTIONS.map((item) => ({
-    id: item.id,
-    name: item.name
-  }));
 
   const title =
     mode === 'edit' ? 'Edit Paysheet Assignment' : 'Assign Paysheet Component';

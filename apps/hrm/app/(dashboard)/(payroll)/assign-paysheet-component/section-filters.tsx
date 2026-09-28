@@ -13,15 +13,16 @@ import {
 import { FilterWrapper } from '@/app/(dashboard)/filter-wrapper';
 import { INSTITUTION_OPTIONS } from '@/types/institution';
 import { STAFF_CATEGORY_OPTIONS } from '@/types/staff-employment-options';
-import {
-  PAYSHEET_COMPONENT_OPTIONS,
-  type PaysheetAssignmentFilters,
-  type PaysheetStaffOption,
-  type SalaryFilterOption
+import type { PaysheetComponentOption } from '@/types/paysheet-component';
+import type {
+  PaysheetAssignmentFilters,
+  PaysheetStaffOption,
+  SalaryFilterOption
 } from '@/types/payroll';
 
 type SectionFiltersProps = {
   staffOptions?: PaysheetStaffOption[];
+  componentOptions?: PaysheetComponentOption[];
   departmentOptions?: SalaryFilterOption[];
   designationOptions?: SalaryFilterOption[];
   rosterOptions?: SalaryFilterOption[];
@@ -42,16 +43,13 @@ function toLocalDateIso(value?: Date | null): string | undefined {
 
 function SectionFiltersInner({
   staffOptions = [],
+  componentOptions = [],
   departmentOptions = [],
   designationOptions = [],
   rosterOptions = [],
   initial = {}
 }: SectionFiltersProps) {
   const staffCategoryOptions = STAFF_CATEGORY_OPTIONS.map((item) => ({
-    id: item.id,
-    name: item.name
-  }));
-  const componentOptions = PAYSHEET_COMPONENT_OPTIONS.map((item) => ({
     id: item.id,
     name: item.name
   }));

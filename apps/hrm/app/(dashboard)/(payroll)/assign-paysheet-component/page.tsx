@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth';
 import { checkRouteAccess } from '@/lib/server-permissions';
 import { authOptions } from '@/lib/auth';
 import { logActivityNonBlocking } from '@/lib/activity-log';
+import { getPaysheetComponentOptionsAction } from '@/app/actions/hr-admin-actions/paysheet-component.actions';
 import AssignPaysheetWorkspace from './assign-paysheet-workspace';
 
 export default async function AssignPaysheetComponentPage() {
@@ -21,5 +22,8 @@ export default async function AssignPaysheetComponentPage() {
     });
   }
 
-  return <AssignPaysheetWorkspace />;
+  const optionsRes = await getPaysheetComponentOptionsAction();
+  const componentOptions = optionsRes.isError ? [] : (optionsRes.data ?? []);
+
+  return <AssignPaysheetWorkspace componentOptions={componentOptions} />;
 }

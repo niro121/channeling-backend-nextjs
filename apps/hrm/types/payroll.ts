@@ -202,16 +202,6 @@ export type PaysheetAssignmentFormValues = {
   value: string;
 };
 
-/** Placeholder paysheet component master until dynamic phase. */
-export const PAYSHEET_COMPONENT_OPTIONS = [
-  { id: 'basic_salary', name: 'Basic Salary' },
-  { id: 'transport_allowance', name: 'Transport Allowance' },
-  { id: 'meal_allowance', name: 'Meal Allowance' },
-  { id: 'night_allowance', name: 'Night Allowance' },
-  { id: 'loan_recovery', name: 'Loan Recovery' },
-  { id: 'other_deduction', name: 'Other Deduction' }
-] as const;
-
 export const EMPTY_PAYSHEET_ASSIGNMENT_FORM: PaysheetAssignmentFormValues = {
   staffId: '',
   staffCode: '',

@@ -111,6 +111,12 @@ export type GetPaysheetComponentParams = {
   kind?: PaysheetComponentKind;
 };
 
+/** Lightweight option for Combobox / filters outside the master module. */
+export type PaysheetComponentOption = {
+  id: string;
+  name: string;
+};
+
 export type PaysheetComponentServiceRecord = {
   id: string;
   code: string;

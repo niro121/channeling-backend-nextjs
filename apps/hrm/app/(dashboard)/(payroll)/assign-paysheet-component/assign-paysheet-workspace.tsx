@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { CommonManagerHeader } from '@/components/common/common-manager-header';
 import type { PaysheetAssignmentRecord } from '@/types/payroll';
+import type { PaysheetComponentOption } from '@/types/paysheet-component';
 import {
   AssignPaysheetUiProvider,
   useAssignPaysheetUi
@@ -14,7 +15,13 @@ import SectionRegister from './section-register';
 import SheetAssignmentForm from './sheet-assignment-form';
 import SheetAssignmentHistory from './sheet-assignment-history';
 
-function AssignPaysheetWorkspaceInner() {
+type AssignPaysheetWorkspaceProps = {
+  componentOptions?: PaysheetComponentOption[];
+};
+
+function AssignPaysheetWorkspaceInner({
+  componentOptions = []
+}: AssignPaysheetWorkspaceProps) {
   const {
     formSheet,
     historyRecord,
@@ -33,7 +40,7 @@ function AssignPaysheetWorkspaceInner() {
         actions={<AssignPaysheetHeaderActions />}
       />
 
-      <SectionFilters />
+      <SectionFilters componentOptions={componentOptions} />
 
       <SectionRegister records={records} totalRecords={records.length} />
 
@@ -42,6 +49,7 @@ function AssignPaysheetWorkspaceInner() {
         mode={formSheet?.mode ?? 'create'}
         record={formSheet?.record ?? null}
         staffOptions={[]}
+        componentOptions={componentOptions}
         onOpenChange={(open) => {
           if (!open) closeFormSheet();
         }}
@@ -66,10 +74,12 @@ function AssignPaysheetWorkspaceInner() {
   );
 }
 
-export default function AssignPaysheetWorkspace() {
+export default function AssignPaysheetWorkspace({
+  componentOptions = []
+}: AssignPaysheetWorkspaceProps) {
   return (
     <AssignPaysheetUiProvider>
-      <AssignPaysheetWorkspaceInner />
+      <AssignPaysheetWorkspaceInner componentOptions={componentOptions} />
     </AssignPaysheetUiProvider>
   );
 }

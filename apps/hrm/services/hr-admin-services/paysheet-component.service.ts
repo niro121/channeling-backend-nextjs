@@ -15,6 +15,7 @@ import {
   PAYSHEET_COMPONENT_KINDS,
   PAYSHEET_COMPONENT_TYPES,
   type GetPaysheetComponentParams,
+  type PaysheetComponentOption,
   type PaysheetComponentPayload,
   type PaysheetComponentServiceRecord
 } from '@/types/paysheet-component';
@@ -213,6 +214,35 @@ export async function getPaysheetComponentList(
     return {
       success: false,
       error: { message: error.message || 'Failed to fetch paysheet components' }
+    };
+  }
+}
+
+export async function getPaysheetComponentOptions(
+  params: GetPaysheetComponentParams = {}
+): Promise<{
+  success: boolean;
+  data?: PaysheetComponentOption[];
+  error?: { message?: string };
+}> {
+  try {
+    const records = await prisma.paysheetComponent.findMany({
+      where: buildWhere(params),
+      select: { id: true, name: true, orderNo: true },
+      orderBy: [{ orderNo: 'asc' }, { name: 'asc' }]
+    });
+
+    return {
+      success: true,
+      data: records.map((record) => ({ id: record.id, name: record.name }))
+    };
+  } catch (error: any) {
+    console.error('getPaysheetComponentOptions error:', error);
+    return {
+      success: false,
+      error: {
+        message: error.message || 'Failed to fetch paysheet component options'
+      }
     };
   }
 }
