@@ -378,7 +378,8 @@ export function DesktopSidebar({ session, className }: { session: Session | null
         {(hasAccess('/salary-generation') ||
           hasAccess('/salary-processing') ||
           hasAccess('/assign-paysheet-component') ||
-          hasAccess('/bulk-assign-paysheet-component')) && (
+          hasAccess('/bulk-assign-paysheet-component') ||
+          hasAccess('/performance-allowance')) && (
           <SidebarGroup label="Payroll">
             <SidebarCollapsible
               label="Payroll"
@@ -387,7 +388,8 @@ export function DesktopSidebar({ session, className }: { session: Session | null
                 '/salary-generation',
                 '/salary-processing',
                 '/assign-paysheet-component',
-                '/bulk-assign-paysheet-component'
+                '/bulk-assign-paysheet-component',
+                '/performance-allowance'
               ]}
               defaultOpen
             >
@@ -417,6 +419,13 @@ export function DesktopSidebar({ session, className }: { session: Session | null
                   href="/bulk-assign-paysheet-component"
                   label="Bulk assign paysheet component"
                   icon={<Users className="h-5 w-5" />}
+                />
+              )}
+              {hasAccess('/performance-allowance') && (
+                <NavLink
+                  href="/performance-allowance"
+                  label="Performance Allowance"
+                  icon={<Percent className="h-5 w-5" />}
                 />
               )}
             </SidebarCollapsible>

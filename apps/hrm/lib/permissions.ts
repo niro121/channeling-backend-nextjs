@@ -13,6 +13,7 @@ export const ROUTE_TO_RESOURCE: Record<string, string> = {
   '/salary-processing': 'payroll',
   '/assign-paysheet-component': 'payroll',
   '/bulk-assign-paysheet-component': 'payroll',
+  '/performance-allowance': 'payroll',
   '/leave-types': 'leave-types',
   '/leave-entitlement': 'leave-entitlement',
   '/leave-management': 'leave-management',

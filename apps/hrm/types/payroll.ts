@@ -248,6 +248,60 @@ export const EMPTY_BULK_PAYSHEET_ASSIGN_FORM: BulkPaysheetAssignFormValues = {
   value: '0'
 };
 
+/** Performance Allowance — Phase 0 UI shell. */
+export type PerformanceAllowanceMode = 'percentage' | 'fixed';
+
+export type PerformanceAllowanceFilters = {
+  staffId?: string;
+  departmentId?: string;
+  designationId?: string;
+  effectiveDate?: string;
+};
+
+export type PerformanceAllowanceRecord = {
+  id: string;
+  staffId: string;
+  staffCode: string;
+  staffName: string;
+  department: string;
+  designation: string;
+  mode: PerformanceAllowanceMode;
+  /** Percentage (e.g. 12.5) or fixed LKR amount depending on mode. */
+  value: number;
+  effectiveFrom: string | null;
+  effectiveTo: string | null;
+  createdBy: string | null;
+  createdAt: string | null;
+  updatedBy: string | null;
+  updatedAt: string | null;
+};
+
+export type PerformanceAllowanceFormValues = {
+  staffId: string;
+  value: string;
+  effectiveFrom: Date | null;
+  effectiveTo: Date | null;
+};
+
+export type PerformanceAllowanceSummary = {
+  staffOnAllowance: number;
+  averageMetric: number;
+  totalMonthlyValue: number;
+};
+
+export const EMPTY_PERFORMANCE_ALLOWANCE_FORM: PerformanceAllowanceFormValues = {
+  staffId: '',
+  value: '',
+  effectiveFrom: null,
+  effectiveTo: null
+};
+
+export const EMPTY_PERFORMANCE_ALLOWANCE_SUMMARY: PerformanceAllowanceSummary = {
+  staffOnAllowance: 0,
+  averageMetric: 0,
+  totalMonthlyValue: 0
+};
+
 export const EMPTY_SALARY_GENERATION_CYCLE_VALUES: SalaryGenerationCycleFormValues =
   {
     salaryCycleId: '',
