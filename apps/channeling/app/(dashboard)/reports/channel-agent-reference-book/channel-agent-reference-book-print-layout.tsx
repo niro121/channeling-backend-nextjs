@@ -28,7 +28,26 @@ export function ChannelAgentReferenceBookPrintLayout({ rows }: Props) {
         @media print {
           @page {
             size: A4 portrait;
-            margin: 6mm 7mm 11mm;
+            margin: 6mm 5mm 18mm;
+          }
+          .channel-agent-reference-book-report-root,
+          .channel-agent-reference-book-report-root.container {
+            width: 100% !important;
+            max-width: none !important;
+            margin-left: 0 !important;
+            margin-right: 0 !important;
+            padding-left: 0 !important;
+            padding-right: 0 !important;
+          }
+          .channel-agent-reference-book-report-root .rpt-print-root,
+          .channel-agent-reference-book-report-root .rpt-print-body,
+          .channel-agent-reference-book-report-root .rpt-print-header,
+          .channel-agent-reference-book-report-root .rpt-print-summary,
+          .channel-agent-reference-book-report-root .carb-print-root,
+          .channel-agent-reference-book-report-root .carb-print-table {
+            width: 100% !important;
+            max-width: none !important;
+            box-sizing: border-box !important;
           }
           .channel-agent-reference-book-report-root .rpt-print-header {
             margin-bottom: 1mm !important;
