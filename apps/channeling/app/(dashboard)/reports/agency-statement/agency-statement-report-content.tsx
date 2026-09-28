@@ -232,6 +232,7 @@ export default function AgencyStatementReportContent({ agentOptions, currentUser
             <ReportPrintLayout
               reportName="Agency Statement"
               pageSize="A4 portrait"
+              pageMargins="6mm 5mm 18mm"
               generatedAt={meta.generatedAt}
               summaryItems={buildSummaryItems(data, meta)}
             >

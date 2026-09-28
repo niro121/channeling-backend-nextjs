@@ -13,10 +13,7 @@ import {
 } from '@/components/common/report-print';
 import { formatLKR } from '@/lib/format-money';
 import type { ChannelAgentReceiptReportExportRow } from '@/types/reports/channel-agent-receipt';
-import {
-  CHANNEL_AGENT_RECEIPT_COL_PERCENTS,
-  CHANNEL_AGENT_RECEIPT_HEADERS,
-} from './channel-agent-receipt-export-config';
+import { CHANNEL_AGENT_RECEIPT_HEADERS } from './channel-agent-receipt-export-config';
 
 function pageSize(doc: jsPDF): { width: number; height: number } {
   return {
@@ -154,14 +151,15 @@ export async function downloadChannelAgentReceiptReportPdf({
   rows,
   fileName = 'channel-agent-receipt-report.pdf',
 }: DownloadChannelAgentReceiptPdfOptions): Promise<void> {
-  const margin = 10;
+  const margin = 5;
   const doc = new jsPDF({ orientation: 'p', format: 'a4' });
   const { width: pageWidth } = pageSize(doc);
   const tableWidth = pageWidth - margin * 2;
 
   const startY = await drawHeader(doc, { reportName, summaryItems, margin });
 
-  const body = rows.map((row) => [
+  const billTotal = rows.reduce((sum, row) => sum + (Number(row.billValue) || 0), 0);
+  const body: Array<string[] | Array<string | { content: string; colSpan?: number; styles?: Record<string, unknown> }>> = rows.map((row) => [
     row.agentRef || '-',
     row.refNo || '-',
     row.agency || '-',
@@ -171,9 +169,24 @@ export async function downloadChannelAgentReceiptReportPdf({
     row.createdDate || '-',
     formatLKR(Number(row.billValue ?? 0)),
   ]);
+  if (rows.length > 0) {
+    body.push([
+      {
+        content: 'Total',
+        colSpan: 7,
+        styles: { fontStyle: 'bold', fillColor: [243, 243, 243], halign: 'left' },
+      },
+      {
+        content: formatLKR(billTotal),
+        styles: { fontStyle: 'bold', fillColor: [243, 243, 243], halign: 'right' },
+      },
+    ]);
+  }
 
+  /** Same widths as the print table. */
+  const printColPercents = [7, 17, 12, 13, 6, 18, 16, 11] as const;
   const columnStyles: Record<number, Partial<{ cellWidth: number; halign: 'left' | 'right' }>> = {};
-  CHANNEL_AGENT_RECEIPT_COL_PERCENTS.forEach((pct, i) => {
+  printColPercents.forEach((pct, i) => {
     columnStyles[i] = {
       cellWidth: (tableWidth * pct) / 100,
       halign: i === 7 ? 'right' : 'left',
@@ -184,13 +197,13 @@ export async function downloadChannelAgentReceiptReportPdf({
     head: [Array.from(CHANNEL_AGENT_RECEIPT_HEADERS)],
     body,
     startY,
-    margin: { left: margin, right: margin, bottom: 12 },
+    margin: { left: margin, right: margin, bottom: 14 },
     tableWidth,
     showHead: 'everyPage',
     styles: {
       font: 'helvetica',
-      fontSize: 7,
-      cellPadding: { top: 1.1, right: 1.1, bottom: 1.1, left: 1.1 },
+      fontSize: 5.5,
+      cellPadding: { top: 0.7, right: 0.6, bottom: 0.7, left: 0.6 },
       overflow: 'linebreak',
       valign: 'middle',
       textColor: [0, 0, 0],
@@ -202,8 +215,8 @@ export async function downloadChannelAgentReceiptReportPdf({
       fillColor: [232, 232, 232],
       textColor: [0, 0, 0],
       fontStyle: 'bold',
-      fontSize: 6.5,
-      cellPadding: { top: 1.1, right: 1.1, bottom: 1.1, left: 1.1 },
+      fontSize: 5,
+      cellPadding: { top: 0.7, right: 0.6, bottom: 0.7, left: 0.6 },
       lineColor: [0, 0, 0],
       lineWidth: 0.2,
       overflow: 'linebreak',

@@ -13,13 +13,33 @@ type Props = {
  * Overrides ReportPrintLayout table CSS so cells don't mid-word wrap like the PDF.
  */
 export function ChannelAgentReceiptPrintLayout({ rows }: Props) {
+  const billTotal = rows.reduce((sum, row) => sum + (Number(row.billValue) || 0), 0);
   return (
     <div className="car-print-root">
       <style>{`
         @media print {
           @page {
             size: A4 portrait;
-            margin: 8mm 10mm 14mm;
+            margin: 6mm 5mm 18mm;
+          }
+          .channel-agent-receipt-report-root,
+          .channel-agent-receipt-report-root.container {
+            width: 100% !important;
+            max-width: none !important;
+            margin-left: 0 !important;
+            margin-right: 0 !important;
+            padding-left: 0 !important;
+            padding-right: 0 !important;
+          }
+          .channel-agent-receipt-report-root .rpt-print-root,
+          .channel-agent-receipt-report-root .rpt-print-body,
+          .channel-agent-receipt-report-root .rpt-print-header,
+          .channel-agent-receipt-report-root .rpt-print-summary,
+          .channel-agent-receipt-report-root .car-print-root,
+          .channel-agent-receipt-report-root .car-print-table {
+            width: 100% !important;
+            max-width: none !important;
+            box-sizing: border-box !important;
           }
           .channel-agent-receipt-report-root .rpt-print-header {
             margin-bottom: 2mm !important;
@@ -150,6 +170,12 @@ export function ChannelAgentReceiptPrintLayout({ rows }: Props) {
           .channel-agent-receipt-report-root .car-print-col-creator { width: 18% !important; }
           .channel-agent-receipt-report-root .car-print-col-date { width: 16% !important; }
           .channel-agent-receipt-report-root .car-print-col-bill { width: 11% !important; }
+          .channel-agent-receipt-report-root .car-print-total td {
+            font-weight: 700 !important;
+            background: #f3f3f3 !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
         }
       `}</style>
 
@@ -185,6 +211,12 @@ export function ChannelAgentReceiptPrintLayout({ rows }: Props) {
               </td>
             </tr>
           ))}
+          {rows.length > 0 ? (
+            <tr className="car-print-total">
+              <td colSpan={7}>Total</td>
+              <td className="car-print-col-bill car-print-nums">{formatLKR(billTotal)}</td>
+            </tr>
+          ) : null}
         </tbody>
       </table>
     </div>
