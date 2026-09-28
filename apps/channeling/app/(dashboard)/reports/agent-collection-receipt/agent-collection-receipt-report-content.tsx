@@ -149,6 +149,7 @@ function ContentInner({ currentUserName, locationOptions, agencyOptions }: Props
       filterButtonLabel="Search"
       showBackButton={false}
       printPageSize="A4 portrait"
+      printPageMargins="6mm 5mm 18mm"
       containerClassName="w-full py-2 space-y-3 agent-collection-receipt-report-root"
       renderPrintContent={(rows) => (
         <AgentCollectionReceiptPrintLayout rows={rows} />

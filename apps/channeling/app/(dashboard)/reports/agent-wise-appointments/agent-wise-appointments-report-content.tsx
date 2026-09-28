@@ -701,6 +701,7 @@ export default function AgentWiseAppointmentsReportContent({
             <ReportPrintLayout
               reportName="Agent Wise Appointments - Summary and Detail"
               pageSize="A4 portrait"
+              pageMargins="6mm 5mm 18mm"
               generatedAt={reportMeta.generatedAt}
               summaryItems={buildPrintSummaryItems(reportMeta)}
             >

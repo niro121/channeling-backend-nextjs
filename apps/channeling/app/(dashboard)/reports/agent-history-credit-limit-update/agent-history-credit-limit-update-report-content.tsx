@@ -280,6 +280,7 @@ function ContentInner({ agentOptions, userOptions, currentUserName }: Props) {
       exportTitle="Agent History(Credit Limit Update)"
       exportFileName="agent-history-credit-limit-update"
       printPageSize="A4 portrait"
+      printPageMargins="6mm 5mm 18mm"
       containerClassName="container mx-auto py-3 space-y-4 agent-history-credit-limit-update-report-root"
       renderPrintContent={(rows) => (
         <AgentHistoryCreditLimitUpdatePrintLayout rows={rows} />

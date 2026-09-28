@@ -52,8 +52,8 @@ function colLetter(index1Based: number): string {
 }
 
 const COL_COUNT = 8;
-/** Proportional to PDF column percents on portrait A4. */
-const COLUMN_WIDTHS = [9, 16, 13, 14, 8, 18, 15, 11];
+/** Same proportions as the print table. */
+const COLUMN_WIDTHS = [8, 18, 13, 14, 7, 20, 17, 12];
 
 const thinBorder: Partial<ExcelJS.Borders> = {
   top: { style: 'thin', color: { argb: 'FF000000' } },
@@ -247,6 +247,32 @@ export async function downloadChannelAgentReceiptReportExcel({
         horizontal: c === 7 ? 'right' : 'left',
         wrapText: true,
       };
+    }
+    sheet.getRow(row).height = 18;
+    row += 1;
+  }
+
+  if (rows.length > 0) {
+    const billTotal = rows.reduce((sum, dataRow) => sum + (Number(dataRow.billValue) || 0), 0);
+    const totalFill = { type: 'pattern' as const, pattern: 'solid' as const, fgColor: { argb: 'FFF3F3F3' } };
+    sheet.mergeCells(row, 1, row, 7);
+    const label = sheet.getCell(row, 1);
+    label.value = 'Total';
+    label.font = { bold: true, size: 8, name: 'Arial' };
+    label.fill = totalFill;
+    label.border = thinBorder;
+    label.alignment = { vertical: 'middle', horizontal: 'left', wrapText: false };
+    const amount = sheet.getCell(row, 8);
+    amount.value = formatLKR(billTotal);
+    amount.numFmt = '@';
+    amount.font = { bold: true, size: 8, name: 'Arial' };
+    amount.fill = totalFill;
+    amount.border = thinBorder;
+    amount.alignment = { vertical: 'middle', horizontal: 'right', wrapText: false };
+    for (let c = 2; c <= 7; c++) {
+      const cell = sheet.getCell(row, c);
+      cell.fill = totalFill;
+      cell.border = thinBorder;
     }
     sheet.getRow(row).height = 18;
     row += 1;
