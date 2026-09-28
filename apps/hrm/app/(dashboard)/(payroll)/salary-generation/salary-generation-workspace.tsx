@@ -10,7 +10,6 @@ import {
 } from '@archmage/ui';
 import { CommonManagerHeader } from '@/components/common/common-manager-header';
 import {
-  buildSalaryCycleOptions,
   EMPTY_DEDUCTIONS_BREAKDOWN,
   EMPTY_EARNINGS_BREAKDOWN,
   EMPTY_SALARY_GENERATION_CYCLE_VALUES,
@@ -20,15 +19,21 @@ import {
   type SalaryGenerationStaffRow,
   type SalaryGenerationTab
 } from '@/types/payroll';
+import type { SalaryCycleOption } from '@/types/salary-cycle';
 import { formatAmount } from '@/lib/utils/currency';
 import { SalaryGenerationHeaderActions } from './header-actions';
 import SectionCycle from './section-cycle';
 import SectionStaffList from './section-staff-list';
 import SectionStaffSalary from './section-staff-salary';
 
-export default function SalaryGenerationWorkspace() {
+type SalaryGenerationWorkspaceProps = {
+  cycleOptions?: SalaryCycleOption[];
+};
+
+export default function SalaryGenerationWorkspace({
+  cycleOptions = []
+}: SalaryGenerationWorkspaceProps) {
   const { toast } = useToast();
-  const cycleOptions = useMemo(() => buildSalaryCycleOptions(), []);
   const [activeTab, setActiveTab] = useState<SalaryGenerationTab>('cycle');
   const [cycleValues, setCycleValues] =
     useState<SalaryGenerationCycleFormValues>(
@@ -41,6 +46,14 @@ export default function SalaryGenerationWorkspace() {
 
   const staffCount = staffRows.length;
   const staffCountLabel = `${formatAmount(staffCount)} staff`;
+
+  const selectedCycleLabel = useMemo(() => {
+    if (!cycleValues.salaryCycleId) return null;
+    return (
+      cycleOptions.find((item) => item.id === cycleValues.salaryCycleId)
+        ?.name ?? cycleValues.salaryCycleId
+    );
+  }, [cycleOptions, cycleValues.salaryCycleId]);
 
   const salarySummary = {
     ...EMPTY_SALARY_GENERATION_SUMMARY,
@@ -116,7 +129,7 @@ export default function SalaryGenerationWorkspace() {
       />
 
       <SalaryGenerationHeaderActions
-        cycleLabel={cycleValues.salaryCycleId || null}
+        cycleLabel={selectedCycleLabel}
         staffCountLabel={staffCountLabel}
         onGenerate={handleGenerate}
         onSave={handleSave}

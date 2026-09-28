@@ -53,6 +53,18 @@ export type GetSalaryCycleParams = {
   search?: string;
 };
 
+/** Lightweight option for payroll Combobox / filters. */
+export type SalaryCycleOption = {
+  id: string;
+  name: string;
+  institutionId: number;
+  salaryFromDate: string;
+  salaryToDate: string;
+  /** Prefer OT range from master; used as worked dates in generation UI. */
+  workedFromDate: string | null;
+  workedToDate: string | null;
+};
+
 export type SalaryCycleServiceRecord = {
   id: string;
   institutionId: number;

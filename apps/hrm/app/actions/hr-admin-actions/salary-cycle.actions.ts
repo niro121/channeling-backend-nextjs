@@ -3,17 +3,22 @@
 import { revalidatePath } from 'next/cache';
 import { logActivityNonBlocking } from '@/lib/activity-log';
 import { getAuditUser } from '@/lib/audit-user';
-import { requirePermission } from '@/lib/server-permissions';
+import {
+  checkPermission,
+  requirePermission
+} from '@/lib/server-permissions';
 import { mapSalaryCycleToUiRecord } from '@/lib/mappers/salary-cycle-form.mapper';
 import {
   createSalaryCycle,
   deleteSalaryCycle,
   getSalaryCycleById,
   getSalaryCycleList,
+  getSalaryCycleOptions,
   updateSalaryCycle
 } from '@/services/hr-admin-services/salary-cycle.service';
 import type {
   GetSalaryCycleParams,
+  SalaryCycleOption,
   SalaryCyclePayload,
   SalaryCycleUiRecord
 } from '@/types/salary-cycle';
@@ -57,6 +62,46 @@ export async function getSalaryCycleListAction(
       data: null,
       errors: {
         message: error.message ?? 'Error getting data. Please try again later'
+      }
+    };
+  }
+}
+
+/** Options for payroll salary generation (also usable from master). */
+export async function getSalaryCycleOptionsAction(
+  params: GetSalaryCycleParams = {}
+): Promise<{
+  isError: boolean;
+  data: SalaryCycleOption[] | null;
+  errors: Record<string, unknown>;
+}> {
+  try {
+    const canPayroll = await checkPermission('payroll', 'view');
+    const canMaster = await checkPermission('salary-cycles', 'view');
+    if (!canPayroll && !canMaster) {
+      throw new Error(
+        "Access denied: You don't have permission to view salary cycles"
+      );
+    }
+    const result = await getSalaryCycleOptions(params);
+    if (!result.success) {
+      throw new Error(
+        result.error?.message ?? 'Failed to load salary cycle options'
+      );
+    }
+    return {
+      isError: false,
+      data: result.data ?? [],
+      errors: {}
+    };
+  } catch (error: any) {
+    console.error('getSalaryCycleOptionsAction error:', error);
+    return {
+      isError: true,
+      data: null,
+      errors: {
+        message:
+          error.message ?? 'Error getting options. Please try again later'
       }
     };
   }

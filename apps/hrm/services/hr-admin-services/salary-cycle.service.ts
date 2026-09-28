@@ -1,6 +1,6 @@
 'use server';
 
-import { endOfDay, startOfDay } from 'date-fns';
+import { endOfDay, startOfDay, startOfMonth, subMonths } from 'date-fns';
 import { z } from 'zod';
 import prisma from '@/lib/prisma';
 import type { AuditUser } from '@/lib/audit-user';
@@ -10,7 +10,9 @@ import {
   type AuthUserSummary
 } from '@/lib/helpers/resolve-auth-users.helper';
 import {
+  formatInstitutionCycleTitle,
   type GetSalaryCycleParams,
+  type SalaryCycleOption,
   type SalaryCyclePayload,
   type SalaryCycleServiceRecord
 } from '@/types/salary-cycle';
@@ -249,6 +251,90 @@ export async function getSalaryCycleList(
     return {
       success: false,
       error: { message: error.message || 'Failed to load salary cycles' }
+    };
+  }
+}
+
+function defaultWorkedDates(salaryFromDate: Date): {
+  workedFromDate: string;
+  workedToDate: string;
+} {
+  const monthStart = startOfMonth(salaryFromDate);
+  const previousMonth = subMonths(monthStart, 1);
+  return {
+    workedFromDate: new Date(
+      previousMonth.getFullYear(),
+      previousMonth.getMonth(),
+      15
+    ).toISOString(),
+    workedToDate: new Date(
+      monthStart.getFullYear(),
+      monthStart.getMonth(),
+      14
+    ).toISOString()
+  };
+}
+
+export async function getSalaryCycleOptions(
+  params: GetSalaryCycleParams = {}
+): Promise<{
+  success: boolean;
+  data?: SalaryCycleOption[];
+  error?: { message: string };
+}> {
+  try {
+    const where =
+      params.institutionId != null
+        ? { institutionId: params.institutionId }
+        : {};
+    const records = await prisma.salaryCycle.findMany({
+      where,
+      select: {
+        id: true,
+        institutionId: true,
+        salaryFromDate: true,
+        salaryToDate: true,
+        otFromDate: true,
+        otToDate: true,
+        dayOffFromDate: true,
+        dayOffToDate: true
+      },
+      orderBy: [{ salaryFromDate: 'desc' }]
+    });
+
+    return {
+      success: true,
+      data: records.map((record) => {
+        const defaults = defaultWorkedDates(record.salaryFromDate);
+        const workedFrom =
+          record.otFromDate ?? record.dayOffFromDate ?? null;
+        const workedTo = record.otToDate ?? record.dayOffToDate ?? null;
+        return {
+          id: record.id,
+          name: formatInstitutionCycleTitle(
+            record.institutionId,
+            record.salaryFromDate,
+            record.salaryToDate
+          ),
+          institutionId: record.institutionId,
+          salaryFromDate: record.salaryFromDate.toISOString(),
+          salaryToDate: record.salaryToDate.toISOString(),
+          workedFromDate: workedFrom
+            ? workedFrom.toISOString()
+            : defaults.workedFromDate,
+          workedToDate: workedTo
+            ? workedTo.toISOString()
+            : defaults.workedToDate
+        };
+      })
+    };
+  } catch (error: any) {
+    console.error('getSalaryCycleOptions error:', error);
+    return {
+      success: false,
+      error: {
+        message: error.message || 'Failed to fetch salary cycle options'
+      }
     };
   }
 }
