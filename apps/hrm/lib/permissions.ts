@@ -8,6 +8,11 @@ export const ROUTE_TO_RESOURCE: Record<string, string> = {
   '/paysheet-components': 'paysheet-components',
   '/hrm-variables': 'hrm-variables',
   '/salary-cycles': 'salary-cycles',
+  // Payroll
+  '/salary-generation': 'payroll',
+  '/salary-processing': 'payroll',
+  '/assign-paysheet-component': 'payroll',
+  '/bulk-assign-paysheet-component': 'payroll',
   '/leave-types': 'leave-types',
   '/leave-entitlement': 'leave-entitlement',
   '/leave-management': 'leave-management',
@@ -41,9 +46,6 @@ export const ROUTE_TO_RESOURCE: Record<string, string> = {
   '/fingerprint-verification': 'attendance',
   '/attendance-summary': 'attendance',
   '/attendance-logs': 'attendance',
-  '/salary-generation': 'payroll',
-  '/salary-processing': 'payroll',
-  '/assign-paysheet-component': 'payroll',
 };
 
 export const ROUTE_REQUIRED_ACTION: Partial<Record<string, string>> = {};

@@ -198,6 +198,56 @@ export const EMPTY_PAYSHEET_ASSIGNMENT_FORM: PaysheetAssignmentFormValues = {
   value: '0'
 };
 
+/** Bulk assign paysheet component — Phase 0 UI shell. */
+export type BulkPaysheetStaffFilters = {
+  staffId?: string;
+  departmentId?: string;
+  institution?: string;
+  staffCategory?: string;
+  designationId?: string;
+  rosterId?: string;
+};
+
+export type BulkPaysheetStaffRow = {
+  id: string;
+  staffCode: string;
+  staffName: string;
+  department: string;
+  institution: string;
+  designation: string;
+  staffCategory: string;
+  grade: string;
+  roster: string;
+};
+
+export type BulkPaysheetSummary = {
+  selected: number;
+  totalMatches: number;
+  assignedThisBatch: number;
+  removed: number;
+};
+
+export type BulkPaysheetAssignFormValues = {
+  componentId: string;
+  effectiveFrom: Date | null;
+  effectiveTo: Date | null;
+  value: string;
+};
+
+export const EMPTY_BULK_PAYSHEET_SUMMARY: BulkPaysheetSummary = {
+  selected: 0,
+  totalMatches: 0,
+  assignedThisBatch: 0,
+  removed: 0
+};
+
+export const EMPTY_BULK_PAYSHEET_ASSIGN_FORM: BulkPaysheetAssignFormValues = {
+  componentId: '',
+  effectiveFrom: null,
+  effectiveTo: null,
+  value: '0'
+};
+
 export const EMPTY_SALARY_GENERATION_CYCLE_VALUES: SalaryGenerationCycleFormValues =
   {
     salaryCycleId: '',
