@@ -9,8 +9,8 @@ import {
   Combobox,
   CustomDatePickerField,
   CustomFormField,
+  CustomSelectField,
   Label,
-  Selector,
   Sheet,
   SheetContent,
   SheetDescription,
@@ -164,18 +164,16 @@ export default function SheetAssignmentForm({
                   styleClasses={fieldStyleClasses}
                 />
 
-                <Selector
-                  label="Paysheet Component"
+                <CustomSelectField
+                  id="componentId"
+                  placeholder="Paysheet Component"
+                  value={formik.values.componentId}
+                  onChange={(value) =>
+                    void formik.setFieldValue('componentId', value)
+                  }
+                  required
                   options={componentOptions}
-                  value={formik.values.componentId || undefined}
-                  defaultValue="__all__"
-                  onChange={(value) => {
-                    void formik.setFieldValue(
-                      'componentId',
-                      value === '__all__' ? '' : value
-                    );
-                  }}
-                  className={{ trigger: 'w-full max-w-none' }}
+                  styleClasses={fieldStyleClasses}
                 />
 
                 <CustomDatePickerField
