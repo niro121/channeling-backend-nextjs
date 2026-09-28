@@ -96,6 +96,7 @@ function ChannelAgentReceiptReportContentInner({
       description="Search receipts linked to bookings by Book No prefix"
       filterButtonLabel="Search"
       printPageSize="A4 portrait"
+      printPageMargins="6mm 5mm 18mm"
       exportOrientation="portrait"
       customDownloadPdf={handlePdfDownload}
       customDownloadExcel={handleExcelDownload}

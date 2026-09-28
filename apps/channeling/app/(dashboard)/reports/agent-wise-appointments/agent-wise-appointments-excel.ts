@@ -362,7 +362,9 @@ export async function downloadAgentWiseAppointmentsReportExcel(
                 ? compact.fees
                 : null
           : values[c];
-        cell.value = cellValue(raw);
+        if (!(isTotal && c > 1 && c < 7)) {
+          cell.value = cellValue(raw);
+        }
         cell.numFmt = '@';
         cell.font = { size: 8, name: 'Arial', bold: isTotal };
         cell.border = thinBorder;

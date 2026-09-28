@@ -288,6 +288,15 @@ async function downloadLetterPdfViaHtml2Canvas(title: string, row: AgentBalanceC
   }
   await waitForLetterImages(container);
 
+  const letterEl = container.firstElementChild as HTMLElement | null;
+  if (letterEl) {
+    letterEl.style.width = '794px';
+    letterEl.style.maxWidth = 'none';
+    letterEl.style.paddingLeft = '0';
+    letterEl.style.paddingRight = '0';
+    letterEl.style.boxSizing = 'border-box';
+  }
+
   const canvas = await html2canvas(container, {
     scale: 3,
     useCORS: true,
@@ -297,13 +306,25 @@ async function downloadLetterPdfViaHtml2Canvas(title: string, row: AgentBalanceC
   container.remove();
 
   const pdf = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
-  const pageWidth = 210; // A4 portrait width in mm
-  const pageMargin = 10;
-  const imgWidth = pageWidth - pageMargin * 2;
-  const imgHeight = (canvas.height * imgWidth) / canvas.width;
+  const pageWidth = 210;
+  const pageHeight = 297;
+  const sideMargin = 5;
+  const topMargin = 6;
+  let imgWidth = pageWidth - sideMargin * 2;
+  let imgHeight = (canvas.height * imgWidth) / canvas.width;
+  const maxImgHeight = pageHeight - topMargin - 14;
+  if (imgHeight > maxImgHeight) {
+    imgHeight = maxImgHeight;
+    imgWidth = (canvas.width * imgHeight) / canvas.height;
+  }
+  const imgX = sideMargin + (pageWidth - sideMargin * 2 - imgWidth) / 2;
 
   const imgData = canvas.toDataURL('image/png');
-  pdf.addImage(imgData, 'PNG', pageMargin, 10, imgWidth, imgHeight);
+  pdf.addImage(imgData, 'PNG', imgX, topMargin, imgWidth, imgHeight);
+  pdf.setFont('helvetica', 'bold');
+  pdf.setFontSize(9);
+  pdf.setTextColor(0, 0, 0);
+  pdf.text(`Generated: ${new Date().toLocaleString()}`, sideMargin, pageHeight - 8);
   pdf.save(fileName || 'Agent Balance Confirmation Letter.pdf');
 }
 
@@ -313,6 +334,10 @@ async function printLetterViaHiddenIframe(
 ): Promise<void> {
   const htmlBody = buildLetterHtml(title, row);
   const langCode = getLangCode(row.language);
+  const generatedAt = new Date()
+    .toLocaleString()
+    .replace(/\\/g, '\\\\')
+    .replace(/"/g, '\\"');
   const fontFaceCss =
     langCode === 'si'
       ? `
@@ -333,16 +358,32 @@ async function printLetterViaHiddenIframe(
         <style>
           @page {
             size: A4 portrait;
-            margin: 12mm 14mm;
+            margin: 6mm 5mm 18mm;
             /* Suppress browser-injected URL / title headers & footers. */
             @top-left { content: ""; }
             @top-center { content: ""; }
             @top-right { content: ""; }
-            @bottom-left { content: ""; }
+            @bottom-left {
+              content: "Generated: ${generatedAt}";
+              font-family: Arial, Helvetica, sans-serif;
+              font-size: 9pt;
+              font-weight: 700;
+              color: #000;
+              vertical-align: top;
+            }
             @bottom-center { content: ""; }
             @bottom-right { content: ""; }
           }
-          html, body { margin: 0; padding: 0; background: #fff; }
+          html, body { margin: 0; padding: 0; background: #fff; width: 100%; }
+          body > div {
+            width: 100% !important;
+            max-width: none !important;
+            margin-left: 0 !important;
+            margin-right: 0 !important;
+            padding-left: 0 !important;
+            padding-right: 0 !important;
+            box-sizing: border-box !important;
+          }
           body { font-family: ${langCode === 'si' ? "'NotoSansSinhala', serif" : "Arial, sans-serif"}; }
           ${fontFaceCss}
         </style>
@@ -492,11 +533,17 @@ async function drawLetterheadOnPdf(
 
 async function buildLetterPdf(title: string, row: AgentBalanceConfirmationLetterExportRow): Promise<jsPDF> {
   const doc = new jsPDF({ orientation: 'p', format: 'a4' });
-  const margin = 18;
+  const margin = 5;
   const pageWidth =
     (typeof doc.internal.pageSize.getWidth === 'function'
       ? doc.internal.pageSize.getWidth()
       : doc.internal.pageSize.width) ?? 210;
+  const pageHeight =
+    (typeof doc.internal.pageSize.getHeight === 'function'
+      ? doc.internal.pageSize.getHeight()
+      : doc.internal.pageSize.height) ?? 297;
+  const contentWidth = pageWidth - margin * 2;
+  const codeX = margin + contentWidth * (105 / (210 - 36));
 
   const reportName = title?.trim() || REPORT_LETTER_NAME;
   let y = await drawLetterheadOnPdf(doc, reportName, margin);
@@ -576,12 +623,12 @@ async function buildLetterPdf(title: string, row: AgentBalanceConfirmationLetter
 
   doc.setFontSize(11);
   doc.text(t.nameOfAgent, margin, y);
-  doc.text(t.agentCode, margin + 105, y);
+  doc.text(t.agentCode, codeX, y);
   doc.text(t.balanceAsAtDate, pageWidth - margin, y, { align: 'right' });
   y += 9;
 
   doc.text(row.agentName || '-', margin, y);
-  doc.text(row.agentCode || '-', margin + 105, y);
+  doc.text(row.agentCode || '-', codeX, y);
   doc.text(formatAmount(row.balance ?? 0), pageWidth - margin, y, { align: 'right' });
   y += 22;
 
@@ -597,6 +644,11 @@ async function buildLetterPdf(title: string, row: AgentBalanceConfirmationLetter
     y += 7;
     doc.text('ගණකාධිකාරී - රුහුණු රෝහල කරාපිටිය.', margin, y);
   }
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(9);
+  doc.setTextColor(0, 0, 0);
+  doc.text(`Generated: ${new Date().toLocaleString()}`, margin, pageHeight - 8);
 
   return doc;
 }
@@ -797,27 +849,27 @@ function AgentBalanceConfirmationLetterContentInner({
           sheet.addRow([agencyLine]);
           sheet.addRow([asAtDate]);
           sheet.addRow(['මහත්මයාණෙනි,']);
-          sheet.addRow(['']);
+          sheet.addRow([]);
           sheet.addRow([`${asAtDate} දිනට ශේෂ සහතිකය.`]);
           styleLast({ bold: true, center: true, merge: true });
-          sheet.addRow(['']);
+          sheet.addRow([]);
           sheet.addRow([
             `අප ආයතනයේ පවත්වාගෙන යනු ලබන චැනල් නියෝජිත ආයතනයේ ${asAtDate} දිනට ශේෂය පහත පරිදි වේ.`,
           ]);
           styleLast({ center: true, merge: true, wrap: true });
-          sheet.addRow(['']);
+          sheet.addRow([]);
         } else {
           sheet.addRow(['The Manager,']);
           sheet.addRow([agencyLine]);
           sheet.addRow([asAtDate]);
           sheet.addRow([t.greeting]);
-          sheet.addRow(['']);
+          sheet.addRow([]);
           sheet.addRow([t.title]);
           styleLast({ bold: true, underline: true, center: true, merge: true });
-          sheet.addRow(['']);
+          sheet.addRow([]);
           sheet.addRow([t.body.replace(' on was ', ` on ${asAtDate} was `)]);
           styleLast({ center: true, merge: true, wrap: true });
-          sheet.addRow(['']);
+          sheet.addRow([]);
         }
 
         // Agent / code / balance (same as print)
@@ -839,6 +891,12 @@ function AgentBalanceConfirmationLetterContentInner({
         if (isSinhala) {
           sheet.addRow(['ගණකාධිකාරී - රුහුණු රෝහල කරාපිටිය.']);
         }
+
+        sheet.addRow([]);
+        sheet.addRow([`Generated: ${new Date().toLocaleString()}`]);
+        const generatedRow = sheet.lastRow!;
+        sheet.mergeCells(generatedRow.number, 1, generatedRow.number, 3);
+        generatedRow.getCell(1).font = { name: 'Arial', size: 9, bold: true };
 
         const lastRow = sheet.lastRow?.number ?? 1;
         sheet.pageSetup.printArea = `A1:C${lastRow}`;

@@ -222,6 +222,7 @@ export default function AgentBalanceReportContent({ agentOptions, currentUserNam
             <ReportPrintLayout
               reportName="Agent Balance Report"
               pageSize="A4 portrait"
+              pageMargins="6mm 5mm 18mm"
               generatedAt={reportMeta.generatedAt}
               summaryItems={buildSummaryItems(reportMeta)}
             >
