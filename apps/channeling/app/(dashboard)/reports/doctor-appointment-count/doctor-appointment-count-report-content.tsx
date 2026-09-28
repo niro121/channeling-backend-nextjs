@@ -596,7 +596,7 @@ export default function DoctorAppointmentCountReportContent({
             <ReportPrintLayout
               reportName="Doctor Appointment Count Report ( By Session Date )"
               pageSize="A4 portrait"
-              pageMargins="7mm 5mm 12mm"
+              pageMargins="7mm 5mm 18mm"
               generatedAt={reportMeta.generatedAt}
               summaryItems={buildSummaryItems(reportMeta)}
             >

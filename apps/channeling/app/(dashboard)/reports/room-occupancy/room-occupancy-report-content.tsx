@@ -156,6 +156,7 @@ function ContentInner({
       description="Highlight booked room hours by date using session start and end time."
       filterButtonLabel="Search"
       printPageSize="A4 landscape"
+      printPageMargins="6mm 5mm 18mm"
       containerClassName="container mx-auto py-3 space-y-4 room-occupancy-report-root"
       renderPrintContent={(rows) => <RoomOccupancyPrintLayout rows={rows} />}
       customDownloadPdf={handlePdfDownload}

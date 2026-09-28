@@ -309,7 +309,79 @@ export default function NoShowPatientReportContent({
   ];
 
   return (
-    <div className="container mx-auto py-3 space-y-4">
+    <div className="container mx-auto py-3 space-y-4 no-show-patient-print-root">
+      <style>{`
+        @media print {
+          .no-show-patient-print-root,
+          .no-show-patient-print-root.container {
+            width: 100% !important;
+            max-width: none !important;
+            margin-left: 0 !important;
+            margin-right: 0 !important;
+            padding-left: 0 !important;
+            padding-right: 0 !important;
+          }
+          .no-show-patient-print-root .rpt-print-root,
+          .no-show-patient-print-root .rpt-print-body {
+            width: 100% !important;
+            max-width: none !important;
+            box-sizing: border-box !important;
+          }
+          .no-show-patient-print-root .rpt-print-body .overflow-x-auto,
+          .no-show-patient-print-root .rpt-print-body .overflow-auto,
+          .no-show-patient-print-root .rpt-print-body .rounded-md {
+            overflow: visible !important;
+            width: 100% !important;
+            max-width: none !important;
+            border-radius: 0 !important;
+            box-shadow: none !important;
+          }
+          .no-show-patient-print-root .rpt-print-root table {
+            table-layout: fixed !important;
+            width: 100% !important;
+            max-width: 100% !important;
+            border-collapse: collapse !important;
+            border: 0.5pt solid #000 !important;
+          }
+          .no-show-patient-print-root .rpt-print-root th,
+          .no-show-patient-print-root .rpt-print-root td {
+            width: auto !important;
+            font-size: 8pt !important;
+            font-weight: 400 !important;
+            padding: 1.6mm !important;
+            line-height: 1.25 !important;
+            text-align: left !important;
+            white-space: normal !important;
+            word-break: break-word !important;
+            overflow-wrap: anywhere !important;
+            overflow: hidden !important;
+            border: 0.5pt solid #000 !important;
+            color: #000 !important;
+            background: #fff !important;
+            vertical-align: middle !important;
+            box-sizing: border-box !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+          .no-show-patient-print-root .rpt-print-root thead th {
+            font-size: 7.5pt !important;
+            font-weight: 700 !important;
+            background: #e8e8e8 !important;
+          }
+          .no-show-patient-print-root .rpt-print-root th:first-child,
+          .no-show-patient-print-root .rpt-print-root td:first-child {
+            border-left: 0.7pt solid #000 !important;
+          }
+          .no-show-patient-print-root .rpt-print-root th:last-child,
+          .no-show-patient-print-root .rpt-print-root td:last-child {
+            border-right: 0.7pt solid #000 !important;
+          }
+          .no-show-patient-print-root .rpt-print-root tr {
+            break-inside: avoid !important;
+            page-break-inside: avoid !important;
+          }
+        }
+      `}</style>
       <Card className="print:shadow-none print:border-0 print:bg-white">
         <CardHeader className="pb-2 print:hidden">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
@@ -429,6 +501,7 @@ export default function NoShowPatientReportContent({
             <ReportPrintLayout
               reportName="No Show Patient Report"
               pageSize="A4 landscape"
+              pageMargins="7mm 5mm 18mm"
               generatedAt={reportMeta.generatedAt}
               summaryItems={buildSummaryItems(reportMeta)}
             >

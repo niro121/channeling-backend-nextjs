@@ -157,7 +157,27 @@ export function ChannelBookingsPrintLayout({ rows }: Props) {
           /* Channel Booking Details Print only — denser landscape page */
           @page {
             size: A4 landscape;
-            margin: 6mm 7mm 11mm;
+            margin: 6mm 5mm 18mm;
+          }
+          /* Use the full printable width — container max-width leaves side gaps */
+          .channel-bookings-report-root,
+          .channel-bookings-report-root.container {
+            width: 100% !important;
+            max-width: none !important;
+            margin-left: 0 !important;
+            margin-right: 0 !important;
+            padding-left: 0 !important;
+            padding-right: 0 !important;
+          }
+          .channel-bookings-report-root .rpt-print-root,
+          .channel-bookings-report-root .rpt-print-body,
+          .channel-bookings-report-root .rpt-print-header,
+          .channel-bookings-report-root .rpt-print-summary,
+          .channel-bookings-report-root .cb-print-root,
+          .channel-bookings-report-root .cb-print-table {
+            width: 100% !important;
+            max-width: none !important;
+            box-sizing: border-box !important;
           }
           /* Channel Booking Details only — tighter page chrome for landscape density */
           .channel-bookings-report-root .rpt-print-header {

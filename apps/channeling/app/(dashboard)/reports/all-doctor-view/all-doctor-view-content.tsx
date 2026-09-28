@@ -428,7 +428,7 @@ export default function AllDoctorViewReportContent({
           <ReportPrintLayout
             reportName="All Doctor View Report"
             pageSize="A4 portrait"
-            pageMargins="7mm 5mm 12mm"
+            pageMargins="7mm 5mm 18mm"
             generatedAt={new Date().toLocaleString()}
             summaryItems={[
               { label: 'Date', value: date ? moment(date).format('YYYY-MM-DD') : '—' },

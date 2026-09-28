@@ -149,6 +149,7 @@ function ChannelScheduleWithChargesReportContentInner(
       description="View doctor sessions with charge breakdown, filtered by institution, branch, department, speciality, doctor, and report type."
       filterButtonLabel="Search"
       printPageSize="A4 portrait"
+      printPageMargins="6mm 5mm 18mm"
       containerClassName="container mx-auto py-3 space-y-4 channel-schedule-charges-report-root"
       renderPrintContent={(rows) => <ChannelScheduleWithChargesPrintLayout rows={rows} />}
       customDownloadPdf={handlePdfDownload}

@@ -182,7 +182,7 @@ function DoctorLeaveReportContentInner({
       description="View doctor leave records with date range and filter by institution, branch, department, speciality, and doctor"
       filterButtonLabel="Search"
       printPageSize="A4 portrait"
-      printPageMargins="7mm 5mm 12mm"
+      printPageMargins="7mm 5mm 18mm"
       pdfPageMarginMm={5}
       containerClassName="container mx-auto py-3 space-y-4 doctor-leave-report-root"
       generationDetails={{

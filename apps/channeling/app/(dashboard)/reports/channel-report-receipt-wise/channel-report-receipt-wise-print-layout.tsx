@@ -16,12 +16,12 @@ function formatMoney(value: unknown): string {
 
 function formatReceiptDate(value: Date | string | null | undefined): string {
   if (!value) return '-';
-  return moment(value).format('DD/MM/YY HH:mm');
+  return moment(value).format('YYYY-MM-DD hh:mm A');
 }
 
 function formatSessionDate(value: Date | string | null | undefined): string {
   if (!value) return '-';
-  return moment(value).format('DD/MM/YY');
+  return moment(value).format('YYYY-MM-DD');
 }
 
 type CompactReceipt = {
@@ -103,62 +103,26 @@ export function ChannelReportReceiptWisePrintLayout({ rows }: Props) {
         @media print {
           @page {
             size: A4 portrait;
-            margin: 6mm 7mm 11mm;
+            margin: 6mm 5mm 18mm;
           }
-          .receipt-report-root .rpt-print-header {
-            margin-bottom: 1mm !important;
+          .receipt-report-root,
+          .receipt-report-root.container {
+            width: 100% !important;
+            max-width: none !important;
+            margin-left: 0 !important;
+            margin-right: 0 !important;
+            padding-left: 0 !important;
+            padding-right: 0 !important;
           }
-          .receipt-report-root .rpt-print-brand-row {
-            height: 9mm !important;
-            gap: 4mm !important;
-          }
-          .receipt-report-root .rpt-print-logo {
-            height: 9mm !important;
-            max-width: 36mm !important;
-          }
-          .receipt-report-root .rpt-print-titles {
-            height: 9mm !important;
-            padding: 1.2mm 0 0.2mm !important;
-          }
-          .receipt-report-root .rpt-print-org {
-            height: 3.4mm !important;
-            font-size: 11pt !important;
-          }
-          .receipt-report-root .rpt-print-title-gap {
-            height: 0.5mm !important;
-          }
-          .receipt-report-root .rpt-print-report-name {
-            height: 3.4mm !important;
-            font-size: 9pt !important;
-          }
-          .receipt-report-root .rpt-print-rule {
-            margin-top: 1mm !important;
-          }
-          .receipt-report-root .rpt-print-summary {
-            margin-top: 1mm !important;
-          }
-          .receipt-report-root .rpt-print-summary-bar {
-            padding: 0.5mm 1.5mm !important;
-            font-size: 6.5pt !important;
-            letter-spacing: 0.08em !important;
-          }
-          .receipt-report-root .rpt-print-summary-grid {
-            grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
-            gap: 0.6mm 2mm !important;
-            padding: 0.8mm 1.5mm !important;
-          }
-          .receipt-report-root .rpt-print-label {
-            margin: 0 0 0.15mm !important;
-            font-size: 5.5pt !important;
-            letter-spacing: 0.04em !important;
-          }
-          .receipt-report-root .rpt-print-value {
-            font-size: 6.5pt !important;
-            line-height: 1.08 !important;
-            font-weight: 600 !important;
-          }
-          .receipt-report-root .rpt-print-body {
-            margin-top: 1mm !important;
+          .receipt-report-root .rpt-print-root,
+          .receipt-report-root .rpt-print-body,
+          .receipt-report-root .rpt-print-header,
+          .receipt-report-root .rpt-print-summary,
+          .receipt-report-root .rr-print-root,
+          .receipt-report-root .rr-print-table {
+            width: 100% !important;
+            max-width: none !important;
+            box-sizing: border-box !important;
           }
 
           .rr-print-root {
@@ -195,29 +159,28 @@ export function ChannelReportReceiptWisePrintLayout({ rows }: Props) {
           .rr-print-table th {
             font-size: 6pt;
             font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 0.03em;
             text-align: left;
-            padding: 0.6mm 0.9mm;
-            border: 0.45pt solid #000;
+            padding: 0.6mm 0.8mm;
+            border: 0.5pt solid #000;
             background: #f3f3f3;
             color: #000 !important;
             line-height: 1.15;
+            white-space: normal;
+            word-break: normal;
+            overflow-wrap: break-word;
             -webkit-print-color-adjust: exact;
             print-color-adjust: exact;
           }
           .rr-print-table td {
             vertical-align: top;
-            padding: 0.7mm 0.9mm;
-            border-left: 0.45pt solid #bbb;
-            border-right: 0.45pt solid #bbb;
-            border-bottom: 0.4pt solid #999;
-            border-top: 0;
-            font-size: 6.75pt;
-            line-height: 1.18;
+            padding: 0.7mm 0.8mm;
+            border: 0.4pt solid #999;
+            font-size: 7.25pt;
+            line-height: 1.25;
             color: #000 !important;
-            word-break: break-word;
-            overflow-wrap: anywhere;
+            white-space: normal;
+            word-break: normal;
+            overflow-wrap: break-word;
           }
           .rr-print-table tbody tr {
             break-inside: avoid !important;
@@ -333,58 +296,33 @@ export function ChannelReportReceiptWisePrintLayout({ rows }: Props) {
                   <tr key={row.id}>
                     <td>
                       <span className="rr-print-line rr-print-strong">{r.receiptNo}</span>
-                      <span className="rr-print-line rr-print-muted">{r.receiptDate}</span>
+                      <span className="rr-print-line">{r.receiptDate}</span>
                     </td>
                     <td>
-                      <span className="rr-print-line rr-print-strong">{r.paymentMethod}</span>
+                      <span className="rr-print-line">{r.paymentMethod}</span>
                       <span className="rr-print-line">{r.transactionType}</span>
-                      {r.cancelLine ? (
-                        <span className="rr-print-line rr-print-muted">{r.cancelLine}</span>
-                      ) : null}
-                      {r.reversedLine ? (
-                        <span className="rr-print-line rr-print-muted">{r.reversedLine}</span>
-                      ) : null}
+                      {r.cancelLine ? <span className="rr-print-line">{r.cancelLine}</span> : null}
+                      {r.reversedLine ? <span className="rr-print-line">{r.reversedLine}</span> : null}
                     </td>
                     <td className="rr-print-nums">
-                      <span className="rr-print-line rr-print-kv">
-                        <span className="rr-print-k">Amt</span>
-                        <span className="rr-print-v">{r.amount}</span>
-                      </span>
-                      <span className="rr-print-line rr-print-kv">
-                        <span className="rr-print-k">WHT</span>
-                        <span className="rr-print-v">{r.wht}</span>
-                      </span>
-                      <span className="rr-print-line rr-print-kv">
-                        <span className="rr-print-k">Net</span>
-                        <span className="rr-print-v rr-print-strong">{r.net}</span>
-                      </span>
+                      <span className="rr-print-line">Amt&nbsp;&nbsp;{r.amount}</span>
+                      <span className="rr-print-line">WHT&nbsp;&nbsp;{r.wht}</span>
+                      <span className="rr-print-line">Net&nbsp;&nbsp;{r.net}</span>
                     </td>
                     <td>
-                      <span className="rr-print-line rr-print-strong">App #{r.appNo}</span>
+                      <span className="rr-print-line">App #{r.appNo}</span>
                       <span className="rr-print-line">{r.sessionWhen}</span>
-                      <span className="rr-print-line rr-print-muted">{r.consultant}</span>
+                      <span className="rr-print-line">{r.consultant}</span>
                     </td>
                     <td>
                       <span className="rr-print-line rr-print-strong">{r.patientName}</span>
                       <span className="rr-print-line">{r.bookingStatus}</span>
-                      <span className="rr-print-line rr-print-kv">
-                        <span className="rr-print-k">Agy</span>
-                        <span className="rr-print-v">{r.agency}</span>
-                      </span>
-                      <span className="rr-print-line rr-print-kv">
-                        <span className="rr-print-k">Credit</span>
-                        <span className="rr-print-v">{r.creditCustomer}</span>
-                      </span>
+                      <span className="rr-print-line">Agy: {r.agency}</span>
+                      <span className="rr-print-line">Credit: {r.creditCustomer}</span>
                     </td>
                     <td>
-                      <span className="rr-print-line rr-print-kv">
-                        <span className="rr-print-k">By</span>
-                        <span className="rr-print-v">{r.creator}</span>
-                      </span>
-                      <span className="rr-print-line rr-print-kv">
-                        <span className="rr-print-k">Hand</span>
-                        <span className="rr-print-v">{r.handover}</span>
-                      </span>
+                      <span className="rr-print-line">By: {r.creator}</span>
+                      <span className="rr-print-line">Hand: {r.handover}</span>
                     </td>
                   </tr>
                 );
