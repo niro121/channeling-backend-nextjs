@@ -10,17 +10,12 @@ import {
 } from 'react';
 import {
   emptyHrmVariableRecord,
-  type HrmPayeSlab,
-  type HrmStatutoryRates,
   type HrmVariableUiRecord
 } from '@/types/hrm-variable';
 
 type HrmVariableUiContextValue = {
   record: HrmVariableUiRecord;
-  setRates: (rates: HrmStatutoryRates) => void;
-  setSlabs: (slabs: HrmPayeSlab[]) => void;
-  addSlab: (slab: Omit<HrmPayeSlab, 'id'>) => void;
-  removeSlab: (id: string) => void;
+  setRecord: (record: HrmVariableUiRecord) => void;
 };
 
 const HrmVariableUiContext = createContext<HrmVariableUiContextValue | null>(
@@ -36,44 +31,20 @@ export function HrmVariableUiProvider({
   children,
   initialRecord
 }: ProviderProps) {
-  const [record, setRecord] = useState<HrmVariableUiRecord>(
+  const [record, setRecordState] = useState<HrmVariableUiRecord>(
     () => initialRecord ?? emptyHrmVariableRecord()
   );
 
-  const setRates = useCallback((rates: HrmStatutoryRates) => {
-    setRecord((prev) => ({ ...prev, rates }));
-  }, []);
-
-  const setSlabs = useCallback((slabs: HrmPayeSlab[]) => {
-    setRecord((prev) => ({ ...prev, slabs }));
-  }, []);
-
-  const addSlab = useCallback((slab: Omit<HrmPayeSlab, 'id'>) => {
-    setRecord((prev) => ({
-      ...prev,
-      slabs: [
-        ...prev.slabs,
-        { ...slab, id: `local-${Date.now()}-${prev.slabs.length}` }
-      ].sort((a, b) => a.fromSalary - b.fromSalary)
-    }));
-  }, []);
-
-  const removeSlab = useCallback((id: string) => {
-    setRecord((prev) => ({
-      ...prev,
-      slabs: prev.slabs.filter((s) => s.id !== id)
-    }));
+  const setRecord = useCallback((next: HrmVariableUiRecord) => {
+    setRecordState(next);
   }, []);
 
   const value = useMemo(
     () => ({
       record,
-      setRates,
-      setSlabs,
-      addSlab,
-      removeSlab
+      setRecord
     }),
-    [record, setRates, setSlabs, addSlab, removeSlab]
+    [record, setRecord]
   );
 
   return (

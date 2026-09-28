@@ -9,8 +9,7 @@ Use with:
 - `apps/hrm/docs/LEAVE_MANAGER_GUIDE.md` ? future holiday-aware leave day counting
 
 **Status:** HR Administration sidebar group is live.  
-**Shipped (CRUD):** Holiday Calendar · Designations · Area / Staff Grade · Staff Specialities · Manage Rosters · **Paysheet Components**.  
-**UI shell:** **HRM Variable (EPF/ETF/PAYE)** (HV0).  
+**Shipped (CRUD):** Holiday Calendar · Designations · Area / Staff Grade · Staff Specialities · Manage Rosters · **Paysheet Components** · **HRM Variable (EPF/ETF/PAYE)**.  
 **Strategy:** **Module-wise** — plan and ship one HR Admin module at a time (doc → UI → CRUD). Do not pre-order a fixed P1→P5 queue; pick the next module when starting it.  
 **Build path (each module):** Doc/types → UI-first master–detail → Prisma/Zod service → Actions → live CRUD.  
 **Cross-manager integration** (Staff / Roster / Leave / Payroll consumers) stays deferred until the related master is ready (section 32).
@@ -25,7 +24,7 @@ Use with:
 | Manage Rosters | Shipped (R0–R5); R6/R7 deferred | sections 25–30 |
 | Staff Specialities | Shipped | section 35 |
 | Paysheet Components | Shipped (PC0–PC4); PC5 Payroll consumer deferred | section 36 |
-| HRM Variable (EPF/ETF/PAYE) | UI shell (HV0); CRUD deferred | section 37 |
+| HRM Variable (EPF/ETF/PAYE) | Shipped (HV0–HV4); HV5 Payroll consumer deferred | section 37 |
 | Manage Shifts | Not required for current system — deferred / optional | section 34 |
 | Candidate masters + integration backlog | Catalog only (no fixed order) | sections 31–33 |
 
@@ -1087,7 +1086,7 @@ Track candidates here until each module gets its own detailed section.
 | Module (working name) | Likely route | Likely resource | Notes |
 |----------------------|--------------|-----------------|-------|
 | **Paysheet Components** | `/paysheet-components` | `paysheet-components` | **Shipped** (PC0–PC4) — see section 36; PC5 deferred |
-| **HRM Variable (EPF/ETF/PAYE)** | `/hrm-variables` | `hrm-variables` | **UI shell** (HV0) — see section 37; CRUD deferred |
+| **HRM Variable (EPF/ETF/PAYE)** | `/hrm-variables` | `hrm-variables` | **Shipped** (HV0–HV4) — see section 37; HV5 deferred |
 | **Departments** | `/departments` | `departments` | Unblocks Manage Rosters / Staff / Roster filters |
 | **Units / Wards** | `/units` (TBD) | `units` (TBD) | Confirm nested under Department vs separate |
 | **Institutions** | `/institutions` (TBD) | `institutions` (TBD) | Staff Employment placeholder |
@@ -1457,15 +1456,15 @@ Statutory contribution rates and progressive PAYE tax slabs used by payroll calc
 | Layout | Summary cards + Statutory Rates form + PAYE slabs table (not master–detail list) |
 | Rates | Singleton: EPF employee/company, ETF employee/company (0–100%) |
 | PAYE slabs | Rows: `fromSalary`, `toSalary` (null = ∞), `taxRate`; no overlaps; at most one open-ended top slab |
-| Sample data | **None** — empty rates / empty slabs for UI-first |
-| Downstream | Do **not** wire Salary Processing / payslip math until CRUD ships |
+| Sample data | **None** — empty rates / empty slabs until first save |
+| Downstream | Do **not** wire Salary Processing / payslip math until HV5 |
 
-### Domain (planned Prisma)
+### Domain (Prisma)
 
 | Entity | Fields |
 |--------|--------|
-| `HrmVariable` (singleton) | `epfEmployee`, `epfCompany`, `etfEmployee`, `etfCompany`; audit |
-| `HrmPayeSlab` | `hrmVariableId`, `fromSalary`, `toSalary` (nullable), `taxRate`, `sortOrder`; audit optional |
+| `HrmVariable` (singleton `key=default`) | `epfEmployee`, `epfCompany`, `etfEmployee`, `etfCompany`; audit |
+| `HrmPayeSlab` | `hrmVariableId`, `fromSalary`, `toSalary` (nullable), `taxRate`, `sortOrder`; audit |
 
 ### UI map
 
@@ -1493,9 +1492,9 @@ apps/hrm/
     section-statutory-rates.tsx
     section-paye-slabs.tsx
   types/hrm-variable.ts
-  # later:
   app/actions/hr-admin-actions/hrm-variable.actions.ts
   services/hr-admin-services/hrm-variable.service.ts
+  lib/mappers/hrm-variable-form.mapper.ts
 ```
 
 ### Development phases
@@ -1503,21 +1502,21 @@ apps/hrm/
 | Phase | Deliverable | Status |
 |-------|-------------|--------|
 | **HV0 — Doc & types & UI shell** | Guide; types; empty rates/slabs UI; nav/permissions | **Done** |
-| **HV1 — Interactive polish** | Yup validation, overlap checks, summary sync (local) | **Done** (with HV0) |
-| **HV2 — Schema & service** | Prisma singleton + slabs, Zod CRUD | Later |
-| **HV3 — Actions** | Permissions, activity log, revalidate | Later |
-| **HV4 — Wire CRUD** | Persist rates + slabs | Later |
+| **HV1 — Interactive polish** | Yup validation, overlap checks, summary sync (local) | **Done** |
+| **HV2 — Schema & service** | Prisma singleton + slabs, Zod CRUD | **Done** |
+| **HV3 — Actions** | Permissions, activity log, revalidate | **Done** |
+| **HV4 — Wire CRUD** | Persist rates + slabs | **Done** |
 | **HV5 — Payroll consumer (deferred)** | Salary Processing / payslips read live rates & slabs | Later |
 
 ### Testing checklist (manual)
 
-- [ ] Route `/hrm-variables` loads empty rates and empty slabs
-- [ ] Summary cards show — until rates are saved locally
-- [ ] Statutory Save updates summary cards (session-only)
-- [ ] Add Slab validates range / overlap / single ∞
-- [ ] Delete removes a slab locally
-- [ ] Auth User Group can grant `hrm-variables`
+- [ ] Route `/hrm-variables` loads persisted rates and slabs (or empty)
+- [ ] Summary cards update after Save rates
+- [ ] Statutory Save persists after refresh
+- [ ] Add Slab validates range / overlap / single ∞ and persists
+- [ ] Delete removes a slab and persists
+- [ ] Auth User Group can grant `hrm-variables` (view / add / edit / delete)
 
 ---
 
-*Last updated: Sep 2026 — HRM Variable HV0 UI shell (section 37); Paysheet Components PC0–PC4 shipped; module-wise planning (sections 31–33).*
+*Last updated: Sep 2026 — HRM Variable HV0–HV4 CRUD shipped (section 37); HV5 deferred; Paysheet Components PC0–PC4 shipped; module-wise planning (sections 31–33).*

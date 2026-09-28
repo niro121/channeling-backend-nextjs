@@ -662,7 +662,7 @@ model HolidayCalendar {
 }
 
 /* ---------------------------------
-HR ADMINISTRATION — DESIGNATION
+HR ADMINISTRATION
 --------------------------------- */
 
 model Designation {
@@ -749,8 +749,44 @@ model PaysheetComponent {
   @@index([name])
 }
 
+// HRM VARIABLE (EPF / ETF / PAYE)
+/// Singleton statutory rates + related PAYE slabs.
+model HrmVariable {
+  id          String @id @default(auto()) @map("_id") @db.ObjectId
+  key         String @unique @default("default") // singleton key
+  epfEmployee Float  @default(0)
+  epfCompany  Float  @default(0)
+  etfEmployee Float  @default(0)
+  etfCompany  Float  @default(0)
+
+  slabs HrmPayeSlab[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy String?  @db.ObjectId
+  updatedBy String?  @db.ObjectId
+}
+
+model HrmPayeSlab {
+  id            String  @id @default(auto()) @map("_id") @db.ObjectId
+  hrmVariableId String  @db.ObjectId
+  hrmVariable   HrmVariable @relation(fields: [hrmVariableId], references: [id])
+  fromSalary    Float
+  toSalary      Float? // null = open-ended (∞)
+  taxRate       Float
+  sortOrder     Int     @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy String?  @db.ObjectId
+  updatedBy String?  @db.ObjectId
+
+  @@index([hrmVariableId])
+  @@index([fromSalary])
+}
+
 /* ---------------------------------
-ORGANIZATION — DEPARTMENT
+ORGANIZATION
 --------------------------------- */
 
 model Department {
@@ -772,10 +808,6 @@ model Department {
   @@index([institution])
   @@index([name])
 }
-
-/* ---------------------------------
-ORGANIZATION — LOCATION
---------------------------------- */
 
 model Location {
   id              String  @id @default(auto()) @map("_id") @db.ObjectId
@@ -806,10 +838,6 @@ model Location {
   @@index([name])
 }
 
-/* ---------------------------------
-ORGANIZATION — ZONE
---------------------------------- */
-
 model Zone {
   id              String  @id @default(auto()) @map("_id") @db.ObjectId
   name            String
@@ -832,10 +860,6 @@ model Zone {
   @@index([locationId])
   @@index([name])
 }
-
-/* ---------------------------------
-ORGANIZATION — ROOM
---------------------------------- */
 
 model Room {
   id              String  @id @default(auto()) @map("_id") @db.ObjectId

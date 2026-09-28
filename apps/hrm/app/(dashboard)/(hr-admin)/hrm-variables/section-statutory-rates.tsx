@@ -6,6 +6,7 @@ import * as Yup from 'yup';
 import { format } from 'date-fns';
 import { SaveIcon } from 'lucide-react';
 import { Button, CustomFormField, useToast } from '@archmage/ui';
+import { saveStatutoryRatesAction } from '@/app/actions/hr-admin-actions/hrm-variable.actions';
 import {
   ratesToFormValues,
   type HrmStatutoryRatesFormValues
@@ -46,6 +47,22 @@ function formatAuditLine(
   return `${namePart} · ${format(date, 'd MMM yyyy')} · ${format(date, 'HH:mm')}`;
 }
 
+function applyFieldErrors(
+  helpers: FormikHelpers<HrmStatutoryRatesFormValues>,
+  errors: Record<string, unknown>
+) {
+  if (!errors || typeof errors !== 'object' || 'message' in errors) return;
+  const fieldErrors: Record<string, string> = {};
+  for (const [key, value] of Object.entries(errors)) {
+    if (Array.isArray(value) && value[0]) {
+      fieldErrors[key] = String(value[0]);
+    }
+  }
+  if (Object.keys(fieldErrors).length) {
+    helpers.setErrors(fieldErrors);
+  }
+}
+
 const RATE_FIELDS = [
   { key: 'epfEmployee' as const, label: 'EPF Rate' },
   { key: 'epfCompany' as const, label: 'EPF Company Rate' },
@@ -55,7 +72,7 @@ const RATE_FIELDS = [
 
 export default function SectionStatutoryRates() {
   const { toast } = useToast();
-  const { record, setRates } = useHrmVariableUi();
+  const { record, setRecord } = useHrmVariableUi();
   const [saving, setSaving] = useState(false);
 
   const initialValues = useMemo(
@@ -65,20 +82,34 @@ export default function SectionStatutoryRates() {
 
   const handleSubmit = async (
     values: HrmStatutoryRatesFormValues,
-    _helpers: FormikHelpers<HrmStatutoryRatesFormValues>
+    helpers: FormikHelpers<HrmStatutoryRatesFormValues>
   ) => {
     setSaving(true);
     try {
-      setRates({
+      const result = await saveStatutoryRatesAction({
         epfEmployee: Number(values.epfEmployee),
         epfCompany: Number(values.epfCompany),
         etfEmployee: Number(values.etfEmployee),
         etfCompany: Number(values.etfCompany)
       });
+
+      if (result.isError || !result.data) {
+        applyFieldErrors(helpers, result.errors);
+        toast({
+          title: 'Could not save rates',
+          description: String(
+            (result.errors as { message?: string }).message ??
+              'Please check the form and try again.'
+          ),
+          variant: 'destructive'
+        });
+        return;
+      }
+
+      setRecord(result.data);
       toast({
-        title: 'Rates updated (local)',
-        description:
-          'Statutory rates are saved in this session only. Persist to the database in the CRUD phase.'
+        title: 'Statutory rates saved',
+        description: 'EPF / ETF rates were updated successfully.'
       });
     } finally {
       setSaving(false);

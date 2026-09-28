@@ -6,6 +6,10 @@ import * as Yup from 'yup';
 import { Plus, Trash2 } from 'lucide-react';
 import { Button, CustomFormField, useToast } from '@archmage/ui';
 import {
+  createPayeSlabAction,
+  deletePayeSlabAction
+} from '@/app/actions/hr-admin-actions/hrm-variable.actions';
+import {
   emptyPayeSlabDraft,
   formatSalaryLkr,
   type HrmPayeSlabDraft
@@ -50,21 +54,27 @@ const validationSchema = Yup.object({
     })
 });
 
-function slabsOverlap(
-  existing: { fromSalary: number; toSalary: number | null }[],
-  next: { fromSalary: number; toSalary: number | null }
-): boolean {
-  const nextHi = next.toSalary ?? Number.POSITIVE_INFINITY;
-  return existing.some((s) => {
-    const hi = s.toSalary ?? Number.POSITIVE_INFINITY;
-    return next.fromSalary <= hi && nextHi >= s.fromSalary;
-  });
+function applyFieldErrors(
+  helpers: FormikHelpers<HrmPayeSlabDraft>,
+  errors: Record<string, unknown>
+) {
+  if (!errors || typeof errors !== 'object' || 'message' in errors) return;
+  const fieldErrors: Record<string, string> = {};
+  for (const [key, value] of Object.entries(errors)) {
+    if (Array.isArray(value) && value[0]) {
+      fieldErrors[key] = String(value[0]);
+    }
+  }
+  if (Object.keys(fieldErrors).length) {
+    helpers.setErrors(fieldErrors);
+  }
 }
 
 export default function SectionPayeSlabs() {
   const { toast } = useToast();
-  const { record, addSlab, removeSlab } = useHrmVariableUi();
+  const { record, setRecord } = useHrmVariableUi();
   const [showAdd, setShowAdd] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const handleAdd = async (
     values: HrmPayeSlabDraft,
@@ -75,30 +85,64 @@ export default function SectionPayeSlabs() {
       values.toSalary.trim() === '' ? null : Number(values.toSalary);
     const taxRate = Number(values.taxRate);
 
-    if (slabsOverlap(record.slabs, { fromSalary, toSalary })) {
-      helpers.setFieldError(
-        'fromSalary',
-        'This range overlaps an existing slab'
-      );
+    const result = await createPayeSlabAction({
+      fromSalary,
+      toSalary,
+      taxRate
+    });
+
+    if (result.isError || !result.data) {
+      applyFieldErrors(helpers, result.errors);
+      toast({
+        title: 'Could not add slab',
+        description: String(
+          (result.errors as { message?: string }).message ??
+            'Please check the form and try again.'
+        ),
+        variant: 'destructive'
+      });
       return;
     }
 
-    const openEndedCount = record.slabs.filter((s) => s.toSalary == null).length;
-    if (toSalary == null && openEndedCount > 0) {
-      helpers.setFieldError(
-        'toSalary',
-        'Only one open-ended (∞) slab is allowed'
-      );
-      return;
-    }
-
-    addSlab({ fromSalary, toSalary, taxRate });
+    setRecord(result.data);
     helpers.resetForm({ values: emptyPayeSlabDraft() });
     setShowAdd(false);
     toast({
-      title: 'Slab added (local)',
-      description: 'PAYE slabs are session-only until the CRUD phase.'
+      title: 'PAYE slab added',
+      description: 'The tax slab was saved successfully.'
     });
+  };
+
+  const handleDelete = async (id: string) => {
+    setDeletingId(id);
+    try {
+      const result = await deletePayeSlabAction(id);
+      if (result.isError) {
+        toast({
+          title: 'Could not delete slab',
+          description: String(
+            (result.errors as { message?: string }).message ??
+              'Please try again.'
+          ),
+          variant: 'destructive'
+        });
+        return;
+      }
+      if (result.data) {
+        setRecord(result.data);
+      } else {
+        setRecord({
+          ...record,
+          slabs: record.slabs.filter((s) => s.id !== id)
+        });
+      }
+      toast({
+        title: 'PAYE slab deleted',
+        description: 'The tax slab was removed successfully.'
+      });
+    } finally {
+      setDeletingId(null);
+    }
   };
 
   return (
@@ -223,14 +267,8 @@ export default function SectionPayeSlabs() {
                         size="icon"
                         className="h-8 w-8 text-destructive hover:bg-destructive/10 hover:text-destructive"
                         aria-label="Delete slab"
-                        onClick={() => {
-                          removeSlab(slab.id);
-                          toast({
-                            title: 'Slab removed (local)',
-                            description:
-                              'Changes are session-only until the CRUD phase.'
-                          });
-                        }}
+                        disabled={deletingId === slab.id}
+                        onClick={() => handleDelete(slab.id)}
                       >
                         <Trash2 className="h-4 w-4" />
                       </Button>

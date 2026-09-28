@@ -1,3 +1,5 @@
+import type { AuthUserSummary } from '@/lib/helpers/resolve-auth-users.helper';
+
 export type HrmVariableAuditUser = {
   name: string;
   role?: string;
@@ -32,6 +34,43 @@ export type HrmPayeSlabDraft = {
   taxRate: string;
 };
 
+export type HrmStatutoryRatesPayload = {
+  epfEmployee: number;
+  epfCompany: number;
+  etfEmployee: number;
+  etfCompany: number;
+};
+
+export type HrmPayeSlabPayload = {
+  fromSalary: number;
+  toSalary: number | null;
+  taxRate: number;
+};
+
+export type HrmPayeSlabServiceRecord = {
+  id: string;
+  fromSalary: number;
+  toSalary: number | null;
+  taxRate: number;
+  sortOrder: number;
+};
+
+export type HrmVariableServiceRecord = {
+  id: string;
+  key: string;
+  epfEmployee: number;
+  epfCompany: number;
+  etfEmployee: number;
+  etfCompany: number;
+  slabs: HrmPayeSlabServiceRecord[];
+  createdAt: string;
+  updatedAt: string;
+  createdBy: string | null;
+  updatedBy: string | null;
+  createdUser: AuthUserSummary | null;
+  updatedUser: AuthUserSummary | null;
+};
+
 /** Full UI record for the HRM Variable screen (singleton + slabs). */
 export type HrmVariableUiRecord = {
   id: string | null;
@@ -42,6 +81,8 @@ export type HrmVariableUiRecord = {
   createdByUser: HrmVariableAuditUser | null;
   updatedByUser: HrmVariableAuditUser | null;
 };
+
+export const HRM_VARIABLE_SINGLETON_KEY = 'default';
 
 export const emptyStatutoryRatesFormValues =
   (): HrmStatutoryRatesFormValues => ({
