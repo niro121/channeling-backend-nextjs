@@ -175,6 +175,10 @@ function DoctorLeaveReportContentInner({
             break-inside: avoid !important;
             page-break-inside: avoid !important;
           }
+          /* Group title row repeats the doctor already shown in the Doctor Name column */
+          .doctor-leave-report-root .rpt-print-root tr:has(td[colspan]) {
+            display: none !important;
+          }
         }
       `}</style>
       <ReportTemplate<DoctorLeaveReportRow, DoctorLeaveReportExportRow>
