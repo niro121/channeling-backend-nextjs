@@ -251,7 +251,10 @@ export async function downloadAgentBalanceReportExcel({
             ? compact.balance
             : null
         : values[c];
-      cell.value = raw === undefined || raw === null || raw === '' ? null : raw;
+      // Writing null into merged cells B–E clears the Total label in column A.
+      if (!(isTotal && c > 0 && c < 5)) {
+        cell.value = raw === undefined || raw === null || raw === '' ? null : raw;
+      }
       cell.numFmt = '@';
       cell.font = {
         size: 8,

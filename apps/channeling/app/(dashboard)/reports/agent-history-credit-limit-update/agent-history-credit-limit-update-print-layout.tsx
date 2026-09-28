@@ -21,60 +21,27 @@ export function AgentHistoryCreditLimitUpdatePrintLayout({ rows }: Props) {
         @media print {
           @page {
             size: A4 portrait;
-            margin: 7mm 8mm 12mm;
+            margin: 6mm 5mm 18mm;
           }
 
-          .agent-history-credit-limit-update-report-root .rpt-print-header {
-            margin-bottom: 2mm !important;
+          .agent-history-credit-limit-update-report-root,
+          .agent-history-credit-limit-update-report-root.container {
+            width: 100% !important;
+            max-width: none !important;
+            margin-left: 0 !important;
+            margin-right: 0 !important;
+            padding-left: 0 !important;
+            padding-right: 0 !important;
           }
-          .agent-history-credit-limit-update-report-root .rpt-print-brand-row {
-            height: 12mm !important;
-            gap: 5mm !important;
-          }
-          .agent-history-credit-limit-update-report-root .rpt-print-logo {
-            height: 12mm !important;
-            max-width: 44mm !important;
-          }
-          .agent-history-credit-limit-update-report-root .rpt-print-titles {
-            height: 12mm !important;
-            padding: 2mm 0 0.4mm !important;
-          }
-          .agent-history-credit-limit-update-report-root .rpt-print-org {
-            height: 4mm !important;
-            font-size: 13pt !important;
-          }
-          .agent-history-credit-limit-update-report-root .rpt-print-title-gap {
-            height: 0.6mm !important;
-          }
-          .agent-history-credit-limit-update-report-root .rpt-print-report-name {
-            height: 3.8mm !important;
-            font-size: 9.5pt !important;
-          }
-          .agent-history-credit-limit-update-report-root .rpt-print-rule {
-            margin-top: 1.2mm !important;
-          }
-          .agent-history-credit-limit-update-report-root .rpt-print-summary {
-            margin-top: 2mm !important;
-          }
-          .agent-history-credit-limit-update-report-root .rpt-print-summary-bar {
-            padding: 0.9mm 2mm !important;
-            font-size: 7pt !important;
-          }
-          .agent-history-credit-limit-update-report-root .rpt-print-summary-grid {
-            grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
-            gap: 1mm 3mm !important;
-            padding: 1.5mm 2mm !important;
-          }
-          .agent-history-credit-limit-update-report-root .rpt-print-label {
-            margin: 0 0 0.3mm !important;
-            font-size: 6pt !important;
-          }
-          .agent-history-credit-limit-update-report-root .rpt-print-value {
-            font-size: 8pt !important;
-            line-height: 1.15 !important;
-          }
-          .agent-history-credit-limit-update-report-root .rpt-print-body {
-            margin-top: 2.5mm !important;
+          .agent-history-credit-limit-update-report-root .rpt-print-root,
+          .agent-history-credit-limit-update-report-root .rpt-print-body,
+          .agent-history-credit-limit-update-report-root .rpt-print-header,
+          .agent-history-credit-limit-update-report-root .rpt-print-summary,
+          .agent-history-credit-limit-update-report-root .ahclu-print-root,
+          .agent-history-credit-limit-update-report-root .rpt-print-root table.ahclu-print-table {
+            width: 100% !important;
+            max-width: none !important;
+            box-sizing: border-box !important;
           }
 
           .agent-history-credit-limit-update-report-root .rpt-print-root table.ahclu-print-table {

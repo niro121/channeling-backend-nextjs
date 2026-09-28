@@ -5,7 +5,7 @@
  */
 
 import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
+import autoTable, { type RowInput } from 'jspdf-autotable';
 import {
   RUHUNU_HOSPITAL_LOGO_SRC,
   RUHUNU_PRINT_BRAND_NAME,
@@ -182,7 +182,17 @@ export async function downloadAgentBalanceReportPdf({
 
   autoTable(doc, {
     head: [Array.from(AGENT_BALANCE_PDF_HEADERS)],
-    body: compactRows.map(agentBalancePdfCompactRow),
+    body: compactRows.map((row): RowInput => {
+      if (!row.isTotal) return agentBalancePdfCompactRow(row);
+      const shade = {
+        fillColor: [243, 243, 243] as [number, number, number],
+        fontStyle: 'bold' as const,
+      };
+      return [
+        { content: 'Total', colSpan: 5, styles: { ...shade, halign: 'left', valign: 'middle' } },
+        { content: row.balance, styles: { ...shade, halign: 'right', valign: 'middle' } },
+      ];
+    }),
     startY,
     margin: { left: margin, right: margin, bottom: 12 },
     tableWidth,
@@ -213,6 +223,8 @@ export async function downloadAgentBalanceReportPdf({
       if (row.isTotal) {
         hookData.cell.styles.fontStyle = 'bold';
         hookData.cell.styles.fillColor = [243, 243, 243];
+        hookData.cell.styles.valign = 'middle';
+        hookData.cell.styles.halign = hookData.column.index === 5 ? 'right' : 'left';
       }
     },
   });

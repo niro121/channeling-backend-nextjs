@@ -238,8 +238,10 @@ export async function downloadAgencyStatementReportExcel({
 
     for (let c = 0; c < colCount; c++) {
       const cell = sheet.getCell(row, c + 1);
-      // Use null for blanks — empty string can ghost leftover numbers (e.g. "17").
-      cell.value = cellValues[c] ?? null;
+      // Merged closing label lives in column A. Writing null into B–D clears it.
+      if (!(compact.isClosing && c > 0 && c < 4)) {
+        cell.value = cellValues[c] ?? null;
+      }
       cell.numFmt = '@';
       cell.font = {
         size: 8,
