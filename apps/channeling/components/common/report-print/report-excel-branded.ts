@@ -6,10 +6,25 @@ import {
 } from "./report-print-layout"
 import type { BrandedPdfSummaryItem } from "./report-pdf-branded"
 
+/** One cell in a multi-row Excel table header (month band + day numbers). */
+export type BrandedExcelHeaderCell = {
+  value: string
+  colSpan?: number
+  rowSpan?: number
+  align?: "left" | "center" | "right"
+}
+
 export type BrandedExcelTableSection = {
   /** Optional section heading above the table (e.g. "Revenue Breakdown"). */
   title?: string
   columns: string[]
+  /**
+   * When set, these rows replace the flat `columns` header.
+   * Cells covered by a rowspan are omitted on later rows, same as an HTML table.
+   */
+  headerRows?: BrandedExcelHeaderCell[][]
+  /** Horizontal alignment for columns after Speciality and Doctor Name. */
+  valueAlign?: "left" | "center" | "right"
   body: (string | number | boolean | null)[][]
 }
 
@@ -34,6 +49,8 @@ export type DownloadBrandedReportExcelOptions<T> = {
   orientation?: "landscape" | "portrait"
   /** Smaller table fonts/columns so wide reports fit portrait print. */
   compactTable?: boolean
+  /** When set, these widths replace the default column widths (1-based order). */
+  columnWidths?: number[]
 }
 
 function portraitCompactColumnWidth(columnIndex1Based: number, colCount: number): number {
@@ -84,6 +101,57 @@ function isTotalLikeRow(values: unknown[]): boolean {
   })
 }
 
+const HEADER_BORDER: Partial<ExcelJS.Borders> = {
+  top: { style: "thin", color: { argb: "FF000000" } },
+  left: { style: "thin", color: { argb: "FF000000" } },
+  right: { style: "thin", color: { argb: "FF000000" } },
+  bottom: { style: "thin", color: { argb: "FF000000" } },
+}
+
+/** Writes a rowspan/colspan header. Returns the next free row. */
+export function writeExcelHeaderRows(
+  sheet: ExcelJS.Worksheet,
+  startRow: number,
+  headerRows: BrandedExcelHeaderCell[][],
+  fontSize: number
+): number {
+  const occupied = new Set<string>()
+  headerRows.forEach((header, rowIndex) => {
+    let col = 1
+    const excelRow = sheet.getRow(startRow + rowIndex)
+    excelRow.height = 18
+    for (const cellDef of header) {
+      while (occupied.has(`${rowIndex},${col}`)) col += 1
+      const colSpan = Math.max(1, cellDef.colSpan ?? 1)
+      const rowSpan = Math.max(1, cellDef.rowSpan ?? 1)
+      if (colSpan > 1 || rowSpan > 1) {
+        sheet.mergeCells(startRow + rowIndex, col, startRow + rowIndex + rowSpan - 1, col + colSpan - 1)
+      }
+      for (let rr = 0; rr < rowSpan; rr += 1) {
+        for (let cc = 0; cc < colSpan; cc += 1) {
+          occupied.add(`${rowIndex + rr},${col + cc}`)
+          const cell = sheet.getCell(startRow + rowIndex + rr, col + cc)
+          cell.font = { bold: true, size: fontSize, name: "Arial" }
+          cell.fill = {
+            type: "pattern",
+            pattern: "solid",
+            fgColor: { argb: "FFE8E8E8" },
+          }
+          cell.border = HEADER_BORDER
+          cell.alignment = {
+            vertical: "middle",
+            horizontal: cellDef.align ?? "center",
+            wrapText: false,
+          }
+        }
+      }
+      sheet.getCell(startRow + rowIndex, col).value = cellDef.value
+      col += colSpan
+    }
+  })
+  return startRow + headerRows.length
+}
+
 function colLetter(index1Based: number): string {
   let n = index1Based
   let s = ""
@@ -113,6 +181,7 @@ export async function downloadBrandedReportExcel<T>({
   sheetName = "Report",
   orientation = "landscape",
   compactTable = false,
+  columnWidths,
 }: DownloadBrandedReportExcelOptions<T>): Promise<void> {
   const tableSections: BrandedExcelTableSection[] =
     sections && sections.length > 0
@@ -168,7 +237,9 @@ export async function downloadBrandedReportExcel<T>({
   // values can produce corrupt/ghost values (e.g. "31") in Excel/Numbers.
   const narrow = isPortrait
   for (let i = 1; i <= colCount; i += 1) {
-    if (useCompactTable) {
+    if (columnWidths && columnWidths[i - 1] != null) {
+      sheet.getColumn(i).width = columnWidths[i - 1]!
+    } else if (useCompactTable) {
       sheet.getColumn(i).width = portraitCompactColumnWidth(i, colCount)
     } else {
       sheet.getColumn(i).width = narrow
@@ -313,30 +384,34 @@ export async function downloadBrandedReportExcel<T>({
       row += 1
     }
 
-    const headerRow = sheet.getRow(row)
-    section.columns.forEach((col, i) => {
-      const cell = headerRow.getCell(i + 1)
-      cell.value = col
-      cell.font = { bold: true, size: tableFontSize, name: "Arial" }
-      cell.fill = {
-        type: "pattern",
-        pattern: "solid",
-        fgColor: { argb: "FFE8E8E8" },
-      }
-      cell.border = {
-        top: { style: "thin", color: { argb: "FF000000" } },
-        left: { style: "thin", color: { argb: "FF000000" } },
-        right: { style: "thin", color: { argb: "FF000000" } },
-        bottom: { style: "thin", color: { argb: "FF000000" } },
-      }
-      cell.alignment = {
-        vertical: "middle",
-        horizontal: i === 0 || i === 1 ? "left" : "right",
-        wrapText: true,
-      }
-    })
-    headerRow.height = useCompactTable ? 16 : 20
-    row += 1
+    if (section.headerRows && section.headerRows.length > 0) {
+      row = writeExcelHeaderRows(sheet, row, section.headerRows, tableFontSize)
+    } else {
+      const headerRow = sheet.getRow(row)
+      section.columns.forEach((col, i) => {
+        const cell = headerRow.getCell(i + 1)
+        cell.value = col
+        cell.font = { bold: true, size: tableFontSize, name: "Arial" }
+        cell.fill = {
+          type: "pattern",
+          pattern: "solid",
+          fgColor: { argb: "FFE8E8E8" },
+        }
+        cell.border = {
+          top: { style: "thin", color: { argb: "FF000000" } },
+          left: { style: "thin", color: { argb: "FF000000" } },
+          right: { style: "thin", color: { argb: "FF000000" } },
+          bottom: { style: "thin", color: { argb: "FF000000" } },
+        }
+        cell.alignment = {
+          vertical: "middle",
+          horizontal: i === 0 || i === 1 ? "left" : "right",
+          wrapText: true,
+        }
+      })
+      headerRow.height = useCompactTable ? 16 : 20
+      row += 1
+    }
 
     for (const values of section.body) {
       const dataRow = sheet.getRow(row)
@@ -363,8 +438,8 @@ export async function downloadBrandedReportExcel<T>({
         }
         cell.alignment = {
           vertical: "middle",
-          horizontal: i === 0 || i === 1 ? "left" : "right",
-          wrapText: true,
+          horizontal: i === 0 || i === 1 ? "left" : (section.valueAlign ?? "right"),
+          wrapText: i === 0 || i === 1,
         }
         if (totalLike) {
           cell.fill = {
