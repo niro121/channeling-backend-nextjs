@@ -553,7 +553,7 @@ export const SALARY_STRUCTURE_WORKFLOW_STEPS: SalaryStructureWorkflowStep[] = [
     id: 3,
     label: 'Deductions',
     href: '/deductions',
-    ready: false,
+    ready: true,
     status: 'pending'
   },
   {
@@ -730,6 +730,119 @@ export const EMPTY_ALLOWANCE_FORM: AllowanceFormValues = {
 
 export const EMPTY_ALLOWANCE_SUMMARY: AllowanceSummary = {
   totalAllowances: 0,
+  active: 0,
+  monthlyValue: 0,
+  draftInactive: 0
+};
+
+/** Deductions master — Phase 0 list + sheet shell. */
+export type DeductionStatus = 'active' | 'inactive' | 'draft';
+
+export type DeductionType =
+  | 'epf'
+  | 'etf'
+  | 'tax'
+  | 'loan'
+  | 'advance'
+  | 'no_pay'
+  | 'other';
+
+export type DeductionCalcMethod = AllowanceCalcMethod;
+
+export type DeductionFilters = {
+  search?: string;
+  deductionType?: string;
+  staffCategory?: string;
+  departmentId?: string;
+  designationId?: string;
+  status?: string;
+  effectiveDate?: string;
+};
+
+export type DeductionRecord = {
+  id: string;
+  code: string;
+  name: string;
+  deductionType: DeductionType;
+  calcMethod: DeductionCalcMethod;
+  amountOrPercent: string;
+  staffCategoryId: string;
+  staffCategory: string;
+  departmentId: string;
+  department: string;
+  designationId: string;
+  designation: string;
+  effectiveFrom: string | null;
+  effectiveTo: string | null;
+  status: DeductionStatus;
+  createdBy: string | null;
+  createdAt: string | null;
+  updatedBy: string | null;
+  updatedAt: string | null;
+};
+
+export type DeductionFormValues = {
+  code: string;
+  name: string;
+  deductionType: string;
+  calcMethod: string;
+  amountOrPercent: string;
+  staffCategory: string;
+  departmentId: string;
+  designationId: string;
+  effectiveFrom: Date | null;
+  effectiveTo: Date | null;
+  status: DeductionStatus;
+};
+
+export type DeductionSummary = {
+  totalDeductions: number;
+  active: number;
+  monthlyValue: number;
+  draftInactive: number;
+};
+
+export const DEDUCTION_STATUS_OPTIONS = ALLOWANCE_STATUS_OPTIONS;
+
+export const DEDUCTION_TYPE_OPTIONS = [
+  { id: 'epf', name: 'EPF' },
+  { id: 'etf', name: 'ETF' },
+  { id: 'tax', name: 'Tax' },
+  { id: 'loan', name: 'Loan' },
+  { id: 'advance', name: 'Advance' },
+  { id: 'no_pay', name: 'No-pay' },
+  { id: 'other', name: 'Other' }
+] as const;
+
+export const DEDUCTION_TYPE_LABELS: Record<DeductionType, string> = {
+  epf: 'EPF',
+  etf: 'ETF',
+  tax: 'Tax',
+  loan: 'Loan',
+  advance: 'Advance',
+  no_pay: 'No-pay',
+  other: 'Other'
+};
+
+export const DEDUCTION_CALC_METHOD_OPTIONS = ALLOWANCE_CALC_METHOD_OPTIONS;
+export const DEDUCTION_CALC_METHOD_LABELS = ALLOWANCE_CALC_METHOD_LABELS;
+
+export const EMPTY_DEDUCTION_FORM: DeductionFormValues = {
+  code: '',
+  name: '',
+  deductionType: 'epf',
+  calcMethod: 'fixed_per_month',
+  amountOrPercent: '',
+  staffCategory: '__all__',
+  departmentId: '__all__',
+  designationId: '__all__',
+  effectiveFrom: null,
+  effectiveTo: null,
+  status: 'active'
+};
+
+export const EMPTY_DEDUCTION_SUMMARY: DeductionSummary = {
+  totalDeductions: 0,
   active: 0,
   monthlyValue: 0,
   draftInactive: 0

@@ -24,20 +24,20 @@ import {
   STAFF_DESIGNATION_OPTIONS
 } from '@/types/staff-employment-options';
 import {
-  ALLOWANCE_CALC_METHOD_OPTIONS,
-  ALLOWANCE_STATUS_OPTIONS,
-  ALLOWANCE_TYPE_OPTIONS,
-  EMPTY_ALLOWANCE_FORM,
-  type AllowanceFormValues,
-  type AllowanceRecord,
-  type AllowanceStatus
+  DEDUCTION_CALC_METHOD_OPTIONS,
+  DEDUCTION_STATUS_OPTIONS,
+  DEDUCTION_TYPE_OPTIONS,
+  EMPTY_DEDUCTION_FORM,
+  type DeductionFormValues,
+  type DeductionRecord,
+  type DeductionStatus
 } from '@/types/payroll';
-import type { AllowanceFormSheetMode } from './allowances-ui-context';
+import type { DeductionFormSheetMode } from './deductions-ui-context';
 
-type SheetAllowanceFormProps = {
+type SheetDeductionFormProps = {
   open: boolean;
-  mode: AllowanceFormSheetMode;
-  record: AllowanceRecord | null;
+  mode: DeductionFormSheetMode;
+  record: DeductionRecord | null;
   onOpenChange: (open: boolean) => void;
 };
 
@@ -51,10 +51,12 @@ const LATER = 'Will be wired in the dynamic phase.';
 
 const validationSchema = Yup.object({
   code: Yup.string().trim(),
-  name: Yup.string().trim().required('Allowance name is required'),
-  allowanceType: Yup.string().required('Allowance type is required'),
+  name: Yup.string().trim().required('Deduction name is required'),
+  deductionType: Yup.string().required('Deduction type is required'),
   calcMethod: Yup.string().required('Calculation method is required'),
-  amountOrPercent: Yup.string().trim().required('Amount / percentage is required'),
+  amountOrPercent: Yup.string()
+    .trim()
+    .required('Amount / percentage is required'),
   effectiveFrom: Yup.date()
     .nullable()
     .required('Effective from date is required')
@@ -80,29 +82,29 @@ const designationOptions = [
   }))
 ];
 
-const typeOptions = ALLOWANCE_TYPE_OPTIONS.map((item) => ({
+const typeOptions = DEDUCTION_TYPE_OPTIONS.map((item) => ({
   id: item.id,
   name: item.name
 }));
 
-const calcMethodOptions = ALLOWANCE_CALC_METHOD_OPTIONS.map((item) => ({
+const calcMethodOptions = DEDUCTION_CALC_METHOD_OPTIONS.map((item) => ({
   id: item.id,
   name: item.name
 }));
 
-const statusOptions = ALLOWANCE_STATUS_OPTIONS.map((item) => ({
+const statusOptions = DEDUCTION_STATUS_OPTIONS.map((item) => ({
   id: item.id,
   name: item.name
 }));
 
 function recordToFormValues(
-  record: AllowanceRecord | null
-): AllowanceFormValues {
-  if (!record) return EMPTY_ALLOWANCE_FORM;
+  record: DeductionRecord | null
+): DeductionFormValues {
+  if (!record) return EMPTY_DEDUCTION_FORM;
   return {
     code: record.code ?? '',
     name: record.name ?? '',
-    allowanceType: record.allowanceType ?? 'fixed_amount',
+    deductionType: record.deductionType ?? 'epf',
     calcMethod: record.calcMethod ?? 'fixed_per_month',
     amountOrPercent: record.amountOrPercent ?? '',
     staffCategory: record.staffCategoryId || '__all__',
@@ -116,20 +118,20 @@ function recordToFormValues(
   };
 }
 
-export default function SheetAllowanceForm({
+export default function SheetDeductionForm({
   open,
   mode,
   record,
   onOpenChange
-}: SheetAllowanceFormProps) {
+}: SheetDeductionFormProps) {
   const { toast } = useToast();
   const [formKey, setFormKey] = useState(0);
 
   const initialValues = useMemo(() => recordToFormValues(record), [record]);
 
-  const title = mode === 'edit' ? 'Edit Allowance' : 'Add Allowance';
+  const title = mode === 'edit' ? 'Edit Deduction' : 'Add Deduction';
   const description =
-    'Configure allowance calculation and applicability scope.';
+    'Configure deduction calculation and applicability scope.';
 
   const handleClose = () => onOpenChange(false);
 
@@ -157,7 +159,7 @@ export default function SheetAllowanceForm({
           validationSchema={validationSchema}
           onSubmit={() => {
             toast({
-              title: mode === 'edit' ? 'Save changes' : 'Save allowance',
+              title: mode === 'edit' ? 'Save changes' : 'Save deduction',
               description: LATER
             });
           }}
@@ -169,7 +171,7 @@ export default function SheetAllowanceForm({
                   <CustomFormField
                     id="code"
                     type="text"
-                    placeholder="Allowance Code (Auto Generated)"
+                    placeholder="Deduction Code (Auto Generated)"
                     value={formik.values.code}
                     onChange={formik.handleChange}
                     onBlur={formik.handleBlur}
@@ -180,7 +182,7 @@ export default function SheetAllowanceForm({
                   <CustomFormField
                     id="name"
                     type="text"
-                    placeholder="Allowance Name"
+                    placeholder="Deduction Name"
                     value={formik.values.name}
                     onChange={formik.handleChange}
                     onBlur={formik.handleBlur}
@@ -188,11 +190,11 @@ export default function SheetAllowanceForm({
                     styleClasses={fieldStyleClasses}
                   />
                   <CustomSelectField
-                    id="allowanceType"
-                    placeholder="Allowance Type"
-                    value={formik.values.allowanceType}
+                    id="deductionType"
+                    placeholder="Deduction Type"
+                    value={formik.values.deductionType}
                     onChange={(value) =>
-                      void formik.setFieldValue('allowanceType', value)
+                      void formik.setFieldValue('deductionType', value)
                     }
                     required
                     options={typeOptions}
@@ -279,7 +281,7 @@ export default function SheetAllowanceForm({
                     onChange={(value) =>
                       void formik.setFieldValue(
                         'status',
-                        value as AllowanceStatus
+                        value as DeductionStatus
                       )
                     }
                     options={statusOptions}
@@ -289,7 +291,8 @@ export default function SheetAllowanceForm({
 
                 <div className="rounded-lg border border-border bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
                   Payroll rules follow the existing paysheet component flags
-                  (Included For EPF / ETF / PayTax / OT / No Pay / PH).
+                  (Included For EPF / ETF / PayTax / OT / No Pay / PH). EPF 8%
+                  staff, 12% employer and ETF 3% are read from HRM Variables.
                 </div>
 
                 {mode === 'edit' ? (
@@ -329,7 +332,7 @@ export default function SheetAllowanceForm({
                   variant="outline"
                   className="text-red-500 transition-colors hover:bg-red-500 hover:text-white"
                   onClick={() => {
-                    formik.resetForm({ values: EMPTY_ALLOWANCE_FORM });
+                    formik.resetForm({ values: EMPTY_DEDUCTION_FORM });
                     setFormKey((key) => key + 1);
                     handleClose();
                   }}

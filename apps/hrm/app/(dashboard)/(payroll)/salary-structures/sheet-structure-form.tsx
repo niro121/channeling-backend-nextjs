@@ -72,7 +72,7 @@ const LATER = 'Will be wired in the dynamic phase.';
 const ADD_LATER = 'Component picker will be wired in the dynamic phase.';
 
 const validationSchema = Yup.object({
-  code: Yup.string().trim().required('Structure code is required'),
+  code: Yup.string().trim(),
   name: Yup.string().trim().required('Structure name is required'),
   staffCategory: Yup.string().required('Staff category is required'),
   designationId: Yup.string().required('Designation is required'),
@@ -329,11 +329,12 @@ export default function SheetStructureForm({
                     <CustomFormField
                       id="code"
                       type="text"
-                      placeholder="Structure Code"
+                      placeholder="Structure Code (Auto Generated)"
                       value={formik.values.code}
                       onChange={formik.handleChange}
                       onBlur={formik.handleBlur}
-                      required
+                      required={false}
+                      disabled
                       styleClasses={fieldStyleClasses}
                     />
                     <CustomFormField
