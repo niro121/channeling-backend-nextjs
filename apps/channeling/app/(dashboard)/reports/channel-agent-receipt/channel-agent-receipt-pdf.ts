@@ -7,8 +7,7 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import {
-  RUHUNU_HOSPITAL_LOGO_SRC,
-  RUHUNU_PRINT_BRAND_NAME,
+  drawBrandedPdfHeader,
   type BrandedPdfSummaryItem,
 } from '@/components/common/report-print';
 import { formatLKR } from '@/lib/format-money';
@@ -20,106 +19,6 @@ function pageSize(doc: jsPDF): { width: number; height: number } {
     width: doc.internal.pageSize.getWidth(),
     height: doc.internal.pageSize.getHeight(),
   };
-}
-
-let cachedLogoDataUrl: string | null | undefined;
-
-async function loadLogoDataUrl(src: string): Promise<string | null> {
-  if (cachedLogoDataUrl !== undefined && src === RUHUNU_HOSPITAL_LOGO_SRC) {
-    return cachedLogoDataUrl;
-  }
-  try {
-    const res = await fetch(src);
-    if (!res.ok) return null;
-    const blob = await res.blob();
-    const dataUrl = await new Promise<string>((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(String(reader.result));
-      reader.onerror = () => reject(reader.error);
-      reader.readAsDataURL(blob);
-    });
-    if (src === RUHUNU_HOSPITAL_LOGO_SRC) cachedLogoDataUrl = dataUrl;
-    return dataUrl;
-  } catch {
-    if (src === RUHUNU_HOSPITAL_LOGO_SRC) cachedLogoDataUrl = null;
-    return null;
-  }
-}
-
-async function drawHeader(
-  doc: jsPDF,
-  opts: {
-    reportName: string;
-    summaryItems: BrandedPdfSummaryItem[];
-    margin: number;
-  }
-): Promise<number> {
-  const { margin, reportName, summaryItems } = opts;
-  const { width: pageWidth } = pageSize(doc);
-  let y = margin;
-
-  const logoH = 12;
-  const logoMaxW = 48;
-  let textX = margin;
-  const logoData = await loadLogoDataUrl(RUHUNU_HOSPITAL_LOGO_SRC);
-  if (logoData) {
-    const logoW = Math.min(logoMaxW, logoH * (526 / 160));
-    doc.addImage(logoData, 'PNG', margin, y, logoW, logoH);
-    textX = margin + logoW + 4;
-  }
-
-  doc.setTextColor(0, 0, 0);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(14);
-  doc.text(RUHUNU_PRINT_BRAND_NAME.toUpperCase(), textX, y + 4.5);
-  doc.setFontSize(10);
-  doc.setTextColor(51, 51, 51);
-  doc.text(
-    doc.splitTextToSize(reportName.toUpperCase(), pageWidth - textX - margin),
-    textX,
-    y + 9.5
-  );
-  y += logoH + 2;
-
-  doc.setDrawColor(0, 0, 0);
-  doc.setLineWidth(0.45);
-  doc.line(margin, y, pageWidth - margin, y);
-  y += 3;
-
-  const barH = 5.5;
-  const contentWidth = pageWidth - margin * 2;
-  doc.setFillColor(232, 232, 232);
-  doc.setDrawColor(0, 0, 0);
-  doc.setLineWidth(0.25);
-  doc.rect(margin, y, contentWidth, barH, 'FD');
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(7.5);
-  doc.setTextColor(0, 0, 0);
-  doc.text('REPORT SUMMARY', margin + 2, y + 3.7);
-  y += barH;
-
-  const padX = 2;
-  const padY = 2;
-  const boxTop = y;
-  let innerY = y + padY;
-  for (const item of summaryItems) {
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(6.5);
-    doc.setTextColor(85, 85, 85);
-    doc.text(item.label.toUpperCase(), margin + padX, innerY + 2.2);
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(9);
-    doc.setTextColor(0, 0, 0);
-    doc.text(item.value || '—', margin + padX, innerY + 6.2);
-    innerY += 8;
-  }
-  const boxH = Math.max(10, innerY + padY - boxTop);
-  doc.setDrawColor(0, 0, 0);
-  doc.setLineWidth(0.25);
-  doc.rect(margin, boxTop, contentWidth, boxH, 'S');
-  y = boxTop + boxH + 3.5;
-
-  return y;
 }
 
 function drawFooter(doc: jsPDF, generatedAt: string, margin: number) {
@@ -156,7 +55,7 @@ export async function downloadChannelAgentReceiptReportPdf({
   const { width: pageWidth } = pageSize(doc);
   const tableWidth = pageWidth - margin * 2;
 
-  const startY = await drawHeader(doc, { reportName, summaryItems, margin });
+  const startY = await drawBrandedPdfHeader(doc, { reportName, summaryItems, margin });
 
   const billTotal = rows.reduce((sum, row) => sum + (Number(row.billValue) || 0), 0);
   const body: Array<string[] | Array<string | { content: string; colSpan?: number; styles?: Record<string, unknown> }>> = rows.map((row) => [
