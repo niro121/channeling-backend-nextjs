@@ -156,6 +156,7 @@ function ContentInner({ currentUserName, bankOptions, locationOptions }: Props) 
       filterButtonLabel="Search"
       showBackButton={false}
       printPageSize="A4 portrait"
+      printPageMargins="7mm 5mm 18mm"
       exportOrientation="portrait"
       containerClassName="w-full py-2 space-y-3 card-summary-bank-wise-report-root"
       renderPrintContent={(rows) => (

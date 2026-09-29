@@ -224,7 +224,7 @@ export async function downloadCardSummaryBankWiseReportPdf({
   rows,
   fileName = 'card-summary-bank-wise.pdf',
 }: DownloadCardSummaryBankWisePdfOptions): Promise<void> {
-  const margin = 8;
+  const margin = 5;
   const doc = new jsPDF({ orientation: 'p', format: 'a4' });
   const { width: pageWidth } = pageSize(doc);
   const tableWidth = pageWidth - margin * 2;
