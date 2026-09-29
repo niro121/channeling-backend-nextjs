@@ -1093,7 +1093,7 @@ Track candidates here until each module gets its own detailed section.
 | **Departments** | `/departments` | `departments` | Unblocks Manage Rosters / Staff / Roster filters |
 | **Units / Wards** | `/units` (TBD) | `units` (TBD) | Confirm nested under Department vs separate |
 | **Institutions** | `/institutions` (TBD) | `institutions` (TBD) | Staff Employment placeholder — options today in `types/institution.ts` |
-| **Salary Structures** | `/salary-structures` | `salary-structures` | Permission map name exists |
+| **Salary Structures** | `/salary-structures` | `payroll` | Shipped under Payroll group (list shell); Add Structure sheet next |
 | **Manage Shifts** | `/manage-shifts` (TBD) | `manage-shifts` (TBD) | Deferred — see section 34 |
 
 > **Positions:** Prefer **Designations** as the job-title master unless product requires a separate Positions screen.  

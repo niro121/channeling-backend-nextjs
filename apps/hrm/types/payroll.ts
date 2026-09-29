@@ -402,6 +402,197 @@ export const EMPTY_LOAN_ADVANCE_SUMMARY: LoanAdvanceSummary = {
   completedYtd: 0
 };
 
+/** Salary Structures — Phase 0 list shell. */
+export type SalaryStructureStatus = 'active' | 'inactive' | 'draft';
+
+export type SalaryStructureWorkflowStepStatus =
+  | 'completed'
+  | 'current'
+  | 'pending';
+
+export type SalaryStructureWorkflowStep = {
+  id: number;
+  label: string;
+  href: string;
+  /** When false, click shows a toast instead of navigating. */
+  ready: boolean;
+  status: SalaryStructureWorkflowStepStatus;
+};
+
+export type SalaryStructureFilters = {
+  search?: string;
+  institution?: string;
+  departmentId?: string;
+  staffCategory?: string;
+  designationId?: string;
+  structureId?: string;
+  status?: string;
+  effectiveDate?: string;
+};
+
+export type SalaryStructureRecord = {
+  id: string;
+  code: string;
+  name: string;
+  institutionId?: string;
+  institution: string;
+  departmentId?: string;
+  department: string;
+  staffCategoryId?: string;
+  staffCategory: string;
+  designationId?: string;
+  designation: string;
+  basicSalary: number;
+  allowancesTotal: number;
+  deductionsTotal: number;
+  gross: number;
+  staffCovered: number;
+  effectiveFrom: string | null;
+  effectiveTo: string | null;
+  status: SalaryStructureStatus;
+  createdBy: string | null;
+  createdAt: string | null;
+  updatedBy: string | null;
+  updatedAt: string | null;
+};
+
+export type SalaryStructureCalcMethod =
+  | 'fixed'
+  | 'percent_of_basic'
+  | 'tax_table'
+  | 'auto'
+  | 'basic_div_200'
+  | 'basic_div_30';
+
+export type SalaryStructureLine = {
+  id: string;
+  name: string;
+  calcMethod: SalaryStructureCalcMethod;
+  value: string;
+};
+
+export type SalaryStructureFormValues = {
+  code: string;
+  name: string;
+  institutionId: string;
+  staffCategory: string;
+  designationId: string;
+  departmentId: string;
+  effectiveFrom: Date | null;
+  effectiveTo: Date | null;
+  status: SalaryStructureStatus;
+  basicSalary: string;
+  earnings: SalaryStructureLine[];
+  deductions: SalaryStructureLine[];
+  employerContributions: SalaryStructureLine[];
+  otherComponents: SalaryStructureLine[];
+};
+
+export type SalaryStructureSummary = {
+  totalStructures: number;
+  active: number;
+  draft: number;
+  staffCovered: number;
+};
+
+export const SALARY_STRUCTURE_STATUS_OPTIONS = [
+  { id: 'active', name: 'Active' },
+  { id: 'inactive', name: 'Inactive' },
+  { id: 'draft', name: 'Draft' }
+] as const;
+
+export const SALARY_STRUCTURE_CALC_METHOD_LABELS: Record<
+  SalaryStructureCalcMethod,
+  string
+> = {
+  fixed: 'Fixed',
+  percent_of_basic: '% of Basic',
+  tax_table: 'Tax Table',
+  auto: 'Auto',
+  basic_div_200: 'Basic/200',
+  basic_div_30: 'Basic/30'
+};
+
+/** Amount field is display-only for these calculation methods. */
+export const SALARY_STRUCTURE_READONLY_CALC_METHODS: SalaryStructureCalcMethod[] =
+  ['tax_table', 'auto', 'basic_div_200', 'basic_div_30'];
+
+export const EMPTY_SALARY_STRUCTURE_FORM: SalaryStructureFormValues = {
+  code: '',
+  name: '',
+  institutionId: '',
+  staffCategory: '',
+  designationId: '',
+  departmentId: '__all__',
+  effectiveFrom: null,
+  effectiveTo: null,
+  status: 'active',
+  basicSalary: '',
+  earnings: [],
+  deductions: [],
+  employerContributions: [],
+  otherComponents: []
+};
+
+export const SALARY_STRUCTURE_WORKFLOW_STEPS: SalaryStructureWorkflowStep[] = [
+  {
+    id: 1,
+    label: 'Salary Structures',
+    href: '/salary-structures',
+    ready: true,
+    status: 'current'
+  },
+  {
+    id: 2,
+    label: 'Allowances',
+    href: '/allowances',
+    ready: false,
+    status: 'pending'
+  },
+  {
+    id: 3,
+    label: 'Deductions',
+    href: '/deductions',
+    ready: false,
+    status: 'pending'
+  },
+  {
+    id: 4,
+    label: 'Payroll Processing',
+    href: '/salary-processing',
+    ready: true,
+    status: 'pending'
+  },
+  {
+    id: 5,
+    label: 'Payslips',
+    href: '/payslips',
+    ready: false,
+    status: 'pending'
+  },
+  {
+    id: 6,
+    label: 'Bank Transfer File',
+    href: '/bank-transfer-file',
+    ready: false,
+    status: 'pending'
+  },
+  {
+    id: 7,
+    label: 'Salary History',
+    href: '/salary-history',
+    ready: false,
+    status: 'pending'
+  }
+];
+
+export const EMPTY_SALARY_STRUCTURE_SUMMARY: SalaryStructureSummary = {
+  totalStructures: 0,
+  active: 0,
+  draft: 0,
+  staffCovered: 0
+};
+
 export const EMPTY_SALARY_GENERATION_CYCLE_VALUES: SalaryGenerationCycleFormValues =
   {
     salaryCycleId: '',

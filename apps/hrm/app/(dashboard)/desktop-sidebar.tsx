@@ -381,7 +381,8 @@ export function DesktopSidebar({ session, className }: { session: Session | null
           hasAccess('/assign-paysheet-component') ||
           hasAccess('/bulk-assign-paysheet-component') ||
           hasAccess('/performance-allowance') ||
-          hasAccess('/loans-advances')) && (
+          hasAccess('/loans-advances') ||
+          hasAccess('/salary-structures')) && (
           <SidebarGroup label="Payroll">
             <SidebarCollapsible
               label="Payroll"
@@ -392,7 +393,8 @@ export function DesktopSidebar({ session, className }: { session: Session | null
                 '/assign-paysheet-component',
                 '/bulk-assign-paysheet-component',
                 '/performance-allowance',
-                '/loans-advances'
+                '/loans-advances',
+                '/salary-structures'
               ]}
               defaultOpen
             >
@@ -436,6 +438,13 @@ export function DesktopSidebar({ session, className }: { session: Session | null
                   href="/loans-advances"
                   label="Loans & Advances"
                   icon={<Banknote className="h-5 w-5" />}
+                />
+              )}
+              {hasAccess('/salary-structures') && (
+                <NavLink
+                  href="/salary-structures"
+                  label="Salary Structures"
+                  icon={<Layers className="h-5 w-5" />}
                 />
               )}
             </SidebarCollapsible>

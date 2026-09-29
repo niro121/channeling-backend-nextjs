@@ -15,6 +15,7 @@ export const ROUTE_TO_RESOURCE: Record<string, string> = {
   '/bulk-assign-paysheet-component': 'payroll',
   '/performance-allowance': 'payroll',
   '/loans-advances': 'payroll',
+  '/salary-structures': 'payroll',
   '/leave-types': 'leave-types',
   '/leave-entitlement': 'leave-entitlement',
   '/leave-management': 'leave-management',

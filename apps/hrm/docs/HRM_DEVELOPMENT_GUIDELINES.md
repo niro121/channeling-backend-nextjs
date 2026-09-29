@@ -297,8 +297,8 @@ Do **not** share Prisma clients across apps. Cross-app writes go through public 
 | `/bulk-assign-paysheet-component` | `payroll` |
 | `/performance-allowance` | `payroll` |
 | `/loans-advances` | `payroll` |
+| `/salary-structures` | `payroll` |
 | `/payroll` | `payroll` |
-| `/salary-structures` | `salary-structures` |
 | `/reports` | `reports` |
 | `/users`, `/user-groups` | `users` |
 | `/admin/api-clients` | `api-clients` |
