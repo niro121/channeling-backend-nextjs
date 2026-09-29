@@ -48,6 +48,16 @@ export async function exportSmsReportData(
       count: String(row.count ?? 0),
     }));
 
+    const countTotal = result.data.reduce((sum, row) => sum + (Number(row.count) || 0), 0);
+    mapped.push({
+      dateTime: 'Total',
+      status: '',
+      source: '',
+      phone: '',
+      message: '',
+      count: countTotal.toLocaleString(),
+    });
+
     const session = await getServerSession(authOptions);
     if (session?.user?.id) {
       logActivityNonBlocking({
