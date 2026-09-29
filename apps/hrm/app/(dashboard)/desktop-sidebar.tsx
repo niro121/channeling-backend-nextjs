@@ -398,33 +398,40 @@ export function DesktopSidebar({ session, className }: { session: Session | null
               label="Payroll"
               icon={<Wallet className="h-5 w-5" />}
               paths={[
-                '/salary-generation',
-                '/salary-processing',
+                '/salary-structures',
+                '/allowances',
+                '/deductions',
                 '/assign-paysheet-component',
                 '/bulk-assign-paysheet-component',
                 '/performance-allowance',
                 '/loans-advances',
-                '/salary-structures',
-                '/allowances',
-                '/deductions',
+                '/salary-generation',
+                '/salary-processing',
                 '/payslips',
                 '/bank-transfer-file',
                 '/salary-history'
               ]}
               defaultOpen
             >
-              {hasAccess('/salary-generation') && (
+              {hasAccess('/salary-structures') && (
                 <NavLink
-                  href="/salary-generation"
-                  label="Salary Generation"
-                  icon={<PlayCircle className="h-5 w-5" />}
+                  href="/salary-structures"
+                  label="Salary Structures"
+                  icon={<Layers className="h-5 w-5" />}
                 />
               )}
-              {hasAccess('/salary-processing') && (
+              {hasAccess('/allowances') && (
                 <NavLink
-                  href="/salary-processing"
-                  label="Salary Processing"
-                  icon={<Cog className="h-5 w-5" />}
+                  href="/allowances"
+                  label="Allowances"
+                  icon={<CirclePlus className="h-5 w-5" />}
+                />
+              )}
+              {hasAccess('/deductions') && (
+                <NavLink
+                  href="/deductions"
+                  label="Deductions"
+                  icon={<CircleMinus className="h-5 w-5" />}
                 />
               )}
               {hasAccess('/assign-paysheet-component') && (
@@ -455,25 +462,18 @@ export function DesktopSidebar({ session, className }: { session: Session | null
                   icon={<Banknote className="h-5 w-5" />}
                 />
               )}
-              {hasAccess('/salary-structures') && (
+              {hasAccess('/salary-generation') && (
                 <NavLink
-                  href="/salary-structures"
-                  label="Salary Structures"
-                  icon={<Layers className="h-5 w-5" />}
+                  href="/salary-generation"
+                  label="Salary Generation"
+                  icon={<PlayCircle className="h-5 w-5" />}
                 />
               )}
-              {hasAccess('/allowances') && (
+              {hasAccess('/salary-processing') && (
                 <NavLink
-                  href="/allowances"
-                  label="Allowances"
-                  icon={<CirclePlus className="h-5 w-5" />}
-                />
-              )}
-              {hasAccess('/deductions') && (
-                <NavLink
-                  href="/deductions"
-                  label="Deductions"
-                  icon={<CircleMinus className="h-5 w-5" />}
+                  href="/salary-processing"
+                  label="Salary Processing"
+                  icon={<Cog className="h-5 w-5" />}
                 />
               )}
               {hasAccess('/payslips') && (
