@@ -242,6 +242,7 @@ From `lib/permissions.ts` / `RESOURCES` (keep these in sync when editing).
 | `/deductions` | `payroll` | Payroll |
 | `/payslips` | `payroll` | Payroll |
 | `/bank-transfer-file` | `payroll` | Payroll |
+| `/salary-history` | `payroll` | Payroll |
 | `/payroll` | `payroll` | Payroll *(hub reserved)* |
 | `/reports` | `reports` | Reports |
 | `/users` | `users` | Users & User Groups |

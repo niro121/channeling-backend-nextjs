@@ -1098,6 +1098,7 @@ Track candidates here until each module gets its own detailed section.
 | **Deductions** | `/deductions` | `payroll` | Phase 0 list shell under Payroll |
 | **Payslips** | `/payslips` | `payroll` | Phase 0 list shell under Payroll |
 | **Bank Transfer File** | `/bank-transfer-file` | `payroll` | Phase 0 batch register shell; Mark Processed → payslips Paid later |
+| **Salary History** | `/salary-history` | `payroll` | Phase 0 history shell; timeline beside filters, full-width register |
 | **Manage Shifts** | `/manage-shifts` (TBD) | `manage-shifts` (TBD) | Deferred — see section 34 |
 
 > **Positions:** Prefer **Designations** as the job-title master unless product requires a separate Positions screen.  

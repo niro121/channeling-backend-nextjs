@@ -302,6 +302,7 @@ Do **not** share Prisma clients across apps. Cross-app writes go through public 
 | `/deductions` | `payroll` |
 | `/payslips` | `payroll` |
 | `/bank-transfer-file` | `payroll` |
+| `/salary-history` | `payroll` |
 | `/payroll` | `payroll` |
 | `/reports` | `reports` |
 | `/users`, `/user-groups` | `users` |

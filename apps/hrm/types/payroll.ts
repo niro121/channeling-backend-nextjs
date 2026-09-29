@@ -581,7 +581,7 @@ export const SALARY_STRUCTURE_WORKFLOW_STEPS: SalaryStructureWorkflowStep[] = [
     id: 7,
     label: 'Salary History',
     href: '/salary-history',
-    ready: false,
+    ready: true,
     status: 'pending'
   }
 ];
@@ -1004,6 +1004,124 @@ export const EMPTY_BANK_TRANSFER_SUMMARY: BankTransferSummary = {
   totalTransfer: 0,
   processedStaff: 0,
   awaitingFileStaff: 0
+};
+
+/**
+ * Salary History — Phase 0 register + timeline + detail sheets.
+ * Timeline is staff-scoped; empty until a staff filter/focus is set.
+ */
+export type SalaryHistoryComponentType =
+  | 'basic'
+  | 'allowance'
+  | 'other_earning'
+  | 'deduction';
+
+export type SalaryHistoryComponentLine = {
+  id: string;
+  name: string;
+  type: SalaryHistoryComponentType;
+  amount: number;
+};
+
+export type SalaryHistoryAuditEvent = {
+  id: string;
+  title: string;
+  actor: string;
+  at: string | null;
+};
+
+export type SalaryHistoryTimelineEvent = {
+  id: string;
+  title: string;
+  detail: string;
+  at: string | null;
+};
+
+export type SalaryHistoryFilters = {
+  search?: string;
+  staffName?: string;
+  staffCode?: string;
+  departmentId?: string;
+  designationId?: string;
+  institution?: string;
+  salaryPeriod?: string;
+  componentId?: string;
+  dateFrom?: string;
+  dateTo?: string;
+};
+
+export type SalaryHistoryRecord = {
+  id: string;
+  staffCode: string;
+  staffName: string;
+  department: string;
+  designation: string;
+  institution: string;
+  bankAccountMasked: string;
+  epfNumber: string;
+  salaryPeriod: string;
+  salaryMonth: string;
+  salaryYear: string;
+  basicSalary: number;
+  totalAllowances: number;
+  otherEarnings: number;
+  grossSalary: number;
+  epfStaff: number;
+  paye: number;
+  loans: number;
+  advances: number;
+  otherDeductions: number;
+  totalDeductions: number;
+  netSalary: number;
+  employerEpf: number;
+  employerEtf: number;
+  paymentStatus: PayslipPaymentStatus;
+  generatedAt: string | null;
+  components: SalaryHistoryComponentLine[];
+  history: SalaryHistoryAuditEvent[];
+};
+
+export type SalaryHistorySummary = {
+  periodLabel: string | null;
+  records: number;
+  staffCount: number;
+  netTotal: number;
+  paidCount: number;
+};
+
+export type SalaryHistoryTimeline = {
+  /** Null when no staff focus — UI shows empty-state guidance. */
+  staffLabel: string | null;
+  events: SalaryHistoryTimelineEvent[];
+  netSixMonthAvg: number | null;
+  changeSinceLabel: string | null;
+  changePercent: number | null;
+};
+
+export const SALARY_HISTORY_COMPONENT_TYPE_LABELS: Record<
+  SalaryHistoryComponentType,
+  string
+> = {
+  basic: 'Basic',
+  allowance: 'Allowance',
+  other_earning: 'Other Earning',
+  deduction: 'Deduction'
+};
+
+export const EMPTY_SALARY_HISTORY_SUMMARY: SalaryHistorySummary = {
+  periodLabel: null,
+  records: 0,
+  staffCount: 0,
+  netTotal: 0,
+  paidCount: 0
+};
+
+export const EMPTY_SALARY_HISTORY_TIMELINE: SalaryHistoryTimeline = {
+  staffLabel: null,
+  events: [],
+  netSixMonthAvg: null,
+  changeSinceLabel: null,
+  changePercent: null
 };
 
 export const EMPTY_SALARY_GENERATION_CYCLE_VALUES: SalaryGenerationCycleFormValues =
