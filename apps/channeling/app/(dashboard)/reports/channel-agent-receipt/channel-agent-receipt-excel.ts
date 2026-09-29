@@ -189,20 +189,43 @@ export async function downloadChannelAgentReceiptReportExcel({
   row += 1;
 
   const summaryStartRow = row;
-  // Match PDF: Book No on the left (label + value), rest of row empty with outer border.
-  sheet.getCell(row, 1).value = null;
-  for (const item of summaryItems) {
-    sheet.getCell(row, 1).value = item.label.toUpperCase();
-    sheet.getCell(row, 1).font = {
-      size: 7,
-      name: 'Arial',
-      color: { argb: 'FF666666' },
-    };
-    sheet.getCell(row + 1, 1).value = item.value || '—';
-    sheet.getCell(row + 1, 1).font = { bold: true, size: 10, name: 'Arial' };
-    break;
+  const items = summaryItems.length ? summaryItems : [{ label: '—', value: '—' }];
+  // Same 3-column flow as the shared print / PDF header. The fourth item wraps
+  // under Book No instead of sitting on the first row.
+  const summaryCols = 3;
+  const baseSpan = Math.floor(colCount / summaryCols);
+  const remSpan = colCount % summaryCols;
+  const slotSpans = Array.from(
+    { length: summaryCols },
+    (_, i) => Math.max(1, baseSpan + (i < remSpan ? 1 : 0))
+  );
+  let slotIndex = 0;
+  let colCursor = 0;
+  for (const item of items) {
+    if (slotIndex >= summaryCols) {
+      slotIndex = 0;
+      colCursor = 0;
+      row += 2;
+    }
+    const span = slotSpans[slotIndex] ?? 1;
+    const startCol = colCursor + 1;
+    const endCol = Math.min(colCursor + span, colCount);
+    if (endCol > startCol) {
+      sheet.mergeCells(row, startCol, row, endCol);
+      sheet.mergeCells(row + 1, startCol, row + 1, endCol);
+    }
+    const labelCell = sheet.getCell(row, startCol);
+    labelCell.value = item.label.toUpperCase();
+    labelCell.font = { size: 8, name: 'Arial', color: { argb: 'FF666666' } };
+    labelCell.alignment = { vertical: 'middle', horizontal: 'left' };
+    const valueCell = sheet.getCell(row + 1, startCol);
+    valueCell.value = item.value || '—';
+    valueCell.font = { bold: true, size: 10, name: 'Arial' };
+    valueCell.alignment = { vertical: 'middle', horizontal: 'left', wrapText: true };
+    colCursor += span;
+    slotIndex += 1;
   }
-  const summaryEndRow = summaryStartRow + 1;
+  const summaryEndRow = row + 1;
   for (let r = summaryStartRow; r <= summaryEndRow; r++) {
     for (let c = 1; c <= colCount; c++) {
       const cell = sheet.getCell(r, c);
