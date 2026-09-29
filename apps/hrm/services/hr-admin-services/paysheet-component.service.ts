@@ -101,6 +101,10 @@ function buildWhere(
     and.push({ kind: params.kind });
   }
 
+  if (params.typeIds?.length) {
+    and.push({ typeId: { in: params.typeIds } });
+  }
+
   const search = params.search?.trim();
   if (search) {
     and.push({

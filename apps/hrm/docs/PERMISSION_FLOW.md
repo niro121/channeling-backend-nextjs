@@ -236,6 +236,7 @@ From `lib/permissions.ts` / `RESOURCES` (keep these in sync when editing).
 | `/assign-paysheet-component` | `payroll` | Payroll |
 | `/bulk-assign-paysheet-component` | `payroll` | Payroll |
 | `/performance-allowance` | `payroll` | Payroll |
+| `/loans-advances` | `payroll` | Payroll |
 | `/payroll` | `payroll` | Payroll *(hub reserved)* |
 | `/salary-structures` | `salary-structures` | Salary Structures *(planned HR Admin — see HR_ADMINISTRATION_GUIDE §31)* |
 | `/reports` | `reports` | Reports |

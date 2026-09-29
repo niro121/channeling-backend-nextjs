@@ -109,6 +109,8 @@ export type PaysheetComponentPayload = {
 export type GetPaysheetComponentParams = {
   search?: string;
   kind?: PaysheetComponentKind;
+  /** When set, only components whose typeId is in this list. */
+  typeIds?: string[];
 };
 
 /** Lightweight option for Combobox / filters outside the master module. */

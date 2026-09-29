@@ -44,6 +44,7 @@ import {
   Cog,
   ListChecks,
   Percent,
+  Banknote,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { canAccessRoute } from "@/lib/permissions";
@@ -379,7 +380,8 @@ export function DesktopSidebar({ session, className }: { session: Session | null
           hasAccess('/salary-processing') ||
           hasAccess('/assign-paysheet-component') ||
           hasAccess('/bulk-assign-paysheet-component') ||
-          hasAccess('/performance-allowance')) && (
+          hasAccess('/performance-allowance') ||
+          hasAccess('/loans-advances')) && (
           <SidebarGroup label="Payroll">
             <SidebarCollapsible
               label="Payroll"
@@ -389,7 +391,8 @@ export function DesktopSidebar({ session, className }: { session: Session | null
                 '/salary-processing',
                 '/assign-paysheet-component',
                 '/bulk-assign-paysheet-component',
-                '/performance-allowance'
+                '/performance-allowance',
+                '/loans-advances'
               ]}
               defaultOpen
             >
@@ -426,6 +429,13 @@ export function DesktopSidebar({ session, className }: { session: Session | null
                   href="/performance-allowance"
                   label="Performance Allowance"
                   icon={<Percent className="h-5 w-5" />}
+                />
+              )}
+              {hasAccess('/loans-advances') && (
+                <NavLink
+                  href="/loans-advances"
+                  label="Loans & Advances"
+                  icon={<Banknote className="h-5 w-5" />}
                 />
               )}
             </SidebarCollapsible>

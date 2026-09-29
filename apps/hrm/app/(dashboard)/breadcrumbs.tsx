@@ -49,6 +49,7 @@ const PATH_NAMES = [
   { path: 'assign-paysheet-component', name: 'Assign Paysheet Component' },
   { path: 'bulk-assign-paysheet-component', name: 'Bulk assign paysheet component' },
   { path: 'performance-allowance', name: 'Performance Allowance' },
+  { path: 'loans-advances', name: 'Loans & Advances' },
   { path: 'salary-structures', name: 'Salary Structures' },
   { path: 'reports', name: 'Reports' },
   { path: 'users', name: 'Users' },

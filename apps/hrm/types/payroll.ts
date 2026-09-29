@@ -302,6 +302,106 @@ export const EMPTY_PERFORMANCE_ALLOWANCE_SUMMARY: PerformanceAllowanceSummary = 
   totalMonthlyValue: 0
 };
 
+/** Loans & Advances — Phase 0 UI shell. */
+export type LoanAdvanceStatus = 'active' | 'ongoing' | 'completed';
+
+export type LoanAdvanceFilters = {
+  fromDate?: string;
+  componentId?: string;
+  staffId?: string;
+  departmentId?: string;
+  institution?: string;
+  staffCategory?: string;
+  designationId?: string;
+  rosterId?: string;
+};
+
+export type LoanAdvanceRecord = {
+  id: string;
+  componentId: string;
+  componentName: string;
+  staffId: string;
+  staffCode: string;
+  staffName: string;
+  institution: string;
+  department: string;
+  roster: string;
+  grade: string;
+  staffCategory: string;
+  designation: string;
+  resignDate: string | null;
+  bankId: string;
+  bankName: string;
+  branch: string;
+  accountNumber: string;
+  loanNumber: string;
+  startingBalance: number;
+  loanAmount: number;
+  monthlyInstallment: number;
+  outstanding: number;
+  fromDate: string | null;
+  toDate: string | null;
+  comments: string;
+  scheduleForPaid: boolean;
+  completed: boolean;
+  completionDate: string | null;
+  status: LoanAdvanceStatus;
+  createdBy: string | null;
+  createdAt: string | null;
+  updatedBy: string | null;
+  updatedAt: string | null;
+};
+
+export type LoanAdvanceFormValues = {
+  componentId: string;
+  staffId: string;
+  loanNumber: string;
+  bankId: string;
+  branch: string;
+  accountNumber: string;
+  startingBalance: string;
+  loanAmount: string;
+  monthlyInstallment: string;
+  fromDate: Date | null;
+  toDate: Date | null;
+  comments: string;
+  scheduleForPaid: boolean;
+  completed: boolean;
+  completionDate: Date | null;
+};
+
+export type LoanAdvanceSummary = {
+  activeLoans: number;
+  outstanding: number;
+  thisMonthDeducted: number;
+  completedYtd: number;
+};
+
+export const EMPTY_LOAN_ADVANCE_FORM: LoanAdvanceFormValues = {
+  componentId: '',
+  staffId: '',
+  loanNumber: '',
+  bankId: '',
+  branch: '',
+  accountNumber: '',
+  startingBalance: '',
+  loanAmount: '',
+  monthlyInstallment: '',
+  fromDate: null,
+  toDate: null,
+  comments: '',
+  scheduleForPaid: false,
+  completed: false,
+  completionDate: null
+};
+
+export const EMPTY_LOAN_ADVANCE_SUMMARY: LoanAdvanceSummary = {
+  activeLoans: 0,
+  outstanding: 0,
+  thisMonthDeducted: 0,
+  completedYtd: 0
+};
+
 export const EMPTY_SALARY_GENERATION_CYCLE_VALUES: SalaryGenerationCycleFormValues =
   {
     salaryCycleId: '',
