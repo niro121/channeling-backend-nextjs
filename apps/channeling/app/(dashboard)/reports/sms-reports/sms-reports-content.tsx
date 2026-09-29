@@ -49,10 +49,96 @@ function SmsReportsContentInner({ currentUserName, locationOptions }: SmsReports
   });
 
   return (
+    <>
+    <style>{`
+      @media print {
+        .sms-reports-report-root,
+        .sms-reports-report-root.container,
+        .sms-reports-report-root.rpt-template-root {
+          width: 100% !important;
+          max-width: none !important;
+          margin: 0 !important;
+          padding: 0 !important;
+          color: #000 !important;
+          -webkit-print-color-adjust: exact !important;
+          print-color-adjust: exact !important;
+        }
+        .sms-reports-report-root .rpt-template-card,
+        .sms-reports-report-root .rpt-template-card > div,
+        .sms-reports-report-root .rpt-print-root,
+        .sms-reports-report-root .rpt-print-header,
+        .sms-reports-report-root .rpt-print-summary,
+        .sms-reports-report-root .rpt-print-body {
+          width: 100% !important;
+          max-width: none !important;
+          margin-left: 0 !important;
+          margin-right: 0 !important;
+          padding-left: 0 !important;
+          padding-right: 0 !important;
+          box-sizing: border-box !important;
+        }
+        .sms-reports-report-root .rpt-print-root table {
+          width: 100% !important;
+          max-width: none !important;
+          table-layout: fixed !important;
+          border-collapse: collapse !important;
+        }
+        .sms-reports-report-root .rpt-print-root th:first-child,
+        .sms-reports-report-root .rpt-print-root td:first-child {
+          border-left: 0.35mm solid #000 !important;
+        }
+        .sms-reports-report-root .rpt-print-root th:last-child,
+        .sms-reports-report-root .rpt-print-root td:last-child {
+          border-right: 0.35mm solid #000 !important;
+          box-shadow: inset -0.35mm 0 0 #000 !important;
+        }
+        /* Date | Status | Source | Phone | Message | Count */
+        .sms-reports-report-root .rpt-print-root th:nth-child(1),
+        .sms-reports-report-root .rpt-print-root td:nth-child(1) { width: 16% !important; }
+        .sms-reports-report-root .rpt-print-root th:nth-child(2),
+        .sms-reports-report-root .rpt-print-root td:nth-child(2) { width: 8% !important; }
+        .sms-reports-report-root .rpt-print-root th:nth-child(3),
+        .sms-reports-report-root .rpt-print-root td:nth-child(3) { width: 12% !important; }
+        .sms-reports-report-root .rpt-print-root th:nth-child(4),
+        .sms-reports-report-root .rpt-print-root td:nth-child(4) { width: 14% !important; }
+        .sms-reports-report-root .rpt-print-root th:nth-child(5),
+        .sms-reports-report-root .rpt-print-root td:nth-child(5) { width: 44% !important; }
+        .sms-reports-report-root .rpt-print-root th:nth-child(6),
+        .sms-reports-report-root .rpt-print-root td:nth-child(6) { width: 6% !important; }
+
+        .sms-reports-report-root .rpt-print-root td:nth-child(4),
+        .sms-reports-report-root .rpt-print-root td:nth-child(4) * {
+          white-space: normal !important;
+          overflow-wrap: anywhere !important;
+          word-break: break-word !important;
+        }
+        .sms-reports-report-root .rpt-print-root td:nth-child(5),
+        .sms-reports-report-root .rpt-print-root td:nth-child(5) * {
+          min-width: 0 !important;
+          max-width: none !important;
+          width: auto !important;
+          white-space: pre-wrap !important;
+          overflow: visible !important;
+          overflow-wrap: break-word !important;
+          word-break: break-word !important;
+        }
+        .sms-reports-report-root .rpt-print-root th:nth-child(6),
+        .sms-reports-report-root .rpt-print-root td:nth-child(6),
+        .sms-reports-report-root .rpt-print-root td:nth-child(6) * {
+          text-align: right !important;
+          white-space: nowrap !important;
+        }
+      }
+    `}</style>
     <ReportTemplate<SmsReportRow, SmsReportExportRow>
       title="SMS Reports"
       description="View SMS logs by date & time range, branch, status, and phone number"
       filterButtonLabel="Search"
+      printPageMargins="7mm 5mm 18mm"
+      pdfPageMarginMm={5}
+      excelColumnWidths={[18, 12, 16, 14, 62, 8]}
+      excelExtraWrapColumnIndexes={[4]}
+      containerClassName="container mx-auto py-3 space-y-4 sms-reports-report-root"
       generationDetails={{
         generatedBy: currentUserName,
         formatFilters: (values) => {
@@ -182,6 +268,7 @@ function SmsReportsContentInner({ currentUserName, locationOptions }: SmsReports
       formatTotalValue={(_, sum) => <span className="font-semibold">{sum.toLocaleString()}</span>}
       getTotalNumericValue={(row, columnId) => (columnId === 'count' ? row.count ?? 0 : 0)}
     />
+    </>
   );
 }
 
