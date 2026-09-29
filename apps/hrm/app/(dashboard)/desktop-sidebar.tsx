@@ -47,6 +47,7 @@ import {
   Banknote,
   CirclePlus,
   CircleMinus,
+  FileText,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { canAccessRoute } from "@/lib/permissions";
@@ -386,7 +387,8 @@ export function DesktopSidebar({ session, className }: { session: Session | null
           hasAccess('/loans-advances') ||
           hasAccess('/salary-structures') ||
           hasAccess('/allowances') ||
-          hasAccess('/deductions')) && (
+          hasAccess('/deductions') ||
+          hasAccess('/payslips')) && (
           <SidebarGroup label="Payroll">
             <SidebarCollapsible
               label="Payroll"
@@ -400,7 +402,8 @@ export function DesktopSidebar({ session, className }: { session: Session | null
                 '/loans-advances',
                 '/salary-structures',
                 '/allowances',
-                '/deductions'
+                '/deductions',
+                '/payslips'
               ]}
               defaultOpen
             >
@@ -465,6 +468,13 @@ export function DesktopSidebar({ session, className }: { session: Session | null
                   href="/deductions"
                   label="Deductions"
                   icon={<CircleMinus className="h-5 w-5" />}
+                />
+              )}
+              {hasAccess('/payslips') && (
+                <NavLink
+                  href="/payslips"
+                  label="Payslips"
+                  icon={<FileText className="h-5 w-5" />}
                 />
               )}
             </SidebarCollapsible>

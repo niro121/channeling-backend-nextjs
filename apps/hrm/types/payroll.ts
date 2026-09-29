@@ -567,7 +567,7 @@ export const SALARY_STRUCTURE_WORKFLOW_STEPS: SalaryStructureWorkflowStep[] = [
     id: 5,
     label: 'Payslips',
     href: '/payslips',
-    ready: false,
+    ready: true,
     status: 'pending'
   },
   {
@@ -846,6 +846,89 @@ export const EMPTY_DEDUCTION_SUMMARY: DeductionSummary = {
   active: 0,
   monthlyValue: 0,
   draftInactive: 0
+};
+
+/**
+ * Payslips — Phase 0 register + view sheet.
+ * Payment status is owned by Salary Processing / bank confirmation; Payslips only displays/filters it.
+ */
+export type PayslipPaymentStatus =
+  | 'paid'
+  | 'processed'
+  | 'pending'
+  | 'on_hold';
+
+export type PayslipFilters = {
+  salaryMonth?: string;
+  salaryYear?: string;
+  staffName?: string;
+  staffCode?: string;
+  departmentId?: string;
+  designationId?: string;
+  institution?: string;
+  paymentStatus?: string;
+};
+
+export type PayslipRecord = {
+  id: string;
+  staffCode: string;
+  staffName: string;
+  department: string;
+  designation: string;
+  institution: string;
+  bankAccountMasked: string;
+  epfNumber: string;
+  salaryPeriod: string;
+  salaryMonth: string;
+  salaryYear: string;
+  basicSalary: number;
+  totalAllowances: number;
+  otherEarnings: number;
+  grossSalary: number;
+  epfStaff: number;
+  paye: number;
+  loans: number;
+  advances: number;
+  otherDeductions: number;
+  totalDeductions: number;
+  netSalary: number;
+  employerEpf: number;
+  employerEtf: number;
+  paymentStatus: PayslipPaymentStatus;
+  generatedAt: string | null;
+};
+
+export type PayslipSummary = {
+  periodLabel: string | null;
+  payslipsGenerated: number;
+  grossSalary: number;
+  netSalary: number;
+  onHold: number;
+};
+
+export const PAYSLIP_PAYMENT_STATUS_OPTIONS = [
+  { id: 'paid', name: 'Paid' },
+  { id: 'processed', name: 'Processed' },
+  { id: 'pending', name: 'Pending' },
+  { id: 'on_hold', name: 'On Hold' }
+] as const;
+
+export const PAYSLIP_PAYMENT_STATUS_LABELS: Record<
+  PayslipPaymentStatus,
+  string
+> = {
+  paid: 'Paid',
+  processed: 'Processed',
+  pending: 'Pending',
+  on_hold: 'On Hold'
+};
+
+export const EMPTY_PAYSLIP_SUMMARY: PayslipSummary = {
+  periodLabel: null,
+  payslipsGenerated: 0,
+  grossSalary: 0,
+  netSalary: 0,
+  onHold: 0
 };
 
 export const EMPTY_SALARY_GENERATION_CYCLE_VALUES: SalaryGenerationCycleFormValues =
