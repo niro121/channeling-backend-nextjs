@@ -574,7 +574,7 @@ export const SALARY_STRUCTURE_WORKFLOW_STEPS: SalaryStructureWorkflowStep[] = [
     id: 6,
     label: 'Bank Transfer File',
     href: '/bank-transfer-file',
-    ready: false,
+    ready: true,
     status: 'pending'
   },
   {
@@ -929,6 +929,81 @@ export const EMPTY_PAYSLIP_SUMMARY: PayslipSummary = {
   grossSalary: 0,
   netSalary: 0,
   onHold: 0
+};
+
+/**
+ * Bank Transfer File — Phase 0 batch register + sheets.
+ * Mark Processed confirms bank acceptance and (later) marks payslips Paid.
+ */
+export type BankTransferBatchStatus = 'pending' | 'generated' | 'processed';
+
+export type BankTransferFilters = {
+  salaryMonth?: string;
+  salaryYear?: string;
+  institution?: string;
+  departmentId?: string;
+  bankId?: string;
+  batchStatus?: string;
+  batchId?: string;
+};
+
+export type BankTransferHistoryEvent = {
+  id: string;
+  title: string;
+  actor: string;
+  at: string | null;
+};
+
+export type BankTransferBatchRecord = {
+  id: string;
+  batchCode: string;
+  salaryPeriod: string;
+  salaryMonth: string;
+  salaryYear: string;
+  staffCount: number;
+  totalNetSalary: number;
+  bankId: string;
+  bankName: string;
+  accountCount: number;
+  generatedAt: string | null;
+  generatedBy: string | null;
+  status: BankTransferBatchStatus;
+  createdBy: string | null;
+  createdAt: string | null;
+  updatedBy: string | null;
+  updatedAt: string | null;
+  history: BankTransferHistoryEvent[];
+};
+
+export type BankTransferSummary = {
+  periodLabel: string | null;
+  batches: number;
+  totalTransfer: number;
+  processedStaff: number;
+  awaitingFileStaff: number;
+};
+
+export const BANK_TRANSFER_BATCH_STATUS_OPTIONS = [
+  { id: 'pending', name: 'Pending' },
+  { id: 'generated', name: 'Generated' },
+  { id: 'processed', name: 'Processed' }
+] as const;
+
+export const BANK_TRANSFER_BATCH_STATUS_LABELS: Record<
+  BankTransferBatchStatus,
+  string
+> = {
+  pending: 'Pending',
+  generated: 'Generated',
+  processed: 'Processed'
+};
+
+export const EMPTY_BANK_TRANSFER_SUMMARY: BankTransferSummary = {
+  periodLabel: null,
+  batches: 0,
+  totalTransfer: 0,
+  processedStaff: 0,
+  awaitingFileStaff: 0
 };
 
 export const EMPTY_SALARY_GENERATION_CYCLE_VALUES: SalaryGenerationCycleFormValues =

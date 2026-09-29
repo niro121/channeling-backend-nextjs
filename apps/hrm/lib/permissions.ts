@@ -19,6 +19,7 @@ export const ROUTE_TO_RESOURCE: Record<string, string> = {
   '/allowances': 'payroll',
   '/deductions': 'payroll',
   '/payslips': 'payroll',
+  '/bank-transfer-file': 'payroll',
   '/leave-types': 'leave-types',
   '/leave-entitlement': 'leave-entitlement',
   '/leave-management': 'leave-management',

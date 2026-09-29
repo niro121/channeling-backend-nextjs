@@ -1094,6 +1094,10 @@ Track candidates here until each module gets its own detailed section.
 | **Units / Wards** | `/units` (TBD) | `units` (TBD) | Confirm nested under Department vs separate |
 | **Institutions** | `/institutions` (TBD) | `institutions` (TBD) | Staff Employment placeholder — options today in `types/institution.ts` |
 | **Salary Structures** | `/salary-structures` | `payroll` | Shipped under Payroll group (list shell); Add Structure sheet next |
+| **Allowances** | `/allowances` | `payroll` | Phase 0 list shell under Payroll |
+| **Deductions** | `/deductions` | `payroll` | Phase 0 list shell under Payroll |
+| **Payslips** | `/payslips` | `payroll` | Phase 0 list shell under Payroll |
+| **Bank Transfer File** | `/bank-transfer-file` | `payroll` | Phase 0 batch register shell; Mark Processed → payslips Paid later |
 | **Manage Shifts** | `/manage-shifts` (TBD) | `manage-shifts` (TBD) | Deferred — see section 34 |
 
 > **Positions:** Prefer **Designations** as the job-title master unless product requires a separate Positions screen.  
