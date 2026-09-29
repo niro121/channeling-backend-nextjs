@@ -547,15 +547,17 @@ export async function downloadCashierSummaryReportExcel(
           { rightFrom: 6, height: 28 }
         );
       });
-      // Match print: Total spans first 6 columns, then 7 payment amounts
+      // Match print: Total spans first 6 columns, then 7 payment amounts.
+      // Merge after writing so the empty cells do not clear the Total label.
       const totalRow = row;
-      sheet.mergeCells(totalRow, 1, totalRow, 6);
       row = writeDataRow(
         sheet,
         row,
         ['Total', null, null, null, null, null, ...amountCells(section.totals)],
         { bold: true, fill: 'FFF3F3F3', rightFrom: 6 }
       );
+      sheet.mergeCells(totalRow, 1, totalRow, 6);
+      sheet.getCell(totalRow, 1).value = 'Total';
       sheet.getCell(totalRow, 1).alignment = {
         vertical: 'middle',
         horizontal: 'left',
@@ -564,26 +566,28 @@ export async function downloadCashierSummaryReportExcel(
     } else {
       // Totals-only: full 13-col width (Total spans 1–6, payments 7–13) — same as print
       const totalsHeaderRow = row;
-      sheet.mergeCells(totalsHeaderRow, 1, totalsHeaderRow, 6);
       row = writeHeaderRow(
         sheet,
         row,
         ['Total', null, null, null, null, null, ...PAYMENT_COLUMNS.map((c) => c.label)],
         6
       );
+      sheet.mergeCells(totalsHeaderRow, 1, totalsHeaderRow, 6);
+      sheet.getCell(totalsHeaderRow, 1).value = 'Total';
       sheet.getCell(totalsHeaderRow, 1).alignment = {
         vertical: 'middle',
         horizontal: 'left',
         wrapText: true,
       };
       const totalsDataRow = row;
-      sheet.mergeCells(totalsDataRow, 1, totalsDataRow, 6);
       row = writeDataRow(
         sheet,
         row,
         ['Total', null, null, null, null, null, ...amountCells(section.totals)],
         { bold: true, fill: 'FFF3F3F3', rightFrom: 6 }
       );
+      sheet.mergeCells(totalsDataRow, 1, totalsDataRow, 6);
+      sheet.getCell(totalsDataRow, 1).value = 'Total';
       sheet.getCell(totalsDataRow, 1).alignment = {
         vertical: 'middle',
         horizontal: 'left',

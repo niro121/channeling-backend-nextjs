@@ -9,8 +9,7 @@
 import jsPDF from 'jspdf';
 import autoTable, { type CellDef, type RowInput } from 'jspdf-autotable';
 import {
-  RUHUNU_HOSPITAL_LOGO_SRC,
-  RUHUNU_PRINT_BRAND_NAME,
+  drawBrandedPdfHeader,
   type BrandedPdfSummaryItem,
 } from '@/components/common/report-print';
 import { formatReceiptAmount } from '@/lib/format-money';
@@ -95,170 +94,6 @@ function pageSize(doc: jsPDF): { width: number; height: number } {
     width: doc.internal.pageSize.getWidth(),
     height: doc.internal.pageSize.getHeight(),
   };
-}
-
-let cachedLogoDataUrl: string | null | undefined;
-
-async function loadLogoDataUrl(src: string): Promise<string | null> {
-  if (cachedLogoDataUrl !== undefined && src === RUHUNU_HOSPITAL_LOGO_SRC) {
-    return cachedLogoDataUrl;
-  }
-  try {
-    const res = await fetch(src);
-    if (!res.ok) return null;
-    const blob = await res.blob();
-    const dataUrl = await new Promise<string>((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(String(reader.result));
-      reader.onerror = () => reject(reader.error);
-      reader.readAsDataURL(blob);
-    });
-    if (src === RUHUNU_HOSPITAL_LOGO_SRC) cachedLogoDataUrl = dataUrl;
-    return dataUrl;
-  } catch {
-    if (src === RUHUNU_HOSPITAL_LOGO_SRC) cachedLogoDataUrl = null;
-    return null;
-  }
-}
-
-async function drawHeader(
-  doc: jsPDF,
-  opts: {
-    reportName: string;
-    summaryItems: BrandedPdfSummaryItem[];
-    margin: number;
-  }
-): Promise<number> {
-  const { margin, reportName, summaryItems } = opts;
-  const { width: pageWidth } = pageSize(doc);
-  let y = margin;
-
-  const logoH = 11;
-  const logoMaxW = 44;
-  let textX = margin;
-  const logoData = await loadLogoDataUrl(RUHUNU_HOSPITAL_LOGO_SRC);
-  if (logoData) {
-    const logoW = Math.min(logoMaxW, logoH * (526 / 160));
-    doc.addImage(logoData, 'PNG', margin, y, logoW, logoH);
-    textX = margin + logoW + 3.5;
-  }
-
-  doc.setTextColor(0, 0, 0);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(13);
-  doc.text(RUHUNU_PRINT_BRAND_NAME.toUpperCase(), textX, y + 4);
-  doc.setFontSize(9.5);
-  doc.setTextColor(51, 51, 51);
-  doc.text(
-    doc.splitTextToSize(reportName.toUpperCase(), pageWidth - textX - margin),
-    textX,
-    y + 8.5
-  );
-  y += logoH + 1.8;
-
-  doc.setDrawColor(0, 0, 0);
-  doc.setLineWidth(0.4);
-  doc.line(margin, y, pageWidth - margin, y);
-  y += 2.5;
-
-  const barH = 5;
-  const contentWidth = pageWidth - margin * 2;
-  doc.setFillColor(232, 232, 232);
-  doc.setDrawColor(0, 0, 0);
-  doc.setLineWidth(0.25);
-  doc.rect(margin, y, contentWidth, barH, 'FD');
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(7);
-  doc.setTextColor(0, 0, 0);
-  doc.text('REPORT SUMMARY', margin + 2, y + 3.4);
-  y += barH;
-
-  const padX = 2;
-  const padY = 1.6;
-  const boxTop = y;
-  const items = summaryItems.length ? summaryItems : [{ label: '—', value: '—' }];
-  const cols = 3;
-  const colGap = 3;
-  const colW = (contentWidth - padX * 2 - colGap * (cols - 1)) / cols;
-
-  type Cell = {
-    label: string;
-    value: string;
-    col: number;
-    row: number;
-    span: number;
-  };
-  const cells: Cell[] = [];
-  let col = 0;
-  let row = 0;
-  for (const item of items) {
-    const span = item.fullWidth ? cols : 1;
-    if (col + span > cols) {
-      col = 0;
-      row += 1;
-    }
-    cells.push({
-      label: item.label,
-      value: item.value || '—',
-      col,
-      row,
-      span,
-    });
-    col += span;
-    if (col >= cols) {
-      col = 0;
-      row += 1;
-    }
-  }
-  const rowCount = Math.max(...cells.map((c) => c.row)) + 1;
-  const labelH = 3.2;
-  const valueLineH = 3.4;
-  const rowGap = 1.6;
-  const rowHeights = Array.from({ length: rowCount }, () => 0);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8);
-  for (const cell of cells) {
-    const w = colW * cell.span + colGap * (cell.span - 1);
-    const valueLines = doc.splitTextToSize(cell.value, Math.max(8, w));
-    rowHeights[cell.row] = Math.max(
-      rowHeights[cell.row],
-      labelH + valueLines.length * valueLineH
-    );
-  }
-
-  let bodyH = padY;
-  for (let r = 0; r < rowCount; r += 1) {
-    bodyH += rowHeights[r] ?? 0;
-    if (r < rowCount - 1) bodyH += rowGap;
-  }
-  bodyH += padY;
-
-  doc.setDrawColor(0, 0, 0);
-  doc.setLineWidth(0.25);
-  doc.rect(margin, boxTop, contentWidth, bodyH, 'S');
-
-  const rowStarts: number[] = [];
-  let rowY = boxTop + padY;
-  for (let r = 0; r < rowCount; r += 1) {
-    rowStarts[r] = rowY;
-    rowY += (rowHeights[r] ?? 0) + (r < rowCount - 1 ? rowGap : 0);
-  }
-
-  for (const cell of cells) {
-    const x = margin + padX + cell.col * (colW + colGap);
-    const w = colW * cell.span + colGap * (cell.span - 1);
-    const cy = rowStarts[cell.row] ?? boxTop + padY;
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(6);
-    doc.setTextColor(85, 85, 85);
-    doc.text(cell.label.toUpperCase(), x, cy + 2.2);
-    doc.setFontSize(8);
-    doc.setTextColor(0, 0, 0);
-    const valueLines = doc.splitTextToSize(cell.value, Math.max(8, w));
-    doc.text(valueLines, x, cy + 2.2 + labelH);
-  }
-
-  return boxTop + bodyH + 3;
 }
 
 function drawFooter(doc: jsPDF, generatedAt: string, margin: number) {
@@ -561,13 +396,13 @@ function drawBodyTables(
 export async function downloadCashierSummaryReportPdf(
   opts: DownloadCashierSummaryPdfOptions
 ): Promise<void> {
-  // Match print: 10mm side margins
-  const margin = 10;
+  // Match print: 5mm side margins, A4 landscape, shared branded header
+  const margin = 5;
   const doc = new jsPDF({ orientation: 'l', format: 'a4' });
   const { width: pageWidth } = pageSize(doc);
   const tableWidth = pageWidth - margin * 2;
 
-  let y = await drawHeader(doc, {
+  let y = await drawBrandedPdfHeader(doc, {
     reportName: opts.reportName,
     summaryItems: opts.summaryItems,
     margin,

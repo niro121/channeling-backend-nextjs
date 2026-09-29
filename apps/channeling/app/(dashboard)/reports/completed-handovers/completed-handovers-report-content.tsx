@@ -165,6 +165,7 @@ function ContentInner({ currentUserName, userOptions }: Props) {
       filterButtonLabel="Search"
       showBackButton={false}
       printPageSize="A4 portrait"
+      printPageMargins="7mm 5mm 18mm"
       exportOrientation="portrait"
       containerClassName="w-full py-2 space-y-3 completed-handovers-report-root"
       renderPrintContent={(rows) => <CompletedHandoversPrintLayout rows={rows} />}

@@ -130,6 +130,7 @@ function ContentInner({ currentUserName, cashBookOptions }: Props) {
       filterButtonLabel="Search"
       showBackButton={false}
       printPageSize="A4 portrait"
+      printPageMargins="7mm 5mm 18mm"
       exportOrientation="portrait"
       containerClassName="w-full py-2 space-y-3 cash-book-report-root"
       renderPrintContent={(rows) => (
