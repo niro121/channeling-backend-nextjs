@@ -13,17 +13,20 @@ import { MONTH_OPTIONS, YEAR_OPTIONS } from '@/types/calendar-options';
 import { INSTITUTION_OPTIONS } from '@/types/institution';
 import {
   PAYSLIP_PAYMENT_STATUS_OPTIONS,
+  type PaysheetStaffOption,
   type PayslipFilters,
   type SalaryFilterOption
 } from '@/types/payroll';
 
 type SectionFiltersProps = {
+  staffOptions?: PaysheetStaffOption[];
   departmentOptions?: SalaryFilterOption[];
   designationOptions?: SalaryFilterOption[];
   initial?: PayslipFilters;
 };
 
 function SectionFiltersInner({
+  staffOptions = [],
   departmentOptions = [],
   designationOptions = [],
   initial = {}
@@ -36,7 +39,7 @@ function SectionFiltersInner({
   const initialValues = {
     salaryMonth: initial.salaryMonth ?? '__all__',
     salaryYear: initial.salaryYear ?? '__all__',
-    staffName: initial.staffName ?? '',
+    staffId: initial.staffId ?? '',
     staffCode: initial.staffCode ?? '',
     departmentId: initial.departmentId ?? '',
     designationId: initial.designationId ?? '',
@@ -53,7 +56,7 @@ function SectionFiltersInner({
         key={[
           initialValues.salaryMonth,
           initialValues.salaryYear,
-          initialValues.staffName,
+          initialValues.staffId,
           initialValues.staffCode,
           initialValues.departmentId,
           initialValues.designationId,
@@ -88,24 +91,15 @@ function SectionFiltersInner({
               className={{ trigger: 'h-10 w-full max-w-none self-end' }}
             />
 
-            <div className="space-y-2">
-              <Label
-                htmlFor="payslip-staff-name"
-                className="text-xs uppercase text-muted-foreground"
-              >
-                Staff
-              </Label>
-              <div className="relative">
-                <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  id="payslip-staff-name"
-                  className="pl-8"
-                  placeholder="Staff name"
-                  value={values.staffName ?? ''}
-                  onChange={(e) => setValue('staffName', e.target.value)}
-                />
-              </div>
-            </div>
+            <Combobox
+              label="Staff"
+              options={staffOptions}
+              value={values.staffId ?? ''}
+              defaultValue=""
+              onChange={(v) => setValue('staffId', v)}
+              clearable
+              triggerClassName="self-end"
+            />
 
             <div className="space-y-2">
               <Label

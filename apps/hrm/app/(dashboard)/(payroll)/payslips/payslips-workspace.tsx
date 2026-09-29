@@ -34,6 +34,7 @@ function PayslipsWorkspaceInner() {
       <SectionRegister
         records={records}
         totalRecords={records.length}
+        staffOptions={[]}
         departmentOptions={[]}
         designationOptions={[]}
       />

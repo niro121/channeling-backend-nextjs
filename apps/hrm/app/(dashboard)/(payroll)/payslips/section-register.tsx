@@ -6,7 +6,11 @@ import {
   CommonDataTable,
   DataTableExportFeature
 } from '@/components/common/common-data-table';
-import type { PayslipRecord, SalaryFilterOption } from '@/types/payroll';
+import type {
+  PaysheetStaffOption,
+  PayslipRecord,
+  SalaryFilterOption
+} from '@/types/payroll';
 import {
   PAYSLIP_EXPORT_COLUMNS,
   PAYSLIP_EXPORT_KEYS,
@@ -18,6 +22,7 @@ type SectionRegisterProps = {
   records?: PayslipRecord[];
   totalRecords?: number;
   page?: string;
+  staffOptions?: PaysheetStaffOption[];
   departmentOptions?: SalaryFilterOption[];
   designationOptions?: SalaryFilterOption[];
 };
@@ -26,6 +31,7 @@ export default function SectionRegister({
   records = [],
   totalRecords = 0,
   page,
+  staffOptions = [],
   departmentOptions = [],
   designationOptions = []
 }: SectionRegisterProps) {
@@ -45,6 +51,7 @@ export default function SectionRegister({
   return (
     <div className="space-y-4">
       <SectionFilters
+        staffOptions={staffOptions}
         departmentOptions={departmentOptions}
         designationOptions={designationOptions}
       />

@@ -861,7 +861,7 @@ export type PayslipPaymentStatus =
 export type PayslipFilters = {
   salaryMonth?: string;
   salaryYear?: string;
-  staffName?: string;
+  staffId?: string;
   staffCode?: string;
   departmentId?: string;
   designationId?: string;
@@ -1039,7 +1039,7 @@ export type SalaryHistoryTimelineEvent = {
 
 export type SalaryHistoryFilters = {
   search?: string;
-  staffName?: string;
+  staffId?: string;
   staffCode?: string;
   departmentId?: string;
   designationId?: string;
