@@ -51,6 +51,12 @@ export type DownloadBrandedReportExcelOptions<T> = {
   compactTable?: boolean
   /** When set, these widths replace the default column widths (1-based order). */
   columnWidths?: number[]
+  /**
+   * Extra 0-based columns that wrap, left-align, and grow the row so the
+   * full text is visible. Columns 0 and 1 already wrap. Omit to leave other
+   * reports unchanged.
+   */
+  extraWrapColumnIndexes?: number[]
 }
 
 function portraitCompactColumnWidth(columnIndex1Based: number, colCount: number): number {
@@ -182,6 +188,7 @@ export async function downloadBrandedReportExcel<T>({
   orientation = "landscape",
   compactTable = false,
   columnWidths,
+  extraWrapColumnIndexes,
 }: DownloadBrandedReportExcelOptions<T>): Promise<void> {
   const tableSections: BrandedExcelTableSection[] =
     sections && sections.length > 0
@@ -207,6 +214,8 @@ export async function downloadBrandedReportExcel<T>({
   const isPortrait = orientation === "portrait"
   const useCompactTable = compactTable || (isPortrait && colCount >= 14)
   const tableFontSize = useCompactTable ? 8 : 9
+  const extraWrap = new Set(extraWrapColumnIndexes ?? [])
+  const wrapsColumn = (index: number) => index === 0 || index === 1 || extraWrap.has(index)
   const safeSheetName = (sheetName || "Report").replace(/[:\\/?*\[\]]/g, " ").slice(0, 31)
 
   const workbook = new ExcelJS.Workbook()
@@ -405,7 +414,7 @@ export async function downloadBrandedReportExcel<T>({
         }
         cell.alignment = {
           vertical: "middle",
-          horizontal: i === 0 || i === 1 ? "left" : "right",
+          horizontal: wrapsColumn(i) ? "left" : "right",
           wrapText: true,
         }
       })
@@ -437,9 +446,9 @@ export async function downloadBrandedReportExcel<T>({
           bottom: { style: "thin", color: { argb: "FF000000" } },
         }
         cell.alignment = {
-          vertical: "middle",
-          horizontal: i === 0 || i === 1 ? "left" : (section.valueAlign ?? "right"),
-          wrapText: i === 0 || i === 1,
+          vertical: extraWrap.has(i) ? "top" : "middle",
+          horizontal: wrapsColumn(i) ? "left" : (section.valueAlign ?? "right"),
+          wrapText: wrapsColumn(i),
         }
         if (totalLike) {
           cell.fill = {
@@ -449,6 +458,20 @@ export async function downloadBrandedReportExcel<T>({
           }
         }
       })
+      if (extraWrap.size > 0) {
+        let lines = 1
+        extraWrap.forEach((idx) => {
+          const text = values[idx] == null ? "" : String(values[idx])
+          const width = columnWidths?.[idx] ?? sheet.getColumn(idx + 1).width ?? 14
+          const charsPerLine = Math.max(8, Math.floor(Number(width) * 1.05))
+          let count = 0
+          for (const part of text.split("\n")) {
+            count += Math.max(1, Math.ceil(part.length / charsPerLine))
+          }
+          lines = Math.max(lines, count)
+        })
+        dataRow.height = Math.min(409, Math.max(18, lines * 14))
+      }
       row += 1
     }
   }

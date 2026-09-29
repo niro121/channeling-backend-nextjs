@@ -191,6 +191,10 @@ export interface ReportTemplateProps<T, E = T> {
    * to fill more of the page — same intent as print side-margin reduction.
    */
   pdfPageMarginMm?: number;
+  /** Excel column widths in sheet order. Omit to keep the shared defaults. */
+  excelColumnWidths?: number[];
+  /** Extra Excel columns (0-based) that wrap so long text stays visible. */
+  excelExtraWrapColumnIndexes?: number[];
   /**
    * PDF/Excel page orientation. When omitted, follows `printPageSize`
    * (portrait if that string includes "portrait", otherwise landscape).
@@ -241,6 +245,8 @@ function ReportTemplateContent<T, E = T>({
   printPageSize = 'A4 landscape',
   printPageMargins,
   pdfPageMarginMm,
+  excelColumnWidths,
+  excelExtraWrapColumnIndexes,
   exportOrientation,
   renderPrintContent,
 }: ReportTemplateProps<T, E>) {
@@ -497,9 +503,11 @@ function ReportTemplateContent<T, E = T>({
         sheetName: args.title.slice(0, 31),
         orientation: isPortrait ? 'portrait' : 'landscape',
         compactTable: isPortrait,
+        columnWidths: excelColumnWidths,
+        extraWrapColumnIndexes: excelExtraWrapColumnIndexes,
       });
     },
-    [printSummaryItems, lastRun?.generatedAt, printPageSize, exportOrientation]
+    [printSummaryItems, lastRun?.generatedAt, printPageSize, exportOrientation, excelColumnWidths, excelExtraWrapColumnIndexes]
   );
 
   return (

@@ -334,6 +334,7 @@ export default function UserActivityContent({
           <ReportPrintLayout
             reportName="User Activity Report"
             pageSize="A4 portrait"
+            pageMargins="7mm 5mm 18mm"
             generatedAt={generatedAt}
             summaryItems={
               hasSearched

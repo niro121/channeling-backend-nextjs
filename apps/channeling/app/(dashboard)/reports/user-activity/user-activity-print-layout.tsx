@@ -17,11 +17,6 @@ export function UserActivityPrintLayout({ rows }: Props) {
     <div className="ua-print-root">
       <style>{`
         @media print {
-          @page {
-            size: A4 portrait;
-            margin: 7mm 8mm 12mm;
-          }
-
           .user-activity-report-root .ua-screen-table {
             display: none !important;
           }
@@ -29,61 +24,36 @@ export function UserActivityPrintLayout({ rows }: Props) {
             display: block !important;
           }
 
-          .user-activity-report-root .rpt-print-header {
-            margin-bottom: 2mm !important;
+          .user-activity-report-root,
+          .user-activity-report-root.container {
+            width: 100% !important;
+            max-width: none !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            color: #000 !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
           }
-          .user-activity-report-root .rpt-print-brand-row {
-            height: 12mm !important;
-            gap: 5mm !important;
-          }
-          .user-activity-report-root .rpt-print-logo {
-            height: 12mm !important;
-            max-width: 44mm !important;
-          }
-          .user-activity-report-root .rpt-print-titles {
-            height: 12mm !important;
-            padding: 2mm 0 0.4mm !important;
-          }
-          .user-activity-report-root .rpt-print-org {
-            height: 4mm !important;
-            font-size: 13pt !important;
-          }
-          .user-activity-report-root .rpt-print-title-gap {
-            height: 0.6mm !important;
-          }
-          .user-activity-report-root .rpt-print-report-name {
-            height: 3.8mm !important;
-            font-size: 9.5pt !important;
-          }
-          .user-activity-report-root .rpt-print-rule {
-            margin-top: 1.2mm !important;
-          }
-          .user-activity-report-root .rpt-print-summary {
-            margin-top: 2mm !important;
-          }
-          .user-activity-report-root .rpt-print-summary-bar {
-            padding: 0.9mm 2mm !important;
-            font-size: 7pt !important;
-          }
-          .user-activity-report-root .rpt-print-summary-grid {
-            grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
-            gap: 1mm 3mm !important;
-            padding: 1.5mm 2mm !important;
-          }
-          .user-activity-report-root .rpt-print-label {
-            margin: 0 0 0.3mm !important;
-            font-size: 6pt !important;
-          }
-          .user-activity-report-root .rpt-print-value {
-            font-size: 8pt !important;
-            line-height: 1.15 !important;
-          }
-          .user-activity-report-root .rpt-print-body {
-            margin-top: 2.5mm !important;
+          .user-activity-report-root .print\:bg-white,
+          .user-activity-report-root .print\:bg-white > div,
+          .user-activity-report-root .rpt-print-root,
+          .user-activity-report-root .rpt-print-header,
+          .user-activity-report-root .rpt-print-summary,
+          .user-activity-report-root .rpt-print-body,
+          .user-activity-report-root .ua-print-root,
+          .user-activity-report-root .ua-print-only {
+            width: 100% !important;
+            max-width: none !important;
+            margin-left: 0 !important;
+            margin-right: 0 !important;
+            padding-left: 0 !important;
+            padding-right: 0 !important;
+            box-sizing: border-box !important;
           }
 
           .user-activity-report-root .rpt-print-root table.ua-print-table {
             width: 100% !important;
+            max-width: none !important;
             border-collapse: collapse !important;
             table-layout: fixed !important;
             font-family: Helvetica, Arial, sans-serif !important;
@@ -158,6 +128,16 @@ export function UserActivityPrintLayout({ rows }: Props) {
             text-align: center !important;
             vertical-align: middle !important;
             white-space: nowrap !important;
+          }
+
+          .user-activity-report-root .rpt-print-root table.ua-print-table th:first-child,
+          .user-activity-report-root .rpt-print-root table.ua-print-table td:first-child {
+            border-left: 0.35mm solid #000 !important;
+          }
+          .user-activity-report-root .rpt-print-root table.ua-print-table th:last-child,
+          .user-activity-report-root .rpt-print-root table.ua-print-table td:last-child {
+            border-right: 0.35mm solid #000 !important;
+            box-shadow: inset -0.35mm 0 0 #000 !important;
           }
 
           .user-activity-report-root .ua-c0 { width: 5% !important; }
