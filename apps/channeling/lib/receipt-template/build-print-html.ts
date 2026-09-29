@@ -281,12 +281,21 @@ function invoiceRow(
   </tr>`
 }
 
+/** Suffix appended on save: ` - Ref Bill No. : ${paidReceipt.receiptNoString}`. Print shows the typed remark only. */
+const STORED_REF_BILL_SUFFIX = " - Ref Bill No. : "
+
+function userRefundRemarkForPrint(storedReason: string): string {
+  const idx = storedReason.lastIndexOf(STORED_REF_BILL_SUFFIX)
+  if (idx === -1) return storedReason
+  return storedReason.slice(0, idx).trim()
+}
+
 function buildSailsBookingReceiptHtml(placeholders: ReceiptPlaceholderMap): string {
   const statusBanner = (placeholders.status_banner ?? "").trim()
   const hospitalDiscount = (placeholders.hospital_fee_discount ?? "").trim()
   const professionalDiscount = (placeholders.professional_fee_discount ?? "").trim()
   const refundReceiptNo = (placeholders.refund_receipt_no ?? "").trim()
-  const refundReason = (placeholders.refund_reason ?? "").trim()
+  const refundReason = userRefundRemarkForPrint((placeholders.refund_reason ?? "").trim())
   const approvedBy = (placeholders.approved_by ?? "").trim()
   const debiter = (placeholders.debiter ?? "").trim()
   const showProfessional = (placeholders.show_professional_bill ?? "").trim() === "1"
