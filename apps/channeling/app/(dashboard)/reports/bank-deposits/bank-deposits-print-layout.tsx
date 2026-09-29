@@ -20,66 +20,35 @@ export function BankDepositsPrintLayout({ rows }: Props) {
     <div className="bd-print-root">
       <style>{`
         @media print {
-          @page {
-            size: A4 portrait;
-            margin: 7mm 8mm 12mm;
+          .bank-deposits-report-root,
+          .bank-deposits-report-root.rpt-template-root {
+            width: 100% !important;
+            max-width: none !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            color: #000 !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
           }
-
-          .bank-deposits-report-root .rpt-print-header {
-            margin-bottom: 2mm !important;
-          }
-          .bank-deposits-report-root .rpt-print-brand-row {
-            height: 12mm !important;
-            gap: 5mm !important;
-          }
-          .bank-deposits-report-root .rpt-print-logo {
-            height: 12mm !important;
-            max-width: 44mm !important;
-          }
-          .bank-deposits-report-root .rpt-print-titles {
-            height: 12mm !important;
-            padding: 2mm 0 0.4mm !important;
-          }
-          .bank-deposits-report-root .rpt-print-org {
-            height: 4mm !important;
-            font-size: 13pt !important;
-          }
-          .bank-deposits-report-root .rpt-print-title-gap {
-            height: 0.6mm !important;
-          }
-          .bank-deposits-report-root .rpt-print-report-name {
-            height: 3.8mm !important;
-            font-size: 9.5pt !important;
-          }
-          .bank-deposits-report-root .rpt-print-rule {
-            margin-top: 1.2mm !important;
-          }
-          .bank-deposits-report-root .rpt-print-summary {
-            margin-top: 2mm !important;
-          }
-          .bank-deposits-report-root .rpt-print-summary-bar {
-            padding: 0.9mm 2mm !important;
-            font-size: 7pt !important;
-          }
-          .bank-deposits-report-root .rpt-print-summary-grid {
-            grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
-            gap: 1mm 3mm !important;
-            padding: 1.5mm 2mm !important;
-          }
-          .bank-deposits-report-root .rpt-print-label {
-            margin: 0 0 0.3mm !important;
-            font-size: 6pt !important;
-          }
-          .bank-deposits-report-root .rpt-print-value {
-            font-size: 8pt !important;
-            line-height: 1.15 !important;
-          }
-          .bank-deposits-report-root .rpt-print-body {
-            margin-top: 2.5mm !important;
+          .bank-deposits-report-root .rpt-template-card,
+          .bank-deposits-report-root .rpt-template-card > div,
+          .bank-deposits-report-root .rpt-print-root,
+          .bank-deposits-report-root .rpt-print-header,
+          .bank-deposits-report-root .rpt-print-summary,
+          .bank-deposits-report-root .rpt-print-body,
+          .bank-deposits-report-root .bd-print-root {
+            width: 100% !important;
+            max-width: none !important;
+            margin-left: 0 !important;
+            margin-right: 0 !important;
+            padding-left: 0 !important;
+            padding-right: 0 !important;
+            box-sizing: border-box !important;
           }
 
           .bank-deposits-report-root .rpt-print-root table.bd-print-table {
             width: 100% !important;
+            max-width: none !important;
             border-collapse: collapse !important;
             table-layout: fixed !important;
             font-family: Helvetica, Arial, sans-serif !important;
@@ -168,6 +137,16 @@ export function BankDepositsPrintLayout({ rows }: Props) {
           }
           .bank-deposits-report-root .rpt-print-root table.bd-print-table tr.bd-withdraw td {
             color: #000 !important;
+          }
+
+          .bank-deposits-report-root .rpt-print-root table.bd-print-table th:first-child,
+          .bank-deposits-report-root .rpt-print-root table.bd-print-table td:first-child {
+            border-left: 0.35mm solid #000 !important;
+          }
+          .bank-deposits-report-root .rpt-print-root table.bd-print-table th:last-child,
+          .bank-deposits-report-root .rpt-print-root table.bd-print-table td:last-child {
+            border-right: 0.35mm solid #000 !important;
+            box-shadow: inset -0.35mm 0 0 #000 !important;
           }
 
           .bank-deposits-report-root .bd-c0 { width: 5% !important; }

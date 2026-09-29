@@ -54,8 +54,8 @@ export function AllCashierSummaryDetailPrintLayout({
         @media print {
           @page {
             size: A4 landscape;
-            /* Extra bottom margin so physical printers do not clip footer */
-            margin: 8mm 10mm 18mm 10mm;
+            /* Tight sides so the table fills the page; extra bottom for the footer */
+            margin: 7mm 5mm 18mm;
             @top-left { content: ""; }
             @top-center { content: ""; }
             @top-right { content: ""; }
@@ -90,7 +90,7 @@ export function AllCashierSummaryDetailPrintLayout({
 
           .all-cashier-summary-detail-report-root {
             width: 100% !important;
-            max-width: 100% !important;
+            max-width: none !important;
             margin: 0 !important;
             padding: 0 !important;
             padding-bottom: 4mm !important;
@@ -100,117 +100,54 @@ export function AllCashierSummaryDetailPrintLayout({
             print-color-adjust: exact !important;
           }
 
+          /* Card chrome and CardContent horizontal padding shrink the table */
           .all-cashier-summary-detail-report-root > .bg-muted\\/20,
-          .all-cashier-summary-detail-report-root [class*="Card"],
-          .all-cashier-summary-detail-report-root .bg-muted\\/20 {
+          .all-cashier-summary-detail-report-root .bg-muted\\/20,
+          .all-cashier-summary-detail-report-root .bg-muted\\/20 > div {
             width: 100% !important;
-            max-width: 100% !important;
-            margin: 0 !important;
-            padding: 0 !important;
+            max-width: none !important;
+            margin-left: 0 !important;
+            margin-right: 0 !important;
+            padding-left: 0 !important;
+            padding-right: 0 !important;
             border: none !important;
             box-shadow: none !important;
             background: #fff !important;
+            box-sizing: border-box !important;
           }
 
+          /* Header comes from the shared ReportPrintLayout — stretch it, do not restyle it */
+          .all-cashier-summary-detail-report-root .rpt-print-root,
+          .all-cashier-summary-detail-report-root .rpt-print-header,
+          .all-cashier-summary-detail-report-root .rpt-print-summary,
+          .all-cashier-summary-detail-report-root .rpt-print-body {
+            width: 100% !important;
+            max-width: none !important;
+            margin-left: 0 !important;
+            margin-right: 0 !important;
+            box-sizing: border-box !important;
+          }
           .all-cashier-summary-detail-report-root .rpt-print-root {
-            width: 100% !important;
-            max-width: 100% !important;
-            margin: 0 !important;
             padding: 0 !important;
-            box-sizing: border-box !important;
           }
-
-          .all-cashier-summary-detail-report-root .rpt-print-header {
-            margin-bottom: 2mm !important;
-            height: auto !important;
-            overflow: visible !important;
-            position: static !important;
-            width: 100% !important;
-          }
-          .all-cashier-summary-detail-report-root .rpt-print-brand-row {
-            height: 12mm !important;
-            gap: 5mm !important;
-          }
-          .all-cashier-summary-detail-report-root .rpt-print-logo {
-            height: 12mm !important;
-            max-width: 44mm !important;
-          }
-          .all-cashier-summary-detail-report-root .rpt-print-titles {
-            height: 12mm !important;
-            padding: 2mm 0 0.4mm !important;
-          }
-          .all-cashier-summary-detail-report-root .rpt-print-org {
-            height: 4mm !important;
-            font-size: 13pt !important;
-          }
-          .all-cashier-summary-detail-report-root .rpt-print-title-gap {
-            height: 0.6mm !important;
-          }
-          .all-cashier-summary-detail-report-root .rpt-print-report-name {
-            height: 3.8mm !important;
-            font-size: 9.5pt !important;
-          }
-          .all-cashier-summary-detail-report-root .rpt-print-rule {
-            margin-top: 1.2mm !important;
-          }
-          .all-cashier-summary-detail-report-root .rpt-print-summary {
-            margin-top: 2mm !important;
-            width: 100% !important;
-            max-width: 100% !important;
-            height: auto !important;
-            overflow: visible !important;
-            box-sizing: border-box !important;
-            border: 0.5pt solid #000 !important;
-            border-radius: 0 !important;
-            -webkit-print-color-adjust: exact !important;
-            print-color-adjust: exact !important;
-          }
-          .all-cashier-summary-detail-report-root .rpt-print-summary-bar {
-            padding: 0.9mm 2mm !important;
-            font-size: 7pt !important;
-            font-weight: 700 !important;
-            color: #000 !important;
-            background: #e8e8e8 !important;
-            border-bottom: 0.4pt solid #000 !important;
-            -webkit-print-color-adjust: exact !important;
-            print-color-adjust: exact !important;
-          }
-          .all-cashier-summary-detail-report-root .rpt-print-summary-grid {
-            grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
-            gap: 1mm 3mm !important;
-            padding: 1.5mm 2mm !important;
-            height: auto !important;
-            overflow: visible !important;
-          }
-          .all-cashier-summary-detail-report-root .rpt-print-label {
-            margin: 0 0 0.3mm !important;
-            font-size: 6.5pt !important;
-            color: #000 !important;
-            font-weight: 700 !important;
-          }
+          .all-cashier-summary-detail-report-root .rpt-print-header,
+          .all-cashier-summary-detail-report-root .rpt-print-summary,
+          .all-cashier-summary-detail-report-root .rpt-print-summary-grid,
           .all-cashier-summary-detail-report-root .rpt-print-value {
             height: auto !important;
             overflow: visible !important;
-            font-size: 8.5pt !important;
-            line-height: 1.25 !important;
-            white-space: pre-line !important;
-            color: #000 !important;
-            font-weight: 700 !important;
+            position: static !important;
           }
           .all-cashier-summary-detail-report-root .rpt-print-body {
-            margin-top: 2.5mm !important;
-            width: 100% !important;
-            max-width: 100% !important;
             position: static !important;
             clear: both !important;
-            box-sizing: border-box !important;
           }
 
           /* Print the screen tables (same layout as view) */
           .all-cashier-summary-detail-report-root .acs-screen-table {
             display: block !important;
             width: 100% !important;
-            max-width: 100% !important;
+            max-width: none !important;
           }
           .all-cashier-summary-detail-report-root .acs-print-only {
             display: none !important;
@@ -221,7 +158,7 @@ export function AllCashierSummaryDetailPrintLayout({
           .all-cashier-summary-detail-report-root .acs-screen-table .rounded-md {
             overflow: visible !important;
             width: 100% !important;
-            max-width: 100% !important;
+            max-width: none !important;
             border: none !important;
             border-radius: 0 !important;
             box-shadow: none !important;
@@ -230,7 +167,7 @@ export function AllCashierSummaryDetailPrintLayout({
 
           .all-cashier-summary-detail-report-root .acs-screen-table table {
             width: 100% !important;
-            max-width: 100% !important;
+            max-width: none !important;
             margin-left: 0 !important;
             margin-right: 0 !important;
             border-collapse: collapse !important;
@@ -269,6 +206,7 @@ export function AllCashierSummaryDetailPrintLayout({
           .all-cashier-summary-detail-report-root .acs-screen-table th:last-child,
           .all-cashier-summary-detail-report-root .acs-screen-table td:last-child {
             border-right: 0.7pt solid #000 !important;
+            box-shadow: inset -0.7pt 0 0 #000 !important;
           }
 
           /* Amount columns: min width for ≥6 digits */
@@ -342,7 +280,7 @@ export function AllCashierSummaryDetailPrintLayout({
             font-size: 7.5pt !important;
             color: #000 !important;
             width: 100% !important;
-            max-width: 100% !important;
+            max-width: none !important;
             box-sizing: border-box !important;
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;

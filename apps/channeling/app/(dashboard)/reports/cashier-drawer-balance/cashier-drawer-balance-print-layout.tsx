@@ -15,8 +15,7 @@ function fmtTill(name: string | null, code: string | null): string {
 
 /**
  * Print-only A4 portrait for Cashier Drawer Balance.
- * Matches vertical PDF: flat columns (no compact / stacked payments).
- * Header via ReportPrintLayout.
+ * Header is the shared ReportPrintLayout. Body matches the compact portrait PDF table.
  */
 export function CashierDrawerBalancePrintLayout({ rows }: Props) {
   const totals = rows.reduce(
@@ -45,69 +44,40 @@ export function CashierDrawerBalancePrintLayout({ rows }: Props) {
     <div className="cdb-print-root">
       <style>{`
         @media print {
-          @page {
-            size: A4 portrait;
-            margin: 7mm 8mm 12mm;
+          .cashier-drawer-balance-report-root,
+          .cashier-drawer-balance-report-root.rpt-template-root {
+            width: 100% !important;
+            max-width: none !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            color: #000 !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+          .cashier-drawer-balance-report-root .rpt-template-card,
+          .cashier-drawer-balance-report-root .rpt-template-card > div,
+          .cashier-drawer-balance-report-root .rpt-print-root,
+          .cashier-drawer-balance-report-root .rpt-print-header,
+          .cashier-drawer-balance-report-root .rpt-print-summary,
+          .cashier-drawer-balance-report-root .rpt-print-body,
+          .cashier-drawer-balance-report-root .cdb-print-root {
+            width: 100% !important;
+            max-width: none !important;
+            margin-left: 0 !important;
+            margin-right: 0 !important;
+            padding-left: 0 !important;
+            padding-right: 0 !important;
+            box-sizing: border-box !important;
           }
 
-          .cashier-drawer-balance-report-root .rpt-print-header {
-            margin-bottom: 2mm !important;
-          }
-          .cashier-drawer-balance-report-root .rpt-print-brand-row {
-            height: 12mm !important;
-            gap: 5mm !important;
-          }
-          .cashier-drawer-balance-report-root .rpt-print-logo {
-            height: 12mm !important;
-            max-width: 44mm !important;
-          }
-          .cashier-drawer-balance-report-root .rpt-print-titles {
-            height: 12mm !important;
-            padding: 2mm 0 0.4mm !important;
-          }
-          .cashier-drawer-balance-report-root .rpt-print-org {
-            height: 4mm !important;
-            font-size: 13pt !important;
-          }
-          .cashier-drawer-balance-report-root .rpt-print-title-gap {
-            height: 0.6mm !important;
-          }
-          .cashier-drawer-balance-report-root .rpt-print-report-name {
-            height: 3.8mm !important;
-            font-size: 9.5pt !important;
-          }
-          .cashier-drawer-balance-report-root .rpt-print-rule {
-            margin-top: 1.2mm !important;
-          }
-          .cashier-drawer-balance-report-root .rpt-print-summary {
-            margin-top: 2mm !important;
-          }
-          .cashier-drawer-balance-report-root .rpt-print-summary-bar {
-            padding: 0.9mm 2mm !important;
-            font-size: 7pt !important;
-          }
-          .cashier-drawer-balance-report-root .rpt-print-summary-grid {
-            grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
-            gap: 1mm 3mm !important;
-            padding: 1.5mm 2mm !important;
-          }
-          .cashier-drawer-balance-report-root .rpt-print-label {
-            margin: 0 0 0.3mm !important;
-            font-size: 6pt !important;
-          }
-          .cashier-drawer-balance-report-root .rpt-print-value {
-            font-size: 8pt !important;
-            line-height: 1.15 !important;
-          }
-          .cashier-drawer-balance-report-root .rpt-print-body {
-            margin-top: 2.5mm !important;
-          }
-
+          /* Compact portrait PDF body: 5.5pt cells, 5pt header, 0.2mm borders */
           .cashier-drawer-balance-report-root .rpt-print-root table.cdb-print-table {
             width: 100% !important;
+            max-width: none !important;
             border-collapse: collapse !important;
             table-layout: fixed !important;
             font-family: Helvetica, Arial, sans-serif !important;
+            border: 0.2mm solid #000 !important;
           }
           .cashier-drawer-balance-report-root .rpt-print-root table.cdb-print-table thead {
             display: table-header-group !important;
@@ -117,23 +87,24 @@ export function CashierDrawerBalancePrintLayout({ rows }: Props) {
             border: 0.2mm solid #000 !important;
             color: #000 !important;
             background: #fff !important;
-            padding: 0.9mm 0.7mm !important;
-            font-size: 6.5pt !important;
+            padding: 0.7mm !important;
+            font-size: 5.5pt !important;
             line-height: 1.2 !important;
             font-weight: 400 !important;
-            vertical-align: top !important;
+            vertical-align: middle !important;
             text-align: left !important;
             overflow: hidden !important;
             white-space: normal !important;
             overflow-wrap: break-word !important;
             word-break: normal !important;
+            box-sizing: border-box !important;
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
           }
           .cashier-drawer-balance-report-root .rpt-print-root table.cdb-print-table th {
             background: #e8e8e8 !important;
             font-weight: 700 !important;
-            font-size: 6pt !important;
+            font-size: 5pt !important;
             text-align: left !important;
             vertical-align: middle !important;
           }
@@ -142,6 +113,8 @@ export function CashierDrawerBalancePrintLayout({ rows }: Props) {
             text-align: right !important;
             font-variant-numeric: tabular-nums !important;
             white-space: nowrap !important;
+            word-break: normal !important;
+            overflow-wrap: normal !important;
           }
           .cashier-drawer-balance-report-root .rpt-print-root table.cdb-print-table th *,
           .cashier-drawer-balance-report-root .rpt-print-root table.cdb-print-table td * {
@@ -155,14 +128,23 @@ export function CashierDrawerBalancePrintLayout({ rows }: Props) {
           }
           .cashier-drawer-balance-report-root .rpt-print-root table.cdb-print-table tr.cdb-total td {
             font-weight: 700 !important;
-            background: #f3f3f3 !important;
+            background: #fff !important;
             vertical-align: middle !important;
           }
+          .cashier-drawer-balance-report-root .rpt-print-root table.cdb-print-table th:first-child,
+          .cashier-drawer-balance-report-root .rpt-print-root table.cdb-print-table td:first-child {
+            border-left: 0.35mm solid #000 !important;
+          }
+          .cashier-drawer-balance-report-root .rpt-print-root table.cdb-print-table th:last-child,
+          .cashier-drawer-balance-report-root .rpt-print-root table.cdb-print-table td:last-child {
+            border-right: 0.35mm solid #000 !important;
+            box-shadow: inset -0.35mm 0 0 #000 !important;
+          }
 
-          .cashier-drawer-balance-report-root .cdb-till { width: 26% !important; }
-          .cashier-drawer-balance-report-root .cdb-cashier { width: 16% !important; }
-          .cashier-drawer-balance-report-root .cdb-amt { width: 8.3% !important; }
-          .cashier-drawer-balance-report-root .cdb-total { width: 8.2% !important; }
+          .cashier-drawer-balance-report-root .cdb-till { width: 22% !important; }
+          .cashier-drawer-balance-report-root .cdb-cashier { width: 18% !important; }
+          .cashier-drawer-balance-report-root .cdb-amt { width: 8.55% !important; }
+          .cashier-drawer-balance-report-root .cdb-total { width: 8.7% !important; }
         }
       `}</style>
 

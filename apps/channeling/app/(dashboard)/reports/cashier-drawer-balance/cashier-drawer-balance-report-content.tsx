@@ -88,6 +88,8 @@ export default function CashierDrawerBalanceReportContent({ currentUserName, loc
       filterButtonLabel="Search"
       showBackButton={false}
       printPageSize="A4 portrait"
+      printPageMargins="7mm 5mm 18mm"
+      pdfPageMarginMm={5}
       exportOrientation="portrait"
       containerClassName="w-full py-2 space-y-3 cashier-drawer-balance-report-root"
       renderPrintContent={(rows) => <CashierDrawerBalancePrintLayout rows={rows} />}

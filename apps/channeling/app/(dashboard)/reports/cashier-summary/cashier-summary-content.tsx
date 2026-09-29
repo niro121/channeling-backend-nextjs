@@ -644,6 +644,7 @@ export default function CashierSummaryContent({
                   : 'Userwise Cashier Summary'
               }
               pageSize="A4 landscape"
+              pageMargins="7mm 5mm 18mm"
               generatedAt={reportMeta.generatedAt}
               summaryItems={buildSummaryItems(reportMeta)}
               className="print:space-y-0"

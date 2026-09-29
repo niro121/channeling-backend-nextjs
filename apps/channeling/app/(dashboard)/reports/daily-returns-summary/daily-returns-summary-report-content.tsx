@@ -109,6 +109,7 @@ export default function DailyReturnsSummaryReportContent({ currentUserName, loca
       filterButtonLabel="Search"
       showBackButton={false}
       printPageSize="A4 portrait"
+      printPageMargins="7mm 5mm 18mm"
       exportOrientation="portrait"
       containerClassName="w-full py-2 space-y-3 daily-returns-summary-report-root"
       renderPrintContent={(rows) => <DailyReturnsSummaryPrintLayout rows={rows} />}
