@@ -16,6 +16,7 @@ export const ROUTE_TO_RESOURCE: Record<string, string> = {
   '/performance-allowance': 'payroll',
   '/loans-advances': 'payroll',
   '/salary-structures': 'payroll',
+  '/allowances': 'payroll',
   '/leave-types': 'leave-types',
   '/leave-entitlement': 'leave-entitlement',
   '/leave-management': 'leave-management',

@@ -3,31 +3,31 @@
 import { useState } from 'react';
 import { CommonManagerHeader } from '@/components/common/common-manager-header';
 import {
-  EMPTY_SALARY_STRUCTURE_SUMMARY,
+  EMPTY_ALLOWANCE_SUMMARY,
   PAYROLL_WORKFLOW_STEPS,
-  type SalaryStructureRecord
+  type AllowanceRecord
 } from '@/types/payroll';
-import { SalaryStructuresHeaderActions } from './header-actions';
 import {
-  SalaryStructuresUiProvider,
-  useSalaryStructuresUi
-} from './salary-structures-ui-context';
+  AllowancesUiProvider,
+  useAllowancesUi
+} from './allowances-ui-context';
+import { AllowancesHeaderActions } from './header-actions';
 import SectionRegister from './section-register';
 import SectionSummary from './section-summary';
 import SectionWorkflowSteps from './section-workflow-steps';
-import SheetStructureForm from './sheet-structure-form';
+import SheetAllowanceForm from './sheet-allowance-form';
 
-function SalaryStructuresWorkspaceInner() {
-  const { formSheet, closeFormSheet } = useSalaryStructuresUi();
-  const [records] = useState<SalaryStructureRecord[]>([]);
-  const summary = EMPTY_SALARY_STRUCTURE_SUMMARY;
+function AllowancesWorkspaceInner() {
+  const { formSheet, closeFormSheet } = useAllowancesUi();
+  const [records] = useState<AllowanceRecord[]>([]);
+  const summary = EMPTY_ALLOWANCE_SUMMARY;
 
   return (
     <div className="space-y-6">
       <CommonManagerHeader
-        title="Salary Structures"
-        description="Define grade and role salary templates with default allowances and deductions."
-        actions={<SalaryStructuresHeaderActions />}
+        title="Allowances"
+        description="Define salary allowances, calculation methods and applicability by category, department and designation."
+        actions={<AllowancesHeaderActions />}
       />
 
       <SectionWorkflowSteps steps={PAYROLL_WORKFLOW_STEPS} />
@@ -39,10 +39,9 @@ function SalaryStructuresWorkspaceInner() {
         totalRecords={records.length}
         departmentOptions={[]}
         designationOptions={[]}
-        structureOptions={[]}
       />
 
-      <SheetStructureForm
+      <SheetAllowanceForm
         open={formSheet != null}
         mode={formSheet?.mode ?? 'create'}
         record={formSheet?.record ?? null}
@@ -54,10 +53,10 @@ function SalaryStructuresWorkspaceInner() {
   );
 }
 
-export default function SalaryStructuresWorkspace() {
+export default function AllowancesWorkspace() {
   return (
-    <SalaryStructuresUiProvider>
-      <SalaryStructuresWorkspaceInner />
-    </SalaryStructuresUiProvider>
+    <AllowancesUiProvider>
+      <AllowancesWorkspaceInner />
+    </AllowancesUiProvider>
   );
 }

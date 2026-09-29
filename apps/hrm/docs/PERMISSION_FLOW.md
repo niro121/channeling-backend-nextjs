@@ -238,6 +238,7 @@ From `lib/permissions.ts` / `RESOURCES` (keep these in sync when editing).
 | `/performance-allowance` | `payroll` | Payroll |
 | `/loans-advances` | `payroll` | Payroll |
 | `/salary-structures` | `payroll` | Payroll |
+| `/allowances` | `payroll` | Payroll |
 | `/payroll` | `payroll` | Payroll *(hub reserved)* |
 | `/reports` | `reports` | Reports |
 | `/users` | `users` | Users & User Groups |

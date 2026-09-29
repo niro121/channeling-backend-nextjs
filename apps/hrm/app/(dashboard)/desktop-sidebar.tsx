@@ -45,6 +45,7 @@ import {
   ListChecks,
   Percent,
   Banknote,
+  CirclePlus,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { canAccessRoute } from "@/lib/permissions";
@@ -382,7 +383,8 @@ export function DesktopSidebar({ session, className }: { session: Session | null
           hasAccess('/bulk-assign-paysheet-component') ||
           hasAccess('/performance-allowance') ||
           hasAccess('/loans-advances') ||
-          hasAccess('/salary-structures')) && (
+          hasAccess('/salary-structures') ||
+          hasAccess('/allowances')) && (
           <SidebarGroup label="Payroll">
             <SidebarCollapsible
               label="Payroll"
@@ -394,7 +396,8 @@ export function DesktopSidebar({ session, className }: { session: Session | null
                 '/bulk-assign-paysheet-component',
                 '/performance-allowance',
                 '/loans-advances',
-                '/salary-structures'
+                '/salary-structures',
+                '/allowances'
               ]}
               defaultOpen
             >
@@ -445,6 +448,13 @@ export function DesktopSidebar({ session, className }: { session: Session | null
                   href="/salary-structures"
                   label="Salary Structures"
                   icon={<Layers className="h-5 w-5" />}
+                />
+              )}
+              {hasAccess('/allowances') && (
+                <NavLink
+                  href="/allowances"
+                  label="Allowances"
+                  icon={<CirclePlus className="h-5 w-5" />}
                 />
               )}
             </SidebarCollapsible>

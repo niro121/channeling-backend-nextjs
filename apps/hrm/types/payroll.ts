@@ -540,13 +540,13 @@ export const SALARY_STRUCTURE_WORKFLOW_STEPS: SalaryStructureWorkflowStep[] = [
     label: 'Salary Structures',
     href: '/salary-structures',
     ready: true,
-    status: 'current'
+    status: 'pending'
   },
   {
     id: 2,
     label: 'Allowances',
     href: '/allowances',
-    ready: false,
+    ready: true,
     status: 'pending'
   },
   {
@@ -586,11 +586,153 @@ export const SALARY_STRUCTURE_WORKFLOW_STEPS: SalaryStructureWorkflowStep[] = [
   }
 ];
 
+/** Shared payroll workflow stepper steps (pathname marks current). */
+export const PAYROLL_WORKFLOW_STEPS = SALARY_STRUCTURE_WORKFLOW_STEPS;
+
 export const EMPTY_SALARY_STRUCTURE_SUMMARY: SalaryStructureSummary = {
   totalStructures: 0,
   active: 0,
   draft: 0,
   staffCovered: 0
+};
+
+/** Allowances master — Phase 0 list + sheet shell. */
+export type AllowanceStatus = 'active' | 'inactive' | 'draft';
+
+export type AllowanceType =
+  | 'fixed_amount'
+  | 'percentage'
+  | 'performance_based'
+  | 'attendance_based'
+  | 'other';
+
+export type AllowanceCalcMethod =
+  | 'fixed_per_month'
+  | 'percent_of_basic'
+  | 'percent_of_gross'
+  | 'percent_of_epf_liable'
+  | 'tax_table'
+  | 'per_shift'
+  | 'per_schedule'
+  | 'formula';
+
+export type AllowanceFilters = {
+  search?: string;
+  allowanceType?: string;
+  staffCategory?: string;
+  departmentId?: string;
+  designationId?: string;
+  status?: string;
+  effectiveDate?: string;
+};
+
+export type AllowanceRecord = {
+  id: string;
+  code: string;
+  name: string;
+  allowanceType: AllowanceType;
+  calcMethod: AllowanceCalcMethod;
+  amountOrPercent: string;
+  staffCategoryId: string;
+  staffCategory: string;
+  departmentId: string;
+  department: string;
+  designationId: string;
+  designation: string;
+  effectiveFrom: string | null;
+  effectiveTo: string | null;
+  status: AllowanceStatus;
+  createdBy: string | null;
+  createdAt: string | null;
+  updatedBy: string | null;
+  updatedAt: string | null;
+};
+
+export type AllowanceFormValues = {
+  code: string;
+  name: string;
+  allowanceType: string;
+  calcMethod: string;
+  amountOrPercent: string;
+  staffCategory: string;
+  departmentId: string;
+  designationId: string;
+  effectiveFrom: Date | null;
+  effectiveTo: Date | null;
+  status: AllowanceStatus;
+};
+
+export type AllowanceSummary = {
+  totalAllowances: number;
+  active: number;
+  monthlyValue: number;
+  draftInactive: number;
+};
+
+export const ALLOWANCE_STATUS_OPTIONS = [
+  { id: 'active', name: 'Active' },
+  { id: 'inactive', name: 'Inactive' },
+  { id: 'draft', name: 'Draft' }
+] as const;
+
+export const ALLOWANCE_TYPE_OPTIONS = [
+  { id: 'fixed_amount', name: 'Fixed Amount' },
+  { id: 'percentage', name: 'Percentage' },
+  { id: 'performance_based', name: 'Performance Based' },
+  { id: 'attendance_based', name: 'Attendance Based' },
+  { id: 'other', name: 'Other' }
+] as const;
+
+export const ALLOWANCE_TYPE_LABELS: Record<AllowanceType, string> = {
+  fixed_amount: 'Fixed Amount',
+  percentage: 'Percentage',
+  performance_based: 'Performance Based',
+  attendance_based: 'Attendance Based',
+  other: 'Other'
+};
+
+export const ALLOWANCE_CALC_METHOD_OPTIONS = [
+  { id: 'fixed_per_month', name: 'Fixed per month' },
+  { id: 'percent_of_basic', name: '% of Basic' },
+  { id: 'percent_of_gross', name: '% of Gross' },
+  { id: 'percent_of_epf_liable', name: '% of EPF-liable earnings' },
+  { id: 'tax_table', name: 'Tax table' },
+  { id: 'per_shift', name: 'Per shift' },
+  { id: 'per_schedule', name: 'Per schedule' },
+  { id: 'formula', name: 'Formula' }
+] as const;
+
+export const ALLOWANCE_CALC_METHOD_LABELS: Record<AllowanceCalcMethod, string> =
+  {
+    fixed_per_month: 'Fixed per month',
+    percent_of_basic: '% of Basic',
+    percent_of_gross: '% of Gross',
+    percent_of_epf_liable: '% of EPF-liable earnings',
+    tax_table: 'Tax table',
+    per_shift: 'Per shift',
+    per_schedule: 'Per schedule',
+    formula: 'Formula'
+  };
+
+export const EMPTY_ALLOWANCE_FORM: AllowanceFormValues = {
+  code: '',
+  name: '',
+  allowanceType: 'fixed_amount',
+  calcMethod: 'fixed_per_month',
+  amountOrPercent: '',
+  staffCategory: '__all__',
+  departmentId: '__all__',
+  designationId: '__all__',
+  effectiveFrom: null,
+  effectiveTo: null,
+  status: 'active'
+};
+
+export const EMPTY_ALLOWANCE_SUMMARY: AllowanceSummary = {
+  totalAllowances: 0,
+  active: 0,
+  monthlyValue: 0,
+  draftInactive: 0
 };
 
 export const EMPTY_SALARY_GENERATION_CYCLE_VALUES: SalaryGenerationCycleFormValues =

@@ -51,6 +51,7 @@ const PATH_NAMES = [
   { path: 'performance-allowance', name: 'Performance Allowance' },
   { path: 'loans-advances', name: 'Loans & Advances' },
   { path: 'salary-structures', name: 'Salary Structures' },
+  { path: 'allowances', name: 'Allowances' },
   { path: 'reports', name: 'Reports' },
   { path: 'users', name: 'Users' },
   { path: 'user-groups', name: 'User Groups' },
