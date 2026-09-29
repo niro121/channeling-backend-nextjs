@@ -14,10 +14,11 @@ import { ReportEmptyStateCard } from '@/components/common/report-empty-state';
 import { ReportGenerationDetailsCard } from '@/components/common/report-generation-details';
 import {
   ReportPrintLayout,
-  downloadBrandedReportExcel,
-  downloadBrandedReportPdf,
   toBrandedPdfSummaryItems,
 } from '@/components/common/report-print';
+import { downloadNoShowPatientReportExcel } from './no-show-patient-excel';
+import { downloadNoShowPatientReportPdf } from './no-show-patient-pdf';
+import NoShowPatientPrintBody from './no-show-patient-print-body';
 import type { ReportPrintSummaryItem } from '@/components/common/report-print';
 import { formatReportRangeLabel } from '@/lib/format-report-range-label';
 import { withAllBranchesOptions } from '@/lib/report-branch-options';
@@ -203,7 +204,7 @@ export default function NoShowPatientReportContent({
       for (const k of periodKeys) out[k] = String(row[k] ?? '');
       return out;
     });
-    await downloadBrandedReportPdf({
+    await downloadNoShowPatientReportPdf({
       reportName: 'No Show Patient Report',
       summaryItems: toBrandedPdfSummaryItems(buildSummaryItems(reportMeta)),
       generatedAt: reportMeta.generatedAt,
@@ -238,7 +239,7 @@ export default function NoShowPatientReportContent({
         for (const k of periodKeys) out[k] = String(row[k] ?? '');
         return out;
       });
-      await downloadBrandedReportExcel({
+      await downloadNoShowPatientReportExcel({
         reportName: 'No Show Patient Report',
         summaryItems: toBrandedPdfSummaryItems(buildSummaryItems(reportMeta)),
         generatedAt: reportMeta.generatedAt,
@@ -311,7 +312,9 @@ export default function NoShowPatientReportContent({
   return (
     <div className="container mx-auto py-3 space-y-4 no-show-patient-print-root">
       <style>{`
+        .no-show-print-tables { display: none; }
         @media print {
+          .no-show-print-tables { display: block !important; }
           .no-show-patient-print-root,
           .no-show-patient-print-root.container {
             width: 100% !important;
@@ -321,62 +324,60 @@ export default function NoShowPatientReportContent({
             padding-left: 0 !important;
             padding-right: 0 !important;
           }
-          .no-show-patient-print-root .rpt-print-root,
-          .no-show-patient-print-root .rpt-print-body {
-            width: 100% !important;
-            max-width: none !important;
-            box-sizing: border-box !important;
+          /* Keep the shared header and its summary on page 1. */
+          .no-show-patient-print-root .rpt-print-header {
+            break-after: auto !important;
+            page-break-after: auto !important;
+            break-inside: avoid !important;
+            page-break-inside: avoid !important;
           }
-          .no-show-patient-print-root .rpt-print-body .overflow-x-auto,
-          .no-show-patient-print-root .rpt-print-body .overflow-auto,
-          .no-show-patient-print-root .rpt-print-body .rounded-md {
+          .no-show-patient-print-root .rpt-print-summary,
+          .no-show-patient-print-root .rpt-print-summary-grid {
             overflow: visible !important;
-            width: 100% !important;
-            max-width: none !important;
-            border-radius: 0 !important;
-            box-shadow: none !important;
+            height: auto !important;
+            break-inside: avoid !important;
+            page-break-inside: avoid !important;
           }
-          .no-show-patient-print-root .rpt-print-root table {
+          .no-show-patient-print-root .no-show-print-tables table {
             table-layout: fixed !important;
             width: 100% !important;
-            max-width: 100% !important;
             border-collapse: collapse !important;
-            border: 0.5pt solid #000 !important;
+            margin: 0 0 4mm !important;
+            break-inside: auto !important;
+            page-break-inside: auto !important;
           }
-          .no-show-patient-print-root .rpt-print-root th,
-          .no-show-patient-print-root .rpt-print-root td {
-            width: auto !important;
+          .no-show-patient-print-root .no-show-print-tables th,
+          .no-show-patient-print-root .no-show-print-tables td {
             font-size: 8pt !important;
             font-weight: 400 !important;
-            padding: 1.6mm !important;
-            line-height: 1.25 !important;
-            text-align: left !important;
-            white-space: normal !important;
-            word-break: break-word !important;
-            overflow-wrap: anywhere !important;
+            padding: 1.1mm 0.45mm !important;
+            line-height: 1.2 !important;
+            text-align: center !important;
+            white-space: nowrap !important;
+            word-break: normal !important;
+            overflow-wrap: normal !important;
             overflow: hidden !important;
-            border: 0.5pt solid #000 !important;
+            border: 0.4pt solid #000 !important;
             color: #000 !important;
-            background: #fff !important;
             vertical-align: middle !important;
-            box-sizing: border-box !important;
-            -webkit-print-color-adjust: exact !important;
-            print-color-adjust: exact !important;
           }
-          .no-show-patient-print-root .rpt-print-root thead th {
-            font-size: 7.5pt !important;
+          .no-show-patient-print-root .no-show-print-tables thead th {
+            font-size: 8pt !important;
             font-weight: 700 !important;
             background: #e8e8e8 !important;
           }
-          .no-show-patient-print-root .rpt-print-root th:first-child,
-          .no-show-patient-print-root .rpt-print-root td:first-child {
-            border-left: 0.7pt solid #000 !important;
+          .no-show-patient-print-root .no-show-print-tables .ns-name {
+            text-align: left !important;
+            white-space: normal !important;
+            overflow-wrap: break-word !important;
+            padding-left: 1.4mm !important;
+            padding-right: 1.4mm !important;
           }
-          .no-show-patient-print-root .rpt-print-root th:last-child,
-          .no-show-patient-print-root .rpt-print-root td:last-child {
-            border-right: 0.7pt solid #000 !important;
+          .no-show-patient-print-root .no-show-print-tables tr.ns-total td {
+            font-weight: 700 !important;
+            background: #ececec !important;
           }
-          .no-show-patient-print-root .rpt-print-root tr {
+          .no-show-patient-print-root .no-show-print-tables tr {
             break-inside: avoid !important;
             page-break-inside: avoid !important;
           }
@@ -507,7 +508,14 @@ export default function NoShowPatientReportContent({
             >
               <div className="space-y-3">
                 <div className="print:hidden">{renderReportMetaCard()}</div>
-                <div className="rounded-md border overflow-x-auto">
+                <NoShowPatientPrintBody
+                  rows={rows}
+                  periodKeys={periodKeys}
+                  periodLabels={periodLabels}
+                  columnTotals={columnTotals}
+                  grandTotal={grandTotal}
+                />
+                <div className="rounded-md border overflow-x-auto print:hidden">
                   <Table className="text-[11px] [&_th]:px-1.5 [&_td]:px-1.5 [&_th]:border-r [&_th:last-child]:border-r-0 [&_td]:border-r [&_td:last-child]:border-r-0">
                     <TableHeader>
                       <TableRow className="border-b">
