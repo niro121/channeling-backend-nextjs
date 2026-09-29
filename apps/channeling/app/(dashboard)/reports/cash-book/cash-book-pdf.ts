@@ -202,7 +202,7 @@ export async function downloadCashBookReportPdf({
   openingDateLabel,
   fileName = 'cash-book.pdf',
 }: DownloadCashBookPdfOptions): Promise<void> {
-  const margin = 8;
+  const margin = 5;
   const doc = new jsPDF({ orientation: 'p', format: 'a4' });
   const { width: pageWidth } = pageSize(doc);
   const tableWidth = pageWidth - margin * 2;

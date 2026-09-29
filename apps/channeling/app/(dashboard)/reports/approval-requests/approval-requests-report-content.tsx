@@ -75,12 +75,58 @@ function ContentInner({ currentUserName, userOptions }: Props) {
   });
 
   return (
+    <>
+    <style>{`
+      @media print {
+        .approval-requests-report-root,
+        .approval-requests-report-root.rpt-template-root {
+          width: 100% !important;
+          max-width: none !important;
+          margin: 0 !important;
+          padding: 0 !important;
+          color: #000 !important;
+          -webkit-print-color-adjust: exact !important;
+          print-color-adjust: exact !important;
+        }
+        .approval-requests-report-root .rpt-template-card,
+        .approval-requests-report-root .rpt-template-card > div,
+        .approval-requests-report-root .rpt-print-root,
+        .approval-requests-report-root .rpt-print-header,
+        .approval-requests-report-root .rpt-print-summary,
+        .approval-requests-report-root .rpt-print-body {
+          width: 100% !important;
+          max-width: none !important;
+          margin-left: 0 !important;
+          margin-right: 0 !important;
+          padding-left: 0 !important;
+          padding-right: 0 !important;
+          box-sizing: border-box !important;
+        }
+        .approval-requests-report-root .rpt-print-root table {
+          width: 100% !important;
+          max-width: none !important;
+          table-layout: fixed !important;
+          border-collapse: collapse !important;
+        }
+        .approval-requests-report-root .rpt-print-root th:first-child,
+        .approval-requests-report-root .rpt-print-root td:first-child {
+          border-left: 0.35mm solid #000 !important;
+        }
+        .approval-requests-report-root .rpt-print-root th:last-child,
+        .approval-requests-report-root .rpt-print-root td:last-child {
+          border-right: 0.35mm solid #000 !important;
+          box-shadow: inset -0.35mm 0 0 #000 !important;
+        }
+      }
+    `}</style>
     <ReportTemplate<ApprovalRequestsReportRow, ApprovalRequestsReportExportRow>
       title="Approval Requests Report"
       description="View Approval Center cancellations, refunds, and bank deposits. Filter by period, type, status, requester, and who approved or rejected."
       filterButtonLabel="Search"
       showBackButton={false}
-      containerClassName="w-full py-2 space-y-3"
+      printPageMargins="7mm 5mm 18mm"
+      pdfPageMarginMm={5}
+      containerClassName="w-full py-2 space-y-3 approval-requests-report-root"
       generationDetails={{
         generatedBy: currentUserName,
         formatFilters: (values) => {
@@ -250,6 +296,7 @@ function ContentInner({ currentUserName, userOptions }: Props) {
       initialEmptyMessage="No approval requests found. Select filters and click Search."
       emptyMessage="No approval requests found for the selected filters."
     />
+    </>
   );
 }
 

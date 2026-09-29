@@ -416,6 +416,7 @@ export default function AllCashierSummaryDetailContent({
             <ReportPrintLayout
               reportName="All Cashier Summary and Detail Report"
               pageSize="A4 landscape"
+              pageMargins="7mm 5mm 18mm"
               generatedAt={reportMeta.generatedAt}
               summaryItems={buildSummaryItems(reportMeta)}
             >

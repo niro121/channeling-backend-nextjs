@@ -16,8 +16,8 @@ export function CashierSummaryPrintLayout({
         @media print {
           @page {
             size: A4 landscape;
-            /* Extra bottom margin so physical printers do not clip footer */
-            margin: 8mm 10mm 18mm 10mm;
+            /* Tight sides so the table fills the page; extra bottom for the footer */
+            margin: 7mm 5mm 18mm;
             @top-left { content: ""; }
             @top-center { content: ""; }
             @top-right { content: ""; }
@@ -52,7 +52,7 @@ export function CashierSummaryPrintLayout({
 
           .cashier-summary-report-root {
             width: 100% !important;
-            max-width: 100% !important;
+            max-width: none !important;
             margin: 0 !important;
             padding: 0 !important;
             padding-bottom: 4mm !important;
@@ -62,119 +62,56 @@ export function CashierSummaryPrintLayout({
             print-color-adjust: exact !important;
           }
 
-          /* Strip Card chrome/padding that shrinks content on print */
+          /* Card chrome and leftover horizontal padding shrink the table */
           .cashier-summary-report-root > .bg-muted\\/20,
-          .cashier-summary-report-root [class*="Card"],
-          .cashier-summary-report-root .bg-muted\\/20 {
+          .cashier-summary-report-root .bg-muted\\/20,
+          .cashier-summary-report-root .bg-muted\\/20 > div {
             width: 100% !important;
-            max-width: 100% !important;
-            margin: 0 !important;
-            padding: 0 !important;
+            max-width: none !important;
+            margin-left: 0 !important;
+            margin-right: 0 !important;
+            padding-left: 0 !important;
+            padding-right: 0 !important;
             border: none !important;
             box-shadow: none !important;
             background: #fff !important;
-          }
-          .cashier-summary-report-root .rpt-print-root {
-            width: 100% !important;
-            max-width: 100% !important;
-            margin: 0 !important;
-            padding: 0 !important;
             box-sizing: border-box !important;
           }
 
-          .cashier-summary-report-root .rpt-print-header {
-            margin-bottom: 2mm !important;
-            height: auto !important;
-            overflow: visible !important;
-            position: static !important;
+          /* Header comes from the shared ReportPrintLayout — stretch it, do not restyle it */
+          .cashier-summary-report-root .rpt-print-root,
+          .cashier-summary-report-root .rpt-print-header,
+          .cashier-summary-report-root .rpt-print-summary,
+          .cashier-summary-report-root .rpt-print-body {
             width: 100% !important;
-          }
-          .cashier-summary-report-root .rpt-print-brand-row {
-            height: 12mm !important;
-            gap: 5mm !important;
-          }
-          .cashier-summary-report-root .rpt-print-logo {
-            height: 12mm !important;
-            max-width: 44mm !important;
-          }
-          .cashier-summary-report-root .rpt-print-titles {
-            height: 12mm !important;
-            padding: 2mm 0 0.4mm !important;
-          }
-          .cashier-summary-report-root .rpt-print-org {
-            height: 4mm !important;
-            font-size: 13pt !important;
-          }
-          .cashier-summary-report-root .rpt-print-title-gap {
-            height: 0.6mm !important;
-          }
-          .cashier-summary-report-root .rpt-print-report-name {
-            height: 3.8mm !important;
-            font-size: 9.5pt !important;
-          }
-          .cashier-summary-report-root .rpt-print-rule {
-            margin-top: 1.2mm !important;
-          }
-          .cashier-summary-report-root .rpt-print-summary {
-            margin-top: 2mm !important;
-            width: 100% !important;
-            max-width: 100% !important;
-            height: auto !important;
-            overflow: visible !important;
+            max-width: none !important;
+            margin-left: 0 !important;
+            margin-right: 0 !important;
             box-sizing: border-box !important;
-            border: 0.5pt solid #000 !important;
-            border-radius: 0 !important;
-            -webkit-print-color-adjust: exact !important;
-            print-color-adjust: exact !important;
           }
-          .cashier-summary-report-root .rpt-print-summary-bar {
-            padding: 0.9mm 2mm !important;
-            font-size: 7pt !important;
-            font-weight: 700 !important;
-            color: #000 !important;
-            background: #e8e8e8 !important;
-            border-bottom: 0.4pt solid #000 !important;
-            -webkit-print-color-adjust: exact !important;
-            print-color-adjust: exact !important;
+          .cashier-summary-report-root .rpt-print-root {
+            padding: 0 !important;
           }
-          .cashier-summary-report-root .rpt-print-summary-grid {
-            grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
-            gap: 1mm 3mm !important;
-            padding: 1.5mm 2mm !important;
-            height: auto !important;
-            overflow: visible !important;
-          }
-          .cashier-summary-report-root .rpt-print-label {
-            margin: 0 0 0.3mm !important;
-            font-size: 6.5pt !important;
-            color: #000 !important;
-            font-weight: 700 !important;
-          }
+          .cashier-summary-report-root .rpt-print-header,
+          .cashier-summary-report-root .rpt-print-summary,
+          .cashier-summary-report-root .rpt-print-summary-grid,
           .cashier-summary-report-root .rpt-print-value {
             height: auto !important;
             overflow: visible !important;
-            font-size: 8.5pt !important;
-            line-height: 1.25 !important;
-            white-space: pre-line !important;
-            color: #000 !important;
-            font-weight: 700 !important;
+            position: static !important;
           }
           .cashier-summary-report-root .rpt-print-root .whitespace-pre-line {
             white-space: pre-line !important;
           }
           .cashier-summary-report-root .rpt-print-body {
-            margin-top: 2.5mm !important;
-            width: 100% !important;
-            max-width: 100% !important;
             position: static !important;
             clear: both !important;
-            box-sizing: border-box !important;
           }
 
           .cashier-summary-report-root .ucs-screen-summary,
           .cashier-summary-report-root .ucs-screen-detail {
             width: 100% !important;
-            max-width: 100% !important;
+            max-width: none !important;
           }
 
           /* Remove wrapper border/radius so only table borders print */
@@ -186,7 +123,7 @@ export function CashierSummaryPrintLayout({
           .cashier-summary-report-root .ucs-screen-detail .rounded-md {
             overflow: visible !important;
             width: 100% !important;
-            max-width: 100% !important;
+            max-width: none !important;
             border: none !important;
             border-radius: 0 !important;
             box-shadow: none !important;
@@ -200,7 +137,7 @@ export function CashierSummaryPrintLayout({
           .cashier-summary-report-root .ucs-screen-summary table,
           .cashier-summary-report-root .ucs-screen-detail table {
             width: 100% !important;
-            max-width: 100% !important;
+            max-width: none !important;
             margin-left: 0 !important;
             margin-right: 0 !important;
             border-collapse: collapse !important;
@@ -314,6 +251,7 @@ export function CashierSummaryPrintLayout({
           .cashier-summary-report-root .ucs-screen-detail th:last-child,
           .cashier-summary-report-root .ucs-screen-detail td:last-child {
             border-right: 0.7pt solid #000 !important;
+            box-shadow: inset -0.7pt 0 0 #000 !important;
           }
           .cashier-summary-report-root .ucs-screen-summary thead th,
           .cashier-summary-report-root .ucs-screen-detail thead th,

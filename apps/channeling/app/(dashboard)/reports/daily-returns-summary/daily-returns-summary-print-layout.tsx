@@ -103,66 +103,35 @@ export function DailyReturnsSummaryPrintLayout({ rows }: Props) {
     <div className="drs-print-root">
       <style>{`
         @media print {
-          @page {
-            size: A4 portrait;
-            margin: 7mm 8mm 12mm;
+          .daily-returns-summary-report-root,
+          .daily-returns-summary-report-root.rpt-template-root {
+            width: 100% !important;
+            max-width: none !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            color: #000 !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
           }
-
-          .daily-returns-summary-report-root .rpt-print-header {
-            margin-bottom: 2mm !important;
-          }
-          .daily-returns-summary-report-root .rpt-print-brand-row {
-            height: 12mm !important;
-            gap: 5mm !important;
-          }
-          .daily-returns-summary-report-root .rpt-print-logo {
-            height: 12mm !important;
-            max-width: 44mm !important;
-          }
-          .daily-returns-summary-report-root .rpt-print-titles {
-            height: 12mm !important;
-            padding: 2mm 0 0.4mm !important;
-          }
-          .daily-returns-summary-report-root .rpt-print-org {
-            height: 4mm !important;
-            font-size: 13pt !important;
-          }
-          .daily-returns-summary-report-root .rpt-print-title-gap {
-            height: 0.6mm !important;
-          }
-          .daily-returns-summary-report-root .rpt-print-report-name {
-            height: 3.8mm !important;
-            font-size: 9.5pt !important;
-          }
-          .daily-returns-summary-report-root .rpt-print-rule {
-            margin-top: 1.2mm !important;
-          }
-          .daily-returns-summary-report-root .rpt-print-summary {
-            margin-top: 2mm !important;
-          }
-          .daily-returns-summary-report-root .rpt-print-summary-bar {
-            padding: 0.9mm 2mm !important;
-            font-size: 7pt !important;
-          }
-          .daily-returns-summary-report-root .rpt-print-summary-grid {
-            grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
-            gap: 1mm 3mm !important;
-            padding: 1.5mm 2mm !important;
-          }
-          .daily-returns-summary-report-root .rpt-print-label {
-            margin: 0 0 0.3mm !important;
-            font-size: 6pt !important;
-          }
-          .daily-returns-summary-report-root .rpt-print-value {
-            font-size: 8pt !important;
-            line-height: 1.15 !important;
-          }
-          .daily-returns-summary-report-root .rpt-print-body {
-            margin-top: 2.5mm !important;
+          .daily-returns-summary-report-root .rpt-template-card,
+          .daily-returns-summary-report-root .rpt-template-card > div,
+          .daily-returns-summary-report-root .rpt-print-root,
+          .daily-returns-summary-report-root .rpt-print-header,
+          .daily-returns-summary-report-root .rpt-print-summary,
+          .daily-returns-summary-report-root .rpt-print-body,
+          .daily-returns-summary-report-root .drs-print-root {
+            width: 100% !important;
+            max-width: none !important;
+            margin-left: 0 !important;
+            margin-right: 0 !important;
+            padding-left: 0 !important;
+            padding-right: 0 !important;
+            box-sizing: border-box !important;
           }
 
           .daily-returns-summary-report-root .rpt-print-root table.drs-print-table {
             width: 100% !important;
+            max-width: none !important;
             border-collapse: collapse !important;
             table-layout: fixed !important;
             font-family: Helvetica, Arial, sans-serif !important;
@@ -251,6 +220,16 @@ export function DailyReturnsSummaryPrintLayout({ rows }: Props) {
             font-weight: 700 !important;
             background: #f3f3f3 !important;
             vertical-align: middle !important;
+          }
+
+          .daily-returns-summary-report-root .rpt-print-root table.drs-print-table th:first-child,
+          .daily-returns-summary-report-root .rpt-print-root table.drs-print-table td:first-child {
+            border-left: 0.35mm solid #000 !important;
+          }
+          .daily-returns-summary-report-root .rpt-print-root table.drs-print-table th:last-child,
+          .daily-returns-summary-report-root .rpt-print-root table.drs-print-table td:last-child {
+            border-right: 0.35mm solid #000 !important;
+            box-shadow: inset -0.35mm 0 0 #000 !important;
           }
 
           .daily-returns-summary-report-root .drs-c0 { width: 5% !important; }

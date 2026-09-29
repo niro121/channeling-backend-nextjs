@@ -140,6 +140,7 @@ function ContentInner({ currentUserName, bankAccountOptions, userOptions, locati
       filterButtonLabel="Search"
       showBackButton={false}
       printPageSize="A4 portrait"
+      printPageMargins="7mm 5mm 18mm"
       exportOrientation="portrait"
       containerClassName="w-full py-2 space-y-3 bank-deposits-report-root"
       renderPrintContent={(rows) => <BankDepositsPrintLayout rows={rows} />}
