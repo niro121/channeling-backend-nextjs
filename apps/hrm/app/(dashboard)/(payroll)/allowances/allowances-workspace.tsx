@@ -1,11 +1,11 @@
 'use client';
 
-import { useState } from 'react';
 import { CommonManagerHeader } from '@/components/common/common-manager-header';
 import {
-  EMPTY_ALLOWANCE_SUMMARY,
   PAYROLL_WORKFLOW_STEPS,
-  type AllowanceRecord
+  type AllowanceFilters,
+  type AllowanceRecord,
+  type AllowanceSummary
 } from '@/types/payroll';
 import {
   AllowancesUiProvider,
@@ -17,16 +17,28 @@ import SectionSummary from './section-summary';
 import SectionWorkflowSteps from './section-workflow-steps';
 import SheetAllowanceForm from './sheet-allowance-form';
 
-function AllowancesWorkspaceInner() {
+type AllowancesWorkspaceProps = {
+  initialRecords: AllowanceRecord[];
+  totalRecords: number;
+  summary: AllowanceSummary;
+  page?: string;
+  initialFilters?: AllowanceFilters;
+};
+
+function AllowancesWorkspaceInner({
+  initialRecords,
+  totalRecords,
+  summary,
+  page,
+  initialFilters
+}: AllowancesWorkspaceProps) {
   const { formSheet, closeFormSheet } = useAllowancesUi();
-  const [records] = useState<AllowanceRecord[]>([]);
-  const summary = EMPTY_ALLOWANCE_SUMMARY;
 
   return (
     <div className="space-y-6">
       <CommonManagerHeader
         title="Allowances"
-        description="Define salary allowances, calculation methods and applicability by category, department and designation."
+        description="Payroll view of allowance paysheet components (fixed and percentage). Same catalog as HR Admin → Paysheet Components."
         actions={<AllowancesHeaderActions />}
       />
 
@@ -35,10 +47,10 @@ function AllowancesWorkspaceInner() {
       <SectionSummary summary={summary} />
 
       <SectionRegister
-        records={records}
-        totalRecords={records.length}
-        departmentOptions={[]}
-        designationOptions={[]}
+        records={initialRecords}
+        totalRecords={totalRecords}
+        page={page}
+        initialFilters={initialFilters}
       />
 
       <SheetAllowanceForm
@@ -53,10 +65,10 @@ function AllowancesWorkspaceInner() {
   );
 }
 
-export default function AllowancesWorkspace() {
+export default function AllowancesWorkspace(props: AllowancesWorkspaceProps) {
   return (
     <AllowancesUiProvider>
-      <AllowancesWorkspaceInner />
+      <AllowancesWorkspaceInner {...props} />
     </AllowancesUiProvider>
   );
 }

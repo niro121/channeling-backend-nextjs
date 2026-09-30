@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
-import { CheckCircle2, CirclePlus, FileWarning, Wallet } from 'lucide-react';
+import { CirclePlus, Layers, Percent, Sparkles } from 'lucide-react';
 import { Card, CardContent } from '@archmage/ui';
-import { formatAmount, formatLkrCompact } from '@/lib/utils/currency';
+import { formatAmount } from '@/lib/utils/currency';
 import type { AllowanceSummary } from '@/types/payroll';
 
 type SummaryCard = {
@@ -21,30 +21,30 @@ export default function SectionSummary({ summary }: SectionSummaryProps) {
     {
       label: 'Total Allowances',
       value: formatAmount(summary.totalAllowances),
-      subText: 'All defined allowances',
+      subText: 'Fixed + percentage components',
       icon: <CirclePlus className="h-4 w-4 text-emerald-700" />,
       iconWrapClass: 'bg-emerald-50'
     },
     {
-      label: 'Active',
-      value: formatAmount(summary.active),
-      subText: 'Currently in use',
-      icon: <CheckCircle2 className="h-4 w-4 text-emerald-700" />,
+      label: 'Fixed',
+      value: formatAmount(summary.fixed),
+      subText: 'Fixed allowance type',
+      icon: <Layers className="h-4 w-4 text-emerald-700" />,
       iconWrapClass: 'bg-emerald-50'
     },
     {
-      label: 'Monthly Value',
-      value: formatLkrCompact(summary.monthlyValue),
-      subText: 'Last payroll run',
-      icon: <Wallet className="h-4 w-4 text-sky-700" />,
+      label: 'Percentage',
+      value: formatAmount(summary.percentage),
+      subText: 'Percentage allowance type',
+      icon: <Percent className="h-4 w-4 text-sky-700" />,
       iconWrapClass: 'bg-sky-50'
     },
     {
-      label: 'Draft / Inactive',
-      value: formatAmount(summary.draftInactive),
-      subText: 'Not currently applied',
-      icon: <FileWarning className="h-4 w-4 text-orange-600" />,
-      iconWrapClass: 'bg-orange-50'
+      label: 'Custom',
+      value: formatAmount(summary.custom),
+      subText: 'Custom kind components',
+      icon: <Sparkles className="h-4 w-4 text-violet-700" />,
+      iconWrapClass: 'bg-violet-50'
     }
   ];
 

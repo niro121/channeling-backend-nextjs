@@ -624,52 +624,52 @@ export const EMPTY_SALARY_STRUCTURE_SUMMARY: SalaryStructureSummary = {
   staffCovered: 0
 };
 
-/** Allowances master — Phase 0 list + sheet shell. */
-export type AllowanceStatus = 'active' | 'inactive' | 'draft';
+/**
+ * Allowances — thin payroll UI over PaysheetComponent
+ * (`fixed_allowance` | `percentage_allowance`). No separate master collection.
+ */
+export const ALLOWANCE_COMPONENT_TYPE_IDS = [
+  'fixed_allowance',
+  'percentage_allowance'
+] as const;
+export type AllowanceComponentTypeId =
+  (typeof ALLOWANCE_COMPONENT_TYPE_IDS)[number];
 
-export type AllowanceType =
-  | 'fixed_amount'
-  | 'percentage'
-  | 'performance_based'
-  | 'attendance_based'
-  | 'other';
+export const ALLOWANCE_KIND_OPTIONS = [
+  { id: 'custom', name: 'Custom' },
+  { id: 'system', name: 'System based' }
+] as const;
 
-export type AllowanceCalcMethod =
-  | 'fixed_per_month'
-  | 'percent_of_basic'
-  | 'percent_of_gross'
-  | 'percent_of_epf_liable'
-  | 'tax_table'
-  | 'per_shift'
-  | 'per_schedule'
-  | 'formula';
+export const ALLOWANCE_TYPE_OPTIONS = [
+  { id: 'fixed_allowance', name: 'Fixed allowance' },
+  { id: 'percentage_allowance', name: 'Percentage allowance' }
+] as const;
+
+export const ALLOWANCE_TYPE_LABELS: Record<AllowanceComponentTypeId, string> = {
+  fixed_allowance: 'Fixed allowance',
+  percentage_allowance: 'Percentage allowance'
+};
 
 export type AllowanceFilters = {
   search?: string;
-  allowanceType?: string;
-  staffCategory?: string;
-  departmentId?: string;
-  designationId?: string;
-  status?: string;
-  effectiveDate?: string;
+  typeId?: string;
+  kind?: string;
+};
+
+export type GetAllowanceParams = AllowanceFilters & {
+  page?: number;
+  limit?: number;
 };
 
 export type AllowanceRecord = {
   id: string;
   code: string;
   name: string;
-  allowanceType: AllowanceType;
-  calcMethod: AllowanceCalcMethod;
-  amountOrPercent: string;
-  staffCategoryId: string;
-  staffCategory: string;
-  departmentId: string;
-  department: string;
-  designationId: string;
-  designation: string;
-  effectiveFrom: string | null;
-  effectiveTo: string | null;
-  status: AllowanceStatus;
+  kind: 'system' | 'custom' | string;
+  typeId: AllowanceComponentTypeId | string;
+  orderNo: number;
+  percentage: number | null;
+  includedForIds: string[];
   createdBy: string | null;
   createdAt: string | null;
   updatedBy: string | null;
@@ -679,47 +679,66 @@ export type AllowanceRecord = {
 export type AllowanceFormValues = {
   code: string;
   name: string;
-  allowanceType: string;
-  calcMethod: string;
-  amountOrPercent: string;
-  staffCategory: string;
-  departmentId: string;
-  designationId: string;
-  effectiveFrom: Date | null;
-  effectiveTo: Date | null;
-  status: AllowanceStatus;
+  kind: string;
+  typeId: string;
+  orderNo: string;
+  percentage: string;
+  includedForIds: string[];
+};
+
+export type AllowancePayload = {
+  name: string;
+  kind: 'system' | 'custom';
+  typeId: AllowanceComponentTypeId | string;
+  orderNo: number;
+  percentage?: number | null;
+  includedForIds: string[];
 };
 
 export type AllowanceSummary = {
   totalAllowances: number;
-  active: number;
-  monthlyValue: number;
-  draftInactive: number;
+  fixed: number;
+  percentage: number;
+  custom: number;
 };
 
-export const ALLOWANCE_STATUS_OPTIONS = [
+export const EMPTY_ALLOWANCE_FORM: AllowanceFormValues = {
+  code: '',
+  name: '',
+  kind: 'custom',
+  typeId: 'fixed_allowance',
+  orderNo: '0',
+  percentage: '',
+  includedForIds: []
+};
+
+export const EMPTY_ALLOWANCE_SUMMARY: AllowanceSummary = {
+  totalAllowances: 0,
+  fixed: 0,
+  percentage: 0,
+  custom: 0
+};
+
+/** Shared catalog status / calc options — still used by Deductions Phase 0 shell. */
+export type PayrollCatalogStatus = 'active' | 'inactive' | 'draft';
+
+export type PayrollCalcMethod =
+  | 'fixed_per_month'
+  | 'percent_of_basic'
+  | 'percent_of_gross'
+  | 'percent_of_epf_liable'
+  | 'tax_table'
+  | 'per_shift'
+  | 'per_schedule'
+  | 'formula';
+
+export const PAYROLL_CATALOG_STATUS_OPTIONS = [
   { id: 'active', name: 'Active' },
   { id: 'inactive', name: 'Inactive' },
   { id: 'draft', name: 'Draft' }
 ] as const;
 
-export const ALLOWANCE_TYPE_OPTIONS = [
-  { id: 'fixed_amount', name: 'Fixed Amount' },
-  { id: 'percentage', name: 'Percentage' },
-  { id: 'performance_based', name: 'Performance Based' },
-  { id: 'attendance_based', name: 'Attendance Based' },
-  { id: 'other', name: 'Other' }
-] as const;
-
-export const ALLOWANCE_TYPE_LABELS: Record<AllowanceType, string> = {
-  fixed_amount: 'Fixed Amount',
-  percentage: 'Percentage',
-  performance_based: 'Performance Based',
-  attendance_based: 'Attendance Based',
-  other: 'Other'
-};
-
-export const ALLOWANCE_CALC_METHOD_OPTIONS = [
+export const PAYROLL_CALC_METHOD_OPTIONS = [
   { id: 'fixed_per_month', name: 'Fixed per month' },
   { id: 'percent_of_basic', name: '% of Basic' },
   { id: 'percent_of_gross', name: '% of Gross' },
@@ -730,37 +749,15 @@ export const ALLOWANCE_CALC_METHOD_OPTIONS = [
   { id: 'formula', name: 'Formula' }
 ] as const;
 
-export const ALLOWANCE_CALC_METHOD_LABELS: Record<AllowanceCalcMethod, string> =
-  {
-    fixed_per_month: 'Fixed per month',
-    percent_of_basic: '% of Basic',
-    percent_of_gross: '% of Gross',
-    percent_of_epf_liable: '% of EPF-liable earnings',
-    tax_table: 'Tax table',
-    per_shift: 'Per shift',
-    per_schedule: 'Per schedule',
-    formula: 'Formula'
-  };
-
-export const EMPTY_ALLOWANCE_FORM: AllowanceFormValues = {
-  code: '',
-  name: '',
-  allowanceType: 'fixed_amount',
-  calcMethod: 'fixed_per_month',
-  amountOrPercent: '',
-  staffCategory: '__all__',
-  departmentId: '__all__',
-  designationId: '__all__',
-  effectiveFrom: null,
-  effectiveTo: null,
-  status: 'active'
-};
-
-export const EMPTY_ALLOWANCE_SUMMARY: AllowanceSummary = {
-  totalAllowances: 0,
-  active: 0,
-  monthlyValue: 0,
-  draftInactive: 0
+export const PAYROLL_CALC_METHOD_LABELS: Record<PayrollCalcMethod, string> = {
+  fixed_per_month: 'Fixed per month',
+  percent_of_basic: '% of Basic',
+  percent_of_gross: '% of Gross',
+  percent_of_epf_liable: '% of EPF-liable earnings',
+  tax_table: 'Tax table',
+  per_shift: 'Per shift',
+  per_schedule: 'Per schedule',
+  formula: 'Formula'
 };
 
 /** Deductions master — Phase 0 list + sheet shell. */
@@ -775,7 +772,7 @@ export type DeductionType =
   | 'no_pay'
   | 'other';
 
-export type DeductionCalcMethod = AllowanceCalcMethod;
+export type DeductionCalcMethod = PayrollCalcMethod;
 
 export type DeductionFilters = {
   search?: string;
@@ -830,7 +827,7 @@ export type DeductionSummary = {
   draftInactive: number;
 };
 
-export const DEDUCTION_STATUS_OPTIONS = ALLOWANCE_STATUS_OPTIONS;
+export const DEDUCTION_STATUS_OPTIONS = PAYROLL_CATALOG_STATUS_OPTIONS;
 
 export const DEDUCTION_TYPE_OPTIONS = [
   { id: 'epf', name: 'EPF' },
@@ -852,8 +849,8 @@ export const DEDUCTION_TYPE_LABELS: Record<DeductionType, string> = {
   other: 'Other'
 };
 
-export const DEDUCTION_CALC_METHOD_OPTIONS = ALLOWANCE_CALC_METHOD_OPTIONS;
-export const DEDUCTION_CALC_METHOD_LABELS = ALLOWANCE_CALC_METHOD_LABELS;
+export const DEDUCTION_CALC_METHOD_OPTIONS = PAYROLL_CALC_METHOD_OPTIONS;
+export const DEDUCTION_CALC_METHOD_LABELS = PAYROLL_CALC_METHOD_LABELS;
 
 export const EMPTY_DEDUCTION_FORM: DeductionFormValues = {
   code: '',

@@ -4,43 +4,42 @@ import { ColumnDef } from '@tanstack/react-table';
 import { Badge } from '@archmage/ui';
 import { formatDateTime } from '@/lib/utils/date';
 import {
-  ALLOWANCE_CALC_METHOD_LABELS,
   ALLOWANCE_TYPE_LABELS,
-  type AllowanceRecord,
-  type AllowanceStatus,
-  type AllowanceType
+  type AllowanceComponentTypeId,
+  type AllowanceRecord
 } from '@/types/payroll';
+import {
+  PAYSHEET_COMPONENT_INCLUDED_FOR_LABELS,
+  type PaysheetComponentIncludedForId
+} from '@/types/paysheet-component';
 import RecordActions from './record-actions';
 
-const statusStyles: Record<
-  AllowanceStatus,
-  { label: string; className: string }
-> = {
-  active: {
-    label: 'Active',
-    className: 'bg-emerald-100 text-emerald-800 hover:bg-emerald-100'
-  },
-  inactive: {
-    label: 'Inactive',
-    className: 'bg-slate-100 text-slate-700 hover:bg-slate-100'
-  },
-  draft: {
-    label: 'Draft',
-    className: 'bg-orange-100 text-orange-800 hover:bg-orange-100'
-  }
+const typeStyles: Record<AllowanceComponentTypeId, string> = {
+  fixed_allowance: 'bg-emerald-100 text-emerald-800 hover:bg-emerald-100',
+  percentage_allowance: 'bg-lime-100 text-lime-800 hover:bg-lime-100'
 };
 
-const typeStyles: Record<AllowanceType, string> = {
-  fixed_amount: 'bg-emerald-100 text-emerald-800 hover:bg-emerald-100',
-  percentage: 'bg-lime-100 text-lime-800 hover:bg-lime-100',
-  performance_based: 'bg-teal-100 text-teal-800 hover:bg-teal-100',
-  attendance_based: 'bg-sky-100 text-sky-800 hover:bg-sky-100',
-  other: 'bg-slate-100 text-slate-700 hover:bg-slate-100'
+const kindStyles: Record<string, string> = {
+  system: 'bg-sky-100 text-sky-800 hover:bg-sky-100',
+  custom: 'bg-violet-100 text-violet-800 hover:bg-violet-100'
 };
 
-function formatDateOnly(value: string | null): string {
-  if (!value) return '—';
-  return formatDateTime(value, 'dd MMM yyyy');
+function typeLabel(typeId: string): string {
+  return (
+    ALLOWANCE_TYPE_LABELS[typeId as AllowanceComponentTypeId] ?? typeId
+  );
+}
+
+function includedLabel(ids: string[]): string {
+  if (!ids.length) return '—';
+  return ids
+    .map(
+      (id) =>
+        PAYSHEET_COMPONENT_INCLUDED_FOR_LABELS[
+          id as PaysheetComponentIncludedForId
+        ] ?? id
+    )
+    .join(', ');
 }
 
 export const allowanceColumns: ColumnDef<AllowanceRecord>[] = [
@@ -60,7 +59,7 @@ export const allowanceColumns: ColumnDef<AllowanceRecord>[] = [
   },
   {
     accessorKey: 'code',
-    header: 'Allowance Code',
+    header: 'Code',
     cell: ({ row }) => (
       <span className="font-medium tabular-nums">
         {row.original.code || '—'}
@@ -77,91 +76,59 @@ export const allowanceColumns: ColumnDef<AllowanceRecord>[] = [
     )
   },
   {
-    accessorKey: 'allowanceType',
-    header: 'Type',
+    accessorKey: 'kind',
+    header: 'Kind',
     cell: ({ row }) => (
       <Badge
         variant="secondary"
-        className={typeStyles[row.original.allowanceType]}
+        className={kindStyles[row.original.kind] ?? kindStyles.custom}
       >
-        {ALLOWANCE_TYPE_LABELS[row.original.allowanceType]}
+        {row.original.kind === 'system' ? 'System' : 'Custom'}
       </Badge>
     )
   },
   {
-    accessorKey: 'calcMethod',
-    header: 'Calculation Method',
+    accessorKey: 'typeId',
+    header: 'Type',
     cell: ({ row }) => (
-      <span className="whitespace-nowrap">
-        {ALLOWANCE_CALC_METHOD_LABELS[row.original.calcMethod]}
-      </span>
+      <Badge
+        variant="secondary"
+        className={
+          typeStyles[row.original.typeId as AllowanceComponentTypeId] ??
+          'bg-slate-100 text-slate-700'
+        }
+      >
+        {typeLabel(row.original.typeId)}
+      </Badge>
     )
   },
   {
-    accessorKey: 'amountOrPercent',
-    header: 'Amount / %',
+    accessorKey: 'orderNo',
+    header: 'Order',
+    cell: ({ row }) => (
+      <span className="tabular-nums">{row.original.orderNo}</span>
+    )
+  },
+  {
+    accessorKey: 'percentage',
+    header: '%',
     cell: ({ row }) => (
       <span className="tabular-nums whitespace-nowrap">
-        {row.original.amountOrPercent || '—'}
+        {row.original.typeId === 'percentage_allowance' &&
+        row.original.percentage != null
+          ? `${row.original.percentage}%`
+          : '—'}
       </span>
     )
   },
   {
-    accessorKey: 'staffCategory',
-    header: 'Staff Category',
+    id: 'includedFor',
+    header: 'Included For',
     cell: ({ row }) => (
-      <span className="whitespace-nowrap">
-        {row.original.staffCategory || '—'}
+      <span className="max-w-[220px] truncate text-sm text-muted-foreground">
+        {includedLabel(row.original.includedForIds)}
       </span>
     )
-  },
-  {
-    accessorKey: 'department',
-    header: 'Department',
-    cell: ({ row }) => (
-      <span className="whitespace-nowrap">
-        {row.original.department || '—'}
-      </span>
-    )
-  },
-  {
-    accessorKey: 'designation',
-    header: 'Designation',
-    cell: ({ row }) => (
-      <span className="whitespace-nowrap">
-        {row.original.designation || '—'}
-      </span>
-    )
-  },
-  {
-    accessorKey: 'effectiveFrom',
-    header: 'Effective From',
-    cell: ({ row }) => (
-      <span className="whitespace-nowrap tabular-nums">
-        {formatDateOnly(row.original.effectiveFrom)}
-      </span>
-    )
-  },
-  {
-    accessorKey: 'effectiveTo',
-    header: 'Effective To',
-    cell: ({ row }) => (
-      <span className="whitespace-nowrap tabular-nums">
-        {formatDateOnly(row.original.effectiveTo)}
-      </span>
-    )
-  },
-  {
-    accessorKey: 'status',
-    header: 'Status',
-    cell: ({ row }) => {
-      const style = statusStyles[row.original.status];
-      return (
-        <Badge variant="secondary" className={style.className}>
-          {style.label}
-        </Badge>
-      );
-    }
   },
   {
     id: 'created',
@@ -200,17 +167,13 @@ export const allowanceColumns: ColumnDef<AllowanceRecord>[] = [
 ];
 
 export const ALLOWANCE_EXPORT_COLUMNS = [
-  'Allowance Code',
-  'Allowance Name',
+  'Code',
+  'Name',
+  'Kind',
   'Type',
-  'Calculation Method',
-  'Amount / %',
-  'Staff Category',
-  'Department',
-  'Designation',
-  'Effective From',
-  'Effective To',
-  'Status',
+  'Order',
+  'Percentage',
+  'Included For',
   'Created By',
   'Created At',
   'Updated By',
@@ -220,15 +183,11 @@ export const ALLOWANCE_EXPORT_COLUMNS = [
 export const ALLOWANCE_EXPORT_KEYS = [
   'code',
   'name',
-  'allowanceType',
-  'calcMethod',
-  'amountOrPercent',
-  'staffCategory',
-  'department',
-  'designation',
-  'effectiveFrom',
-  'effectiveTo',
-  'status',
+  'kind',
+  'typeId',
+  'orderNo',
+  'percentage',
+  'includedFor',
   'createdBy',
   'createdAt',
   'updatedBy',

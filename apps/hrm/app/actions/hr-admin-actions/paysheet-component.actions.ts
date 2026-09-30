@@ -167,6 +167,8 @@ export async function createPaysheetComponentAction(
     }
 
     revalidatePath('/paysheet-components');
+    revalidatePath('/allowances');
+    revalidatePath('/deductions');
     return {
       isError: false,
       data: mapPaysheetComponentToUiRecord(result.data),
@@ -218,6 +220,8 @@ export async function updatePaysheetComponentAction(
     }
 
     revalidatePath('/paysheet-components');
+    revalidatePath('/allowances');
+    revalidatePath('/deductions');
     return {
       isError: false,
       data: mapPaysheetComponentToUiRecord(result.data),
@@ -264,6 +268,8 @@ export async function deletePaysheetComponentAction(id: string) {
     }
 
     revalidatePath('/paysheet-components');
+    revalidatePath('/allowances');
+    revalidatePath('/deductions');
     return {
       isError: false,
       data: { deleted: true },

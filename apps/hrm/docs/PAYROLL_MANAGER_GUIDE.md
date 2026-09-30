@@ -19,7 +19,7 @@ Use with:
 | Module | Route | UI shell | Dynamic | Detail |
 |--------|-------|----------|---------|--------|
 | Salary Structures | `/salary-structures` | Done | **SS1–SS3 live (M1)** | §8 |
-| Allowances | `/allowances` | Done | Pending | §9 |
+| Allowances | `/allowances` | Done | **AL1–AL3 live (M2)** | §9 |
 | Deductions | `/deductions` | Done | Pending | §10 |
 | Assign Paysheet Component | `/assign-paysheet-component` | Done | Pending | §11 |
 | Bulk Assign Paysheet Component | `/bulk-assign-paysheet-component` | Done | Pending | §12 |
@@ -154,7 +154,7 @@ Follow **dependency order**, not sidebar order alone.
 | ID | Module | Goal | Status |
 |----|--------|------|--------|
 | **M1** | Salary Structures | CRUD templates + line items | **Done (SS1–SS3)** |
-| **M2** | Allowances | CRUD catalog | Pending |
+| **M2** | Allowances | CRUD over PaysheetComponent (`fixed_allowance` / `percentage_allowance`) | **Done (AL1–AL3)** |
 | **M3** | Deductions | CRUD catalog | Pending |
 
 ### Wave B — Assignments & money-in
@@ -197,8 +197,8 @@ Follow **dependency order**, not sidebar order alone.
 No Payroll-run models exist yet in `schema.prisma` (only PaysheetComponent / HrmVariable / SalaryCycle). Draft entities for design lock before M1:
 
 ```
-SalaryStructure 1──* SalaryStructureLine
-AllowanceMaster / DeductionMaster   (or thin UI over PaysheetComponent — see §20)
+SalaryStructure 1──* SalaryStructureLine (embedded)
+PaysheetComponent          ← Allowances / Deductions are filtered UIs over this (see §20 #1)
 PaysheetAssignment *── Staff, PaysheetComponent
 PerformanceAllowance *── Staff, period
 LoanAdvance *── Staff (+ schedule / balance)
@@ -275,24 +275,26 @@ app/(dashboard)/(payroll)/salary-structures/
 | Item | Decision |
 |------|----------|
 | Route | `/allowances` |
-| UI | Same shell pattern as Structures (stepper, summary, filters, register, form sheet) |
-| Codes | Auto-generated |
-| Types / calc | See `AllowanceType`, `AllowanceCalcMethod` in `types/payroll.ts` |
+| Storage | **No separate collection** — filtered CRUD over `PaysheetComponent` where `typeId` ∈ `fixed_allowance`, `percentage_allowance` |
+| UI | Stepper, summary (total / fixed / % / custom), filters (search, type, kind), register, form sheet |
+| Codes | Same as PC (`PSC-n` via `generateRecordCode`) |
+| Permission | `payroll` (view / add / edit / delete) |
+| Amounts | Fixed amounts live on Assign / Structure lines; % stored on PC when type is `percentage_allowance` |
 
 ### Dynamic phases
 
-| Phase | Deliverable |
-|-------|-------------|
+| Phase | Deliverable | Status |
+|-------|-------------|--------|
 | **AL0** | UI shell | **Done** |
-| **AL1** | Schema + service (resolve §20 overlap with Paysheet Components) |
-| **AL2** | Actions |
-| **AL3** | Wire UI |
+| **AL1** | Service wrapper (`allowance.service.ts`) over PaysheetComponent | **Done** |
+| **AL2** | Actions (`allowance.actions.ts`) | **Done** |
+| **AL3** | Wire UI (list, summary, sheet, delete, export) | **Done** |
 
 ---
 
 ## 10. Deductions
 
-Mirror Allowances (`DeductionType`, `DeductionCalcMethod`).
+Mirror Allowances as filtered PaysheetComponent CRUD (`fixed_deduction`, and later other deduction `typeId`s).
 
 | Phase | Deliverable |
 |-------|-------------|
@@ -485,7 +487,7 @@ Resolve these before or during Wave A / C:
 
 | # | Topic | Options / recommendation |
 |---|--------|---------------------------|
-| 1 | Allowances & Deductions vs Paysheet Components | Prefer **thin payroll catalogs** that reference `PaysheetComponent`, or UI-only over PC if product agrees — avoid two conflicting masters |
+| 1 | Allowances & Deductions vs Paysheet Components | **Locked (M2):** thin payroll UI over `PaysheetComponent` — no separate Allowance master. **M3** will mirror for deductions. |
 | 2 | Salary Structure scope | Template-only vs also staff assignment (assignment may stay on Assign Paysheet) |
 | 3 | Generation vs Processing storage | Prefer **one `PayrollRun`** with status machine (`draft` → `processed` → …) |
 | 4 | Bank file format | Confirm byte-level format against current bank upload before BT2 |

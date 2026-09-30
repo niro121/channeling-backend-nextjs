@@ -2,11 +2,12 @@
 
 import { Suspense } from 'react';
 import { useToast } from '@archmage/ui';
+import { exportAllowancesAction } from '@/app/actions/payroll-actions/allowance.actions';
 import {
   CommonDataTable,
   DataTableExportFeature
 } from '@/components/common/common-data-table';
-import type { AllowanceRecord, SalaryFilterOption } from '@/types/payroll';
+import type { AllowanceFilters, AllowanceRecord } from '@/types/payroll';
 import {
   ALLOWANCE_EXPORT_COLUMNS,
   ALLOWANCE_EXPORT_KEYS,
@@ -18,36 +19,35 @@ type SectionRegisterProps = {
   records?: AllowanceRecord[];
   totalRecords?: number;
   page?: string;
-  departmentOptions?: SalaryFilterOption[];
-  designationOptions?: SalaryFilterOption[];
+  initialFilters?: AllowanceFilters;
 };
 
 export default function SectionRegister({
   records = [],
   totalRecords = 0,
   page,
-  departmentOptions = [],
-  designationOptions = []
+  initialFilters = {}
 }: SectionRegisterProps) {
   const { toast } = useToast();
 
   const handleExport = async () => {
-    toast({
-      title: 'Export',
-      description: 'Will be wired in the dynamic phase.'
-    });
-    return {
-      success: false,
-      message: 'Export will be wired in the dynamic phase.'
-    };
+    const result = await exportAllowancesAction(initialFilters);
+    if (!result.success || !result.data?.length) {
+      toast({
+        title: 'Export',
+        description: result.message ?? 'No allowances to export.'
+      });
+      return {
+        success: false,
+        message: result.message ?? 'No allowances found'
+      };
+    }
+    return { success: true, data: result.data };
   };
 
   return (
     <div className="space-y-4">
-      <SectionFilters
-        departmentOptions={departmentOptions}
-        designationOptions={designationOptions}
-      />
+      <SectionFilters initial={initialFilters} />
 
       <Suspense
         fallback={
@@ -58,7 +58,7 @@ export default function SectionRegister({
       >
         <CommonDataTable
           heading="Allowance Register"
-          subHeading="Salary allowances with calculation method and applicability scope."
+          subHeading="Fixed and percentage allowance components from the paysheet catalog."
           columns={allowanceColumns}
           data={records}
           rowCount={totalRecords}
