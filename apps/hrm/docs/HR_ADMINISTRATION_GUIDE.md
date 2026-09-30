@@ -7,6 +7,7 @@ Use with:
 - `apps/hrm/docs/PERMISSION_FLOW.md` ? Auth User Group grants
 - `apps/hrm/docs/ROSTER_SHIFTS_MANAGER_GUIDE.md` ? downstream consumer of `HolidayCalendar`; **Shift Types** is the current shift template master (Manage Shifts deferred ? §34)
 - `apps/hrm/docs/LEAVE_MANAGER_GUIDE.md` ? future holiday-aware leave day counting
+- `apps/hrm/docs/PAYROLL_MANAGER_GUIDE.md` ? Payroll UI shells + dynamization (consumes Paysheet Components / HRM Variable / Salary Cycle)
 
 **Status:** HR Administration sidebar group is live.  
 **Shipped (CRUD):** Holiday Calendar · Designations · Area / Staff Grade · Staff Specialities · Manage Rosters · **Paysheet Components** · **HRM Variable (EPF/ETF/PAYE)** · **Salary Cycle**.  
@@ -74,7 +75,7 @@ Collapsible group **HR Administration** (add links only when a module ships ? do
 | Paysheet components               | **Paysheet Components** (section 36)        | System/Custom master; Assign Paysheet consumes later |
 | EPF / ETF rates + PAYE slabs      | **HRM Variable** (section 37)               | Singleton rates + progressive slabs; payroll consumer later |
 | Salary cycle                     | **Salary Cycle** (section 38)               | Per-institution windows; payroll / overnight consumer later |
-| Salary structures                | **Backlog** (§31)                               | Listed in permission map; not built                                      |
+| Salary structures                | **Payroll** (`PAYROLL_MANAGER_GUIDE.md`)    | Phase 0 UI; dynamize as M1                                      |
 | Shift templates for holidays     | Roster & Shifts (`ShiftType.holidayEligible`)   | Consumes holiday dates; does not define them                             |
 | PH duty allocations              | Roster & Shifts                                 | Joins `RosterAllocation` ? `HolidayCalendar`                             |
 | Leave day counting               | Leave                                           | Future: skip holidays when computing `days`                              |
@@ -1093,12 +1094,12 @@ Track candidates here until each module gets its own detailed section.
 | **Departments** | `/departments` | `departments` | Unblocks Manage Rosters / Staff / Roster filters |
 | **Units / Wards** | `/units` (TBD) | `units` (TBD) | Confirm nested under Department vs separate |
 | **Institutions** | `/institutions` (TBD) | `institutions` (TBD) | Staff Employment placeholder — options today in `types/institution.ts` |
-| **Salary Structures** | `/salary-structures` | `payroll` | Shipped under Payroll group (list shell); Add Structure sheet next |
-| **Allowances** | `/allowances` | `payroll` | Phase 0 list shell under Payroll |
-| **Deductions** | `/deductions` | `payroll` | Phase 0 list shell under Payroll |
-| **Payslips** | `/payslips` | `payroll` | Phase 0 list shell under Payroll |
-| **Bank Transfer File** | `/bank-transfer-file` | `payroll` | Phase 0 batch register shell; Mark Processed → payslips Paid later |
-| **Salary History** | `/salary-history` | `payroll` | Phase 0 history shell; timeline beside filters, full-width register |
+| **Salary Structures** | `/salary-structures` | `payroll` | Phase 0 UI done — see **PAYROLL_MANAGER_GUIDE.md** |
+| **Allowances** | `/allowances` | `payroll` | Phase 0 UI done — see **PAYROLL_MANAGER_GUIDE.md** |
+| **Deductions** | `/deductions` | `payroll` | Phase 0 UI done — see **PAYROLL_MANAGER_GUIDE.md** |
+| **Payslips** | `/payslips` | `payroll` | Phase 0 UI done — see **PAYROLL_MANAGER_GUIDE.md** |
+| **Bank Transfer File** | `/bank-transfer-file` | `payroll` | Phase 0 UI done — see **PAYROLL_MANAGER_GUIDE.md** |
+| **Salary History** | `/salary-history` | `payroll` | Phase 0 UI done — see **PAYROLL_MANAGER_GUIDE.md** |
 | **Manage Shifts** | `/manage-shifts` (TBD) | `manage-shifts` (TBD) | Deferred — see section 34 |
 
 > **Positions:** Prefer **Designations** as the job-title master unless product requires a separate Positions screen.  
@@ -1435,7 +1436,7 @@ apps/hrm/
 | **PC2 — Schema & service** | Prisma model, Zod CRUD, `PSC-n`, unique `(kind, orderNo)` | **Done** |
 | **PC3 — Actions** | Permissions, activity log, revalidate | **Done** |
 | **PC4 — Wire CRUD** | Live list + mutations; local preview removed | **Done** |
-| **PC5 — Payroll consumer (deferred)** | Assign Paysheet options from this master | Later |
+| **PC5 — Payroll consumer (deferred)** | Assign Paysheet options from this master | Later — see **PAYROLL_MANAGER_GUIDE.md** Wave 0 / M4 |
 
 ### Testing checklist (manual)
 
@@ -1513,7 +1514,7 @@ apps/hrm/
 | **HV2 — Schema & service** | Prisma singleton + slabs, Zod CRUD | **Done** |
 | **HV3 — Actions** | Permissions, activity log, revalidate | **Done** |
 | **HV4 — Wire CRUD** | Persist rates + slabs | **Done** |
-| **HV5 — Payroll consumer (deferred)** | Salary Processing / payslips read live rates & slabs | Later |
+| **HV5 — Payroll consumer (deferred)** | Salary Processing / payslips read live rates & slabs | Later — see **PAYROLL_MANAGER_GUIDE.md** Wave 0 / M9 |
 
 ### Testing checklist (manual)
 
@@ -1604,7 +1605,7 @@ apps/hrm/
 | **SC2 — Schema & service** | Prisma + Zod CRUD | **Done** |
 | **SC3 — Actions** | Permissions, activity log, revalidate | **Done** |
 | **SC4 — Wire CRUD** | Live list + mutations | **Done** |
-| **SC5 — Consumers (deferred)** | Salary Generation / Roster overnight options from this master | Later |
+| **SC5 — Consumers (deferred)** | Salary Generation / Roster overnight options from this master | Later — see **PAYROLL_MANAGER_GUIDE.md** Wave 0 / M8 |
 
 ### Testing checklist (manual)
 
