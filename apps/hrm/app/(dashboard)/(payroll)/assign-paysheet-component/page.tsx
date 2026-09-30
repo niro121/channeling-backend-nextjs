@@ -5,14 +5,10 @@ import { authOptions } from '@/lib/auth';
 import { logActivityNonBlocking } from '@/lib/activity-log';
 import { getPaysheetComponentOptionsAction } from '@/app/actions/hr-admin-actions/paysheet-component.actions';
 import {
+  getPayrollEmploymentFilterOptionsAction,
   getPayrollStaffOptionsAction,
   getPaysheetAssignmentListAction
 } from '@/app/actions/payroll-actions/paysheet-assignment.actions';
-import {
-  DEPARTMENT_OPTIONS,
-  ROSTER_OPTIONS,
-  STAFF_DESIGNATION_OPTIONS
-} from '@/types/staff-employment-options';
 import type {
   PaysheetAssignmentRecord,
   PaysheetStaffOption,
@@ -75,11 +71,13 @@ export default async function AssignPaysheetComponentPage({
       : undefined
   };
 
-  const [listRes, componentRes, staffRes] = await Promise.all([
-    getPaysheetAssignmentListAction(filters),
-    getPaysheetComponentOptionsAction(),
-    getPayrollStaffOptionsAction()
-  ]);
+  const [listRes, componentRes, staffRes, employmentOptsRes] =
+    await Promise.all([
+      getPaysheetAssignmentListAction(filters),
+      getPaysheetComponentOptionsAction(),
+      getPayrollStaffOptionsAction(),
+      getPayrollEmploymentFilterOptionsAction()
+    ]);
 
   const records: PaysheetAssignmentRecord[] = listRes.isError
     ? []
@@ -92,18 +90,15 @@ export default async function AssignPaysheetComponentPage({
     ? []
     : (staffRes.data ?? []);
 
-  const departmentOptions: SalaryFilterOption[] = DEPARTMENT_OPTIONS.map(
-    (item) => ({ id: item.id, name: item.name })
-  );
-  const designationOptions: SalaryFilterOption[] =
-    STAFF_DESIGNATION_OPTIONS.map((item) => ({
-      id: item.id,
-      name: item.name
-    }));
-  const rosterOptions: SalaryFilterOption[] = ROSTER_OPTIONS.map((item) => ({
-    id: item.id,
-    name: item.name
-  }));
+  const departmentOptions: SalaryFilterOption[] = employmentOptsRes.isError
+    ? []
+    : (employmentOptsRes.data?.departments ?? []);
+  const designationOptions: SalaryFilterOption[] = employmentOptsRes.isError
+    ? []
+    : (employmentOptsRes.data?.designations ?? []);
+  const rosterOptions: SalaryFilterOption[] = employmentOptsRes.isError
+    ? []
+    : (employmentOptsRes.data?.rosters ?? []);
 
   return (
     <AssignPaysheetWorkspace

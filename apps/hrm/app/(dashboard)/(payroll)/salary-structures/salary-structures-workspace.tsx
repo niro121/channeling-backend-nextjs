@@ -2,10 +2,6 @@
 
 import { CommonManagerHeader } from '@/components/common/common-manager-header';
 import {
-  DEPARTMENT_OPTIONS,
-  STAFF_DESIGNATION_OPTIONS
-} from '@/types/staff-employment-options';
-import {
   PAYROLL_WORKFLOW_STEPS,
   type SalaryFilterOption,
   type SalaryStructureRecord,
@@ -28,6 +24,8 @@ type SalaryStructuresWorkspaceProps = {
   summary: SalaryStructureSummary;
   structureOptions: SalaryFilterOption[];
   componentOptions: PaysheetComponentOption[];
+  departmentOptions?: SalaryFilterOption[];
+  designationOptions?: SalaryFilterOption[];
   page?: string;
 };
 
@@ -37,16 +35,11 @@ function SalaryStructuresWorkspaceInner({
   summary,
   structureOptions,
   componentOptions,
+  departmentOptions = [],
+  designationOptions = [],
   page
 }: SalaryStructuresWorkspaceProps) {
   const { formSheet, closeFormSheet } = useSalaryStructuresUi();
-
-  const departmentOptions: SalaryFilterOption[] = DEPARTMENT_OPTIONS.map(
-    (item) => ({ id: item.id, name: item.name })
-  );
-  const designationOptions: SalaryFilterOption[] = STAFF_DESIGNATION_OPTIONS.map(
-    (item) => ({ id: item.id, name: item.name })
-  );
 
   return (
     <div className="space-y-6">
@@ -74,6 +67,8 @@ function SalaryStructuresWorkspaceInner({
         mode={formSheet?.mode ?? 'create'}
         record={formSheet?.record ?? null}
         componentOptions={componentOptions}
+        departmentOptions={departmentOptions}
+        designationOptions={designationOptions}
         onOpenChange={(open) => {
           if (!open) closeFormSheet();
         }}

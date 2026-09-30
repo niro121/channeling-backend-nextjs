@@ -37,17 +37,14 @@ import {
 import { formatLkr } from '@/lib/utils/currency';
 import { formatDateTime } from '@/lib/utils/date';
 import { INSTITUTION_OPTIONS } from '@/types/institution';
-import {
-  DEPARTMENT_OPTIONS,
-  STAFF_CATEGORY_OPTIONS,
-  STAFF_DESIGNATION_OPTIONS
-} from '@/types/staff-employment-options';
+import { STAFF_CATEGORY_OPTIONS } from '@/types/staff-employment-options';
 import type { PaysheetComponentOption } from '@/types/paysheet-component';
 import {
   EMPTY_SALARY_STRUCTURE_FORM,
   SALARY_STRUCTURE_CALC_METHOD_LABELS,
   SALARY_STRUCTURE_READONLY_CALC_METHODS,
   SALARY_STRUCTURE_STATUS_OPTIONS,
+  type SalaryFilterOption,
   type SalaryStructureCalcMethod,
   type SalaryStructureFormValues,
   type SalaryStructureLine,
@@ -62,6 +59,8 @@ type SheetStructureFormProps = {
   mode: SalaryStructureFormSheetMode;
   record: SalaryStructureRecord | null;
   componentOptions?: PaysheetComponentOption[];
+  departmentOptions?: SalaryFilterOption[];
+  designationOptions?: SalaryFilterOption[];
   onOpenChange: (open: boolean) => void;
 };
 
@@ -105,17 +104,7 @@ const validationSchema = Yup.object({
     })
 });
 
-const departmentOptions = [
-  { id: '__all__', name: 'All' },
-  ...DEPARTMENT_OPTIONS.map((item) => ({ id: item.id, name: item.name }))
-];
-
 const staffCategoryOptions = STAFF_CATEGORY_OPTIONS.map((item) => ({
-  id: item.id,
-  name: item.name
-}));
-
-const designationOptions = STAFF_DESIGNATION_OPTIONS.map((item) => ({
   id: item.id,
   name: item.name
 }));
@@ -366,6 +355,8 @@ export default function SheetStructureForm({
   mode,
   record,
   componentOptions = [],
+  departmentOptions = [],
+  designationOptions = [],
   onOpenChange
 }: SheetStructureFormProps) {
   const { toast } = useToast();
@@ -377,6 +368,11 @@ export default function SheetStructureForm({
   );
 
   const initialValues = useMemo(() => recordToFormValues(record), [record]);
+
+  const departmentSelectOptions = useMemo(
+    () => [{ id: '__all__', name: 'All' }, ...departmentOptions],
+    [departmentOptions]
+  );
 
   const title =
     mode === 'edit' ? 'Edit Salary Structure' : 'Add Salary Structure';
@@ -555,7 +551,7 @@ export default function SheetStructureForm({
                         void formik.setFieldValue('departmentId', value)
                       }
                       required={false}
-                      options={departmentOptions}
+                      options={departmentSelectOptions}
                       styleClasses={fieldStyleClasses}
                     />
                     <CustomDatePickerField

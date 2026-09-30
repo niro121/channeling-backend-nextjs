@@ -896,6 +896,38 @@ model PaysheetAssignment {
   @@index([rosterId])
 }
 
+model PerformanceAllowance {
+  id            String   @id @default(auto()) @map("_id") @db.ObjectId
+  code          String   @unique // PFA-n
+  staffId       String   @db.ObjectId
+  mode          String // percentage | fixed
+  value         Float    @default(0)
+  effectiveFrom DateTime
+  effectiveTo   DateTime
+
+  // Denormalized display / filter fields (snapshot from Staff)
+  staffCode     String @default("")
+  staffName     String @default("")
+  department    String @default("")
+  departmentId  String @default("")
+  designation   String @default("")
+  designationId String @default("")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy String?  @db.ObjectId
+  updatedBy String?  @db.ObjectId
+
+  @@index([staffId])
+  @@index([mode])
+  @@index([staffId, mode])
+  @@index([effectiveFrom])
+  @@index([effectiveTo])
+  @@index([departmentId])
+  @@index([designationId])
+  @@index([staffCode])
+}
+
 /* ---------------------------------
 ORGANIZATION
 --------------------------------- */

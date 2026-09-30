@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { Form, Formik } from 'formik';
+import { useRouter } from 'next/navigation';
+import { Form, Formik, type FormikHelpers } from 'formik';
 import * as Yup from 'yup';
 import { Save, UsersRound, X } from 'lucide-react';
 import {
@@ -16,6 +17,11 @@ import {
   Label,
   useToast
 } from '@archmage/ui';
+import {
+  createPerformanceAllowanceAction,
+  updatePerformanceAllowanceAction
+} from '@/app/actions/payroll-actions/performance-allowance.actions';
+import { usePermissions } from '@/components/hooks/use-permissions';
 import { formatDateTime } from '@/lib/utils/date';
 import {
   EMPTY_PERFORMANCE_ALLOWANCE_FORM,
@@ -32,8 +38,6 @@ const fieldStyleClasses = {
     'text-xs font-semibold uppercase tracking-wide text-muted-foreground',
   inputClassName: 'w-full'
 };
-
-const LATER = 'Will be wired in the dynamic phase.';
 
 type SectionFormProps = {
   mode: PerformanceAllowanceMode;
@@ -54,15 +58,37 @@ function recordToFormValues(
   };
 }
 
+function applyFieldErrors(
+  helpers: FormikHelpers<PerformanceAllowanceFormValues>,
+  errors: Record<string, unknown>
+) {
+  const fieldErrors: Record<string, string> = {};
+  for (const [key, value] of Object.entries(errors)) {
+    if (key === 'message') continue;
+    if (Array.isArray(value) && typeof value[0] === 'string') {
+      fieldErrors[key] = value[0];
+    } else if (typeof value === 'string') {
+      fieldErrors[key] = value;
+    }
+  }
+  if (Object.keys(fieldErrors).length) {
+    helpers.setErrors(fieldErrors);
+  }
+}
+
 export default function SectionForm({
   mode,
   staffOptions = []
 }: SectionFormProps) {
   const { toast } = useToast();
+  const router = useRouter();
+  const { has } = usePermissions();
   const { editingRecord, clearEdit } = usePerformanceAllowanceUi();
   const [formKey, setFormKey] = useState(0);
+  const [saving, setSaving] = useState(false);
 
   const isEditing = editingRecord != null && editingRecord.mode === mode;
+  const canSave = isEditing ? has('payroll', 'edit') : has('payroll', 'add');
 
   const initialValues = useMemo(
     () => recordToFormValues(isEditing ? editingRecord : null),
@@ -81,6 +107,10 @@ export default function SectionForm({
         if (!v?.trim()) return false;
         const n = Number(v);
         return !Number.isNaN(n) && n >= 0;
+      })
+      .test('pct-max', 'Percentage cannot exceed 100', (v) => {
+        if (mode !== 'percentage') return true;
+        return Number(v) <= 100;
       }),
     effectiveFrom: Yup.date()
       .nullable()
@@ -110,11 +140,63 @@ export default function SectionForm({
           initialValues={initialValues}
           enableReinitialize
           validationSchema={validationSchema}
-          onSubmit={() => {
-            toast({
-              title: isEditing ? 'Save changes' : 'Save allowance',
-              description: LATER
-            });
+          onSubmit={async (values, helpers) => {
+            if (!canSave) {
+              toast({
+                variant: 'destructive',
+                title: 'Permission denied',
+                description: 'You do not have permission to save.'
+              });
+              return;
+            }
+            setSaving(true);
+            try {
+              const payload = {
+                staffId: values.staffId,
+                mode,
+                value: Number(values.value),
+                effectiveFrom: values.effectiveFrom as Date,
+                effectiveTo: values.effectiveTo as Date
+              };
+
+              const result =
+                isEditing && editingRecord
+                  ? await updatePerformanceAllowanceAction(
+                      editingRecord.id,
+                      payload
+                    )
+                  : await createPerformanceAllowanceAction(payload);
+
+              if (result.isError || !result.data) {
+                applyFieldErrors(helpers, result.errors);
+                toast({
+                  variant: 'destructive',
+                  title: 'Save failed',
+                  description:
+                    (typeof result.errors?.message === 'string' &&
+                      result.errors.message) ||
+                    'Unable to save performance allowance.'
+                });
+                return;
+              }
+
+              toast({
+                title: isEditing ? 'Allowance updated' : 'Allowance created',
+                description: `${result.data.staffName} · ${
+                  mode === 'percentage'
+                    ? `${result.data.value}%`
+                    : result.data.value
+                }`
+              });
+              clearEdit();
+              helpers.resetForm({
+                values: EMPTY_PERFORMANCE_ALLOWANCE_FORM
+              });
+              setFormKey((key) => key + 1);
+              router.refresh();
+            } finally {
+              setSaving(false);
+            }
           }}
         >
           {(formik) => (
@@ -185,10 +267,17 @@ export default function SectionForm({
               </div>
 
               <div className="flex flex-wrap gap-2">
-                <Button type="submit" size="sm" className="h-9 gap-1.5">
-                  <Save className="h-4 w-4" />
-                  Save
-                </Button>
+                {canSave ? (
+                  <Button
+                    type="submit"
+                    size="sm"
+                    className="h-9 gap-1.5"
+                    disabled={saving}
+                  >
+                    <Save className="h-4 w-4" />
+                    {saving ? 'Saving…' : 'Save'}
+                  </Button>
+                ) : null}
                 {mode === 'percentage' ? (
                   <Button
                     type="button"
@@ -198,7 +287,8 @@ export default function SectionForm({
                     onClick={() =>
                       toast({
                         title: 'Bulk Update',
-                        description: LATER
+                        description:
+                          'Bulk percentage update will ship in a later phase.'
                       })
                     }
                   >

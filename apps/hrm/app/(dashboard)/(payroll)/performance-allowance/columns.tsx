@@ -129,7 +129,7 @@ export const PERFORMANCE_ALLOWANCE_EXPORT_COLUMNS = [
   'Created At',
   'Updated By',
   'Updated At'
-];
+] as const;
 
 export const PERFORMANCE_ALLOWANCE_EXPORT_KEYS = [
   'staffCode',
@@ -143,4 +143,4 @@ export const PERFORMANCE_ALLOWANCE_EXPORT_KEYS = [
   'createdAt',
   'updatedBy',
   'updatedAt'
-];
+] as const;

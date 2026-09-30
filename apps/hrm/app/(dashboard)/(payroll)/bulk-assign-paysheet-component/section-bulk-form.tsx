@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Form, Formik } from 'formik';
 import * as Yup from 'yup';
 import { FilePlus2, Trash2 } from 'lucide-react';
@@ -16,8 +17,14 @@ import {
   useToast
 } from '@archmage/ui';
 import {
+  bulkCreatePaysheetAssignmentsAction,
+  checkBulkPaysheetAssignmentOverlapAction
+} from '@/app/actions/payroll-actions/paysheet-assignment.actions';
+import {
   EMPTY_BULK_PAYSHEET_ASSIGN_FORM,
-  type BulkPaysheetAssignFormValues
+  type BulkPaysheetAssignFormValues,
+  type BulkPaysheetAssignMode,
+  type PaysheetAssignmentRecord
 } from '@/types/payroll';
 import type { PaysheetComponentOption } from '@/types/paysheet-component';
 import { useBulkAssignUi } from './bulk-assign-ui-context';
@@ -30,20 +37,29 @@ const fieldStyleClasses = {
   inputClassName: 'w-full'
 };
 
-const LATER = 'Will be wired in the dynamic phase.';
-
 const validationSchema = Yup.object({
   componentId: Yup.string().required('Paysheet component is required'),
   effectiveFrom: Yup.date()
     .nullable()
     .required('Effective from date is required'),
-  effectiveTo: Yup.date().nullable().required('Effective to date is required'),
-  value: Yup.string().required('Value is required')
+  effectiveTo: Yup.date()
+    .nullable()
+    .required('Effective to date is required')
+    .min(
+      Yup.ref('effectiveFrom'),
+      'Effective to must be on or after effective from'
+    ),
+  value: Yup.string()
+    .required('Value is required')
+    .test('num', 'Enter a valid amount', (value) => {
+      if (value == null || value === '') return false;
+      return Number.isFinite(Number(value));
+    })
 });
 
 type SectionBulkFormProps = {
   componentOptions?: PaysheetComponentOption[];
-  onAssigned?: (count: number) => void;
+  onAssigned?: (count: number, created?: PaysheetAssignmentRecord[]) => void;
   onRemoved?: (count: number) => void;
 };
 
@@ -53,6 +69,7 @@ export default function SectionBulkForm({
   onRemoved
 }: SectionBulkFormProps) {
   const { toast } = useToast();
+  const router = useRouter();
   const {
     selectedStaffIds,
     requestClearSelection,
@@ -62,7 +79,18 @@ export default function SectionBulkForm({
   } = useBulkAssignUi();
   const [pendingValues, setPendingValues] =
     useState<BulkPaysheetAssignFormValues | null>(null);
+  const [overlapCount, setOverlapCount] = useState(0);
   const [formKey, setFormKey] = useState(0);
+  const [saving, setSaving] = useState(false);
+
+  const selectOptions = useMemo(
+    () =>
+      componentOptions.map((item) => ({
+        id: item.id,
+        name: item.name
+      })),
+    [componentOptions]
+  );
 
   const handleRemoveSelected = () => {
     const count = selectedStaffIds.length;
@@ -81,20 +109,53 @@ export default function SectionBulkForm({
     });
   };
 
-  const runAssign = (
+  const runAssign = async (
     values: BulkPaysheetAssignFormValues,
-    mode: 'skip' | 'overwrite'
+    mode: BulkPaysheetAssignMode
   ) => {
-    const count = selectedStaffIds.length;
-    onAssigned?.(count);
-    requestClearSelection();
-    closeOverlapDialog();
-    setPendingValues(null);
-    toast({
-      variant: 'success',
-      title: mode === 'overwrite' ? 'Overwrite selected' : 'Assign selected',
-      description: `${LATER} (${count} staff, ${mode}).`
-    });
+    setSaving(true);
+    try {
+      const result = await bulkCreatePaysheetAssignmentsAction({
+        staffIds: selectedStaffIds,
+        componentId: values.componentId,
+        effectiveFrom: values.effectiveFrom as Date,
+        effectiveTo: values.effectiveTo,
+        value: Number(values.value),
+        mode
+      });
+
+      if (result.isError || !result.data) {
+        toast({
+          variant: 'destructive',
+          title: 'Bulk assign failed',
+          description:
+            (result.errors.message as string) ??
+            'Could not complete bulk assignment.'
+        });
+        return;
+      }
+
+      const createdCount = result.data.created.length;
+      onAssigned?.(createdCount, result.data.created);
+      requestClearSelection();
+      closeOverlapDialog();
+      setPendingValues(null);
+      setOverlapCount(0);
+
+      const parts = [`${createdCount} assigned`];
+      if (result.data.skipped) parts.push(`${result.data.skipped} skipped`);
+      if (result.data.overwritten) {
+        parts.push(`${result.data.overwritten} overwritten`);
+      }
+
+      toast({
+        title: 'Bulk assignment complete',
+        description: parts.join(' · ')
+      });
+      router.refresh();
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -110,7 +171,7 @@ export default function SectionBulkForm({
             key={formKey}
             initialValues={EMPTY_BULK_PAYSHEET_ASSIGN_FORM}
             validationSchema={validationSchema}
-            onSubmit={(values) => {
+            onSubmit={async (values) => {
               if (selectedStaffIds.length === 0) {
                 toast({
                   title: 'Select staff first',
@@ -119,8 +180,40 @@ export default function SectionBulkForm({
                 });
                 return;
               }
-              setPendingValues(values);
-              openOverlapDialog();
+
+              setSaving(true);
+              try {
+                const overlapRes =
+                  await checkBulkPaysheetAssignmentOverlapAction({
+                    staffIds: selectedStaffIds,
+                    componentId: values.componentId,
+                    effectiveFrom: values.effectiveFrom as Date,
+                    effectiveTo: values.effectiveTo
+                  });
+
+                if (overlapRes.isError) {
+                  toast({
+                    variant: 'destructive',
+                    title: 'Overlap check failed',
+                    description:
+                      (overlapRes.errors.message as string) ??
+                      'Could not check overlaps.'
+                  });
+                  return;
+                }
+
+                const overlaps = overlapRes.data ?? [];
+                if (overlaps.length > 0) {
+                  setPendingValues(values);
+                  setOverlapCount(overlaps.length);
+                  openOverlapDialog();
+                  return;
+                }
+              } finally {
+                setSaving(false);
+              }
+
+              await runAssign(values, 'create');
             }}
           >
             {(formik) => (
@@ -134,7 +227,7 @@ export default function SectionBulkForm({
                       void formik.setFieldValue('componentId', value)
                     }
                     required
-                    options={componentOptions}
+                    options={selectOptions}
                     styleClasses={fieldStyleClasses}
                   />
                   <CustomDatePickerField
@@ -177,15 +270,21 @@ export default function SectionBulkForm({
                 </div>
 
                 <div className="flex flex-wrap gap-2">
-                  <Button type="submit" size="sm" className="h-9 gap-1.5">
+                  <Button
+                    type="submit"
+                    size="sm"
+                    className="h-9 gap-1.5"
+                    disabled={saving}
+                  >
                     <FilePlus2 className="h-4 w-4" />
-                    Assign Selected
+                    {saving ? 'Working…' : 'Assign Selected'}
                   </Button>
                   <Button
                     type="button"
                     size="sm"
                     variant="outline"
                     className="h-9 gap-1.5 text-red-500 hover:bg-red-500 hover:text-white"
+                    disabled={saving}
                     onClick={handleRemoveSelected}
                   >
                     <Trash2 className="h-4 w-4" />
@@ -196,6 +295,7 @@ export default function SectionBulkForm({
                     size="sm"
                     variant="ghost"
                     className="h-9"
+                    disabled={saving}
                     onClick={() => {
                       formik.resetForm({
                         values: EMPTY_BULK_PAYSHEET_ASSIGN_FORM
@@ -215,15 +315,19 @@ export default function SectionBulkForm({
       <DialogOverlap
         open={overlapDialogOpen}
         selectedCount={selectedStaffIds.length}
+        overlapCount={overlapCount}
+        loading={saving}
         onCancel={() => {
+          if (saving) return;
           closeOverlapDialog();
           setPendingValues(null);
+          setOverlapCount(0);
         }}
         onSkipDuplicates={() => {
-          if (pendingValues) runAssign(pendingValues, 'skip');
+          if (pendingValues) void runAssign(pendingValues, 'skip');
         }}
         onOverwrite={() => {
-          if (pendingValues) runAssign(pendingValues, 'overwrite');
+          if (pendingValues) void runAssign(pendingValues, 'overwrite');
         }}
       />
     </>

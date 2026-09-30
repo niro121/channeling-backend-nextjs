@@ -1,7 +1,6 @@
 'use client';
 
 import { Suspense } from 'react';
-import { useToast } from '@archmage/ui';
 import {
   CommonDataTable,
   DataTableExportFeature
@@ -24,16 +23,27 @@ export default function SectionRecentRegister({
   totalRecords = 0,
   page
 }: SectionRecentRegisterProps) {
-  const { toast } = useToast();
-
   const handleExport = async () => {
-    toast({
-      title: 'Export',
-      description: 'Will be wired in the dynamic phase.'
-    });
+    if (!records.length) {
+      return { success: false, message: 'No recent assignments found' };
+    }
     return {
-      success: false,
-      message: 'Export will be wired in the dynamic phase.'
+      success: true,
+      data: records.map((row) => ({
+        institution: row.institution,
+        department: row.department,
+        staffName: row.staffName,
+        staffCode: row.staffCode,
+        componentName: row.componentName,
+        value: String(row.value),
+        effectiveFrom: row.effectiveFrom ?? '—',
+        effectiveTo: row.effectiveTo ?? '—',
+        status: row.status,
+        createdBy: row.createdBy ?? '—',
+        createdAt: row.createdAt ?? '—',
+        updatedBy: row.updatedBy ?? '—',
+        updatedAt: row.updatedAt ?? '—'
+      }))
     };
   };
 
@@ -47,7 +57,7 @@ export default function SectionRecentRegister({
     >
       <CommonDataTable
         heading="Recently Assigned"
-        subHeading="Assignments created in this bulk session (empty until dynamic phase)."
+        subHeading="Latest paysheet assignments (includes this session)."
         columns={recentAssignmentColumns}
         data={records}
         rowCount={totalRecords}

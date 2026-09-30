@@ -154,7 +154,7 @@ export const RECENT_ASSIGNMENT_EXPORT_COLUMNS = [
   'Created At',
   'Updated By',
   'Updated At'
-];
+] as const;
 
 export const RECENT_ASSIGNMENT_EXPORT_KEYS = [
   'institution',
@@ -170,4 +170,4 @@ export const RECENT_ASSIGNMENT_EXPORT_KEYS = [
   'createdAt',
   'updatedBy',
   'updatedAt'
-];
+] as const;

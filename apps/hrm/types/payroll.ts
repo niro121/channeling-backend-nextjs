@@ -216,11 +216,35 @@ export type PaysheetAssignmentHistoryEntry = {
 export type PaysheetAssignmentOverlap = {
   id: string;
   code: string;
+  staffId: string;
   staffName: string;
   staffCode: string;
   componentName: string;
   effectiveFrom: string | null;
   effectiveTo: string | null;
+};
+
+export type BulkPaysheetAssignMode = 'create' | 'skip' | 'overwrite';
+
+export type BulkPaysheetAssignPayload = {
+  staffIds: string[];
+  componentId: string;
+  effectiveFrom: Date | string;
+  effectiveTo?: Date | string | null;
+  value: number;
+  mode: BulkPaysheetAssignMode;
+};
+
+export type BulkPaysheetAssignResult = {
+  created: PaysheetAssignmentRecord[];
+  skipped: number;
+  overwritten: number;
+  overlaps: PaysheetAssignmentOverlap[];
+};
+
+export type GetBulkAssignableStaffParams = BulkPaysheetStaffFilters & {
+  page?: number;
+  limit?: number;
 };
 
 export const EMPTY_PAYSHEET_ASSIGNMENT_FORM: PaysheetAssignmentFormValues = {
@@ -282,7 +306,9 @@ export const EMPTY_BULK_PAYSHEET_ASSIGN_FORM: BulkPaysheetAssignFormValues = {
   value: '0'
 };
 
-/** Performance Allowance — Phase 0 UI shell. */
+/** Performance Allowance — separate collection (M6). */
+export const PERFORMANCE_ALLOWANCE_CODE_PREFIX = 'PFA';
+
 export type PerformanceAllowanceMode = 'percentage' | 'fixed';
 
 export type PerformanceAllowanceFilters = {
@@ -292,8 +318,15 @@ export type PerformanceAllowanceFilters = {
   effectiveDate?: string;
 };
 
+export type GetPerformanceAllowanceParams = PerformanceAllowanceFilters & {
+  mode?: PerformanceAllowanceMode;
+  page?: number;
+  limit?: number;
+};
+
 export type PerformanceAllowanceRecord = {
   id: string;
+  code: string;
   staffId: string;
   staffCode: string;
   staffName: string;
@@ -308,6 +341,14 @@ export type PerformanceAllowanceRecord = {
   createdAt: string | null;
   updatedBy: string | null;
   updatedAt: string | null;
+};
+
+export type PerformanceAllowancePayload = {
+  staffId: string;
+  mode: PerformanceAllowanceMode;
+  value: number;
+  effectiveFrom: Date | string;
+  effectiveTo: Date | string;
 };
 
 export type PerformanceAllowanceFormValues = {

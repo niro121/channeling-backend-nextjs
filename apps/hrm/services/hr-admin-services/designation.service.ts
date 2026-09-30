@@ -374,3 +374,24 @@ export async function deleteDesignation(id: string): Promise<{
     };
   }
 }
+
+/** Lightweight designation options for cross-module filters. */
+export async function getDesignationOptions(): Promise<{
+  success: boolean;
+  data?: Array<{ id: string; name: string }>;
+  error?: { message?: string };
+}> {
+  try {
+    const rows = await prisma.designation.findMany({
+      select: { id: true, name: true },
+      orderBy: { name: 'asc' }
+    });
+    return { success: true, data: rows };
+  } catch (error: any) {
+    console.error('getDesignationOptions error:', error);
+    return {
+      success: false,
+      error: { message: error.message || 'Failed to load designation options' }
+    };
+  }
+}

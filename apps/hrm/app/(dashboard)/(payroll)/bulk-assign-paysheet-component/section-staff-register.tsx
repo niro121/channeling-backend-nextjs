@@ -28,13 +28,25 @@ export default function SectionStaffRegister({
   const { toast } = useToast();
 
   const handleExport = async () => {
-    toast({
-      title: 'Export',
-      description: 'Will be wired in the dynamic phase.'
-    });
+    if (!records.length) {
+      toast({
+        title: 'Export',
+        description: 'No staff matches to export. Select an institution and search first.'
+      });
+      return { success: false, message: 'No staff matches found' };
+    }
     return {
-      success: false,
-      message: 'Export will be wired in the dynamic phase.'
+      success: true,
+      data: records.map((row) => ({
+        staffCode: row.staffCode,
+        staffName: row.staffName,
+        department: row.department,
+        institution: row.institution,
+        designation: row.designation,
+        staffCategory: row.staffCategory,
+        grade: row.grade,
+        roster: row.roster
+      }))
     };
   };
 
@@ -48,7 +60,7 @@ export default function SectionStaffRegister({
     >
       <CommonDataTable
         heading="Staff Matching Filters"
-        subHeading="Search with Institution required, then select staff on the current page."
+        subHeading="Institution is required. Search, then select staff on the current page."
         columns={bulkStaffColumns}
         data={records}
         rowCount={totalRecords}

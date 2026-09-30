@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { DollarSign, Percent } from 'lucide-react';
 import {
   Tabs,
@@ -9,10 +9,13 @@ import {
   TabsTrigger
 } from '@archmage/ui';
 import { CommonManagerHeader } from '@/components/common/common-manager-header';
-import {
-  EMPTY_PERFORMANCE_ALLOWANCE_SUMMARY,
-  type PerformanceAllowanceMode,
-  type PerformanceAllowanceRecord
+import type {
+  PerformanceAllowanceFilters,
+  PerformanceAllowanceMode,
+  PerformanceAllowanceRecord,
+  PerformanceAllowanceSummary,
+  PaysheetStaffOption,
+  SalaryFilterOption
 } from '@/types/payroll';
 import {
   PerformanceAllowanceUiProvider,
@@ -23,35 +26,44 @@ import SectionForm from './section-form';
 import SectionRegister from './section-register';
 import SectionSummary from './section-summary';
 
-function PerformanceAllowanceWorkspaceInner() {
+type PerformanceAllowanceWorkspaceProps = {
+  mode: PerformanceAllowanceMode;
+  initialRecords: PerformanceAllowanceRecord[];
+  totalRecords: number;
+  summary: PerformanceAllowanceSummary;
+  page?: string;
+  staffOptions?: PaysheetStaffOption[];
+  departmentOptions?: SalaryFilterOption[];
+  designationOptions?: SalaryFilterOption[];
+  initialFilters?: PerformanceAllowanceFilters;
+};
+
+function PerformanceAllowanceWorkspaceInner({
+  mode,
+  initialRecords,
+  totalRecords,
+  summary,
+  page,
+  staffOptions = [],
+  departmentOptions = [],
+  designationOptions = [],
+  initialFilters
+}: PerformanceAllowanceWorkspaceProps) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const { viewRecord, editingRecord, clearEdit, closeView } =
     usePerformanceAllowanceUi();
-  const [mode, setMode] = useState<PerformanceAllowanceMode>('percentage');
-  const [records] = useState<PerformanceAllowanceRecord[]>([]);
-
-  useEffect(() => {
-    if (editingRecord && editingRecord.mode !== mode) {
-      setMode(editingRecord.mode);
-    }
-  }, [editingRecord, mode]);
-
-  const percentageRecords = useMemo(
-    () => records.filter((row) => row.mode === 'percentage'),
-    [records]
-  );
-  const fixedRecords = useMemo(
-    () => records.filter((row) => row.mode === 'fixed'),
-    [records]
-  );
-
-  const summary = EMPTY_PERFORMANCE_ALLOWANCE_SUMMARY;
 
   const handleModeChange = (value: string) => {
     const next = value as PerformanceAllowanceMode;
     if (editingRecord && editingRecord.mode !== next) {
       clearEdit();
     }
-    setMode(next);
+    const params = new URLSearchParams(searchParams.toString());
+    params.set('mode', next);
+    params.delete('page');
+    router.push(`${pathname}?${params.toString()}`);
   };
 
   return (
@@ -90,21 +102,39 @@ function PerformanceAllowanceWorkspaceInner() {
         </TabsList>
 
         <TabsContent value="percentage" className="mt-0 space-y-6">
-          <SectionForm mode="percentage" staffOptions={[]} />
-          <SectionRegister
-            mode="percentage"
-            records={percentageRecords}
-            totalRecords={percentageRecords.length}
-          />
+          {mode === 'percentage' ? (
+            <>
+              <SectionForm mode="percentage" staffOptions={staffOptions} />
+              <SectionRegister
+                mode="percentage"
+                records={initialRecords}
+                totalRecords={totalRecords}
+                page={page}
+                staffOptions={staffOptions}
+                departmentOptions={departmentOptions}
+                designationOptions={designationOptions}
+                initialFilters={initialFilters}
+              />
+            </>
+          ) : null}
         </TabsContent>
 
         <TabsContent value="fixed" className="mt-0 space-y-6">
-          <SectionForm mode="fixed" staffOptions={[]} />
-          <SectionRegister
-            mode="fixed"
-            records={fixedRecords}
-            totalRecords={fixedRecords.length}
-          />
+          {mode === 'fixed' ? (
+            <>
+              <SectionForm mode="fixed" staffOptions={staffOptions} />
+              <SectionRegister
+                mode="fixed"
+                records={initialRecords}
+                totalRecords={totalRecords}
+                page={page}
+                staffOptions={staffOptions}
+                departmentOptions={departmentOptions}
+                designationOptions={designationOptions}
+                initialFilters={initialFilters}
+              />
+            </>
+          ) : null}
         </TabsContent>
       </Tabs>
 
@@ -119,10 +149,12 @@ function PerformanceAllowanceWorkspaceInner() {
   );
 }
 
-export default function PerformanceAllowanceWorkspace() {
+export default function PerformanceAllowanceWorkspace(
+  props: PerformanceAllowanceWorkspaceProps
+) {
   return (
     <PerformanceAllowanceUiProvider>
-      <PerformanceAllowanceWorkspaceInner />
+      <PerformanceAllowanceWorkspaceInner {...props} />
     </PerformanceAllowanceUiProvider>
   );
 }

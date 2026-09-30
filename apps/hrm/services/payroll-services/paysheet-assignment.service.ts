@@ -19,6 +19,10 @@ import {
 } from '@/types/staff-employment-options';
 import {
   PAYSHEET_ASSIGNMENT_CODE_PREFIX,
+  type BulkPaysheetAssignPayload,
+  type BulkPaysheetAssignResult,
+  type BulkPaysheetStaffRow,
+  type GetBulkAssignableStaffParams,
   type GetPaysheetAssignmentParams,
   type PaysheetAssignmentHistoryEntry,
   type PaysheetAssignmentOverlap,
@@ -215,7 +219,9 @@ function buildWhere(
   if (params.designationId) {
     and.push({ designationId: params.designationId });
   }
-  if (params.rosterId) and.push({ rosterId: params.rosterId });
+  if (params.rosterId) {
+    and.push({ rosterId: params.rosterId.trim().toUpperCase() });
+  }
 
   // Filter assignments that intersect [fromDate, toDate]
   if (params.fromDate) {
@@ -264,6 +270,7 @@ async function findOverlaps(params: {
     select: {
       id: true,
       code: true,
+      staffId: true,
       staffName: true,
       staffCode: true,
       componentName: true,
@@ -284,6 +291,7 @@ async function findOverlaps(params: {
     .map((row) => ({
       id: row.id,
       code: row.code,
+      staffId: row.staffId,
       staffName: row.staffName,
       staffCode: row.staffCode,
       componentName: row.componentName,
@@ -311,7 +319,36 @@ async function resolveStaffSnapshot(staffId: string) {
   const staffCategoryId = employment?.staffCategory ?? '';
   const designationId = employment?.staffDesignation ?? '';
   const gradeId = employment?.staffGrade ?? '';
-  const rosterId = employment?.roster ?? '';
+  const rosterKey = employment?.roster ?? '';
+
+  const [departmentRow, designationRow, rosterRow] = await Promise.all([
+    departmentId
+      ? prisma.department.findUnique({
+          where: { id: departmentId },
+          select: { name: true }
+        })
+      : Promise.resolve(null),
+    designationId
+      ? prisma.designation.findUnique({
+          where: { id: designationId },
+          select: { name: true }
+        })
+      : Promise.resolve(null),
+    rosterKey
+      ? prisma.manageRoster.findFirst({
+          where: {
+            OR: [
+              { code: rosterKey },
+              // Transitional: older payroll paths briefly used ObjectId
+              { id: rosterKey }
+            ]
+          },
+          select: { name: true, code: true }
+        })
+      : Promise.resolve(null)
+  ]);
+
+  const rosterCode = rosterRow?.code?.trim() || rosterKey;
 
   return {
     staffCode: staff.code,
@@ -320,14 +357,19 @@ async function resolveStaffSnapshot(staffId: string) {
     institutionId,
     institution: institutionLabel(institutionId),
     departmentId,
-    department: labelFromOptions(DEPARTMENT_OPTIONS, departmentId),
+    department:
+      departmentRow?.name ||
+      labelFromOptions(DEPARTMENT_OPTIONS, departmentId),
     staffCategoryId,
     staffCategory: labelFromOptions(STAFF_CATEGORY_OPTIONS, staffCategoryId),
     designationId,
-    designation: labelFromOptions(STAFF_DESIGNATION_OPTIONS, designationId),
+    designation:
+      designationRow?.name ||
+      labelFromOptions(STAFF_DESIGNATION_OPTIONS, designationId),
     grade: labelFromOptions(STAFF_GRADE_OPTIONS, gradeId),
-    rosterId,
-    roster: labelFromOptions(ROSTER_OPTIONS, rosterId)
+    rosterId: rosterCode,
+    roster:
+      rosterRow?.name || labelFromOptions(ROSTER_OPTIONS, rosterKey)
   };
 }
 
@@ -746,7 +788,8 @@ export async function getPaysheetAssignmentExportRows(
 const HISTORY_TITLES: Record<string, string> = {
   'assign-paysheet-component.created': 'Assignment created',
   'assign-paysheet-component.updated': 'Assignment updated',
-  'assign-paysheet-component.deleted': 'Assignment deleted'
+  'assign-paysheet-component.deleted': 'Assignment deleted',
+  'bulk-assign-paysheet-component.created': 'Bulk assignment created'
 };
 
 export async function getPaysheetAssignmentHistory(id: string): Promise<{
@@ -806,6 +849,405 @@ export async function getPaysheetAssignmentHistory(id: string): Promise<{
     return {
       success: false,
       error: { message: error.message || 'Failed to load history' }
+    };
+  }
+}
+
+export async function getBulkAssignableStaffList(
+  params: GetBulkAssignableStaffParams = {}
+): Promise<{
+  success: boolean;
+  data?: BulkPaysheetStaffRow[];
+  total?: number;
+  error?: { message?: string };
+}> {
+  try {
+    const institution = params.institution?.trim();
+    if (!institution || institution === '__all__') {
+      return {
+        success: true,
+        data: [],
+        total: 0
+      };
+    }
+
+    const and: Prisma.StaffWhereInput[] = [{ status: 1 }];
+
+    // Nested employment filters (composite types on Staff)
+    const employmentEquals: Record<string, string> = {
+      institution
+    };
+    if (params.departmentId) employmentEquals.department = params.departmentId;
+    if (params.staffCategory) {
+      employmentEquals.staffCategory = params.staffCategory;
+    }
+    if (params.designationId) {
+      employmentEquals.staffDesignation = params.designationId;
+    }
+    if (params.rosterId) {
+      employmentEquals.roster = params.rosterId.trim().toUpperCase();
+    }
+
+    and.push({
+      employmentDetails: {
+        is: {
+          employment: {
+            is: employmentEquals
+          }
+        }
+      }
+    });
+
+    if (params.staffId) {
+      and.push({ id: params.staffId });
+    }
+
+    const where: Prisma.StaffWhereInput = { AND: and };
+
+    const pageNumber = Math.max(
+      1,
+      Number(params.page) ||
+        Number.parseInt(process.env.DEFAULT_PAGE ?? '0', 10) ||
+        1
+    );
+    const defaultPerPage = process.env.DEFAULT_PER_PAGE ?? '10';
+    const maxPageSize =
+      Number.parseInt(process.env.DEFAULT_PAGE_SIZE ?? '100', 10) || 100;
+    const pageSize = Math.min(
+      maxPageSize,
+      Math.max(
+        1,
+        Number(params.limit) ||
+          Number.parseInt(defaultPerPage, 10) ||
+          10
+      )
+    );
+    const skip = (pageNumber - 1) * pageSize;
+
+    const [total, rows] = await Promise.all([
+      prisma.staff.count({ where }),
+      prisma.staff.findMany({
+        where,
+        select: {
+          id: true,
+          code: true,
+          name: true,
+          employmentDetails: true
+        },
+        orderBy: [{ name: 'asc' }, { code: 'asc' }],
+        skip,
+        take: pageSize
+      })
+    ]);
+
+    const departmentIds = [
+      ...new Set(
+        rows
+          .map((staff) => staff.employmentDetails?.employment?.department)
+          .filter((id): id is string => Boolean(id))
+      )
+    ];
+    const designationIds = [
+      ...new Set(
+        rows
+          .map((staff) => staff.employmentDetails?.employment?.staffDesignation)
+          .filter((id): id is string => Boolean(id))
+      )
+    ];
+    const rosterKeys = [
+      ...new Set(
+        rows
+          .map((staff) => staff.employmentDetails?.employment?.roster)
+          .filter((id): id is string => Boolean(id))
+      )
+    ];
+
+    const [departmentRows, designationRows, rosterRows] = await Promise.all([
+      departmentIds.length
+        ? prisma.department.findMany({
+            where: { id: { in: departmentIds } },
+            select: { id: true, name: true }
+          })
+        : Promise.resolve([]),
+      designationIds.length
+        ? prisma.designation.findMany({
+            where: { id: { in: designationIds } },
+            select: { id: true, name: true }
+          })
+        : Promise.resolve([]),
+      rosterKeys.length
+        ? prisma.manageRoster.findMany({
+            where: {
+              OR: [{ code: { in: rosterKeys } }, { id: { in: rosterKeys } }]
+            },
+            select: { id: true, name: true, code: true }
+          })
+        : Promise.resolve([])
+    ]);
+
+    const departmentNameById = new Map(
+      departmentRows.map((row) => [row.id, row.name])
+    );
+    const designationNameById = new Map(
+      designationRows.map((row) => [row.id, row.name])
+    );
+    const rosterNameByKey = new Map<string, string>();
+    for (const row of rosterRows) {
+      rosterNameByKey.set(row.code, row.name);
+      rosterNameByKey.set(row.id, row.name);
+    }
+
+    const data: BulkPaysheetStaffRow[] = rows.map((staff) => {
+      const employment = staff.employmentDetails?.employment;
+      const institutionId = employment?.institution ?? institution;
+      const departmentId = employment?.department ?? '';
+      const staffCategoryId = employment?.staffCategory ?? '';
+      const designationId = employment?.staffDesignation ?? '';
+      const gradeId = employment?.staffGrade ?? '';
+      const rosterKey = employment?.roster ?? '';
+      return {
+        id: staff.id,
+        staffCode: staff.code,
+        staffName: staff.name,
+        department:
+          departmentNameById.get(departmentId) ||
+          labelFromOptions(DEPARTMENT_OPTIONS, departmentId) ||
+          '—',
+        institution: institutionLabel(institutionId) || '—',
+        designation:
+          designationNameById.get(designationId) ||
+          labelFromOptions(STAFF_DESIGNATION_OPTIONS, designationId) ||
+          '—',
+        staffCategory:
+          labelFromOptions(STAFF_CATEGORY_OPTIONS, staffCategoryId) || '—',
+        grade: labelFromOptions(STAFF_GRADE_OPTIONS, gradeId) || '—',
+        roster:
+          rosterNameByKey.get(rosterKey) ||
+          labelFromOptions(ROSTER_OPTIONS, rosterKey) ||
+          '—'
+      };
+    });
+
+    return { success: true, data, total };
+  } catch (error: any) {
+    console.error('getBulkAssignableStaffList error:', error);
+    return {
+      success: false,
+      error: { message: error.message || 'Failed to load staff for bulk assign' }
+    };
+  }
+}
+
+export async function findBulkPaysheetAssignmentOverlaps(params: {
+  staffIds: string[];
+  componentId: string;
+  effectiveFrom: Date;
+  effectiveTo?: Date | null;
+}): Promise<{
+  success: boolean;
+  data?: PaysheetAssignmentOverlap[];
+  error?: { message?: string };
+}> {
+  try {
+    if (!params.staffIds.length) {
+      return { success: true, data: [] };
+    }
+
+    const candidates = await prisma.paysheetAssignment.findMany({
+      where: {
+        staffId: { in: params.staffIds },
+        componentId: params.componentId
+      },
+      select: {
+        id: true,
+        code: true,
+        staffId: true,
+        staffName: true,
+        staffCode: true,
+        componentName: true,
+        effectiveFrom: true,
+        effectiveTo: true
+      }
+    });
+
+    const overlaps = candidates
+      .filter((row) =>
+        rangesOverlap(
+          params.effectiveFrom,
+          params.effectiveTo,
+          row.effectiveFrom,
+          row.effectiveTo
+        )
+      )
+      .map((row) => ({
+        id: row.id,
+        code: row.code,
+        staffId: row.staffId,
+        staffName: row.staffName,
+        staffCode: row.staffCode,
+        componentName: row.componentName,
+        effectiveFrom: toIsoString(row.effectiveFrom),
+        effectiveTo: toIsoString(row.effectiveTo)
+      }));
+
+    return { success: true, data: overlaps };
+  } catch (error: any) {
+    console.error('findBulkPaysheetAssignmentOverlaps error:', error);
+    return {
+      success: false,
+      error: { message: error.message || 'Failed to check bulk overlaps' }
+    };
+  }
+}
+
+export async function bulkCreatePaysheetAssignments(
+  payload: BulkPaysheetAssignPayload,
+  user?: AuditUser
+): Promise<{
+  success: boolean;
+  data?: BulkPaysheetAssignResult;
+  error?: { message?: string; issues?: Record<string, string[]> };
+}> {
+  try {
+    const staffIds = Array.from(new Set(payload.staffIds.filter(Boolean)));
+    if (!staffIds.length) {
+      return {
+        success: false,
+        error: { message: 'Select at least one staff member' }
+      };
+    }
+
+    const parsed = payloadSchema.safeParse({
+      staffId: staffIds[0],
+      componentId: payload.componentId,
+      effectiveFrom: payload.effectiveFrom,
+      effectiveTo: payload.effectiveTo,
+      value: payload.value
+    });
+    if (!parsed.success) {
+      return {
+        success: false,
+        error: {
+          message: 'Validation failed',
+          issues: parsed.error.flatten().fieldErrors as Record<string, string[]>
+        }
+      };
+    }
+
+    if (
+      parsed.data.effectiveTo &&
+      parsed.data.effectiveTo < parsed.data.effectiveFrom
+    ) {
+      return fieldError(
+        'effectiveTo',
+        'Effective to must be on or after effective from'
+      );
+    }
+
+    const overlapRes = await findBulkPaysheetAssignmentOverlaps({
+      staffIds,
+      componentId: parsed.data.componentId,
+      effectiveFrom: parsed.data.effectiveFrom,
+      effectiveTo: parsed.data.effectiveTo ?? null
+    });
+    if (!overlapRes.success) {
+      return {
+        success: false,
+        error: { message: overlapRes.error?.message ?? 'Overlap check failed' }
+      };
+    }
+
+    const overlaps = overlapRes.data ?? [];
+    const overlappingStaffIds = new Set(overlaps.map((item) => item.staffId));
+
+    let targetStaffIds = staffIds;
+    let skipped = 0;
+    let overwritten = 0;
+
+    if (payload.mode === 'skip') {
+      targetStaffIds = staffIds.filter((id) => !overlappingStaffIds.has(id));
+      skipped = staffIds.length - targetStaffIds.length;
+    } else if (payload.mode === 'overwrite' && overlaps.length) {
+      await prisma.paysheetAssignment.deleteMany({
+        where: { id: { in: overlaps.map((item) => item.id) } }
+      });
+      overwritten = overlaps.length;
+      targetStaffIds = staffIds;
+    } else if (payload.mode === 'create' && overlaps.length) {
+      return {
+        success: false,
+        data: {
+          created: [],
+          skipped: 0,
+          overwritten: 0,
+          overlaps
+        },
+        error: {
+          message: `${overlaps.length} overlapping assignment(s) found. Choose Skip or Overwrite.`
+        }
+      };
+    }
+
+    const created: PaysheetAssignmentRecord[] = [];
+    for (const staffId of targetStaffIds) {
+      const result = await createPaysheetAssignment(
+        {
+          staffId,
+          componentId: parsed.data.componentId,
+          effectiveFrom: parsed.data.effectiveFrom,
+          effectiveTo: parsed.data.effectiveTo ?? null,
+          value: parsed.data.value
+        },
+        user,
+        { allowOverlap: true }
+      );
+      if (result.success && result.data) {
+        created.push(result.data);
+      }
+    }
+
+    return {
+      success: true,
+      data: {
+        created,
+        skipped,
+        overwritten,
+        overlaps
+      }
+    };
+  } catch (error: any) {
+    console.error('bulkCreatePaysheetAssignments error:', error);
+    return {
+      success: false,
+      error: { message: error.message || 'Failed to bulk assign' }
+    };
+  }
+}
+
+export async function getRecentPaysheetAssignments(
+  limit = 20
+): Promise<{
+  success: boolean;
+  data?: PaysheetAssignmentRecord[];
+  error?: { message?: string };
+}> {
+  try {
+    const take = Math.min(
+      50,
+      Math.max(1, limit || 20)
+    );
+    const rows = await prisma.paysheetAssignment.findMany({
+      select: assignmentSelect,
+      orderBy: [{ createdAt: 'desc' }],
+      take
+    });
+    const withUsers = await resolveAuthUsers(rows);
+    return { success: true, data: withUsers.map(mapRecord) };
+  } catch (error: any) {
+    console.error('getRecentPaysheetAssignments error:', error);
+    return {
+      success: false,
+      error: { message: error.message || 'Failed to load recent assignments' }
     };
   }
 }

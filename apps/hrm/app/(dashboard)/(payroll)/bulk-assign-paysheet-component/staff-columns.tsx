@@ -100,7 +100,7 @@ export const BULK_STAFF_EXPORT_COLUMNS = [
   'Staff Category',
   'Grade',
   'Roster'
-];
+] as const;
 
 export const BULK_STAFF_EXPORT_KEYS = [
   'staffCode',
@@ -111,4 +111,4 @@ export const BULK_STAFF_EXPORT_KEYS = [
   'staffCategory',
   'grade',
   'roster'
-];
+] as const;

@@ -60,6 +60,7 @@ function SectionFiltersInner({
         initialValues={initialValues}
         buttonLabel="Search"
         showClearButton
+        preserveQueryKeys={['mode']}
         searchButton={{
           variant: 'default',
           className: 'h-10 shrink-0 gap-2'

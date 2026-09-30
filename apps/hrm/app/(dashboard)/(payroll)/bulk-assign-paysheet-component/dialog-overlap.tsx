@@ -15,6 +15,8 @@ import {
 type DialogOverlapProps = {
   open: boolean;
   selectedCount: number;
+  overlapCount?: number;
+  loading?: boolean;
   onCancel: () => void;
   onSkipDuplicates: () => void;
   onOverwrite: () => void;
@@ -23,6 +25,8 @@ type DialogOverlapProps = {
 export default function DialogOverlap({
   open,
   selectedCount,
+  overlapCount = 0,
+  loading = false,
   onCancel,
   onSkipDuplicates,
   onOverwrite
@@ -31,25 +35,34 @@ export default function DialogOverlap({
     <AlertDialog
       open={open}
       onOpenChange={(next) => {
-        if (!next) onCancel();
+        if (!next && !loading) onCancel();
       }}
     >
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>Overlapping assignments?</AlertDialogTitle>
           <AlertDialogDescription>
-            You are about to assign a component to {selectedCount} staff. If any
-            already have this component in the same date range, choose how to
-            continue. Default is to skip duplicates.
+            {overlapCount > 0
+              ? `${overlapCount} existing assignment(s) overlap for the ${selectedCount} selected staff.`
+              : `You are about to assign a component to ${selectedCount} staff.`}{' '}
+            Choose Skip to leave overlaps unchanged, or Overwrite to replace
+            them.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter className="flex-col gap-2 sm:flex-row sm:justify-end">
-          <AlertDialogCancel onClick={onCancel}>Cancel</AlertDialogCancel>
-          <Button type="button" variant="outline" onClick={onOverwrite}>
-            Overwrite
+          <AlertDialogCancel disabled={loading} onClick={onCancel}>
+            Cancel
+          </AlertDialogCancel>
+          <Button
+            type="button"
+            variant="outline"
+            disabled={loading}
+            onClick={onOverwrite}
+          >
+            {loading ? 'Working…' : 'Overwrite'}
           </Button>
-          <AlertDialogAction onClick={onSkipDuplicates}>
-            Skip duplicates
+          <AlertDialogAction disabled={loading} onClick={onSkipDuplicates}>
+            {loading ? 'Working…' : 'Skip duplicates'}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

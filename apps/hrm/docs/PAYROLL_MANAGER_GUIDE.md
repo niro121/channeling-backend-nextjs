@@ -22,8 +22,8 @@ Use with:
 | Allowances | `/allowances` | Done | **AL1–AL3 live (M2)** | §9 |
 | Deductions | `/deductions` | Done | **DE1–DE3 live (M3)** | §10 |
 | Assign Paysheet Component | `/assign-paysheet-component` | Done | **AP1–AP3 live (M4)** | §11 |
-| Bulk Assign Paysheet Component | `/bulk-assign-paysheet-component` | Done | Pending | §12 |
-| Performance Allowance | `/performance-allowance` | Done | Pending | §13 |
+| Bulk Assign Paysheet Component | `/bulk-assign-paysheet-component` | Done | **BA1–BA2 live (M5)** | §12 |
+| Performance Allowance | `/performance-allowance` | Done | **PA1–PA3 live (M6)** | §13 |
 | Loans & Advances | `/loans-advances` | Done | Pending | §14 |
 | Salary Generation | `/salary-generation` | Done | Pending | §15 |
 | Salary Processing | `/salary-processing` | Done | Pending | §16 |
@@ -162,8 +162,8 @@ Follow **dependency order**, not sidebar order alone.
 | ID | Module | Goal | Status |
 |----|--------|------|--------|
 | **M4** | Assign Paysheet Component | Per-staff assignments + history | **Done (AP1–AP3)** |
-| **M5** | Bulk Assign | Multi-staff + overlap detection | Pending |
-| **M6** | Performance Allowance | Period performance amounts | Pending |
+| **M5** | Bulk Assign | Multi-staff + overlap detection | **Done (BA1–BA2)** |
+| **M6** | Performance Allowance | Period performance amounts | **Done (PA1–PA3)** |
 | **M7** | Loans & Advances | Loans/advances + balances | Pending |
 
 ### Wave C — Engine
@@ -199,8 +199,8 @@ No Payroll-run models exist yet in `schema.prisma` (only PaysheetComponent / Hrm
 ```
 SalaryStructure 1──* SalaryStructureLine (embedded)
 PaysheetComponent          ← Allowances / Deductions are filtered UIs over this (see §20 #1)
+PerformanceAllowance *── Staff, period   ← **M6 live (separate collection)**
 PaysheetAssignment *── Staff, PaysheetComponent   ← **M4 live**
-PerformanceAllowance *── Staff, period
 LoanAdvance *── Staff (+ schedule / balance)
 PayrollRun 1──* PayrollRunLine   (Generation → Processing statuses)
 Payslip                          (view of approved line / snapshot)
@@ -342,15 +342,16 @@ app/(dashboard)/(payroll)/salary-structures/
 |------|----------|
 | Route | `/bulk-assign-paysheet-component` |
 | UI | Staff multi-select + assign form + recent register + overlap dialog |
-| Service | Reuse Assign service; batch create in transaction |
+| Service | Reuses `PaysheetAssignment` create; `bulkCreatePaysheetAssignments` with modes `create` / `skip` / `overwrite` |
+| Staff list | Institution **required**; filters on employment composite fields |
 
 ### Dynamic phases
 
-| Phase | Deliverable |
-|-------|-------------|
+| Phase | Deliverable | Status |
+|-------|-------------|--------|
 | **BA0** | UI shell | **Done** |
-| **BA1** | Bulk create + real overlap query |
-| **BA2** | Wire UI |
+| **BA1** | Bulk create + real overlap query | **Done** |
+| **BA2** | Wire UI | **Done** |
 
 ---
 
@@ -359,15 +360,21 @@ app/(dashboard)/(payroll)/salary-structures/
 | Item | Decision |
 |------|----------|
 | Route | `/performance-allowance` |
+| Storage | **Separate** `PerformanceAllowance` collection (`PFA-n`) — not typed `PaysheetAssignment` |
 | Modes | `percentage` \| `fixed` (`PerformanceAllowanceMode`) |
-| UI | Summary + filters + register + form / view |
+| Overlap | Same staff + mode cannot overlap on effective dates |
+| UI | Summary + filters + register + form / view; tabs sync `?mode=` |
+| Bulk Update | Deferred (button stub only) |
 
 ### Dynamic phases
 
-| Phase | Deliverable |
-|-------|-------------|
+| Phase | Deliverable | Status |
+|-------|-------------|--------|
 | **PA0** | UI shell | **Done** |
-| **PA1–PA3** | Schema → actions → wire; Generation reads lines |
+| **PA1** | Prisma model + Zod service CRUD + summary/export | **Done** |
+| **PA2** | Actions + ActivityLog | **Done** |
+| **PA3** | Wire live UI | **Done** |
+| Later | Generation reads active lines; bulk percentage update | Pending |
 
 ---
 
@@ -506,7 +513,7 @@ Resolve these before or during Wave A / C:
 | 3 | Generation vs Processing storage | Prefer **one `PayrollRun`** with status machine (`draft` → `processed` → …) |
 | 4 | Bank file format | Confirm byte-level format against current bank upload before BT2 |
 | 5 | Departments master | Soft string / placeholder ids until Departments ship |
-| 6 | Performance vs Assign | Separate collection (recommended) vs typed `PaysheetAssignment` |
+| 6 | Performance vs Assign | **Locked (M6):** separate `PerformanceAllowance` collection (`PFA-n`), not typed `PaysheetAssignment`. |
 
 ---
 

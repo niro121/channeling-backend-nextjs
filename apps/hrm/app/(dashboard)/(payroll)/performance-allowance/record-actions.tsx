@@ -1,8 +1,10 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Eye, Pencil, Trash2 } from 'lucide-react';
 import { Button, CustomAlertDialog, useToast } from '@archmage/ui';
+import { deletePerformanceAllowanceAction } from '@/app/actions/payroll-actions/performance-allowance.actions';
 import { usePermissions } from '@/components/hooks/use-permissions';
 import type { PerformanceAllowanceRecord } from '@/types/payroll';
 import { usePerformanceAllowanceUi } from './performance-allowance-ui-context';
@@ -11,13 +13,13 @@ type RecordActionsProps = {
   record: PerformanceAllowanceRecord;
 };
 
-const LATER = 'Will be wired in the dynamic phase.';
-
 export default function RecordActions({ record }: RecordActionsProps) {
   const { toast } = useToast();
+  const router = useRouter();
   const { has } = usePermissions();
   const { openEdit, openView } = usePerformanceAllowanceUi();
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   const canEdit = has('payroll', 'edit');
   const canDelete = has('payroll', 'delete');
@@ -68,13 +70,29 @@ export default function RecordActions({ record }: RecordActionsProps) {
         description={`Remove ${
           record.mode === 'percentage' ? 'percentage' : 'fixed value'
         } allowance for ${record.staffName} (${record.staffCode})?`}
-        loading={false}
-        handleContinue={() => {
-          setDeleteOpen(false);
-          toast({
-            title: 'Delete allowance',
-            description: LATER
-          });
+        loading={loading}
+        handleContinue={async () => {
+          setLoading(true);
+          try {
+            const result = await deletePerformanceAllowanceAction(record.id);
+            setDeleteOpen(false);
+            if (result.isError) {
+              toast({
+                title: 'Delete failed',
+                description:
+                  (result.errors.message as string) ??
+                  'Could not delete allowance.'
+              });
+              return;
+            }
+            toast({
+              title: 'Allowance deleted',
+              description: `${record.staffName} · ${record.staffCode}`
+            });
+            router.refresh();
+          } finally {
+            setLoading(false);
+          }
         }}
         className={{
           actionButton:

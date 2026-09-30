@@ -4,6 +4,7 @@ import { checkRouteAccess } from '@/lib/server-permissions';
 import { authOptions } from '@/lib/auth';
 import { logActivityNonBlocking } from '@/lib/activity-log';
 import { getPaysheetComponentOptionsAction } from '@/app/actions/hr-admin-actions/paysheet-component.actions';
+import { getPayrollEmploymentFilterOptionsAction } from '@/app/actions/payroll-actions/paysheet-assignment.actions';
 import {
   getSalaryStructureListAction,
   getSalaryStructureOptionsAction,
@@ -66,12 +67,14 @@ export default async function SalaryStructuresPage({
       : undefined
   };
 
-  const [listRes, summaryRes, optionsRes, componentRes] = await Promise.all([
-    getSalaryStructureListAction(filters),
-    getSalaryStructureSummaryAction(filters),
-    getSalaryStructureOptionsAction(),
-    getPaysheetComponentOptionsAction()
-  ]);
+  const [listRes, summaryRes, optionsRes, componentRes, employmentOptsRes] =
+    await Promise.all([
+      getSalaryStructureListAction(filters),
+      getSalaryStructureSummaryAction(filters),
+      getSalaryStructureOptionsAction(),
+      getPaysheetComponentOptionsAction(),
+      getPayrollEmploymentFilterOptionsAction()
+    ]);
 
   const records: SalaryStructureRecord[] = listRes.isError
     ? []
@@ -86,6 +89,12 @@ export default async function SalaryStructuresPage({
   const componentOptions: PaysheetComponentOption[] = componentRes.isError
     ? []
     : (componentRes.data ?? []);
+  const departmentOptions: SalaryFilterOption[] = employmentOptsRes.isError
+    ? []
+    : (employmentOptsRes.data?.departments ?? []);
+  const designationOptions: SalaryFilterOption[] = employmentOptsRes.isError
+    ? []
+    : (employmentOptsRes.data?.designations ?? []);
 
   return (
     <SalaryStructuresWorkspace
@@ -94,6 +103,8 @@ export default async function SalaryStructuresPage({
       summary={summary}
       structureOptions={structureOptions}
       componentOptions={componentOptions}
+      departmentOptions={departmentOptions}
+      designationOptions={designationOptions}
       page={params?.page}
     />
   );

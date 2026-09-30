@@ -8,23 +8,35 @@ import {
   requirePermission
 } from '@/lib/server-permissions';
 import { getStaffOptions } from '@/services/staff-services/staff.service';
+import { getDepartmentOptions } from '@/services/organization-services/department.service';
+import { getDesignationOptions } from '@/services/hr-admin-services/designation.service';
+import { getManageRosterOptions } from '@/services/hr-admin-services/manage-roster.service';
 import {
   checkPaysheetAssignmentOverlap,
   createPaysheetAssignment,
   deletePaysheetAssignment,
+  findBulkPaysheetAssignmentOverlaps,
+  bulkCreatePaysheetAssignments,
+  getBulkAssignableStaffList,
   getPaysheetAssignmentById,
   getPaysheetAssignmentExportRows,
   getPaysheetAssignmentHistory,
   getPaysheetAssignmentList,
+  getRecentPaysheetAssignments,
   updatePaysheetAssignment
 } from '@/services/payroll-services/paysheet-assignment.service';
 import type {
+  BulkPaysheetAssignPayload,
+  BulkPaysheetAssignResult,
+  BulkPaysheetStaffRow,
+  GetBulkAssignableStaffParams,
   GetPaysheetAssignmentParams,
   PaysheetAssignmentHistoryEntry,
   PaysheetAssignmentOverlap,
   PaysheetAssignmentPayload,
   PaysheetAssignmentRecord,
-  PaysheetStaffOption
+  PaysheetStaffOption,
+  SalaryFilterOption
 } from '@/types/payroll';
 
 function stripAuditFields<T extends Record<string, unknown>>(data: T): T {
@@ -139,6 +151,50 @@ export async function getPayrollStaffOptionsAction(): Promise<{
       errors: {
         message:
           error.message ?? 'Error getting staff options. Please try again later'
+      }
+    };
+  }
+}
+
+/**
+ * Department / Designation / Roster filter options from their masters.
+ * Readable with payroll view so payroll screens do not require org/HR-admin grants.
+ */
+export async function getPayrollEmploymentFilterOptionsAction(): Promise<{
+  isError: boolean;
+  data: {
+    departments: SalaryFilterOption[];
+    designations: SalaryFilterOption[];
+    rosters: SalaryFilterOption[];
+  } | null;
+  errors: Record<string, unknown>;
+}> {
+  try {
+    await requirePermission('payroll', 'view');
+    const [deptRes, desigRes, rosterRes] = await Promise.all([
+      getDepartmentOptions(),
+      getDesignationOptions(),
+      getManageRosterOptions()
+    ]);
+
+    return {
+      isError: false,
+      data: {
+        departments: deptRes.success ? (deptRes.data ?? []) : [],
+        designations: desigRes.success ? (desigRes.data ?? []) : [],
+        rosters: rosterRes.success ? (rosterRes.data ?? []) : []
+      },
+      errors: {}
+    };
+  } catch (error: any) {
+    console.error('getPayrollEmploymentFilterOptionsAction error:', error);
+    return {
+      isError: true,
+      data: null,
+      errors: {
+        message:
+          error.message ??
+          'Error getting employment filter options. Please try again later'
       }
     };
   }
@@ -398,6 +454,153 @@ export async function exportPaysheetAssignmentsAction(
     return {
       success: false,
       message: error.message ?? 'Failed to export assignments'
+    };
+  }
+}
+
+export async function getBulkAssignableStaffListAction(
+  params: GetBulkAssignableStaffParams = {}
+): Promise<{
+  isError: boolean;
+  data: BulkPaysheetStaffRow[] | null;
+  total: number;
+  errors: Record<string, unknown>;
+}> {
+  try {
+    await requirePermission('payroll', 'view');
+    const result = await getBulkAssignableStaffList(params);
+    if (!result.success) {
+      throw new Error(result.error?.message ?? 'Failed to load staff');
+    }
+    return {
+      isError: false,
+      data: result.data ?? [],
+      total: result.total ?? 0,
+      errors: {}
+    };
+  } catch (error: any) {
+    console.error('getBulkAssignableStaffListAction error:', error);
+    return {
+      isError: true,
+      data: null,
+      total: 0,
+      errors: {
+        message: error.message ?? 'Error getting staff. Please try again later'
+      }
+    };
+  }
+}
+
+export async function getRecentPaysheetAssignmentsAction(
+  limit = 20
+): Promise<{
+  isError: boolean;
+  data: PaysheetAssignmentRecord[] | null;
+  errors: Record<string, unknown>;
+}> {
+  try {
+    await requirePermission('payroll', 'view');
+    const result = await getRecentPaysheetAssignments(limit);
+    if (!result.success) {
+      throw new Error(result.error?.message ?? 'Failed to load recent');
+    }
+    return { isError: false, data: result.data ?? [], errors: {} };
+  } catch (error: any) {
+    console.error('getRecentPaysheetAssignmentsAction error:', error);
+    return {
+      isError: true,
+      data: null,
+      errors: {
+        message: error.message ?? 'Error loading recent assignments'
+      }
+    };
+  }
+}
+
+export async function checkBulkPaysheetAssignmentOverlapAction(params: {
+  staffIds: string[];
+  componentId: string;
+  effectiveFrom: Date | string;
+  effectiveTo?: Date | string | null;
+}): Promise<{
+  isError: boolean;
+  data: PaysheetAssignmentOverlap[] | null;
+  errors: Record<string, unknown>;
+}> {
+  try {
+    await requirePermission('payroll', 'view');
+    const result = await findBulkPaysheetAssignmentOverlaps({
+      staffIds: params.staffIds,
+      componentId: params.componentId,
+      effectiveFrom: new Date(params.effectiveFrom),
+      effectiveTo: params.effectiveTo ? new Date(params.effectiveTo) : null
+    });
+    if (!result.success) {
+      throw new Error(result.error?.message ?? 'Failed to check overlaps');
+    }
+    return { isError: false, data: result.data ?? [], errors: {} };
+  } catch (error: any) {
+    return {
+      isError: true,
+      data: null,
+      errors: {
+        message: error.message ?? 'Error checking overlaps'
+      }
+    };
+  }
+}
+
+export async function bulkCreatePaysheetAssignmentsAction(
+  data: BulkPaysheetAssignPayload
+): Promise<{
+  isError: boolean;
+  data: BulkPaysheetAssignResult | null;
+  errors: Record<string, unknown>;
+}> {
+  try {
+    await requirePermission('payroll', 'add');
+    const auditUser = await getAuditUser();
+    const result = await bulkCreatePaysheetAssignments(data, auditUser);
+    if (!result.success || !result.data) {
+      return {
+        isError: true,
+        data: result.data ?? null,
+        errors: {
+          message: result.error?.message ?? 'Failed to bulk assign',
+          ...(result.error?.issues ? result.error.issues : {})
+        }
+      };
+    }
+
+    if (auditUser?.id && result.data.created.length) {
+      for (const created of result.data.created) {
+        logActivityNonBlocking({
+          userId: auditUser.id,
+          action: 'bulk-assign-paysheet-component.created',
+          entityType: 'PaysheetAssignment',
+          entityId: created.id,
+          importance: 'medium',
+          metadata: {
+            staffName: created.staffName,
+            staffCode: created.staffCode,
+            componentName: created.componentName,
+            value: created.value,
+            mode: data.mode
+          }
+        });
+      }
+    }
+
+    revalidateAssignmentPaths();
+    return { isError: false, data: result.data, errors: {} };
+  } catch (error: any) {
+    console.error('bulkCreatePaysheetAssignmentsAction error:', error);
+    return {
+      isError: true,
+      data: null,
+      errors: {
+        message: error.message ?? 'Something went wrong. Please try again later'
+      }
     };
   }
 }

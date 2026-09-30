@@ -1,14 +1,17 @@
 'use client';
 
 import { Suspense, useMemo } from 'react';
-import { useToast } from '@archmage/ui';
 import {
   CommonDataTable,
   DataTableExportFeature
 } from '@/components/common/common-data-table';
+import { getPerformanceAllowanceExportAction } from '@/app/actions/payroll-actions/performance-allowance.actions';
 import type {
+  PerformanceAllowanceFilters,
   PerformanceAllowanceMode,
-  PerformanceAllowanceRecord
+  PerformanceAllowanceRecord,
+  PaysheetStaffOption,
+  SalaryFilterOption
 } from '@/types/payroll';
 import {
   PERFORMANCE_ALLOWANCE_EXPORT_COLUMNS,
@@ -22,15 +25,22 @@ type SectionRegisterProps = {
   records?: PerformanceAllowanceRecord[];
   totalRecords?: number;
   page?: string;
+  staffOptions?: PaysheetStaffOption[];
+  departmentOptions?: SalaryFilterOption[];
+  designationOptions?: SalaryFilterOption[];
+  initialFilters?: PerformanceAllowanceFilters;
 };
 
 export default function SectionRegister({
   mode,
   records = [],
   totalRecords = 0,
-  page
+  page,
+  staffOptions = [],
+  departmentOptions = [],
+  designationOptions = [],
+  initialFilters
 }: SectionRegisterProps) {
-  const { toast } = useToast();
   const columns = useMemo(
     () => buildPerformanceAllowanceColumns(mode),
     [mode]
@@ -42,19 +52,33 @@ export default function SectionRegister({
       : 'Fixed Allowances Register';
 
   const handleExport = async () => {
-    toast({
-      title: 'Export',
-      description: 'Will be wired in the dynamic phase.'
+    const result = await getPerformanceAllowanceExportAction({
+      mode,
+      staffId: initialFilters?.staffId,
+      departmentId: initialFilters?.departmentId,
+      designationId: initialFilters?.designationId,
+      effectiveDate: initialFilters?.effectiveDate
     });
+    if (!result.success) {
+      return {
+        success: false,
+        message: result.message ?? 'Export failed'
+      };
+    }
     return {
-      success: false,
-      message: 'Export will be wired in the dynamic phase.'
+      success: true,
+      data: result.data ?? []
     };
   };
 
   return (
     <div className="space-y-4">
-      <SectionFilters />
+      <SectionFilters
+        staffOptions={staffOptions}
+        departmentOptions={departmentOptions}
+        designationOptions={designationOptions}
+        initial={initialFilters}
+      />
 
       <Suspense
         fallback={

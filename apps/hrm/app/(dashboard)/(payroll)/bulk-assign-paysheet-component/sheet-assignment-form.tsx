@@ -1,7 +1,8 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { Form, Formik } from 'formik';
+import { useRouter } from 'next/navigation';
+import { Form, Formik, type FormikHelpers } from 'formik';
 import * as Yup from 'yup';
 import { Save, X } from 'lucide-react';
 import {
@@ -17,6 +18,8 @@ import {
   SheetTitle,
   useToast
 } from '@archmage/ui';
+import { formatDateTime } from '@/lib/utils/date';
+import { updatePaysheetAssignmentAction } from '@/app/actions/payroll-actions/paysheet-assignment.actions';
 import {
   EMPTY_PAYSHEET_ASSIGNMENT_FORM,
   type PaysheetAssignmentFormValues,
@@ -39,15 +42,24 @@ const fieldStyleClasses = {
   inputClassName: 'w-full'
 };
 
-const LATER = 'Will be wired in the dynamic phase.';
-
 const validationSchema = Yup.object({
   componentId: Yup.string().required('Paysheet component is required'),
   effectiveFrom: Yup.date()
     .nullable()
     .required('Effective from date is required'),
-  effectiveTo: Yup.date().nullable().required('Effective to date is required'),
-  value: Yup.string().required('Value is required')
+  effectiveTo: Yup.date()
+    .nullable()
+    .required('Effective to date is required')
+    .min(
+      Yup.ref('effectiveFrom'),
+      'Effective to must be on or after effective from'
+    ),
+  value: Yup.string()
+    .required('Value is required')
+    .test('num', 'Enter a valid amount', (value) => {
+      if (value == null || value === '') return false;
+      return Number.isFinite(Number(value));
+    })
 });
 
 function recordToFormValues(
@@ -72,14 +84,75 @@ export default function SheetAssignmentForm({
   onOpenChange
 }: SheetAssignmentFormProps) {
   const { toast } = useToast();
+  const router = useRouter();
   const [formKey, setFormKey] = useState(0);
+  const [saving, setSaving] = useState(false);
   const initialValues = useMemo(() => recordToFormValues(record), [record]);
+
+  const selectOptions = useMemo(
+    () =>
+      componentOptions.map((item) => ({
+        id: item.id,
+        name: item.name
+      })),
+    [componentOptions]
+  );
+
+  const handleClose = () => onOpenChange(false);
+
+  const handleSubmit = async (
+    values: PaysheetAssignmentFormValues,
+    helpers: FormikHelpers<PaysheetAssignmentFormValues>
+  ) => {
+    if (!record) return;
+    setSaving(true);
+    try {
+      const result = await updatePaysheetAssignmentAction(record.id, {
+        staffId: record.staffId,
+        componentId: values.componentId,
+        effectiveFrom: values.effectiveFrom as Date,
+        effectiveTo: values.effectiveTo,
+        value: Number(values.value)
+      });
+
+      if (result.isError || !result.data) {
+        const errors = result.errors as Record<string, unknown>;
+        if (errors && typeof errors === 'object') {
+          const fieldErrors: Record<string, string> = {};
+          for (const [key, value] of Object.entries(errors)) {
+            if (key === 'message') continue;
+            if (Array.isArray(value) && value[0]) {
+              fieldErrors[key] = String(value[0]);
+            }
+          }
+          if (Object.keys(fieldErrors).length) helpers.setErrors(fieldErrors);
+        }
+        toast({
+          variant: 'destructive',
+          title: 'Save failed',
+          description:
+            (typeof errors?.message === 'string' && errors.message) ||
+            'Unable to update assignment.'
+        });
+        return;
+      }
+
+      toast({
+        title: 'Assignment updated',
+        description: `${result.data.componentName} → ${result.data.staffName}`
+      });
+      handleClose();
+      router.refresh();
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <Sheet
       open={open}
       onOpenChange={(next) => {
-        if (!next) onOpenChange(false);
+        if (!next) handleClose();
         else onOpenChange(next);
       }}
     >
@@ -99,12 +172,7 @@ export default function SheetAssignmentForm({
           initialValues={initialValues}
           enableReinitialize
           validationSchema={validationSchema}
-          onSubmit={() => {
-            toast({
-              title: 'Save changes',
-              description: LATER
-            });
-          }}
+          onSubmit={handleSubmit}
         >
           {(formik) => (
             <Form className="flex min-h-0 flex-1 flex-col">
@@ -134,7 +202,7 @@ export default function SheetAssignmentForm({
                     void formik.setFieldValue('componentId', value)
                   }
                   required
-                  options={componentOptions}
+                  options={selectOptions}
                   styleClasses={fieldStyleClasses}
                 />
                 <CustomDatePickerField
@@ -171,6 +239,33 @@ export default function SheetAssignmentForm({
                   required
                   styleClasses={fieldStyleClasses}
                 />
+
+                <div className="grid gap-2 border-t border-border pt-4 text-xs text-muted-foreground sm:grid-cols-2">
+                  <p>
+                    Created by:{' '}
+                    <span className="text-foreground">
+                      {record?.createdBy
+                        ? `${record.createdBy}${
+                            record.createdAt
+                              ? ` — ${formatDateTime(record.createdAt)}`
+                              : ''
+                          }`
+                        : '—'}
+                    </span>
+                  </p>
+                  <p>
+                    Last updated:{' '}
+                    <span className="text-foreground">
+                      {record?.updatedBy
+                        ? `${record.updatedBy}${
+                            record.updatedAt
+                              ? ` — ${formatDateTime(record.updatedAt)}`
+                              : ''
+                          }`
+                        : '—'}
+                    </span>
+                  </p>
+                </div>
               </div>
 
               <SheetFooter className="shrink-0 flex-row justify-end gap-2 border-t border-border bg-background px-6 py-4 sm:space-x-0">
@@ -179,17 +274,24 @@ export default function SheetAssignmentForm({
                   size="sm"
                   variant="outline"
                   className="text-red-500 hover:bg-red-500 hover:text-white"
+                  disabled={saving}
                   onClick={() => {
                     formik.resetForm({ values: initialValues });
                     setFormKey((key) => key + 1);
+                    handleClose();
                   }}
                 >
                   <X className="h-3.5 w-3.5" />
                   Cancel
                 </Button>
-                <Button type="submit" size="sm" className="h-9 gap-1.5">
+                <Button
+                  type="submit"
+                  size="sm"
+                  className="h-9 gap-1.5"
+                  disabled={saving}
+                >
                   <Save className="h-4 w-4" />
-                  Save
+                  {saving ? 'Saving…' : 'Save'}
                 </Button>
               </SheetFooter>
             </Form>
