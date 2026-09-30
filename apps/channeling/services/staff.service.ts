@@ -2,7 +2,6 @@
 
 import { Prisma } from "@prisma/client"
 import prisma from "@/lib/prisma"
-import { getReportMax } from "@/lib/report-limits"
 import { GetStaffParams, Staff } from "@/types/staff"
 import { z } from "zod"
 import { sriLankaMobileRegex } from "@/lib/regex"
@@ -218,7 +217,7 @@ export async function getStaff(params: GetStaffParams): Promise<{
   }
 }
 
-/** Staff matching the search, capped for Excel/PDF export. */
+/** All staff matching the search, for Excel/PDF export. */
 export async function getAllStaffForExport(keyword: string = ""): Promise<{
   success: boolean
   data?: any[]
@@ -230,12 +229,10 @@ export async function getAllStaffForExport(keyword: string = ""): Promise<{
 }> {
   try {
     const where = staffSearchWhere(keyword)
-    const exportLimit = getReportMax()
     const [records, totalRecords] = await Promise.all([
       prisma.staff.findMany({
         where,
         orderBy: { createdAt: "desc" },
-        take: exportLimit,
       }),
       prisma.staff.count({ where }),
     ])
@@ -243,8 +240,8 @@ export async function getAllStaffForExport(keyword: string = ""): Promise<{
       success: true,
       data: records,
       totalRecords,
-      exportLimit,
-      limited: totalRecords > exportLimit,
+      exportLimit: records.length,
+      limited: false,
       message: "Staff fetched successfully",
     }
   } catch (error: any) {

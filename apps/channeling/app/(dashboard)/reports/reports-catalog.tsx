@@ -36,7 +36,9 @@ export function ReportsCatalog({ reports }: { reports: ReportListItem[] }) {
 
   const sections = REPORT_CATEGORIES.map((title) => ({
     title,
-    items: visible.filter((report) => report.category === title),
+    items: visible
+      .filter((report) => report.category === title)
+      .sort((a, b) => a.rank - b.rank),
   })).filter((section) => section.items.length > 0);
 
   const filtersActive = normalizedQuery.length > 0 || category !== 'all';
