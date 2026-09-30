@@ -1,8 +1,14 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Ban, Copy, Pencil, Trash2 } from 'lucide-react';
 import { Button, CustomAlertDialog, useToast } from '@archmage/ui';
+import {
+  deleteSalaryStructureAction,
+  duplicateSalaryStructureAction,
+  setSalaryStructureStatusAction
+} from '@/app/actions/payroll-actions/salary-structure.actions';
 import { usePermissions } from '@/components/hooks/use-permissions';
 import type { SalaryStructureRecord } from '@/types/payroll';
 import { useSalaryStructuresUi } from './salary-structures-ui-context';
@@ -11,15 +17,15 @@ type RecordActionsProps = {
   record: SalaryStructureRecord;
 };
 
-const LATER = 'Will be wired in the dynamic phase.';
-
 export default function RecordActions({ record }: RecordActionsProps) {
   const { toast } = useToast();
+  const router = useRouter();
   const { has } = usePermissions();
   const { openEdit } = useSalaryStructuresUi();
   const [duplicateOpen, setDuplicateOpen] = useState(false);
   const [deactivateOpen, setDeactivateOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   const canEdit = has('payroll', 'edit');
   const canDelete = has('payroll', 'delete');
@@ -28,6 +34,7 @@ export default function RecordActions({ record }: RecordActionsProps) {
   const label = `${record.code || 'Structure'} — ${record.name || 'Untitled'}`;
   const isActive = record.status === 'active';
   const toggleVerb = isActive ? 'Deactivate' : 'Activate';
+  const nextStatus = isActive ? 'inactive' : 'active';
 
   return (
     <>
@@ -87,13 +94,29 @@ export default function RecordActions({ record }: RecordActionsProps) {
         handleVisibilityChange={setDuplicateOpen}
         title="Duplicate salary structure?"
         description={`Create a copy of ${label}?`}
-        loading={false}
-        handleContinue={() => {
-          setDuplicateOpen(false);
-          toast({
-            title: 'Duplicate structure',
-            description: LATER
-          });
+        loading={loading}
+        handleContinue={async () => {
+          setLoading(true);
+          try {
+            const result = await duplicateSalaryStructureAction(record.id);
+            setDuplicateOpen(false);
+            if (result.isError || !result.data) {
+              toast({
+                title: 'Duplicate failed',
+                description:
+                  (result.errors.message as string) ??
+                  'Could not duplicate structure.'
+              });
+              return;
+            }
+            toast({
+              title: 'Structure duplicated',
+              description: `${result.data.code} — ${result.data.name}`
+            });
+            router.refresh();
+          } finally {
+            setLoading(false);
+          }
         }}
       />
 
@@ -102,13 +125,32 @@ export default function RecordActions({ record }: RecordActionsProps) {
         handleVisibilityChange={setDeactivateOpen}
         title={`${toggleVerb} salary structure?`}
         description={`${toggleVerb} ${label}?`}
-        loading={false}
-        handleContinue={() => {
-          setDeactivateOpen(false);
-          toast({
-            title: `${toggleVerb} structure`,
-            description: LATER
-          });
+        loading={loading}
+        handleContinue={async () => {
+          setLoading(true);
+          try {
+            const result = await setSalaryStructureStatusAction(
+              record.id,
+              nextStatus
+            );
+            setDeactivateOpen(false);
+            if (result.isError || !result.data) {
+              toast({
+                title: `${toggleVerb} failed`,
+                description:
+                  (result.errors.message as string) ??
+                  'Could not update status.'
+              });
+              return;
+            }
+            toast({
+              title: `Structure ${nextStatus}`,
+              description: label
+            });
+            router.refresh();
+          } finally {
+            setLoading(false);
+          }
         }}
       />
 
@@ -117,13 +159,29 @@ export default function RecordActions({ record }: RecordActionsProps) {
         handleVisibilityChange={setDeleteOpen}
         title="Delete salary structure?"
         description={`Remove ${label}? This cannot be undone.`}
-        loading={false}
-        handleContinue={() => {
-          setDeleteOpen(false);
-          toast({
-            title: 'Delete structure',
-            description: LATER
-          });
+        loading={loading}
+        handleContinue={async () => {
+          setLoading(true);
+          try {
+            const result = await deleteSalaryStructureAction(record.id);
+            setDeleteOpen(false);
+            if (result.isError) {
+              toast({
+                title: 'Delete failed',
+                description:
+                  (result.errors.message as string) ??
+                  'Could not delete structure.'
+              });
+              return;
+            }
+            toast({
+              title: 'Structure deleted',
+              description: label
+            });
+            router.refresh();
+          } finally {
+            setLoading(false);
+          }
         }}
         className={{
           actionButton:

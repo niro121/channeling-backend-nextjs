@@ -232,13 +232,24 @@ export async function getPaysheetComponentOptions(
   try {
     const records = await prisma.paysheetComponent.findMany({
       where: buildWhere(params),
-      select: { id: true, name: true, orderNo: true },
+      select: {
+        id: true,
+        name: true,
+        orderNo: true,
+        typeId: true,
+        percentage: true
+      },
       orderBy: [{ orderNo: 'asc' }, { name: 'asc' }]
     });
 
     return {
       success: true,
-      data: records.map((record) => ({ id: record.id, name: record.name }))
+      data: records.map((record) => ({
+        id: record.id,
+        name: record.name,
+        typeId: record.typeId,
+        percentage: record.percentage
+      }))
     };
   } catch (error: any) {
     console.error('getPaysheetComponentOptions error:', error);

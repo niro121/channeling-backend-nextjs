@@ -117,6 +117,9 @@ export type GetPaysheetComponentParams = {
 export type PaysheetComponentOption = {
   id: string;
   name: string;
+  /** Component type — used by Payroll structure line mapping (PC5). */
+  typeId?: string;
+  percentage?: number | null;
 };
 
 export type PaysheetComponentServiceRecord = {

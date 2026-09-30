@@ -808,6 +808,49 @@ model SalaryCycle {
 }
 
 /* ---------------------------------
+PAYROLL
+--------------------------------- */
+type SalaryStructureLineEmbedded {
+  id          String
+  componentId String? // PaysheetComponent.id (optional)
+  name        String
+  calcMethod  String // fixed | percent_of_basic | tax_table | auto | …
+  value       String // amount or % as entered in UI
+  section     String // earnings | deductions | employerContributions | otherComponents
+}
+
+model SalaryStructure {
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  code            String   @unique // SST-n
+  name            String
+  institutionId   String   @default("")
+  departmentId    String   @default("__all__")
+  staffCategoryId String
+  designationId   String
+  basicSalary     Float    @default(0)
+  allowancesTotal Float    @default(0)
+  deductionsTotal Float    @default(0)
+  gross           Float    @default(0)
+  staffCovered    Int      @default(0)
+  effectiveFrom   DateTime
+  effectiveTo     DateTime?
+  status          String // active | inactive | draft
+  lines           SalaryStructureLineEmbedded[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy String?  @db.ObjectId
+  updatedBy String?  @db.ObjectId
+
+  @@index([status])
+  @@index([name])
+  @@index([designationId])
+  @@index([departmentId])
+  @@index([staffCategoryId])
+  @@index([effectiveFrom])
+}
+
+/* ---------------------------------
 ORGANIZATION
 --------------------------------- */
 

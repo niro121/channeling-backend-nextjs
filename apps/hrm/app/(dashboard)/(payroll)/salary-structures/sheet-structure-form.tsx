@@ -1,7 +1,8 @@
 'use client';
 
 import { useMemo, useState, type ReactNode } from 'react';
-import { Form, Formik, type FormikProps } from 'formik';
+import { useRouter } from 'next/navigation';
+import { Form, Formik, type FormikHelpers, type FormikProps } from 'formik';
 import * as Yup from 'yup';
 import {
   Building2,
@@ -15,6 +16,7 @@ import {
 } from 'lucide-react';
 import {
   Button,
+  Combobox,
   CustomDatePickerField,
   CustomFormField,
   CustomSelectField,
@@ -28,6 +30,10 @@ import {
   cn,
   useToast
 } from '@archmage/ui';
+import {
+  createSalaryStructureAction,
+  updateSalaryStructureAction
+} from '@/app/actions/payroll-actions/salary-structure.actions';
 import { formatLkr } from '@/lib/utils/currency';
 import { formatDateTime } from '@/lib/utils/date';
 import { INSTITUTION_OPTIONS } from '@/types/institution';
@@ -36,6 +42,7 @@ import {
   STAFF_CATEGORY_OPTIONS,
   STAFF_DESIGNATION_OPTIONS
 } from '@/types/staff-employment-options';
+import type { PaysheetComponentOption } from '@/types/paysheet-component';
 import {
   EMPTY_SALARY_STRUCTURE_FORM,
   SALARY_STRUCTURE_CALC_METHOD_LABELS,
@@ -44,6 +51,7 @@ import {
   type SalaryStructureCalcMethod,
   type SalaryStructureFormValues,
   type SalaryStructureLine,
+  type SalaryStructurePayload,
   type SalaryStructureRecord,
   type SalaryStructureStatus
 } from '@/types/payroll';
@@ -53,7 +61,18 @@ type SheetStructureFormProps = {
   open: boolean;
   mode: SalaryStructureFormSheetMode;
   record: SalaryStructureRecord | null;
+  componentOptions?: PaysheetComponentOption[];
   onOpenChange: (open: boolean) => void;
+};
+
+const SECTION_TYPE_IDS: Record<
+  'earnings' | 'deductions' | 'employerContributions' | 'otherComponents',
+  string[]
+> = {
+  earnings: ['fixed_allowance', 'percentage_allowance', 'ot'],
+  deductions: ['fixed_deduction', 'loan', 'advance'],
+  employerContributions: [],
+  otherComponents: ['basic_salary']
 };
 
 type LineSectionKey =
@@ -67,9 +86,6 @@ const fieldStyleClasses = {
   labelClassName: 'text-sm font-semibold text-foreground',
   inputClassName: 'w-full'
 };
-
-const LATER = 'Will be wired in the dynamic phase.';
-const ADD_LATER = 'Component picker will be wired in the dynamic phase.';
 
 const validationSchema = Yup.object({
   code: Yup.string().trim(),
@@ -135,6 +151,27 @@ function estimateSummary(values: SalaryStructureFormValues) {
   return { gross, deductions, net };
 }
 
+function calcMethodForType(typeId?: string): SalaryStructureCalcMethod {
+  if (typeId === 'percentage_allowance') return 'percent_of_basic';
+  return 'fixed';
+}
+
+function optionsForSection(
+  section: LineSectionKey,
+  all: PaysheetComponentOption[]
+): PaysheetComponentOption[] {
+  const allowed = SECTION_TYPE_IDS[section];
+  if (allowed.length === 0) {
+    return all.filter(
+      (opt) =>
+        !SECTION_TYPE_IDS.earnings.includes(opt.typeId ?? '') &&
+        !SECTION_TYPE_IDS.deductions.includes(opt.typeId ?? '') &&
+        !SECTION_TYPE_IDS.otherComponents.includes(opt.typeId ?? '')
+    );
+  }
+  return all.filter((opt) => allowed.includes(opt.typeId ?? ''));
+}
+
 function recordToFormValues(
   record: SalaryStructureRecord | null
 ): SalaryStructureFormValues {
@@ -153,11 +190,31 @@ function recordToFormValues(
     effectiveTo: record.effectiveTo ? new Date(record.effectiveTo) : null,
     status: record.status ?? 'active',
     basicSalary:
-      record.basicSalary != null && record.basicSalary !== 0
-        ? String(record.basicSalary)
-        : record.basicSalary === 0
-          ? '0'
-          : ''
+      record.basicSalary != null ? String(record.basicSalary) : '',
+    earnings: record.earnings ?? [],
+    deductions: record.deductions ?? [],
+    employerContributions: record.employerContributions ?? [],
+    otherComponents: record.otherComponents ?? []
+  };
+}
+
+function formValuesToPayload(
+  values: SalaryStructureFormValues
+): SalaryStructurePayload {
+  return {
+    name: values.name.trim(),
+    institutionId: values.institutionId || '',
+    departmentId: values.departmentId || '__all__',
+    staffCategoryId: values.staffCategory,
+    designationId: values.designationId,
+    basicSalary: parseMoney(values.basicSalary),
+    effectiveFrom: values.effectiveFrom ?? new Date(),
+    effectiveTo: values.effectiveTo,
+    status: values.status,
+    earnings: values.earnings,
+    deductions: values.deductions,
+    employerContributions: values.employerContributions,
+    otherComponents: values.otherComponents
   };
 }
 
@@ -168,7 +225,11 @@ function ComponentSection({
   sectionKey,
   lines,
   formik,
-  onAdd
+  pickerOptions,
+  addingSection,
+  onStartAdd,
+  onCancelAdd,
+  onPickComponent
 }: {
   title: string;
   icon: ReactNode;
@@ -176,7 +237,11 @@ function ComponentSection({
   sectionKey: LineSectionKey;
   lines: SalaryStructureLine[];
   formik: FormikProps<SalaryStructureFormValues>;
-  onAdd: () => void;
+  pickerOptions: PaysheetComponentOption[];
+  addingSection: LineSectionKey | null;
+  onStartAdd: () => void;
+  onCancelAdd: () => void;
+  onPickComponent: (componentId: string) => void;
 }) {
   const removeLine = (lineId: string) => {
     void formik.setFieldValue(
@@ -191,6 +256,8 @@ function ComponentSection({
       lines.map((line) => (line.id === lineId ? { ...line, value } : line))
     );
   };
+
+  const isAdding = addingSection === sectionKey;
 
   return (
     <div className="space-y-3 rounded-lg border border-border bg-card p-3">
@@ -213,16 +280,44 @@ function ComponentSection({
           size="sm"
           variant="ghost"
           className="h-8 gap-1 text-primary"
-          onClick={onAdd}
+          onClick={onStartAdd}
         >
           <Plus className="h-3.5 w-3.5" />
           Add
         </Button>
       </div>
 
-      {lines.length === 0 ? (
+      {isAdding ? (
+        <div className="flex flex-wrap items-end gap-2 rounded-md border border-dashed border-border bg-muted/30 p-3">
+          <div className="min-w-[12rem] flex-1">
+            <Combobox
+              label="Paysheet component"
+              options={pickerOptions.map((opt) => ({
+                id: opt.id,
+                name: opt.name
+              }))}
+              value=""
+              defaultValue=""
+              onChange={onPickComponent}
+              clearable
+              triggerClassName="self-end"
+            />
+          </div>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="h-10"
+            onClick={onCancelAdd}
+          >
+            Cancel
+          </Button>
+        </div>
+      ) : null}
+
+      {lines.length === 0 && !isAdding ? (
         <p className="rounded-md border border-dashed border-border px-3 py-4 text-center text-sm text-muted-foreground">
-          No components yet. Use Add to include one later.
+          No components yet. Use Add to pick a paysheet component.
         </p>
       ) : (
         <ul className="space-y-2">
@@ -270,10 +365,16 @@ export default function SheetStructureForm({
   open,
   mode,
   record,
+  componentOptions = [],
   onOpenChange
 }: SheetStructureFormProps) {
   const { toast } = useToast();
+  const router = useRouter();
   const [formKey, setFormKey] = useState(0);
+  const [saving, setSaving] = useState(false);
+  const [addingSection, setAddingSection] = useState<LineSectionKey | null>(
+    null
+  );
 
   const initialValues = useMemo(() => recordToFormValues(record), [record]);
 
@@ -281,13 +382,84 @@ export default function SheetStructureForm({
     mode === 'edit' ? 'Edit Salary Structure' : 'Add Salary Structure';
   const description = 'Configure the structure and its salary components.';
 
-  const handleClose = () => onOpenChange(false);
+  const handleClose = () => {
+    setAddingSection(null);
+    onOpenChange(false);
+  };
 
-  const handleAddComponent = (sectionLabel: string) => {
-    toast({
-      title: `Add ${sectionLabel}`,
-      description: ADD_LATER
-    });
+  const handlePickComponent = (
+    sectionKey: LineSectionKey,
+    componentId: string,
+    formik: FormikProps<SalaryStructureFormValues>
+  ) => {
+    if (!componentId) return;
+    const option = componentOptions.find((item) => item.id === componentId);
+    if (!option) return;
+
+    const lines = formik.values[sectionKey];
+    if (lines.some((line) => line.componentId === componentId)) {
+      toast({
+        title: 'Already added',
+        description: `${option.name} is already in this section.`
+      });
+      setAddingSection(null);
+      return;
+    }
+
+    const calcMethod = calcMethodForType(option.typeId);
+    const next: SalaryStructureLine = {
+      id: crypto.randomUUID(),
+      componentId: option.id,
+      name: option.name,
+      calcMethod,
+      value:
+        calcMethod === 'percent_of_basic' && option.percentage != null
+          ? String(option.percentage)
+          : ''
+    };
+    void formik.setFieldValue(sectionKey, [...lines, next]);
+    setAddingSection(null);
+  };
+
+  const handleSubmit = async (
+    values: SalaryStructureFormValues,
+    helpers: FormikHelpers<SalaryStructureFormValues>
+  ) => {
+    setSaving(true);
+    try {
+      const payload = formValuesToPayload(values);
+      const result =
+        mode === 'edit' && record?.id
+          ? await updateSalaryStructureAction(record.id, payload)
+          : await createSalaryStructureAction(payload);
+
+      if (result.isError || !result.data) {
+        const issues = result.errors.issues as
+          | Record<string, string[]>
+          | undefined;
+        if (issues) {
+          for (const [field, messages] of Object.entries(issues)) {
+            helpers.setFieldError(field, messages[0]);
+          }
+        }
+        toast({
+          title: 'Save failed',
+          description:
+            (result.errors.message as string) ??
+            'Could not save salary structure.'
+        });
+        return;
+      }
+
+      toast({
+        title: mode === 'edit' ? 'Structure updated' : 'Structure created',
+        description: `${result.data.code} — ${result.data.name}`
+      });
+      handleClose();
+      router.refresh();
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -312,12 +484,7 @@ export default function SheetStructureForm({
           initialValues={initialValues}
           enableReinitialize
           validationSchema={validationSchema}
-          onSubmit={() => {
-            toast({
-              title: mode === 'edit' ? 'Save changes' : 'Save structure',
-              description: LATER
-            });
-          }}
+          onSubmit={handleSubmit}
         >
           {(formik) => {
             const summary = estimateSummary(formik.values);
@@ -354,6 +521,7 @@ export default function SheetStructureForm({
                       onChange={(value) =>
                         void formik.setFieldValue('institutionId', value)
                       }
+                      required={false}
                       options={INSTITUTION_OPTIONS}
                       styleClasses={fieldStyleClasses}
                     />
@@ -386,6 +554,7 @@ export default function SheetStructureForm({
                       onChange={(value) =>
                         void formik.setFieldValue('departmentId', value)
                       }
+                      required={false}
                       options={departmentOptions}
                       styleClasses={fieldStyleClasses}
                     />
@@ -407,6 +576,7 @@ export default function SheetStructureForm({
                     <CustomDatePickerField
                       id="effectiveTo"
                       placeholder="Effective To"
+                      required={false}
                       value={formik.values.effectiveTo}
                       onChange={(value) =>
                         void formik.setFieldValue('effectiveTo', value ?? null)
@@ -425,6 +595,7 @@ export default function SheetStructureForm({
                           value as SalaryStructureStatus
                         )
                       }
+                      required={false}
                       options={statusOptions}
                       styleClasses={fieldStyleClasses}
                     />
@@ -450,7 +621,16 @@ export default function SheetStructureForm({
                     sectionKey="earnings"
                     lines={formik.values.earnings}
                     formik={formik}
-                    onAdd={() => handleAddComponent('earnings / allowances')}
+                    pickerOptions={optionsForSection(
+                      'earnings',
+                      componentOptions
+                    )}
+                    addingSection={addingSection}
+                    onStartAdd={() => setAddingSection('earnings')}
+                    onCancelAdd={() => setAddingSection(null)}
+                    onPickComponent={(id) =>
+                      handlePickComponent('earnings', id, formik)
+                    }
                   />
 
                   <ComponentSection
@@ -460,7 +640,16 @@ export default function SheetStructureForm({
                     sectionKey="deductions"
                     lines={formik.values.deductions}
                     formik={formik}
-                    onAdd={() => handleAddComponent('deductions')}
+                    pickerOptions={optionsForSection(
+                      'deductions',
+                      componentOptions
+                    )}
+                    addingSection={addingSection}
+                    onStartAdd={() => setAddingSection('deductions')}
+                    onCancelAdd={() => setAddingSection(null)}
+                    onPickComponent={(id) =>
+                      handlePickComponent('deductions', id, formik)
+                    }
                   />
 
                   <ComponentSection
@@ -470,7 +659,16 @@ export default function SheetStructureForm({
                     sectionKey="employerContributions"
                     lines={formik.values.employerContributions}
                     formik={formik}
-                    onAdd={() => handleAddComponent('employer contributions')}
+                    pickerOptions={optionsForSection(
+                      'employerContributions',
+                      componentOptions
+                    )}
+                    addingSection={addingSection}
+                    onStartAdd={() => setAddingSection('employerContributions')}
+                    onCancelAdd={() => setAddingSection(null)}
+                    onPickComponent={(id) =>
+                      handlePickComponent('employerContributions', id, formik)
+                    }
                   />
 
                   <ComponentSection
@@ -480,7 +678,16 @@ export default function SheetStructureForm({
                     sectionKey="otherComponents"
                     lines={formik.values.otherComponents}
                     formik={formik}
-                    onAdd={() => handleAddComponent('other components')}
+                    pickerOptions={optionsForSection(
+                      'otherComponents',
+                      componentOptions
+                    )}
+                    addingSection={addingSection}
+                    onStartAdd={() => setAddingSection('otherComponents')}
+                    onCancelAdd={() => setAddingSection(null)}
+                    onPickComponent={(id) =>
+                      handlePickComponent('otherComponents', id, formik)
+                    }
                   />
 
                   <div className="grid grid-cols-3 gap-3 rounded-lg border border-border bg-muted/40 px-4 py-3 text-sm">
@@ -511,8 +718,7 @@ export default function SheetStructureForm({
                   </div>
                   <p className="text-xs text-muted-foreground">
                     Estimate uses Basic + fixed earnings − fixed deductions.
-                    Percentage and Auto lines are ignored until the dynamic
-                    phase.
+                    Percentage and Auto lines are ignored in the estimate.
                   </p>
 
                   {mode === 'edit' ? (
@@ -551,6 +757,7 @@ export default function SheetStructureForm({
                     size="sm"
                     variant="outline"
                     className="text-red-500 transition-colors hover:bg-red-500 hover:text-white"
+                    disabled={saving}
                     onClick={() => {
                       formik.resetForm({
                         values: EMPTY_SALARY_STRUCTURE_FORM
@@ -562,9 +769,14 @@ export default function SheetStructureForm({
                     <X className="h-3.5 w-3.5" />
                     Cancel
                   </Button>
-                  <Button type="submit" size="sm" className="h-9 gap-1.5">
+                  <Button
+                    type="submit"
+                    size="sm"
+                    className="h-9 gap-1.5"
+                    disabled={saving || formik.isSubmitting}
+                  >
                     <Save className="h-4 w-4" />
-                    Save
+                    {saving ? 'Saving…' : 'Save'}
                   </Button>
                 </SheetFooter>
               </Form>

@@ -1,12 +1,17 @@
 'use client';
 
-import { useState } from 'react';
 import { CommonManagerHeader } from '@/components/common/common-manager-header';
 import {
-  EMPTY_SALARY_STRUCTURE_SUMMARY,
+  DEPARTMENT_OPTIONS,
+  STAFF_DESIGNATION_OPTIONS
+} from '@/types/staff-employment-options';
+import {
   PAYROLL_WORKFLOW_STEPS,
-  type SalaryStructureRecord
+  type SalaryFilterOption,
+  type SalaryStructureRecord,
+  type SalaryStructureSummary
 } from '@/types/payroll';
+import type { PaysheetComponentOption } from '@/types/paysheet-component';
 import { SalaryStructuresHeaderActions } from './header-actions';
 import {
   SalaryStructuresUiProvider,
@@ -17,10 +22,31 @@ import SectionSummary from './section-summary';
 import SectionWorkflowSteps from './section-workflow-steps';
 import SheetStructureForm from './sheet-structure-form';
 
-function SalaryStructuresWorkspaceInner() {
+type SalaryStructuresWorkspaceProps = {
+  initialRecords: SalaryStructureRecord[];
+  totalRecords: number;
+  summary: SalaryStructureSummary;
+  structureOptions: SalaryFilterOption[];
+  componentOptions: PaysheetComponentOption[];
+  page?: string;
+};
+
+function SalaryStructuresWorkspaceInner({
+  initialRecords,
+  totalRecords,
+  summary,
+  structureOptions,
+  componentOptions,
+  page
+}: SalaryStructuresWorkspaceProps) {
   const { formSheet, closeFormSheet } = useSalaryStructuresUi();
-  const [records] = useState<SalaryStructureRecord[]>([]);
-  const summary = EMPTY_SALARY_STRUCTURE_SUMMARY;
+
+  const departmentOptions: SalaryFilterOption[] = DEPARTMENT_OPTIONS.map(
+    (item) => ({ id: item.id, name: item.name })
+  );
+  const designationOptions: SalaryFilterOption[] = STAFF_DESIGNATION_OPTIONS.map(
+    (item) => ({ id: item.id, name: item.name })
+  );
 
   return (
     <div className="space-y-6">
@@ -35,17 +61,19 @@ function SalaryStructuresWorkspaceInner() {
       <SectionSummary summary={summary} />
 
       <SectionRegister
-        records={records}
-        totalRecords={records.length}
-        departmentOptions={[]}
-        designationOptions={[]}
-        structureOptions={[]}
+        records={initialRecords}
+        totalRecords={totalRecords}
+        page={page}
+        departmentOptions={departmentOptions}
+        designationOptions={designationOptions}
+        structureOptions={structureOptions}
       />
 
       <SheetStructureForm
         open={formSheet != null}
         mode={formSheet?.mode ?? 'create'}
         record={formSheet?.record ?? null}
+        componentOptions={componentOptions}
         onOpenChange={(open) => {
           if (!open) closeFormSheet();
         }}
@@ -54,10 +82,12 @@ function SalaryStructuresWorkspaceInner() {
   );
 }
 
-export default function SalaryStructuresWorkspace() {
+export default function SalaryStructuresWorkspace(
+  props: SalaryStructuresWorkspaceProps
+) {
   return (
     <SalaryStructuresUiProvider>
-      <SalaryStructuresWorkspaceInner />
+      <SalaryStructuresWorkspaceInner {...props} />
     </SalaryStructuresUiProvider>
   );
 }

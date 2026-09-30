@@ -430,6 +430,22 @@ export type SalaryStructureFilters = {
   effectiveDate?: string;
 };
 
+export type SalaryStructureCalcMethod =
+  | 'fixed'
+  | 'percent_of_basic'
+  | 'tax_table'
+  | 'auto'
+  | 'basic_div_200'
+  | 'basic_div_30';
+
+export type SalaryStructureLine = {
+  id: string;
+  componentId?: string | null;
+  name: string;
+  calcMethod: SalaryStructureCalcMethod;
+  value: string;
+};
+
 export type SalaryStructureRecord = {
   id: string;
   code: string;
@@ -450,26 +466,38 @@ export type SalaryStructureRecord = {
   effectiveFrom: string | null;
   effectiveTo: string | null;
   status: SalaryStructureStatus;
+  earnings: SalaryStructureLine[];
+  deductions: SalaryStructureLine[];
+  employerContributions: SalaryStructureLine[];
+  otherComponents: SalaryStructureLine[];
   createdBy: string | null;
   createdAt: string | null;
   updatedBy: string | null;
   updatedAt: string | null;
 };
 
-export type SalaryStructureCalcMethod =
-  | 'fixed'
-  | 'percent_of_basic'
-  | 'tax_table'
-  | 'auto'
-  | 'basic_div_200'
-  | 'basic_div_30';
-
-export type SalaryStructureLine = {
-  id: string;
+export type SalaryStructurePayload = {
   name: string;
-  calcMethod: SalaryStructureCalcMethod;
-  value: string;
+  institutionId?: string;
+  departmentId?: string;
+  staffCategoryId: string;
+  designationId: string;
+  basicSalary: number;
+  effectiveFrom: string | Date;
+  effectiveTo?: string | Date | null;
+  status: SalaryStructureStatus;
+  earnings: SalaryStructureLine[];
+  deductions: SalaryStructureLine[];
+  employerContributions: SalaryStructureLine[];
+  otherComponents: SalaryStructureLine[];
 };
+
+export type GetSalaryStructureParams = SalaryStructureFilters & {
+  page?: number;
+  limit?: number;
+};
+
+export const SALARY_STRUCTURE_CODE_PREFIX = 'SST';
 
 export type SalaryStructureFormValues = {
   code: string;

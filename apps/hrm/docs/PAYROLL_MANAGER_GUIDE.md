@@ -18,7 +18,7 @@ Use with:
 
 | Module | Route | UI shell | Dynamic | Detail |
 |--------|-------|----------|---------|--------|
-| Salary Structures | `/salary-structures` | Done | Pending | §8 |
+| Salary Structures | `/salary-structures` | Done | **SS1–SS3 live (M1)** | §8 |
 | Allowances | `/allowances` | Done | Pending | §9 |
 | Deductions | `/deductions` | Done | Pending | §10 |
 | Assign Paysheet Component | `/assign-paysheet-component` | Done | Pending | §11 |
@@ -142,20 +142,20 @@ Follow **dependency order**, not sidebar order alone.
 
 ### Wave 0 — Foundation (once)
 
-| ID | Deliverable |
-|----|-------------|
-| **W0.1 PC5** | `getPaysheetComponentOptions` consumed by Assign / Bulk / Structure sheets |
-| **W0.2 SC5** | Salary Cycle options for Generation + period filters |
-| **W0.3 HV5** | Live EPF/ETF/PAYE rates & slabs for Processing / Payslips |
-| **W0.4 Shared loaders** | Staff, department, designation, institution, bank option APIs |
+| ID | Deliverable | Status |
+|----|-------------|--------|
+| **W0.1 PC5** | `getPaysheetComponentOptions` for Assign / Bulk / Structure sheets (`typeId`, `percentage`) | **Done** |
+| **W0.2 SC5** | Salary Cycle options (`getSalaryCycleOptionsAction`); wire Generation later | Action ready |
+| **W0.3 HV5** | Live EPF/ETF/PAYE for Processing / Payslips | Later (M9) |
+| **W0.4 Shared loaders** | Staff, department, designation, institution, bank option APIs | Partial |
 
 ### Wave A — Masters
 
-| ID | Module | Goal |
-|----|--------|------|
-| **M1** | Salary Structures | CRUD templates + line items |
-| **M2** | Allowances | CRUD catalog |
-| **M3** | Deductions | CRUD catalog |
+| ID | Module | Goal | Status |
+|----|--------|------|--------|
+| **M1** | Salary Structures | CRUD templates + line items | **Done (SS1–SS3)** |
+| **M2** | Allowances | CRUD catalog | Pending |
+| **M3** | Deductions | CRUD catalog | Pending |
 
 ### Wave B — Assignments & money-in
 
@@ -260,13 +260,13 @@ app/(dashboard)/(payroll)/salary-structures/
 
 ### Dynamic phases
 
-| Phase | Deliverable |
-|-------|-------------|
+| Phase | Deliverable | Status |
+|-------|-------------|--------|
 | **SS0** | Doc + types + UI shell | **Done** |
-| **SS1** | Prisma `SalaryStructure` + lines; Zod service; codes |
-| **SS2** | Actions (CRUD, activity, revalidate) |
-| **SS3** | Wire list / filters / summary / sheet |
-| **SS4** | Export + optional component-option link (PC5) |
+| **SS1** | Prisma `SalaryStructure` + lines; Zod service; `SST-n` codes | **Done** |
+| **SS2** | Actions (CRUD, duplicate, status, activity, revalidate) | **Done** |
+| **SS3** | Wire list / filters / summary / sheet + PC5 component picker | **Done** |
+| **SS4** | Export + live designation/department masters | Later |
 
 ---
 
@@ -574,4 +574,4 @@ Copy when starting a module:
 
 ---
 
-*Last updated: Sep 2026 — Phase 0 UI complete for all Payroll modules; dynamization roadmap §6–7.*
+*Last updated: Sep 2026 — M1 Salary Structures CRUD live (SS1–SS3); Phase 0 UI complete for remaining Payroll modules.*
