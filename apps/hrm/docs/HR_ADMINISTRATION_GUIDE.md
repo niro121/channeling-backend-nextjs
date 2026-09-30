@@ -885,59 +885,72 @@ Keep this separate from `shift-roster` (operational scheduling) so HR can mainta
 
 
 
-## 26. Manage Rosters ? Roster & Shifts (mechanism)
+## 26. Manage Rosters ↔ Roster & Shifts (mechanism)
 
-Two different ?roster codes? exist. Do **not** conflate them.
+Two different “roster codes” exist. Do **not** conflate them.
 
+| Code | Owner | Example | Meaning |
+|------|-------|---------|---------|
+| **Roster group code** | **Manage Rosters** (HR Admin) | `CHN` | Stable business key for a team/ward roster (CHANNEL) |
+| **Period code** | Roster & Shifts `ShiftRoster` | `SR-1` | Auto ID for one scheduling period (dept + unit + roster + date range) |
 
-| Code                  | Owner                         | Example | Meaning                                                               |
-| --------------------- | ----------------------------- | ------- | --------------------------------------------------------------------- |
-| **Roster group code** | **Manage Rosters** (HR Admin) | `CHN`   | Stable business key for a team/ward roster (CHANNEL)                  |
-| **Period code**       | Roster & Shifts `ShiftRoster` | `SR-1`  | Auto ID for one scheduling period (dept + unit + roster + date range) |
-
-
-
-
-### How they connect
+### How they connect (intended)
 
 ```
-Staff.employment.roster  ???  "CHN" (membership key)
-                ?
-                ?
-     Manage Rosters master (name, code, department, max shifts/day)
-                ?
-                ?
-ShiftRoster period (code = SR-n) + RosterAllocation cells
-  department + unit + roster snapshot + from/to
+Manage Rosters master          Staff Employment              Roster & Shifts
+(name, code CHN, dept,         assigns membership            schedules that group
+ shifts-per-person/day)
+        │                              │                              │
+        └──────── store code ──────────┴── Staff.employment.roster ───┤
+                   "CHN"                                               │
+                                                                       ▼
+                                              ShiftRoster period (SR-n) + RosterAllocation
+                                              snapshot roster string = "CHN"
 ```
 
+| Layer | Role |
+|-------|------|
+| **Manage Rosters** | Catalog of groups: CHANNEL / `CHN`, linked department, shifts-per-person-per-day rule |
+| **Staff Employment** | Puts a staff member **in** a group (`employment.roster` = group **code**) |
+| **Roster & Shifts** | Filters / snapshots that same **code**; builds periods with auto `SR-n`; allocates shifts |
 
-| Layer                        | Role                                                                                       |
-| ---------------------------- | ------------------------------------------------------------------------------------------ |
-| **Manage Rosters**           | Defines the catalog: CHANNEL / `CHN`, linked department, shifts-per-person-per-day rule    |
-| **Staff Employment**         | Assigns a staff member to a roster group (today free-text / placeholder options)           |
-| **Shift Roster / Duty / OT** | Filters and snapshots the roster **string**; builds `ShiftRoster` periods with auto `SR-n` |
+**Yes — there must be a connection.** Manage Rosters is the group catalog; Roster & Shifts is the scheduling engine. They are not duplicates and must not be merged in the sidebar.
 
+### Current state (today)
 
+| Area | Today |
+|------|--------|
+| Manage Rosters CRUD | **Live** (R0–R5) |
+| Staff Employment roster select | Still **placeholder** `ROSTER_OPTIONS` (`roster_a` …) — not wired to Manage Rosters |
+| Roster & Shifts roster filters | Built from **distinct strings** already on staff / allocations — not from Manage Rosters master |
+| `ShiftRoster.roster` / allocation snapshots | Free-text **string** (no FK) |
+| Manage Rosters `departmentId` | Still **placeholder enum** until Departments master is consumed here |
 
+### Locked storage key (upcoming — do not reopen)
 
-### Locked product decisions
+| Topic | Decision |
+|-------|----------|
+| Stored value everywhere | **`ManageRoster.code`** (e.g. `CHN`) — **not** Mongo ObjectId |
+| UI display | Show `name` (and optionally `code`); option `id` = **code** |
+| Staff field | `Staff.employment.roster` = code |
+| Roster & Shifts snapshots | `ShiftRoster.roster` / allocation `roster` = same code |
+| Period IDs | Stay `SR-n` only — never reuse group codes |
+| Consumers outside this pair (e.g. Payroll filters) | Must use the **same code** when they filter by roster; do not invent a parallel ObjectId-based key |
 
+### Locked product decisions (Manage Rosters screen)
 
-| Topic                     | Decision                                                                                                   |
-| ------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| Workspace pattern         | **Master?detail**, same family as Designations / Staff Grade                                               |
-| Roster code (`CHN`)       | **Human-entered** short unique key (uppercase); **not** `generateRecordCode('SR')`                         |
-| Period codes (`SR-n`)     | Stay owned by Roster & Shifts; never reused here                                                           |
-| Department                | `CustomSelectField` (placeholder options until Department master exists)                                   |
-| Shifts per person per day | Required positive integer; scheduling rule for later Roster & Shifts enforcement                           |
-| Actions                   | Cancel / Delete / Save at the **bottom of the detail form**                                                |
-| Summary cards             | Informational (active shifts / linked dept / assigned staff) ? sample or derived counts; full wiring later |
-| Integrations              | **Deferred** ? do not change Staff Employment or Roster & Shifts filters in this build                     |
-| Snapshot strategy (later) | Prefer storing master **code** (`CHN`) on staff/allocations; show name in UI                               |
+| Topic | Decision |
+|-------|----------|
+| Workspace pattern | **Master–detail**, same family as Designations / Staff Grade |
+| Roster code (`CHN`) | **Human-entered** short unique key (uppercase); **not** `generateRecordCode('SR')` |
+| Period codes (`SR-n`) | Stay owned by Roster & Shifts; never reused here |
+| Department | Replace placeholder enum with **Departments** master when that integration ships |
+| Shifts per person per day | Required positive integer; Roster & Shifts enforces later (INT-R4) |
+| Actions | Cancel / Delete / Save at the **bottom of the detail form** |
+| Summary cards | Assigned staff / linked dept / active templates — wire counts in R6/R7 |
+| Do **not** | Fold Manage Rosters into Roster & Shifts sidebar; do **not** add HR Admin “Manage Shifts” (templates stay `/shift-types`) |
 
-
-See also: `ROSTER_SHIFTS_MANAGER_GUIDE.md` ? Staff roster field is a string today; no Roster master FK in Roster v1.
+See also: `ROSTER_SHIFTS_MANAGER_GUIDE.md` §1.1 (upcoming Manage Rosters integration).
 
 ---
 
@@ -1042,20 +1055,21 @@ apps/hrm/
 
 ## 29. Manage Rosters development phases
 
+| Phase | Deliverable | Status |
+|-------|-------------|--------|
+| **R0 — Doc & types** | This guide; code vs `SR-n` clarity; UI types | **Done** |
+| **R1 — UI shell** | Route, sidebar, breadcrumbs, workspace | **Done** |
+| **R2 — Interactive detail form** | Search, Add highlight, department select, Save/Delete, summary cards, audit | **Done** |
+| **R3 — Schema & service** | Prisma `ManageRoster`, Zod CRUD, unique name + unique code | **Done** |
+| **R4 — Actions** | Permissions, activity log, revalidate | **Done** |
+| **R5 — Wire CRUD** | Live list + mutations; sample data removed | **Done** |
+| **R6 — Staff integration** | Staff Employment roster select from Manage Rosters; store **code**; remove `ROSTER_OPTIONS` placeholders for this field | **Upcoming** — see §32 INT-S3 |
+| **R6b — Department on Manage Rosters** | `departmentId` options from Departments master (drop placeholder enum) | **Upcoming** — prefer with / after Departments consumer wave |
+| **R7 — Roster & Shifts integration** | Roster filters/options load Manage Roster **codes**; snapshots keep string = code; keep `SR-n` for periods only | **Upcoming** — see §32 INT-R3 + Roster guide §1.1 |
+| **R8 — Rule enforcement** | Enforce `shiftsPerPersonPerDay` on allocate / publish where product requires | **Upcoming** — INT-R4 |
+| **R9 — Summary counts** | Assigned staff count (match `employment.roster` → code); optional active template count | **Upcoming** — INT-R6 / INT-R7 |
 
-| Phase                                           | Deliverable                                                                 | Status          |
-| ----------------------------------------------- | --------------------------------------------------------------------------- | --------------- |
-| **R0 ? Doc & types**                            | This guide; code vs `SR-n` clarity; UI types                                | Done            |
-| **R1 ? UI shell**                               | Route, sidebar, breadcrumbs, workspace                                      | Done            |
-| **R2 ? Interactive detail form**                | Search, Add highlight, department select, Save/Delete, summary cards, audit | Done            |
-| **R3 ? Schema & service**                       | Prisma `ManageRoster`, Zod CRUD, unique name + unique code                  | Done            |
-| **R4 ? Actions**                                | Permissions, activity log, revalidate                                       | Done            |
-| **R5 ? Wire CRUD**                              | Live list + mutations; sample data removed                                  | Done            |
-| **R6 ? Staff integration (deferred)**           | Staff Employment roster select from this master                             | Later ? see §32 |
-| **R7 ? Roster & Shifts integration (deferred)** | Filters/options + enforce shifts-per-person; keep `SR-n` for periods        | Later ? see §32 |
-
-
-**R0?R5** shipped. R6/R7 wait for the **cross-manager integration wave** after remaining HR Admin masters (§31). Prefer shipping **Departments** first so Manage Rosters can drop its department placeholder enum.
+**R0–R5 shipped.** Upcoming work is the **integration wave** (do not reopen Manage Rosters CRUD screens unless product asks). Preferred order: **R6 (Staff code)** → **R7 (Roster & Shifts options)** → **R8 / R9**. Align any other consumer that filters by roster on the **same code**.
 
 ---
 
@@ -1140,10 +1154,10 @@ Track candidates here until each module gets its own detailed section.
 | ---------- | ------------------------------------------------------------------------------ | ----------------- | ------------- |
 | **INT-S1** | Designation select from `Designation` master (store code or id consistently)   | Designations      | Deferred (D6) |
 | **INT-S2** | Staff grade select from `StaffGrade` master                                    | Staff Grades      | Deferred (G6) |
-| **INT-S3** | Roster select from `ManageRoster` master (store business **code**, e.g. `CHN`) | Manage Rosters    | Deferred (R6) |
+| **INT-S3** | Roster select from `ManageRoster` master — store business **code** (e.g. `CHN`); option `id` = code; remove static `ROSTER_OPTIONS` for this field | Manage Rosters | **Upcoming (R6)** — locked key = code |
 | **INT-S4** | Department select from Departments master                                      | Departments (P1)  | Blocked       |
 | **INT-S5** | Institution select from Institutions master                                    | Institutions (P3) | Blocked       |
-| **INT-S6** | Remove obsolete entries from `staff-employment-options.ts` once live           | INT-S1?S5         | Deferred      |
+| **INT-S6** | Remove obsolete entries from `staff-employment-options.ts` once live           | INT-S1–S5         | Deferred      |
 
 
 
@@ -1155,13 +1169,22 @@ Track candidates here until each module gets its own detailed section.
 | ---------- | -------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------- | ------------------- |
 | **INT-R1** | Designation filters / snapshots use Designation master                                                                                       | Designations                 | Deferred (D7)       |
 | **INT-R2** | Staff grade filters use Staff Grade master                                                                                                   | Staff Grades                 | Deferred (G7)       |
-| **INT-R3** | Roster filters/options use Manage Roster codes (`CHN`); keep `SR-n` for period IDs only                                                      | Manage Rosters               | Deferred (R7)       |
-| **INT-R4** | Enforce Manage Roster `shiftsPerPersonPerDay` where scheduling rules apply                                                                   | Manage Rosters + R7          | Deferred            |
+| **INT-R3** | Roster filters/options use Manage Roster **codes** (`CHN`); stop building roster options only from distinct free-text; keep `SR-n` for period IDs only | Manage Rosters + prefer INT-S3 first | **Upcoming (R7)** |
+| **INT-R4** | Enforce Manage Roster `shiftsPerPersonPerDay` where scheduling rules apply                                                                   | Manage Rosters + INT-R3      | **Upcoming (R8)**   |
 | **INT-R5** | Department / Unit filters and snapshots from masters                                                                                         | Departments (P1), Units (P2) | Blocked             |
-| **INT-R6** | Manage Rosters summary: assigned staff count (match `employment.roster` ? code)                                                              | INT-S3                       | Deferred            |
-| **INT-R7** | Manage Rosters summary: active shift **template** count (from `ShiftType` today; roster-scoped only if Manage Shifts / Option A ships ? §34) | Optional                     | Deferred            |
+| **INT-R6** | Manage Rosters summary: assigned staff count (match `employment.roster` → code)                                                              | INT-S3                       | **Upcoming (R9)**   |
+| **INT-R7** | Manage Rosters summary: active shift **template** count (from `ShiftType` today; roster-scoped only if Manage Shifts / Option A ships — §34) | Optional                     | Deferred            |
 | **INT-R8** | Confirm Holiday Calendar ownership notes in Roster guide (stub language is outdated)                                                         | Holiday Calendar             | Docs follow-up      |
 | **INT-R9** | If Manage Shifts ships: wire Roster & Shifts to one shift master (deprecate dual editors)                                                    | §34 Option A/B               | Not started / gated |
+
+**Manage Rosters ↔ Roster & Shifts upcoming order (locked for planning):**
+
+1. **INT-S3 / R6** — Staff stores `ManageRoster.code`.
+2. **INT-R3 / R7** — Roster & Shifts filter loaders + new snapshots use that code (migrate or dual-read old placeholder strings if needed).
+3. **INT-R4 / R8** — Enforce shifts-per-person-per-day.
+4. **INT-R6 / R9** — Wire Manage Rosters summary staff counts.
+
+Do **not** merge sidebar groups. Do **not** change `ShiftRoster` period identity (`SR-n`). Details for Roster implementers: `ROSTER_SHIFTS_MANAGER_GUIDE.md` §1.1.
 
 
 
