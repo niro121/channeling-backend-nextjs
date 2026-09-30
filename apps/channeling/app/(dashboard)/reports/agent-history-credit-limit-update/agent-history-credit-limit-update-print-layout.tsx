@@ -102,6 +102,16 @@ export function AgentHistoryCreditLimitUpdatePrintLayout({ rows }: Props) {
             font-weight: 700 !important;
             margin-right: 0.8mm !important;
           }
+          .agent-history-credit-limit-update-report-root .ahclu-c4,
+          .agent-history-credit-limit-update-report-root .ahclu-c4 .ahclu-wrap {
+            overflow: visible !important;
+            white-space: normal !important;
+            overflow-wrap: anywhere !important;
+            word-break: break-word !important;
+            -webkit-line-clamp: unset !important;
+            max-height: none !important;
+          }
+
           .agent-history-credit-limit-update-report-root .ahclu-clamp2 {
             display: -webkit-box !important;
             -webkit-box-orient: vertical !important;
@@ -205,7 +215,7 @@ export function AgentHistoryCreditLimitUpdatePrintLayout({ rows }: Props) {
                   </span>
                 </td>
                 <td className="ahclu-c4">
-                  <span className="ahclu-line ahclu-clamp2">
+                  <span className="ahclu-line ahclu-wrap">
                     {r.changedByUserName || '—'}
                   </span>
                 </td>
