@@ -1,8 +1,10 @@
 'use client';
 
 import { useState } from 'react';
-import { Ban, Pencil, Trash2 } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { Pencil, Trash2 } from 'lucide-react';
 import { Button, CustomAlertDialog, useToast } from '@archmage/ui';
+import { deleteDeductionAction } from '@/app/actions/payroll-actions/deduction.actions';
 import { usePermissions } from '@/components/hooks/use-permissions';
 import type { DeductionRecord } from '@/types/payroll';
 import { useDeductionsUi } from './deductions-ui-context';
@@ -11,21 +13,18 @@ type RecordActionsProps = {
   record: DeductionRecord;
 };
 
-const LATER = 'Will be wired in the dynamic phase.';
-
 export default function RecordActions({ record }: RecordActionsProps) {
   const { toast } = useToast();
+  const router = useRouter();
   const { has } = usePermissions();
   const { openEdit } = useDeductionsUi();
-  const [deactivateOpen, setDeactivateOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   const canEdit = has('payroll', 'edit');
   const canDelete = has('payroll', 'delete');
 
   const label = `${record.code || 'Deduction'} — ${record.name || 'Untitled'}`;
-  const isActive = record.status === 'active';
-  const toggleVerb = isActive ? 'Deactivate' : 'Activate';
 
   return (
     <>
@@ -40,18 +39,6 @@ export default function RecordActions({ record }: RecordActionsProps) {
             onClick={() => openEdit(record)}
           >
             <Pencil className="h-4 w-4" />
-          </Button>
-        ) : null}
-        {canEdit ? (
-          <Button
-            type="button"
-            size="icon"
-            variant="ghost"
-            className="h-8 w-8 text-muted-foreground hover:text-foreground"
-            aria-label={`${toggleVerb} ${label}`}
-            onClick={() => setDeactivateOpen(true)}
-          >
-            <Ban className="h-4 w-4" />
           </Button>
         ) : null}
         {canDelete ? (
@@ -69,32 +56,33 @@ export default function RecordActions({ record }: RecordActionsProps) {
       </div>
 
       <CustomAlertDialog
-        open={deactivateOpen}
-        handleVisibilityChange={setDeactivateOpen}
-        title={`${toggleVerb} deduction?`}
-        description={`${toggleVerb} ${label}?`}
-        loading={false}
-        handleContinue={() => {
-          setDeactivateOpen(false);
-          toast({
-            title: `${toggleVerb} deduction`,
-            description: LATER
-          });
-        }}
-      />
-
-      <CustomAlertDialog
         open={deleteOpen}
         handleVisibilityChange={setDeleteOpen}
         title="Delete deduction?"
-        description={`Remove ${label}? This cannot be undone.`}
-        loading={false}
-        handleContinue={() => {
-          setDeleteOpen(false);
-          toast({
-            title: 'Delete deduction',
-            description: LATER
-          });
+        description={`Remove ${label} from the paysheet component catalog? This cannot be undone.`}
+        loading={loading}
+        handleContinue={async () => {
+          setLoading(true);
+          try {
+            const result = await deleteDeductionAction(record.id);
+            setDeleteOpen(false);
+            if (result.isError) {
+              toast({
+                title: 'Delete failed',
+                description:
+                  (result.errors.message as string) ??
+                  'Could not delete deduction.'
+              });
+              return;
+            }
+            toast({
+              title: 'Deduction deleted',
+              description: label
+            });
+            router.refresh();
+          } finally {
+            setLoading(false);
+          }
         }}
         className={{
           actionButton:

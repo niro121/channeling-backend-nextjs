@@ -1,8 +1,10 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Clock3, Eye, Pencil, Trash2 } from 'lucide-react';
 import { Button, CustomAlertDialog, useToast } from '@archmage/ui';
+import { deletePaysheetAssignmentAction } from '@/app/actions/payroll-actions/paysheet-assignment.actions';
 import { usePermissions } from '@/components/hooks/use-permissions';
 import type { PaysheetAssignmentRecord } from '@/types/payroll';
 import { useAssignPaysheetUi } from './assign-paysheet-ui-context';
@@ -11,13 +13,13 @@ type RecordActionsProps = {
   record: PaysheetAssignmentRecord;
 };
 
-const LATER = 'Will be wired in the dynamic phase.';
-
 export default function RecordActions({ record }: RecordActionsProps) {
   const { toast } = useToast();
+  const router = useRouter();
   const { has } = usePermissions();
   const { openEdit, openHistory, openView } = useAssignPaysheetUi();
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   const canEdit = has('payroll', 'edit');
   const canDelete = has('payroll', 'delete');
@@ -76,12 +78,29 @@ export default function RecordActions({ record }: RecordActionsProps) {
         handleVisibilityChange={setDeleteOpen}
         title="Delete paysheet assignment?"
         description={`Remove ${record.componentName} for ${record.staffName} (${record.staffCode})?`}
-        handleContinue={() => {
-          setDeleteOpen(false);
-          toast({
-            title: 'Delete assignment',
-            description: LATER
-          });
+        loading={loading}
+        handleContinue={async () => {
+          setLoading(true);
+          try {
+            const result = await deletePaysheetAssignmentAction(record.id);
+            setDeleteOpen(false);
+            if (result.isError) {
+              toast({
+                title: 'Delete failed',
+                description:
+                  (result.errors.message as string) ??
+                  'Could not delete assignment.'
+              });
+              return;
+            }
+            toast({
+              title: 'Assignment deleted',
+              description: `${record.componentName} · ${record.staffName}`
+            });
+            router.refresh();
+          } finally {
+            setLoading(false);
+          }
         }}
         className={{
           actionButton:

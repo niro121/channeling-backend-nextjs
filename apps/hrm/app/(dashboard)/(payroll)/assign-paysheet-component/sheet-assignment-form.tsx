@@ -1,7 +1,8 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { Form, Formik } from 'formik';
+import { useRouter } from 'next/navigation';
+import { Form, Formik, type FormikHelpers } from 'formik';
 import * as Yup from 'yup';
 import { Save, X } from 'lucide-react';
 import {
@@ -19,6 +20,11 @@ import {
   SheetTitle,
   useToast
 } from '@archmage/ui';
+import { formatDateTime } from '@/lib/utils/date';
+import {
+  createPaysheetAssignmentAction,
+  updatePaysheetAssignmentAction
+} from '@/app/actions/payroll-actions/paysheet-assignment.actions';
 import {
   EMPTY_PAYSHEET_ASSIGNMENT_FORM,
   type PaysheetAssignmentFormValues,
@@ -43,8 +49,6 @@ const fieldStyleClasses = {
   inputClassName: 'w-full'
 };
 
-const LATER = 'Will be wired in the dynamic phase.';
-
 const validationSchema = Yup.object({
   staffId: Yup.string().required('Employee is required'),
   staffCode: Yup.string().required('Employee code is required'),
@@ -52,8 +56,19 @@ const validationSchema = Yup.object({
   effectiveFrom: Yup.date()
     .nullable()
     .required('Effective from date is required'),
-  effectiveTo: Yup.date().nullable().required('Effective to date is required'),
-  value: Yup.string().required('Value is required')
+  effectiveTo: Yup.date()
+    .nullable()
+    .required('Effective to date is required')
+    .min(
+      Yup.ref('effectiveFrom'),
+      'Effective to must be on or after effective from'
+    ),
+  value: Yup.string()
+    .required('Value is required')
+    .test('num', 'Enter a valid amount', (value) => {
+      if (value == null || value === '') return false;
+      return Number.isFinite(Number(value));
+    })
 });
 
 function recordToFormValues(
@@ -70,6 +85,23 @@ function recordToFormValues(
   };
 }
 
+function applyFieldErrors(
+  helpers: FormikHelpers<PaysheetAssignmentFormValues>,
+  errors: Record<string, unknown>
+) {
+  if (!errors || typeof errors !== 'object') return;
+  const fieldErrors: Record<string, string> = {};
+  for (const [key, value] of Object.entries(errors)) {
+    if (key === 'message') continue;
+    if (Array.isArray(value) && value[0]) {
+      fieldErrors[key] = String(value[0]);
+    }
+  }
+  if (Object.keys(fieldErrors).length) {
+    helpers.setErrors(fieldErrors);
+  }
+}
+
 export default function SheetAssignmentForm({
   open,
   mode,
@@ -79,9 +111,20 @@ export default function SheetAssignmentForm({
   onOpenChange
 }: SheetAssignmentFormProps) {
   const { toast } = useToast();
+  const router = useRouter();
   const [formKey, setFormKey] = useState(0);
+  const [saving, setSaving] = useState(false);
 
   const initialValues = useMemo(() => recordToFormValues(record), [record]);
+
+  const selectComponentOptions = useMemo(
+    () =>
+      componentOptions.map((item) => ({
+        id: item.id,
+        name: item.name
+      })),
+    [componentOptions]
+  );
 
   const title =
     mode === 'edit' ? 'Edit Paysheet Assignment' : 'Assign Paysheet Component';
@@ -91,6 +134,49 @@ export default function SheetAssignmentForm({
       : 'Assign an individual paysheet component to a staff member.';
 
   const handleClose = () => onOpenChange(false);
+
+  const handleSubmit = async (
+    values: PaysheetAssignmentFormValues,
+    helpers: FormikHelpers<PaysheetAssignmentFormValues>
+  ) => {
+    setSaving(true);
+    try {
+      const payload = {
+        staffId: values.staffId,
+        componentId: values.componentId,
+        effectiveFrom: values.effectiveFrom as Date,
+        effectiveTo: values.effectiveTo,
+        value: Number(values.value)
+      };
+
+      const result =
+        mode === 'edit' && record
+          ? await updatePaysheetAssignmentAction(record.id, payload)
+          : await createPaysheetAssignmentAction(payload);
+
+      if (result.isError || !result.data) {
+        const errors = result.errors as Record<string, unknown>;
+        applyFieldErrors(helpers, errors);
+        toast({
+          variant: 'destructive',
+          title: 'Save failed',
+          description:
+            (typeof errors?.message === 'string' && errors.message) ||
+            'Unable to save assignment.'
+        });
+        return;
+      }
+
+      toast({
+        title: mode === 'edit' ? 'Assignment updated' : 'Assignment created',
+        description: `${result.data.componentName} → ${result.data.staffName}`
+      });
+      handleClose();
+      router.refresh();
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <Sheet
@@ -114,12 +200,7 @@ export default function SheetAssignmentForm({
           initialValues={initialValues}
           enableReinitialize
           validationSchema={validationSchema}
-          onSubmit={() => {
-            toast({
-              title: mode === 'edit' ? 'Save changes' : 'Save assignment',
-              description: LATER
-            });
-          }}
+          onSubmit={handleSubmit}
         >
           {(formik) => (
             <Form className="flex min-h-0 flex-1 flex-col">
@@ -150,6 +231,11 @@ export default function SheetAssignmentForm({
                       popoverClassName="w-[var(--radix-popover-trigger-width)] min-w-60"
                     />
                   </div>
+                  {formik.touched.staffId && formik.errors.staffId ? (
+                    <p className="text-xs text-destructive">
+                      {formik.errors.staffId}
+                    </p>
+                  ) : null}
                 </div>
 
                 <CustomFormField
@@ -172,7 +258,7 @@ export default function SheetAssignmentForm({
                     void formik.setFieldValue('componentId', value)
                   }
                   required
-                  options={componentOptions}
+                  options={selectComponentOptions}
                   styleClasses={fieldStyleClasses}
                 />
 
@@ -213,28 +299,34 @@ export default function SheetAssignmentForm({
                   styleClasses={fieldStyleClasses}
                 />
 
-                <div className="grid gap-2 border-t border-border pt-4 text-xs text-muted-foreground sm:grid-cols-2">
-                  <p>
-                    Created by:{' '}
-                    <span className="text-foreground">
-                      {record?.createdBy
-                        ? `${record.createdBy}${
-                            record.createdAt ? ` - ${record.createdAt}` : ''
-                          }`
-                        : '—'}
-                    </span>
-                  </p>
-                  <p>
-                    Last updated:{' '}
-                    <span className="text-foreground">
-                      {record?.updatedBy
-                        ? `${record.updatedBy}${
-                            record.updatedAt ? ` - ${record.updatedAt}` : ''
-                          }`
-                        : '—'}
-                    </span>
-                  </p>
-                </div>
+                {mode === 'edit' ? (
+                  <div className="grid gap-2 border-t border-border pt-4 text-xs text-muted-foreground sm:grid-cols-2">
+                    <p>
+                      Created by:{' '}
+                      <span className="text-foreground">
+                        {record?.createdBy
+                          ? `${record.createdBy}${
+                              record.createdAt
+                                ? ` — ${formatDateTime(record.createdAt)}`
+                                : ''
+                            }`
+                          : '—'}
+                      </span>
+                    </p>
+                    <p>
+                      Last updated:{' '}
+                      <span className="text-foreground">
+                        {record?.updatedBy
+                          ? `${record.updatedBy}${
+                              record.updatedAt
+                                ? ` — ${formatDateTime(record.updatedAt)}`
+                                : ''
+                            }`
+                          : '—'}
+                      </span>
+                    </p>
+                  </div>
+                ) : null}
               </div>
 
               <SheetFooter className="shrink-0 flex-row justify-end gap-2 border-t border-border bg-background px-6 py-4 sm:space-x-0">
@@ -242,20 +334,27 @@ export default function SheetAssignmentForm({
                   type="button"
                   size="sm"
                   variant="outline"
-                  className="text-red-500 hover:text-white hover:bg-red-500 transition-colors"
+                  className="text-red-500 transition-colors hover:bg-red-500 hover:text-white"
+                  disabled={saving}
                   onClick={() => {
                     formik.resetForm({
                       values: EMPTY_PAYSHEET_ASSIGNMENT_FORM
                     });
                     setFormKey((key) => key + 1);
+                    handleClose();
                   }}
                 >
                   <X className="h-3.5 w-3.5" />
                   Cancel
                 </Button>
-                <Button type="submit" size="sm" className="h-9 gap-1.5">
+                <Button
+                  type="submit"
+                  size="sm"
+                  className="h-9 gap-1.5"
+                  disabled={saving}
+                >
                   <Save className="h-4 w-4" />
-                  Save
+                  {saving ? 'Saving…' : 'Save'}
                 </Button>
               </SheetFooter>
             </Form>

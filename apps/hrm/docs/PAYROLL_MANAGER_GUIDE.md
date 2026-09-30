@@ -20,8 +20,8 @@ Use with:
 |--------|-------|----------|---------|--------|
 | Salary Structures | `/salary-structures` | Done | **SS1–SS3 live (M1)** | §8 |
 | Allowances | `/allowances` | Done | **AL1–AL3 live (M2)** | §9 |
-| Deductions | `/deductions` | Done | Pending | §10 |
-| Assign Paysheet Component | `/assign-paysheet-component` | Done | Pending | §11 |
+| Deductions | `/deductions` | Done | **DE1–DE3 live (M3)** | §10 |
+| Assign Paysheet Component | `/assign-paysheet-component` | Done | **AP1–AP3 live (M4)** | §11 |
 | Bulk Assign Paysheet Component | `/bulk-assign-paysheet-component` | Done | Pending | §12 |
 | Performance Allowance | `/performance-allowance` | Done | Pending | §13 |
 | Loans & Advances | `/loans-advances` | Done | Pending | §14 |
@@ -155,16 +155,16 @@ Follow **dependency order**, not sidebar order alone.
 |----|--------|------|--------|
 | **M1** | Salary Structures | CRUD templates + line items | **Done (SS1–SS3)** |
 | **M2** | Allowances | CRUD over PaysheetComponent (`fixed_allowance` / `percentage_allowance`) | **Done (AL1–AL3)** |
-| **M3** | Deductions | CRUD catalog | Pending |
+| **M3** | Deductions | CRUD over PaysheetComponent (`fixed_deduction` / `loan` / `advance`) | **Done (DE1–DE3)** |
 
 ### Wave B — Assignments & money-in
 
-| ID | Module | Goal |
-|----|--------|------|
-| **M4** | Assign Paysheet Component | Per-staff assignments + history |
-| **M5** | Bulk Assign | Multi-staff + overlap detection |
-| **M6** | Performance Allowance | Period performance amounts |
-| **M7** | Loans & Advances | Loans/advances + balances |
+| ID | Module | Goal | Status |
+|----|--------|------|--------|
+| **M4** | Assign Paysheet Component | Per-staff assignments + history | **Done (AP1–AP3)** |
+| **M5** | Bulk Assign | Multi-staff + overlap detection | Pending |
+| **M6** | Performance Allowance | Period performance amounts | Pending |
+| **M7** | Loans & Advances | Loans/advances + balances | Pending |
 
 ### Wave C — Engine
 
@@ -199,7 +199,7 @@ No Payroll-run models exist yet in `schema.prisma` (only PaysheetComponent / Hrm
 ```
 SalaryStructure 1──* SalaryStructureLine (embedded)
 PaysheetComponent          ← Allowances / Deductions are filtered UIs over this (see §20 #1)
-PaysheetAssignment *── Staff, PaysheetComponent
+PaysheetAssignment *── Staff, PaysheetComponent   ← **M4 live**
 PerformanceAllowance *── Staff, period
 LoanAdvance *── Staff (+ schedule / balance)
 PayrollRun 1──* PayrollRunLine   (Generation → Processing statuses)
@@ -294,12 +294,23 @@ app/(dashboard)/(payroll)/salary-structures/
 
 ## 10. Deductions
 
-Mirror Allowances as filtered PaysheetComponent CRUD (`fixed_deduction`, and later other deduction `typeId`s).
+| Item | Decision |
+|------|----------|
+| Route | `/deductions` |
+| Storage | **No separate collection** — filtered CRUD over `PaysheetComponent` where `typeId` ∈ `fixed_deduction`, `loan`, `advance` |
+| UI | Stepper, summary (total / fixed / loan / advance), filters (search, type, kind), register, form sheet |
+| Codes | Same as PC (`PSC-n`) |
+| Permission | `payroll` |
+| Note | Loan/advance *balances & schedules* remain on Loans & Advances (M7); this page manages component definitions only |
 
-| Phase | Deliverable |
-|-------|-------------|
+### Dynamic phases
+
+| Phase | Deliverable | Status |
+|-------|-------------|--------|
 | **DE0** | UI shell | **Done** |
-| **DE1–DE3** | Schema → actions → wire (same as AL) |
+| **DE1** | Service wrapper (`deduction.service.ts`) | **Done** |
+| **DE2** | Actions (`deduction.actions.ts`) | **Done** |
+| **DE3** | Wire UI (list, summary, sheet, delete, export) | **Done** |
 
 ---
 
@@ -308,17 +319,20 @@ Mirror Allowances as filtered PaysheetComponent CRUD (`fixed_deduction`, and lat
 | Item | Decision |
 |------|----------|
 | Route | `/assign-paysheet-component` |
-| UI | Filters + register; sheet form; history sheet; view dialog |
-| Depends on | **PC5** component options; live staff combobox |
+| Storage | `PaysheetAssignment` (codes `PSA-n`) |
+| UI | Filters + register; sheet form; history sheet (ActivityLog); view dialog |
+| Depends on | **PC5** component options; payroll staff options |
+| Overlap | Same `staffId` + `componentId` with intersecting date ranges blocked on create/update |
+| Status | Derived: `active` / `expiring` (≤30 days to end) / `ended` |
 
 ### Dynamic phases
 
-| Phase | Deliverable |
-|-------|-------------|
+| Phase | Deliverable | Status |
+|-------|-------------|--------|
 | **AP0** | UI shell | **Done** |
-| **AP1** | `PaysheetAssignment` model + overlap rules |
-| **AP2** | Actions + history events |
-| **AP3** | Wire UI; consume PC5 options |
+| **AP1** | `PaysheetAssignment` model + overlap rules | **Done** |
+| **AP2** | Actions + history events (ActivityLog) | **Done** |
+| **AP3** | Wire UI; consume PC5 + staff options | **Done** |
 
 ---
 
@@ -487,7 +501,7 @@ Resolve these before or during Wave A / C:
 
 | # | Topic | Options / recommendation |
 |---|--------|---------------------------|
-| 1 | Allowances & Deductions vs Paysheet Components | **Locked (M2):** thin payroll UI over `PaysheetComponent` — no separate Allowance master. **M3** will mirror for deductions. |
+| 1 | Allowances & Deductions vs Paysheet Components | **Locked (M2/M3):** thin payroll UI over `PaysheetComponent` — no separate Allowance/Deduction masters. |
 | 2 | Salary Structure scope | Template-only vs also staff assignment (assignment may stay on Assign Paysheet) |
 | 3 | Generation vs Processing storage | Prefer **one `PayrollRun`** with status machine (`draft` → `processed` → …) |
 | 4 | Bank file format | Confirm byte-level format against current bank upload before BT2 |

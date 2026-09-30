@@ -2,11 +2,15 @@
 
 import { Suspense } from 'react';
 import { useToast } from '@archmage/ui';
+import { exportPaysheetAssignmentsAction } from '@/app/actions/payroll-actions/paysheet-assignment.actions';
 import {
   CommonDataTable,
   DataTableExportFeature
 } from '@/components/common/common-data-table';
-import type { PaysheetAssignmentRecord } from '@/types/payroll';
+import type {
+  PaysheetAssignmentFilters,
+  PaysheetAssignmentRecord
+} from '@/types/payroll';
 import {
   ASSIGN_PAYSHEET_EXPORT_COLUMNS,
   ASSIGN_PAYSHEET_EXPORT_KEYS,
@@ -17,24 +21,30 @@ type SectionRegisterProps = {
   records?: PaysheetAssignmentRecord[];
   totalRecords?: number;
   page?: string;
+  initialFilters?: PaysheetAssignmentFilters;
 };
 
 export default function SectionRegister({
   records = [],
   totalRecords = 0,
-  page
+  page,
+  initialFilters = {}
 }: SectionRegisterProps) {
   const { toast } = useToast();
 
   const handleExport = async () => {
-    toast({
-      title: 'Export',
-      description: 'Will be wired in the dynamic phase.'
-    });
-    return {
-      success: false,
-      message: 'Export will be wired in the dynamic phase.'
-    };
+    const result = await exportPaysheetAssignmentsAction(initialFilters);
+    if (!result.success || !result.data?.length) {
+      toast({
+        title: 'Export',
+        description: result.message ?? 'No assignments to export.'
+      });
+      return {
+        success: false,
+        message: result.message ?? 'No assignments found'
+      };
+    }
+    return { success: true, data: result.data };
   };
 
   return (

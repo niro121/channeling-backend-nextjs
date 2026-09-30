@@ -134,7 +134,9 @@ export const EMPTY_SALARY_PROCESSING_SUMMARY: SalaryProcessingSummary = {
   epfEtf: 0
 };
 
-/** Assign Paysheet Component — Phase 0 UI shell. */
+/** Assign Paysheet Component — live CRUD over PaysheetAssignment. */
+export const PAYSHEET_ASSIGNMENT_CODE_PREFIX = 'PSA';
+
 export type PaysheetAssignmentStatus = 'active' | 'expiring' | 'ended';
 
 export type PaysheetStaffOption = {
@@ -157,8 +159,14 @@ export type PaysheetAssignmentFilters = {
   rosterId?: string;
 };
 
+export type GetPaysheetAssignmentParams = PaysheetAssignmentFilters & {
+  page?: number;
+  limit?: number;
+};
+
 export type PaysheetAssignmentRecord = {
   id: string;
+  code: string;
   staffId: string;
   institution: string;
   department: string;
@@ -187,6 +195,32 @@ export type PaysheetAssignmentFormValues = {
   effectiveFrom: Date | null;
   effectiveTo: Date | null;
   value: string;
+};
+
+export type PaysheetAssignmentPayload = {
+  staffId: string;
+  componentId: string;
+  effectiveFrom: Date | string;
+  effectiveTo?: Date | string | null;
+  value: number;
+};
+
+export type PaysheetAssignmentHistoryEntry = {
+  id: string;
+  title: string;
+  detail: string;
+  userLabel: string;
+  at: string;
+};
+
+export type PaysheetAssignmentOverlap = {
+  id: string;
+  code: string;
+  staffName: string;
+  staffCode: string;
+  componentName: string;
+  effectiveFrom: string | null;
+  effectiveTo: string | null;
 };
 
 export const EMPTY_PAYSHEET_ASSIGNMENT_FORM: PaysheetAssignmentFormValues = {
@@ -760,46 +794,57 @@ export const PAYROLL_CALC_METHOD_LABELS: Record<PayrollCalcMethod, string> = {
   formula: 'Formula'
 };
 
-/** Deductions master — Phase 0 list + sheet shell. */
-export type DeductionStatus = 'active' | 'inactive' | 'draft';
+/**
+ * Deductions — thin payroll UI over PaysheetComponent
+ * (`fixed_deduction` | `loan` | `advance`). No separate master collection.
+ * Loan/advance *assignments* stay on Loans & Advances (M7); this page manages
+ * the shared component definitions.
+ */
+export const DEDUCTION_COMPONENT_TYPE_IDS = [
+  'fixed_deduction',
+  'loan',
+  'advance'
+] as const;
+export type DeductionComponentTypeId =
+  (typeof DEDUCTION_COMPONENT_TYPE_IDS)[number];
 
-export type DeductionType =
-  | 'epf'
-  | 'etf'
-  | 'tax'
-  | 'loan'
-  | 'advance'
-  | 'no_pay'
-  | 'other';
+export const DEDUCTION_KIND_OPTIONS = [
+  { id: 'custom', name: 'Custom' },
+  { id: 'system', name: 'System based' }
+] as const;
 
-export type DeductionCalcMethod = PayrollCalcMethod;
+export const DEDUCTION_TYPE_OPTIONS = [
+  { id: 'fixed_deduction', name: 'Fixed deduction' },
+  { id: 'loan', name: 'Loan' },
+  { id: 'advance', name: 'Advance' }
+] as const;
+
+export const DEDUCTION_TYPE_LABELS: Record<DeductionComponentTypeId, string> = {
+  fixed_deduction: 'Fixed deduction',
+  loan: 'Loan',
+  advance: 'Advance'
+};
 
 export type DeductionFilters = {
   search?: string;
-  deductionType?: string;
-  staffCategory?: string;
-  departmentId?: string;
-  designationId?: string;
-  status?: string;
-  effectiveDate?: string;
+  typeId?: string;
+  kind?: string;
+};
+
+export type GetDeductionParams = DeductionFilters & {
+  page?: number;
+  limit?: number;
 };
 
 export type DeductionRecord = {
   id: string;
   code: string;
   name: string;
-  deductionType: DeductionType;
-  calcMethod: DeductionCalcMethod;
-  amountOrPercent: string;
-  staffCategoryId: string;
-  staffCategory: string;
-  departmentId: string;
-  department: string;
-  designationId: string;
-  designation: string;
-  effectiveFrom: string | null;
-  effectiveTo: string | null;
-  status: DeductionStatus;
+  kind: 'system' | 'custom' | string;
+  typeId: DeductionComponentTypeId | string;
+  orderNo: number;
+  percentage: number | null;
+  includedForIds: string[];
   createdBy: string | null;
   createdAt: string | null;
   updatedBy: string | null;
@@ -809,68 +854,41 @@ export type DeductionRecord = {
 export type DeductionFormValues = {
   code: string;
   name: string;
-  deductionType: string;
-  calcMethod: string;
-  amountOrPercent: string;
-  staffCategory: string;
-  departmentId: string;
-  designationId: string;
-  effectiveFrom: Date | null;
-  effectiveTo: Date | null;
-  status: DeductionStatus;
+  kind: string;
+  typeId: string;
+  orderNo: string;
+  includedForIds: string[];
+};
+
+export type DeductionPayload = {
+  name: string;
+  kind: 'system' | 'custom';
+  typeId: DeductionComponentTypeId | string;
+  orderNo: number;
+  includedForIds: string[];
 };
 
 export type DeductionSummary = {
   totalDeductions: number;
-  active: number;
-  monthlyValue: number;
-  draftInactive: number;
+  fixed: number;
+  loan: number;
+  advance: number;
 };
-
-export const DEDUCTION_STATUS_OPTIONS = PAYROLL_CATALOG_STATUS_OPTIONS;
-
-export const DEDUCTION_TYPE_OPTIONS = [
-  { id: 'epf', name: 'EPF' },
-  { id: 'etf', name: 'ETF' },
-  { id: 'tax', name: 'Tax' },
-  { id: 'loan', name: 'Loan' },
-  { id: 'advance', name: 'Advance' },
-  { id: 'no_pay', name: 'No-pay' },
-  { id: 'other', name: 'Other' }
-] as const;
-
-export const DEDUCTION_TYPE_LABELS: Record<DeductionType, string> = {
-  epf: 'EPF',
-  etf: 'ETF',
-  tax: 'Tax',
-  loan: 'Loan',
-  advance: 'Advance',
-  no_pay: 'No-pay',
-  other: 'Other'
-};
-
-export const DEDUCTION_CALC_METHOD_OPTIONS = PAYROLL_CALC_METHOD_OPTIONS;
-export const DEDUCTION_CALC_METHOD_LABELS = PAYROLL_CALC_METHOD_LABELS;
 
 export const EMPTY_DEDUCTION_FORM: DeductionFormValues = {
   code: '',
   name: '',
-  deductionType: 'epf',
-  calcMethod: 'fixed_per_month',
-  amountOrPercent: '',
-  staffCategory: '__all__',
-  departmentId: '__all__',
-  designationId: '__all__',
-  effectiveFrom: null,
-  effectiveTo: null,
-  status: 'active'
+  kind: 'custom',
+  typeId: 'fixed_deduction',
+  orderNo: '0',
+  includedForIds: []
 };
 
 export const EMPTY_DEDUCTION_SUMMARY: DeductionSummary = {
   totalDeductions: 0,
-  active: 0,
-  monthlyValue: 0,
-  draftInactive: 0
+  fixed: 0,
+  loan: 0,
+  advance: 0
 };
 
 /**

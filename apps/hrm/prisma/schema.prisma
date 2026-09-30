@@ -850,6 +850,52 @@ model SalaryStructure {
   @@index([effectiveFrom])
 }
 
+/// Per-staff paysheet component assignment with effective date range.
+model PaysheetAssignment {
+  id            String    @id @default(auto()) @map("_id") @db.ObjectId
+  code          String    @unique // PSA-n
+  staffId       String    @db.ObjectId
+  componentId   String    @db.ObjectId
+  effectiveFrom DateTime
+  effectiveTo   DateTime?
+  value         Float     @default(0)
+
+  // Denormalized display / filter fields (snapshot from Staff + Component)
+  staffCode       String @default("")
+  staffName       String @default("")
+  componentName   String @default("")
+  epfNumber       String @default("")
+  institution     String @default("")
+  institutionId   String @default("")
+  department      String @default("")
+  departmentId    String @default("")
+  roster          String @default("")
+  rosterId        String @default("")
+  grade           String @default("")
+  staffCategory   String @default("")
+  staffCategoryId String @default("")
+  designation     String @default("")
+  designationId   String @default("")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy String?  @db.ObjectId
+  updatedBy String?  @db.ObjectId
+
+  @@index([staffId])
+  @@index([componentId])
+  @@index([staffId, componentId])
+  @@index([effectiveFrom])
+  @@index([effectiveTo])
+  @@index([staffCode])
+  @@index([epfNumber])
+  @@index([departmentId])
+  @@index([institutionId])
+  @@index([staffCategoryId])
+  @@index([designationId])
+  @@index([rosterId])
+}
+
 /* ---------------------------------
 ORGANIZATION
 --------------------------------- */

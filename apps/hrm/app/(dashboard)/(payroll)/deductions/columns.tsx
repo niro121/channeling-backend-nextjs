@@ -4,45 +4,43 @@ import { ColumnDef } from '@tanstack/react-table';
 import { Badge } from '@archmage/ui';
 import { formatDateTime } from '@/lib/utils/date';
 import {
-  DEDUCTION_CALC_METHOD_LABELS,
   DEDUCTION_TYPE_LABELS,
-  type DeductionRecord,
-  type DeductionStatus,
-  type DeductionType
+  type DeductionComponentTypeId,
+  type DeductionRecord
 } from '@/types/payroll';
+import {
+  PAYSHEET_COMPONENT_INCLUDED_FOR_LABELS,
+  type PaysheetComponentIncludedForId
+} from '@/types/paysheet-component';
 import RecordActions from './record-actions';
 
-const statusStyles: Record<
-  DeductionStatus,
-  { label: string; className: string }
-> = {
-  active: {
-    label: 'Active',
-    className: 'bg-emerald-100 text-emerald-800 hover:bg-emerald-100'
-  },
-  inactive: {
-    label: 'Inactive',
-    className: 'bg-slate-100 text-slate-700 hover:bg-slate-100'
-  },
-  draft: {
-    label: 'Draft',
-    className: 'bg-orange-100 text-orange-800 hover:bg-orange-100'
-  }
+const typeStyles: Record<DeductionComponentTypeId, string> = {
+  fixed_deduction: 'bg-rose-100 text-rose-800 hover:bg-rose-100',
+  loan: 'bg-orange-100 text-orange-800 hover:bg-orange-100',
+  advance: 'bg-amber-100 text-amber-800 hover:bg-amber-100'
 };
 
-const typeStyles: Record<DeductionType, string> = {
-  epf: 'bg-sky-100 text-sky-800 hover:bg-sky-100',
-  etf: 'bg-indigo-100 text-indigo-800 hover:bg-indigo-100',
-  tax: 'bg-emerald-100 text-emerald-800 hover:bg-emerald-100',
-  loan: 'bg-cyan-100 text-cyan-800 hover:bg-cyan-100',
-  advance: 'bg-teal-100 text-teal-800 hover:bg-teal-100',
-  no_pay: 'bg-orange-100 text-orange-800 hover:bg-orange-100',
-  other: 'bg-lime-100 text-lime-800 hover:bg-lime-100'
+const kindStyles: Record<string, string> = {
+  system: 'bg-sky-100 text-sky-800 hover:bg-sky-100',
+  custom: 'bg-violet-100 text-violet-800 hover:bg-violet-100'
 };
 
-function formatDateOnly(value: string | null): string {
-  if (!value) return '—';
-  return formatDateTime(value, 'dd MMM yyyy');
+function typeLabel(typeId: string): string {
+  return (
+    DEDUCTION_TYPE_LABELS[typeId as DeductionComponentTypeId] ?? typeId
+  );
+}
+
+function includedLabel(ids: string[]): string {
+  if (!ids.length) return '—';
+  return ids
+    .map(
+      (id) =>
+        PAYSHEET_COMPONENT_INCLUDED_FOR_LABELS[
+          id as PaysheetComponentIncludedForId
+        ] ?? id
+    )
+    .join(', ');
 }
 
 export const deductionColumns: ColumnDef<DeductionRecord>[] = [
@@ -62,7 +60,7 @@ export const deductionColumns: ColumnDef<DeductionRecord>[] = [
   },
   {
     accessorKey: 'code',
-    header: 'Deduction Code',
+    header: 'Code',
     cell: ({ row }) => (
       <span className="font-medium tabular-nums">
         {row.original.code || '—'}
@@ -79,91 +77,47 @@ export const deductionColumns: ColumnDef<DeductionRecord>[] = [
     )
   },
   {
-    accessorKey: 'deductionType',
-    header: 'Type',
+    accessorKey: 'kind',
+    header: 'Kind',
     cell: ({ row }) => (
       <Badge
         variant="secondary"
-        className={typeStyles[row.original.deductionType]}
+        className={kindStyles[row.original.kind] ?? kindStyles.custom}
       >
-        {DEDUCTION_TYPE_LABELS[row.original.deductionType]}
+        {row.original.kind === 'system' ? 'System' : 'Custom'}
       </Badge>
     )
   },
   {
-    accessorKey: 'calcMethod',
-    header: 'Calculation Method',
+    accessorKey: 'typeId',
+    header: 'Type',
     cell: ({ row }) => (
-      <span className="whitespace-nowrap">
-        {DEDUCTION_CALC_METHOD_LABELS[row.original.calcMethod]}
-      </span>
+      <Badge
+        variant="secondary"
+        className={
+          typeStyles[row.original.typeId as DeductionComponentTypeId] ??
+          'bg-slate-100 text-slate-700'
+        }
+      >
+        {typeLabel(row.original.typeId)}
+      </Badge>
     )
   },
   {
-    accessorKey: 'amountOrPercent',
-    header: 'Amount / %',
+    accessorKey: 'orderNo',
+    header: 'Order',
     cell: ({ row }) => (
-      <span className="tabular-nums whitespace-nowrap">
-        {row.original.amountOrPercent || '—'}
-      </span>
+      <span className="tabular-nums">{row.original.orderNo}</span>
     )
   },
   {
-    accessorKey: 'staffCategory',
-    header: 'Staff Category',
+    id: 'includedFor',
+    header: 'Included For',
     cell: ({ row }) => (
-      <span className="whitespace-nowrap">
-        {row.original.staffCategory || '—'}
+      <span className="max-w-[220px] truncate text-sm text-muted-foreground">
+        {includedLabel(row.original.includedForIds)}
       </span>
     )
-  },
-  {
-    accessorKey: 'department',
-    header: 'Department',
-    cell: ({ row }) => (
-      <span className="whitespace-nowrap">
-        {row.original.department || '—'}
-      </span>
-    )
-  },
-  {
-    accessorKey: 'designation',
-    header: 'Designation',
-    cell: ({ row }) => (
-      <span className="whitespace-nowrap">
-        {row.original.designation || '—'}
-      </span>
-    )
-  },
-  {
-    accessorKey: 'effectiveFrom',
-    header: 'Effective From',
-    cell: ({ row }) => (
-      <span className="whitespace-nowrap tabular-nums">
-        {formatDateOnly(row.original.effectiveFrom)}
-      </span>
-    )
-  },
-  {
-    accessorKey: 'effectiveTo',
-    header: 'Effective To',
-    cell: ({ row }) => (
-      <span className="whitespace-nowrap tabular-nums">
-        {formatDateOnly(row.original.effectiveTo)}
-      </span>
-    )
-  },
-  {
-    accessorKey: 'status',
-    header: 'Status',
-    cell: ({ row }) => {
-      const style = statusStyles[row.original.status];
-      return (
-        <Badge variant="secondary" className={style.className}>
-          {style.label}
-        </Badge>
-      );
-    }
   },
   {
     id: 'created',
@@ -202,17 +156,12 @@ export const deductionColumns: ColumnDef<DeductionRecord>[] = [
 ];
 
 export const DEDUCTION_EXPORT_COLUMNS = [
-  'Deduction Code',
-  'Deduction Name',
+  'Code',
+  'Name',
+  'Kind',
   'Type',
-  'Calculation Method',
-  'Amount / %',
-  'Staff Category',
-  'Department',
-  'Designation',
-  'Effective From',
-  'Effective To',
-  'Status',
+  'Order',
+  'Included For',
   'Created By',
   'Created At',
   'Updated By',
@@ -222,15 +171,10 @@ export const DEDUCTION_EXPORT_COLUMNS = [
 export const DEDUCTION_EXPORT_KEYS = [
   'code',
   'name',
-  'deductionType',
-  'calcMethod',
-  'amountOrPercent',
-  'staffCategory',
-  'department',
-  'designation',
-  'effectiveFrom',
-  'effectiveTo',
-  'status',
+  'kind',
+  'typeId',
+  'orderNo',
+  'includedFor',
   'createdBy',
   'createdAt',
   'updatedBy',

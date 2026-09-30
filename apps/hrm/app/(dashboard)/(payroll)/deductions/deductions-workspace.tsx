@@ -1,11 +1,11 @@
 'use client';
 
-import { useState } from 'react';
 import { CommonManagerHeader } from '@/components/common/common-manager-header';
 import {
-  EMPTY_DEDUCTION_SUMMARY,
   PAYROLL_WORKFLOW_STEPS,
-  type DeductionRecord
+  type DeductionFilters,
+  type DeductionRecord,
+  type DeductionSummary
 } from '@/types/payroll';
 import {
   DeductionsUiProvider,
@@ -17,16 +17,28 @@ import SectionSummary from './section-summary';
 import SectionWorkflowSteps from './section-workflow-steps';
 import SheetDeductionForm from './sheet-deduction-form';
 
-function DeductionsWorkspaceInner() {
+type DeductionsWorkspaceProps = {
+  initialRecords: DeductionRecord[];
+  totalRecords: number;
+  summary: DeductionSummary;
+  page?: string;
+  initialFilters?: DeductionFilters;
+};
+
+function DeductionsWorkspaceInner({
+  initialRecords,
+  totalRecords,
+  summary,
+  page,
+  initialFilters
+}: DeductionsWorkspaceProps) {
   const { formSheet, closeFormSheet } = useDeductionsUi();
-  const [records] = useState<DeductionRecord[]>([]);
-  const summary = EMPTY_DEDUCTION_SUMMARY;
 
   return (
     <div className="space-y-6">
       <CommonManagerHeader
         title="Deductions"
-        description="Configure statutory and payroll deductions consistent with existing EPF, ETF, PAYE, loan and no-pay rules."
+        description="Payroll view of deduction paysheet components (fixed, loan, advance). Same catalog as HR Admin → Paysheet Components."
         actions={<DeductionsHeaderActions />}
       />
 
@@ -35,10 +47,10 @@ function DeductionsWorkspaceInner() {
       <SectionSummary summary={summary} />
 
       <SectionRegister
-        records={records}
-        totalRecords={records.length}
-        departmentOptions={[]}
-        designationOptions={[]}
+        records={initialRecords}
+        totalRecords={totalRecords}
+        page={page}
+        initialFilters={initialFilters}
       />
 
       <SheetDeductionForm
@@ -53,10 +65,10 @@ function DeductionsWorkspaceInner() {
   );
 }
 
-export default function DeductionsWorkspace() {
+export default function DeductionsWorkspace(props: DeductionsWorkspaceProps) {
   return (
     <DeductionsUiProvider>
-      <DeductionsWorkspaceInner />
+      <DeductionsWorkspaceInner {...props} />
     </DeductionsUiProvider>
   );
 }

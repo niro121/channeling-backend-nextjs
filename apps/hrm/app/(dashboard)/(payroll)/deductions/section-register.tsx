@@ -2,11 +2,12 @@
 
 import { Suspense } from 'react';
 import { useToast } from '@archmage/ui';
+import { exportDeductionsAction } from '@/app/actions/payroll-actions/deduction.actions';
 import {
   CommonDataTable,
   DataTableExportFeature
 } from '@/components/common/common-data-table';
-import type { DeductionRecord, SalaryFilterOption } from '@/types/payroll';
+import type { DeductionFilters, DeductionRecord } from '@/types/payroll';
 import {
   DEDUCTION_EXPORT_COLUMNS,
   DEDUCTION_EXPORT_KEYS,
@@ -18,36 +19,35 @@ type SectionRegisterProps = {
   records?: DeductionRecord[];
   totalRecords?: number;
   page?: string;
-  departmentOptions?: SalaryFilterOption[];
-  designationOptions?: SalaryFilterOption[];
+  initialFilters?: DeductionFilters;
 };
 
 export default function SectionRegister({
   records = [],
   totalRecords = 0,
   page,
-  departmentOptions = [],
-  designationOptions = []
+  initialFilters = {}
 }: SectionRegisterProps) {
   const { toast } = useToast();
 
   const handleExport = async () => {
-    toast({
-      title: 'Export',
-      description: 'Will be wired in the dynamic phase.'
-    });
-    return {
-      success: false,
-      message: 'Export will be wired in the dynamic phase.'
-    };
+    const result = await exportDeductionsAction(initialFilters);
+    if (!result.success || !result.data?.length) {
+      toast({
+        title: 'Export',
+        description: result.message ?? 'No deductions to export.'
+      });
+      return {
+        success: false,
+        message: result.message ?? 'No deductions found'
+      };
+    }
+    return { success: true, data: result.data };
   };
 
   return (
     <div className="space-y-4">
-      <SectionFilters
-        departmentOptions={departmentOptions}
-        designationOptions={designationOptions}
-      />
+      <SectionFilters initial={initialFilters} />
 
       <Suspense
         fallback={
@@ -58,7 +58,7 @@ export default function SectionRegister({
       >
         <CommonDataTable
           heading="Deduction Register"
-          subHeading="Statutory and payroll deductions with calculation method and applicability scope."
+          subHeading="Fixed, loan, and advance deduction components from the paysheet catalog."
           columns={deductionColumns}
           data={records}
           rowCount={totalRecords}

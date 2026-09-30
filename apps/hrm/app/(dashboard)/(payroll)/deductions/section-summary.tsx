@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
-import { CheckCircle2, CircleMinus, FileWarning, Wallet } from 'lucide-react';
+import { Banknote, CircleMinus, HandCoins, Wallet } from 'lucide-react';
 import { Card, CardContent } from '@archmage/ui';
-import { formatAmount, formatLkrCompact } from '@/lib/utils/currency';
+import { formatAmount } from '@/lib/utils/currency';
 import type { DeductionSummary } from '@/types/payroll';
 
 type SummaryCard = {
@@ -21,30 +21,30 @@ export default function SectionSummary({ summary }: SectionSummaryProps) {
     {
       label: 'Total Deductions',
       value: formatAmount(summary.totalDeductions),
-      subText: 'All defined deductions',
-      icon: <CircleMinus className="h-4 w-4 text-red-700" />,
-      iconWrapClass: 'bg-red-50'
+      subText: 'Fixed + loan + advance components',
+      icon: <CircleMinus className="h-4 w-4 text-rose-700" />,
+      iconWrapClass: 'bg-rose-50'
     },
     {
-      label: 'Active',
-      value: formatAmount(summary.active),
-      subText: 'Currently in use',
-      icon: <CheckCircle2 className="h-4 w-4 text-emerald-700" />,
-      iconWrapClass: 'bg-emerald-50'
+      label: 'Fixed',
+      value: formatAmount(summary.fixed),
+      subText: 'Fixed deduction type',
+      icon: <Wallet className="h-4 w-4 text-rose-700" />,
+      iconWrapClass: 'bg-rose-50'
     },
     {
-      label: 'Monthly Value',
-      value: formatLkrCompact(summary.monthlyValue),
-      subText: 'Last payroll run',
-      icon: <Wallet className="h-4 w-4 text-sky-700" />,
-      iconWrapClass: 'bg-sky-50'
-    },
-    {
-      label: 'Draft / Inactive',
-      value: formatAmount(summary.draftInactive),
-      subText: 'Not currently applied',
-      icon: <FileWarning className="h-4 w-4 text-orange-600" />,
+      label: 'Loan',
+      value: formatAmount(summary.loan),
+      subText: 'Loan component type',
+      icon: <Banknote className="h-4 w-4 text-orange-700" />,
       iconWrapClass: 'bg-orange-50'
+    },
+    {
+      label: 'Advance',
+      value: formatAmount(summary.advance),
+      subText: 'Advance component type',
+      icon: <HandCoins className="h-4 w-4 text-amber-700" />,
+      iconWrapClass: 'bg-amber-50'
     }
   ];
 
