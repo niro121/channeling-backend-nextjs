@@ -1,8 +1,9 @@
 /**
  * Create missing GL accounts for migrated locations, doctors, agencies, and credit customers.
  *
- * Does NOT wipe journals or existing accounts (unlike seed-accounting-accounts).
- * Re-runs only create what is still missing.
+ * Does NOT wipe journals or existing accounts itself (unlike seed-accounting-accounts).
+ * migrate:all --flush deletes every Account, journal, and journal line first, then this step recreates them.
+ * A standalone re-run only creates what is still missing.
  *
  *   npm run migrate:accounting-accounts
  *
