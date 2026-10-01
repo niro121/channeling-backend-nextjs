@@ -7,9 +7,10 @@ Use with:
 - `apps/hrm/docs/PERMISSION_FLOW.md` — Auth User Group grants
 - `apps/hrm/docs/HR_ADMINISTRATION_GUIDE.md` — Paysheet Components (§36), HRM Variable (§37), Salary Cycle (§38)
 
-**Status:** Phase 0 UI shells shipped for all Payroll sidebar routes (empty lists + “dynamic phase” toasts).  
+**Status:** Phase 0 UI shells shipped for all Payroll sidebar routes.  
 **Strategy:** Dynamize **module-wise** in dependency order (masters → assignments → engine → outputs).  
-**Build path (each module):** Doc/types (done for UI) → Prisma/Zod service → Actions → wire live UI.  
+**Progress:** M1–M10 live. **M11 Bank Transfer File** and **M12 Salary History** are on hold pending external bank/file integration — see **§18.1**.  
+**Build path (each module):** Doc/types → Prisma/Zod service → Actions → wire live UI.  
 **Pages must not call Prisma.** Business rules live in services.
 
 ---
@@ -28,10 +29,11 @@ Use with:
 | Salary Generation | `/salary-generation` | Done | Done | §15 |
 | Salary Processing | `/salary-processing` | Done | Done | §16 |
 | Payslips | `/payslips` | Done | Done | §17 |
-| Bank Transfer File | `/bank-transfer-file` | Done | Pending | §18 |
-| Salary History | `/salary-history` | Done | Pending | §19 |
+| Bank Transfer File | `/bank-transfer-file` | Done | **Blocked — needs bank integration** (§18) | §18 |
+| Salary History | `/salary-history` | Done | Pending (after M11) | §19 |
 | Dynamization roadmap | — | — | — | §6–7 |
 | Open product decisions | — | — | — | §20 |
+| External integration backlog | — | — | **M11–M12 hold** | §18.1 |
 
 ---
 
@@ -178,8 +180,8 @@ Follow **dependency order**, not sidebar order alone.
 | ID | Module | Goal | Status |
 |----|--------|------|--------|
 | **M10** | Payslips | Read processed runs; view / export / print / email / SMS | **Done (PS1–PS3)** |
-| **M11** | Bank Transfer File | Batches + file + Mark Processed → Paid | Pending |
-| **M12** | Salary History | Read models + timeline events | Pending |
+| **M11** | Bank Transfer File | Batches + file + Mark Processed → Paid | **Blocked — external bank integration** (§18.1) |
+| **M12** | Salary History | Read models + timeline events | Pending (resume after M11) |
 
 ### Suggested cadence
 
@@ -480,19 +482,59 @@ app/(dashboard)/(payroll)/salary-structures/
 | Route | `/bank-transfer-file` |
 | Batch status | `pending` \| `generated` \| `processed` |
 | Actions (gated) | Generate (pending) · Download (generated/processed) · Mark Processed · Regenerate (generated) |
-| Mark Processed | Confirms bank acceptance; **payslips → Paid** |
-| File format | Existing bank upload format (unchanged) |
+| Mark Processed | Confirms bank acceptance; **payslips / runs → Paid** |
+| File format | Existing bank upload format (unchanged) — **must be confirmed externally** |
 | Table | Includes Created / Updated columns |
 | Header | Link **View Payslips** |
+| Dev status | **On hold** until §18.1 checklist is satisfied |
 
 ### Dynamic phases
 
-| Phase | Deliverable |
-|-------|-------------|
+| Phase | Deliverable | Status |
+|-------|-------------|--------|
 | **BT0** | UI shell | **Done** |
-| **BT1** | Batch + line models; generate from approved nets |
-| **BT2** | File bytes (bank format) + download |
-| **BT3** | Mark Processed status cascade; regenerate rules |
+| **BT1** | Batch + line models; generate from approved nets | **Blocked** (§18.1) |
+| **BT2** | File bytes (bank format) + download | **Blocked** (§18.1) |
+| **BT3** | Mark Processed status cascade; regenerate rules | **Blocked** (§18.1) |
+
+### 18.1 External integration backlog (resume M11 when done)
+
+No bank / payroll-file integrations are available yet. **Do not continue M11–M12 dynamize until the items below are collected and locked.** Check off in place as each arrives.
+
+#### A. Bank file & product (blocks BT2 — required)
+
+- [ ] **Which bank / channel** — e.g. BOC / HNB / Commercial · SLIPS / CEFTS / salary-credit portal / multi-bank
+- [ ] **Sample file** — anonymized last successful upload the hospital already uses
+- [ ] **Format spec** — CSV / fixed-width / Excel; column order; separators; encoding; line endings
+- [ ] **Field mapping** — staff name, account no, bank code, branch code, amount, NIC/reference, value date, etc.
+- [ ] **Amount rules** — rupees vs cents; decimal places; rounding; how to treat zero / negative nets
+- [ ] **Header / trailer** — company debit account, batch totals, record counts, control rows
+- [ ] **Filename convention** — pattern expected by the bank portal
+- [ ] **Company (payer) account** — debit bank, branch, account number (env or institution config)
+
+#### B. Staff payroll bank data (blocks useful Generate)
+
+- [ ] Confirm `Staff.employmentDetails.payroll` fields are populated (`bank`, `bankBranch`, `accountNumber`)
+- [ ] Agree whether `bank` is a code (align with `types/bank.ts`) or free text
+- [ ] Branch = **code** vs **name** (and where it lives if missing today)
+- [ ] Exclude rules — cash / cheque / non-bank payment methods
+- [ ] Validation rule — block Generate if account missing vs skip line with warning
+
+#### C. Batch / status product rules (blocks BT1–BT3)
+
+- [ ] Source runs — only `PayrollRun.status = processed` (confirm)
+- [ ] Batch scope — one batch per run / cycle / institution / all processed nets in period
+- [ ] Regenerate — allowed only while `generated` (not after `processed`)? new batch vs overwrite
+- [ ] Mark Processed — who confirms; cascade to run + payslip payment status `paid`; reverse allowed?
+- [ ] Activity log — keep `bank-transfer-file.generated` / `.processed` (already planned §21)
+
+#### D. Optional later integrations (not blocking first BT slice)
+
+- [ ] Direct bank API / SFTP upload (today: download file only)
+- [ ] Per-institution payer accounts
+- [ ] Email/SMS “salary credited” after Mark Processed (reuse payslip notify helpers)
+
+**Resume development:** when A–C are mostly checked (especially sample file + mapping + payer account), continue in order **BT1 → BT2 → BT3**, then **M12 Salary History**.
 
 ---
 
@@ -509,15 +551,18 @@ app/(dashboard)/(payroll)/salary-structures/
 | Row actions | View · Payslip · Components · History |
 | Header | **View Payslips** |
 | Staff filter | Combobox (`staffId`) |
+| Dev status | **Pending** — prefer after M11 so Paid / processed history is complete |
 
 ### Dynamic phases
 
-| Phase | Deliverable |
-|-------|-------------|
+| Phase | Deliverable | Status |
+|-------|-------------|--------|
 | **SH0** | UI shell | **Done** |
-| **SH1** | Read API over runs / payslips / components |
-| **SH2** | Timeline events + footer stats |
-| **SH3** | Wire all four sheets |
+| **SH1** | Read API over runs / payslips / components | Pending |
+| **SH2** | Timeline events + footer stats | Pending |
+| **SH3** | Wire all four sheets | Pending |
+
+> Note: SH1 can start from existing `PayrollRun` / line snapshots without bank file integration, but full payment-status history (`paid`) depends on M11 Mark Processed.
 
 ---
 
@@ -529,8 +574,8 @@ Resolve these before or during Wave A / C:
 |---|--------|---------------------------|
 | 1 | Allowances & Deductions vs Paysheet Components | **Locked (M2/M3):** thin payroll UI over `PaysheetComponent` — no separate Allowance/Deduction masters. |
 | 2 | Salary Structure scope | Template-only vs also staff assignment (assignment may stay on Assign Paysheet) |
-| 3 | Generation vs Processing storage | Prefer **one `PayrollRun`** with status machine (`draft` → `processed` → …) |
-| 4 | Bank file format | Confirm byte-level format against current bank upload before BT2 |
+| 3 | Generation vs Processing storage | Prefer **one `PayrollRun`** with status machine (`draft` → `processed` → …) — **in use (M8/M9)** |
+| 4 | Bank file format | **Open / blocked:** confirm byte-level format vs current bank upload before BT2 — track in **§18.1** |
 | 5 | Departments master | Soft string / placeholder ids until Departments ship |
 | 6 | Performance vs Assign | **Locked (M6):** separate `PerformanceAllowance` collection (`PFA-n`), not typed `PaysheetAssignment`. |
 
