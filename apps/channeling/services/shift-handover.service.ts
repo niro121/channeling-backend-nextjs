@@ -28,6 +28,7 @@ import {
   expectedHandoverCollectionCents,
   formatHandoverOverAmountError,
   getHandoverAmountOvers,
+  handoverNonCashHeldCents,
   handoverAmountsTotalCents,
   handoverDiscrepancyReasonRequiredMessage,
   isHandoverCollectionExcess,
@@ -132,7 +133,7 @@ export async function getExpectedHandoverCollection(params: {
     return { success: false, error: "Could not determine the cashier summary window for this handover." }
   }
 
-  const [summaryResult, receivedFloats, previousHandovers] = await Promise.all([
+  const [summaryResult, receivedFloats, previousCollection] = await Promise.all([
     getCashierSummaryReportService({
       userId: params.cashierUserId,
       dateFrom: summaryFilters.dateFrom,
@@ -173,19 +174,24 @@ export async function getExpectedHandoverCollection(params: {
       cents: f.amountReceivedCents ?? 0,
     }))
   const summaryCents = cashierSummaryGrandTotalCents(summaryResult.grandTotals)
+  const { previousHandovers, sentToReconciliation } = previousCollection
   const previousHandoversCents = previousHandovers.reduce((sum, h) => sum + h.cents, 0)
+  const sentToReconciliationCents = sentToReconciliation.reduce((sum, h) => sum + h.cents, 0)
   const data: ExpectedHandoverCollection = {
     floatsInCents,
     floatsOutCents,
     summaryCents,
     previousHandoversCents,
+    sentToReconciliationCents,
     expectedCents: expectedHandoverCollectionCents({
       floatsInCents,
       floatsOutCents,
       summaryCents,
       previousHandoversCents,
+      sentToReconciliationCents,
     }),
     previousHandovers,
+    sentToReconciliation,
     floatsIn,
     floatsOut,
   }
@@ -200,7 +206,22 @@ export async function getExpectedHandoverCollection(params: {
 async function listPreviousHandoversForExpectedCollection(
   cashierUserId: string,
   shiftId: string
-): Promise<ExpectedHandoverCollectionSourceRow[]> {
+): Promise<{
+  previousHandovers: ExpectedHandoverCollectionSourceRow[]
+  sentToReconciliation: ExpectedHandoverCollectionSourceRow[]
+}> {
+  const amountSelect = {
+    id: true,
+    status: true,
+    totalCents: true,
+    cardCents: true,
+    slipCents: true,
+    checkCents: true,
+    eWalletCents: true,
+    reconciliationStatus: true,
+    handoverNoString: true,
+    fromUser: { select: { name: true, staff: { select: { code: true } } } },
+  } as const
   const [receivedOnShift, receivedByUser] = await Promise.all([
     prisma.shiftHandover.findMany({
       where: {
@@ -209,13 +230,7 @@ async function listPreviousHandoversForExpectedCollection(
           notIn: [HANDOVER_STATUS.PENDING, HANDOVER_STATUS.REJECTED, HANDOVER_STATUS.CANCELLED],
         },
       },
-      select: {
-        id: true,
-        status: true,
-        totalCents: true,
-        handoverNoString: true,
-        fromUser: { select: { name: true, staff: { select: { code: true } } } },
-      },
+      select: amountSelect,
       orderBy: { createdAt: "asc" },
     }),
     prisma.shiftHandover.findMany({
@@ -225,29 +240,29 @@ async function listPreviousHandoversForExpectedCollection(
           notIn: [HANDOVER_STATUS.PENDING, HANDOVER_STATUS.REJECTED, HANDOVER_STATUS.CANCELLED],
         },
       },
-      select: {
-        id: true,
-        status: true,
-        totalCents: true,
-        handoverNoString: true,
-        forwardedToHandoverId: true,
-        reconciliationStatus: true,
-        fromUser: { select: { name: true, staff: { select: { code: true } } } },
-      },
+      select: { ...amountSelect, forwardedToHandoverId: true },
       orderBy: { createdAt: "asc" },
     }),
   ])
 
   const byId = new Map<string, ExpectedHandoverCollectionSourceRow>()
+  const sentById = new Map<string, ExpectedHandoverCollectionSourceRow>()
   const add = (h: {
     id: string
     totalCents: number
+    cardCents?: number | null
+    slipCents?: number | null
+    checkCents?: number | null
+    eWalletCents?: number | null
+    reconciliationStatus?: number | null
     handoverNoString?: string | null
     fromUser: { name: string | null; staff?: { code: string } | null } | null
   }) => {
     const from = handoverFromLabel(h.fromUser)
     const label = h.handoverNoString?.trim() ? `${h.handoverNoString.trim()} · ${from}` : from
     byId.set(h.id, { id: h.id, label, cents: h.totalCents ?? 0 })
+    const heldCents = handoverNonCashHeldCents(h)
+    if (heldCents > 0) sentById.set(h.id, { id: h.id, label, cents: heldCents })
   }
 
   for (const h of receivedOnShift) {
@@ -260,7 +275,10 @@ async function listPreviousHandoversForExpectedCollection(
     if (isExcludedFromBulkTransfer(h.reconciliationStatus)) continue
     if (!byId.has(h.id)) add(h)
   }
-  return [...byId.values()]
+  return {
+    previousHandovers: [...byId.values()],
+    sentToReconciliation: [...sentById.values()],
+  }
 }
 
 /** Submit handover: create PENDING handover, set shift to HANDOVER_PENDING. No journal until approved. */
@@ -1482,6 +1500,7 @@ const includedHandoverSelect = {
   handoverNoString: true,
   includedHandoverIds: true,
   enteredBreakdown: true,
+  reconciliationStatus: true,
 } as const
 
 export type IncludedHandoverForDisplay = Prisma.ShiftHandoverGetPayload<{
@@ -1530,8 +1549,59 @@ export async function getHandoversByForwardedTo(topLevelHandoverId: string) {
 }
 
 /**
- * Previous handovers associated with this handover only:
- * included on submit, forwarded to this record, or received into the same shift.
+ * Immediate previous handovers for this document:
+ * approved handovers received into this shift (cashiers who gave to this user),
+ * plus any other handover this submission included directly.
+ * Nested handovers inside those documents are not expanded.
+ */
+export async function getDirectIncludedHandovers(params: {
+  handoverId: string
+  shiftId: string
+  includedHandoverIds: unknown
+}): Promise<IncludedHandoverForDisplay[]> {
+  const ids = normalizedIncludedIds(params.includedHandoverIds)
+  const [included, receivedOnShift] = await Promise.all([
+    ids.length > 0
+      ? prisma.shiftHandover.findMany({
+          where: { id: { in: ids } },
+          select: includedHandoverSelect,
+        })
+      : getHandoversByForwardedTo(params.handoverId),
+    prisma.shiftHandover.findMany({
+      where: {
+        toShiftId: params.shiftId,
+        status: {
+          notIn: [HANDOVER_STATUS.PENDING, HANDOVER_STATUS.REJECTED, HANDOVER_STATUS.CANCELLED],
+        },
+      },
+      select: { ...includedHandoverSelect, status: true, forwardedToHandoverId: true },
+      orderBy: { createdAt: "asc" },
+    }),
+  ])
+
+  const byId = new Map<string, IncludedHandoverForDisplay>()
+  for (const h of included) {
+    if (h.id === params.handoverId) continue
+    byId.set(h.id, h)
+  }
+  for (const h of receivedOnShift) {
+    if (h.id === params.handoverId) continue
+    if (Number(h.status) !== HANDOVER_STATUS.APPROVED) continue
+    const forwardedTo = h.forwardedToHandoverId
+    if (forwardedTo != null && forwardedTo !== params.handoverId) continue
+    if (byId.has(h.id)) continue
+    const { status: _status, forwardedToHandoverId: _forwarded, ...rest } = h
+    byId.set(rest.id, rest)
+  }
+
+  return [...byId.values()].sort(
+    (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+  )
+}
+
+/**
+ * Full previous-handover set for reconciliation: direct includes, their nested
+ * chain, forwards into this record, and approved handovers received on the shift.
  */
 export async function getPreviousHandoversForHandoverDetail(params: {
   handoverId: string

@@ -14,7 +14,7 @@ import {
   getHandoversReceivedByShift,
   getLinkedHandoversForShift,
   getIncludableHandoversForSender,
-  getPreviousHandoversForHandoverDetail,
+  getDirectIncludedHandovers,
   getNonCashHeldInReconciliation,
   countPendingIncomingHandovers,
   getExpectedHandoverCollection,
@@ -499,7 +499,7 @@ export async function getHandoverDetailAction(handoverId: string) {
           ...expectedHandoverAvailableFromTill(till, held),
         }))
       : Promise.resolve(null),
-    getPreviousHandoversForHandoverDetail({
+    getDirectIncludedHandovers({
       handoverId: handover.id,
       shiftId: handover.shiftId,
       includedHandoverIds: (handover as { includedHandoverIds?: unknown }).includedHandoverIds,

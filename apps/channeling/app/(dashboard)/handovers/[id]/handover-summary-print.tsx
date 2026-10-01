@@ -4,7 +4,7 @@ import { useEffect, useState, type CSSProperties } from "react"
 import { useSession } from "next-auth/react"
 import { formatCents } from "@/lib/format-money"
 import { cashierSummaryGrandTotalRupees } from "@/lib/cashier-summary-amounts"
-import { handoverCollectionDiffCents } from "@/lib/handover-utils"
+import { handoverCollectionDiffCents, handoverNonCashHeldCents } from "@/lib/handover-utils"
 import { formatDenomLabel, FLOAT_REQUEST_STATUS } from "@/types/float-request"
 import { HANDOVER_STATUS } from "@/types/handover"
 import type { CashierSummaryPaymentAmounts, CashierSummaryIncludedShift } from "@/types/report"
@@ -58,6 +58,11 @@ type PreviousHandover = {
   totalCents: number
   handoverNoString?: string | null
   fromUser?: StaffUser
+  reconciliationStatus?: number | null
+  cardCents?: number | null
+  slipCents?: number | null
+  checkCents?: number | null
+  eWalletCents?: number | null
 }
 
 type ReceivedFloat = {
@@ -279,11 +284,13 @@ export function HandoverSummaryPrint({
   const cashOutTotal = cashOutRows.reduce((s, r) => s + r.valueCents, 0)
 
   const cashInTotal = cashInRows.reduce((s, r) => s + r.valueCents, 0)
+  const sentToReconciliationCents = includedHandovers.reduce((s, h) => s + handoverNonCashHeldCents(h), 0)
+  const cashInForCollection = cashInTotal - sentToReconciliationCents
 
   const summaryTotal =
     cashierSummary != null
       ? Math.round(sumSummaryRupees(cashierSummary.grandTotals) * 100)
-      : Math.max(0, totalCents - cashInTotal)
+      : Math.max(0, totalCents - cashInForCollection)
 
   const summaryRows = [
     {
@@ -295,7 +302,7 @@ export function HandoverSummaryPrint({
     },
   ]
 
-  const cashInPlusSummary = cashInTotal + summaryTotal - cashOutTotal
+  const cashInPlusSummary = cashInForCollection + summaryTotal - cashOutTotal
 
   let shortExcessCents = 0
   if (tillBreakdown) {
@@ -496,8 +503,22 @@ export function HandoverSummaryPrint({
         </div>
 
         <div className="ml-auto print-totals w-[14rem] max-w-full mb-1.5">
+          {sentToReconciliationCents > 0 ? (
+            <div className="flex justify-between gap-2">
+              <span>SENT TO RECONCILIATION</span>
+              <span className="tabular-nums">({formatCents(sentToReconciliationCents)})</span>
+            </div>
+          ) : null}
           <div className="flex justify-between border-t border-black pt-0.5">
-            <span>{cashOutTotal > 0 ? "IN + SUMMARY - OUT" : "CASH IN + SUMMARY"}</span>
+            <span>
+              {sentToReconciliationCents > 0
+                ? cashOutTotal > 0
+                  ? "IN + SUMMARY - RECON - OUT"
+                  : "IN + SUMMARY - RECON"
+                : cashOutTotal > 0
+                  ? "IN + SUMMARY - OUT"
+                  : "CASH IN + SUMMARY"}
+            </span>
             <span className="tabular-nums">{formatCents(cashInPlusSummary)}</span>
           </div>
           <div className="border-b-2 border-double border-black mt-0.5" />
