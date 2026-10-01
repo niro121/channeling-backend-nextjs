@@ -1,10 +1,12 @@
 'use client';
 
-import { useState } from 'react';
 import { CommonManagerHeader } from '@/components/common/common-manager-header';
 import {
-  EMPTY_LOAN_ADVANCE_SUMMARY,
-  type LoanAdvanceRecord
+  type LoanAdvanceFilters,
+  type LoanAdvanceRecord,
+  type LoanAdvanceSummary,
+  type PaysheetStaffOption,
+  type SalaryFilterOption
 } from '@/types/payroll';
 import type { PaysheetComponentOption } from '@/types/paysheet-component';
 import {
@@ -17,15 +19,31 @@ import SectionRegister from './section-register';
 import SectionSummary from './section-summary';
 
 type LoansAdvancesWorkspaceProps = {
+  initialRecords: LoanAdvanceRecord[];
+  totalRecords: number;
+  summary: LoanAdvanceSummary;
+  page?: string;
   componentOptions?: PaysheetComponentOption[];
+  staffOptions?: PaysheetStaffOption[];
+  departmentOptions?: SalaryFilterOption[];
+  designationOptions?: SalaryFilterOption[];
+  rosterOptions?: SalaryFilterOption[];
+  initialFilters?: LoanAdvanceFilters;
 };
 
 function LoansAdvancesWorkspaceInner({
-  componentOptions = []
+  initialRecords,
+  totalRecords,
+  summary,
+  page,
+  componentOptions = [],
+  staffOptions = [],
+  departmentOptions = [],
+  designationOptions = [],
+  rosterOptions = [],
+  initialFilters
 }: LoansAdvancesWorkspaceProps) {
   const { viewRecord, closeView } = useLoansAdvancesUi();
-  const [records] = useState<LoanAdvanceRecord[]>([]);
-  const summary = EMPTY_LOAN_ADVANCE_SUMMARY;
 
   return (
     <div className="space-y-6">
@@ -39,16 +57,18 @@ function LoansAdvancesWorkspaceInner({
       <div className="grid gap-4 lg:grid-cols-[minmax(16rem,32%)_minmax(0,1fr)]">
         <SectionLoanDetail
           componentOptions={componentOptions}
-          staffOptions={[]}
+          staffOptions={staffOptions}
         />
         <SectionRegister
-          records={records}
-          totalRecords={records.length}
+          records={initialRecords}
+          totalRecords={totalRecords}
+          page={page}
           componentOptions={componentOptions}
-          staffOptions={[]}
-          departmentOptions={[]}
-          designationOptions={[]}
-          rosterOptions={[]}
+          staffOptions={staffOptions}
+          departmentOptions={departmentOptions}
+          designationOptions={designationOptions}
+          rosterOptions={rosterOptions}
+          initialFilters={initialFilters}
         />
       </div>
 
@@ -63,12 +83,12 @@ function LoansAdvancesWorkspaceInner({
   );
 }
 
-export default function LoansAdvancesWorkspace({
-  componentOptions = []
-}: LoansAdvancesWorkspaceProps) {
+export default function LoansAdvancesWorkspace(
+  props: LoansAdvancesWorkspaceProps
+) {
   return (
     <LoansAdvancesUiProvider>
-      <LoansAdvancesWorkspaceInner componentOptions={componentOptions} />
+      <LoansAdvancesWorkspaceInner {...props} />
     </LoansAdvancesUiProvider>
   );
 }

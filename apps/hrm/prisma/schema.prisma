@@ -928,6 +928,63 @@ model PerformanceAllowance {
   @@index([staffCode])
 }
 
+model LoanAdvance {
+  id                 String    @id @default(auto()) @map("_id") @db.ObjectId
+  code               String    @unique // LAN-n
+  componentId        String    @db.ObjectId
+  staffId            String    @db.ObjectId
+  loanNumber         String
+  bankId             String    @default("")
+  bankName           String    @default("")
+  branch             String    @default("")
+  accountNumber      String    @default("")
+  startingBalance    Float     @default(0)
+  loanAmount         Float     @default(0)
+  monthlyInstallment Float     @default(0)
+  outstanding        Float     @default(0)
+  fromDate           DateTime
+  toDate             DateTime
+  comments           String    @default("")
+  scheduleForPaid    Boolean   @default(false)
+  completed          Boolean   @default(false)
+  completionDate     DateTime?
+
+  // Denormalized display / filter fields
+  componentName   String    @default("")
+  staffCode       String    @default("")
+  staffName       String    @default("")
+  institution     String    @default("")
+  institutionId   String    @default("")
+  department      String    @default("")
+  departmentId    String    @default("")
+  roster          String    @default("")
+  rosterId        String    @default("")
+  grade           String    @default("")
+  staffCategory   String    @default("")
+  staffCategoryId String    @default("")
+  designation     String    @default("")
+  designationId   String    @default("")
+  resignDate      DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy String?  @db.ObjectId
+  updatedBy String?  @db.ObjectId
+
+  @@unique([staffId, loanNumber])
+  @@index([staffId])
+  @@index([componentId])
+  @@index([loanNumber])
+  @@index([fromDate])
+  @@index([toDate])
+  @@index([completed])
+  @@index([departmentId])
+  @@index([institutionId])
+  @@index([designationId])
+  @@index([rosterId])
+  @@index([staffCode])
+}
+
 /* ---------------------------------
 ORGANIZATION
 --------------------------------- */

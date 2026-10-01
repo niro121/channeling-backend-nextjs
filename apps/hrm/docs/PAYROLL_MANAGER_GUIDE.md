@@ -24,7 +24,7 @@ Use with:
 | Assign Paysheet Component | `/assign-paysheet-component` | Done | **AP1–AP3 live (M4)** | §11 |
 | Bulk Assign Paysheet Component | `/bulk-assign-paysheet-component` | Done | **BA1–BA2 live (M5)** | §12 |
 | Performance Allowance | `/performance-allowance` | Done | **PA1–PA3 live (M6)** | §13 |
-| Loans & Advances | `/loans-advances` | Done | Pending | §14 |
+| Loans & Advances | `/loans-advances` | Done | Done | §14 |
 | Salary Generation | `/salary-generation` | Done | Pending | §15 |
 | Salary Processing | `/salary-processing` | Done | Pending | §16 |
 | Payslips | `/payslips` | Done | Pending | §17 |
@@ -164,7 +164,7 @@ Follow **dependency order**, not sidebar order alone.
 | **M4** | Assign Paysheet Component | Per-staff assignments + history | **Done (AP1–AP3)** |
 | **M5** | Bulk Assign | Multi-staff + overlap detection | **Done (BA1–BA2)** |
 | **M6** | Performance Allowance | Period performance amounts | **Done (PA1–PA3)** |
-| **M7** | Loans & Advances | Loans/advances + balances | Pending |
+| **M7** | Loans & Advances | Loans/advances + balances | Done |
 
 ### Wave C — Engine
 
@@ -383,16 +383,22 @@ app/(dashboard)/(payroll)/salary-structures/
 | Item | Decision |
 |------|----------|
 | Route | `/loans-advances` |
-| Status | `active` \| `ongoing` \| `completed` |
-| UI | Summary + filters + register + form / view |
+| Collection | `LoanAdvance` (`LAN-n`); not PaysheetComponent |
+| Status | `active` \| `ongoing` \| `completed` (derived from dates + `completed`) |
+| Outstanding | `startingBalance` preferred, else `loanAmount` until Generation deducts |
+| This-month deducted | Estimated from active installments until Salary Generation |
+| Permission | `payroll` (view/add/edit/delete) |
+| UI | Summary + filters + register + form / view + export |
+| Filters | Component · staff · dept · institution · category · designation · roster (code) · from date |
 
 ### Dynamic phases
 
 | Phase | Deliverable |
 |-------|-------------|
 | **LA0** | UI shell | **Done** |
-| **LA1** | Model + balance / installment rules |
-| **LA2–LA3** | Actions → wire; Generation/Processing consume balances |
+| **LA1** | Model + balance / installment rules | **Done** |
+| **LA2** | Actions + ActivityLog + wire UI | **Done** |
+| **LA3** | Generation/Processing consume balances | Pending (SG) |
 
 ---
 

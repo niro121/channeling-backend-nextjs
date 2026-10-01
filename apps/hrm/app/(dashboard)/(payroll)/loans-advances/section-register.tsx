@@ -1,12 +1,13 @@
 'use client';
 
 import { Suspense } from 'react';
-import { useToast } from '@archmage/ui';
 import {
   CommonDataTable,
   DataTableExportFeature
 } from '@/components/common/common-data-table';
+import { getLoanAdvanceExportAction } from '@/app/actions/payroll-actions/loan-advance.actions';
 import type {
+  LoanAdvanceFilters,
   LoanAdvanceRecord,
   PaysheetStaffOption,
   SalaryFilterOption
@@ -28,6 +29,7 @@ type SectionRegisterProps = {
   departmentOptions?: SalaryFilterOption[];
   designationOptions?: SalaryFilterOption[];
   rosterOptions?: SalaryFilterOption[];
+  initialFilters?: LoanAdvanceFilters;
 };
 
 export default function SectionRegister({
@@ -38,18 +40,29 @@ export default function SectionRegister({
   staffOptions = [],
   departmentOptions = [],
   designationOptions = [],
-  rosterOptions = []
+  rosterOptions = [],
+  initialFilters
 }: SectionRegisterProps) {
-  const { toast } = useToast();
-
   const handleExport = async () => {
-    toast({
-      title: 'Export',
-      description: 'Will be wired in the dynamic phase.'
+    const result = await getLoanAdvanceExportAction({
+      fromDate: initialFilters?.fromDate,
+      componentId: initialFilters?.componentId,
+      staffId: initialFilters?.staffId,
+      departmentId: initialFilters?.departmentId,
+      institution: initialFilters?.institution,
+      staffCategory: initialFilters?.staffCategory,
+      designationId: initialFilters?.designationId,
+      rosterId: initialFilters?.rosterId
     });
+    if (!result.success) {
+      return {
+        success: false,
+        message: result.message ?? 'Export failed'
+      };
+    }
     return {
-      success: false,
-      message: 'Export will be wired in the dynamic phase.'
+      success: true,
+      data: result.data ?? []
     };
   };
 
@@ -61,6 +74,7 @@ export default function SectionRegister({
         departmentOptions={departmentOptions}
         designationOptions={designationOptions}
         rosterOptions={rosterOptions}
+        initial={initialFilters}
       />
 
       <Suspense

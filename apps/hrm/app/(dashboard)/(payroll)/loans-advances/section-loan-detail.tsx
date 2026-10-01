@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { Form, Formik } from 'formik';
+import { useRouter } from 'next/navigation';
+import { Form, Formik, type FormikHelpers } from 'formik';
 import * as Yup from 'yup';
 import { RotateCcw, Save, Trash2 } from 'lucide-react';
 import {
@@ -18,6 +19,12 @@ import {
   CustomAlertDialog,
   useToast
 } from '@archmage/ui';
+import {
+  createLoanAdvanceAction,
+  deleteLoanAdvanceAction,
+  updateLoanAdvanceAction
+} from '@/app/actions/payroll-actions/loan-advance.actions';
+import { usePermissions } from '@/components/hooks/use-permissions';
 import { formatDateTime } from '@/lib/utils/date';
 import { BANK_OPTIONS } from '@/types/bank';
 import {
@@ -35,8 +42,6 @@ const fieldStyleClasses = {
     'text-xs font-semibold uppercase tracking-wide text-muted-foreground',
   inputClassName: 'w-full'
 };
-
-const LATER = 'Will be wired in the dynamic phase.';
 
 type SectionLoanDetailProps = {
   componentOptions?: PaysheetComponentOption[];
@@ -68,16 +73,51 @@ function recordToFormValues(
   };
 }
 
+function applyFieldErrors(
+  helpers: FormikHelpers<LoanAdvanceFormValues>,
+  errors: Record<string, unknown>
+) {
+  const fieldErrors: Record<string, string> = {};
+  for (const [key, value] of Object.entries(errors)) {
+    if (key === 'message') continue;
+    if (Array.isArray(value) && typeof value[0] === 'string') {
+      fieldErrors[key] = value[0];
+    } else if (typeof value === 'string') {
+      fieldErrors[key] = value;
+    }
+  }
+  if (Object.keys(fieldErrors).length) {
+    helpers.setErrors(fieldErrors);
+  }
+}
+
+function numericRequired(label: string) {
+  return Yup.string()
+    .required(`${label} is required`)
+    .test('numeric', `Enter a valid ${label.toLowerCase()}`, (v) => {
+      if (!v?.trim()) return false;
+      const n = Number(v);
+      return !Number.isNaN(n) && n >= 0;
+    });
+}
+
 export default function SectionLoanDetail({
   componentOptions = [],
   staffOptions = []
 }: SectionLoanDetailProps) {
   const { toast } = useToast();
+  const router = useRouter();
+  const { has } = usePermissions();
   const { selectedRecord, clearSelection } = useLoansAdvancesUi();
   const [formKey, setFormKey] = useState(0);
+  const [saving, setSaving] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const isEditing = selectedRecord != null;
+  const canSave = isEditing ? has('payroll', 'edit') : has('payroll', 'add');
+  const canDelete = has('payroll', 'delete');
+
   const initialValues = useMemo(
     () => recordToFormValues(selectedRecord),
     [selectedRecord]
@@ -94,9 +134,9 @@ export default function SectionLoanDetail({
     bankId: Yup.string().required('Bank is required'),
     branch: Yup.string().required('Branch is required'),
     accountNumber: Yup.string().required('Account number is required'),
-    startingBalance: Yup.string().required('Starting balance is required'),
-    loanAmount: Yup.string().required('Loan amount is required'),
-    monthlyInstallment: Yup.string().required('Monthly installment is required'),
+    startingBalance: numericRequired('Starting balance'),
+    loanAmount: numericRequired('Loan amount'),
+    monthlyInstallment: numericRequired('Monthly installment'),
     fromDate: Yup.date().nullable().required('From date is required'),
     toDate: Yup.date()
       .nullable()
@@ -128,11 +168,68 @@ export default function SectionLoanDetail({
             initialValues={initialValues}
             enableReinitialize
             validationSchema={validationSchema}
-            onSubmit={() => {
-              toast({
-                title: isEditing ? 'Save changes' : 'Save loan / advance',
-                description: LATER
-              });
+            onSubmit={async (values, helpers) => {
+              if (!canSave) {
+                toast({
+                  variant: 'destructive',
+                  title: 'Permission denied',
+                  description: 'You do not have permission to save.'
+                });
+                return;
+              }
+              setSaving(true);
+              try {
+                const payload = {
+                  componentId: values.componentId,
+                  staffId: values.staffId,
+                  loanNumber: values.loanNumber.trim(),
+                  bankId: values.bankId,
+                  branch: values.branch.trim(),
+                  accountNumber: values.accountNumber.trim(),
+                  startingBalance: Number(values.startingBalance),
+                  loanAmount: Number(values.loanAmount),
+                  monthlyInstallment: Number(values.monthlyInstallment),
+                  fromDate: values.fromDate as Date,
+                  toDate: values.toDate as Date,
+                  comments: values.comments.trim(),
+                  scheduleForPaid: values.scheduleForPaid,
+                  completed: values.completed,
+                  completionDate: values.completed
+                    ? values.completionDate
+                    : null
+                };
+
+                const result =
+                  isEditing && selectedRecord
+                    ? await updateLoanAdvanceAction(selectedRecord.id, payload)
+                    : await createLoanAdvanceAction(payload);
+
+                if (result.isError || !result.data) {
+                  applyFieldErrors(helpers, result.errors);
+                  toast({
+                    variant: 'destructive',
+                    title: 'Save failed',
+                    description:
+                      (typeof result.errors?.message === 'string' &&
+                        result.errors.message) ||
+                      'Unable to save loan / advance.'
+                  });
+                  return;
+                }
+
+                toast({
+                  title: isEditing
+                    ? 'Loan / advance updated'
+                    : 'Loan / advance created',
+                  description: `${result.data.staffName} · ${result.data.loanNumber}`
+                });
+                clearSelection();
+                helpers.resetForm({ values: EMPTY_LOAN_ADVANCE_FORM });
+                setFormKey((key) => key + 1);
+                router.refresh();
+              } finally {
+                setSaving(false);
+              }
             }}
           >
             {(formik) => (
@@ -354,15 +451,21 @@ export default function SectionLoanDetail({
                 </div>
 
                 <div className="flex flex-wrap gap-2 pt-1">
-                  <Button type="submit" size="sm" className="h-9 gap-1.5">
+                  <Button
+                    type="submit"
+                    size="sm"
+                    className="h-9 gap-1.5"
+                    disabled={!canSave || saving || formik.isSubmitting}
+                  >
                     <Save className="h-4 w-4" />
-                    Save
+                    {saving ? 'Saving…' : 'Save'}
                   </Button>
                   <Button
                     type="button"
                     size="sm"
                     variant="outline"
                     className="h-9 gap-1.5"
+                    disabled={saving || deleting}
                     onClick={() => {
                       clearSelection();
                       formik.resetForm({ values: EMPTY_LOAN_ADVANCE_FORM });
@@ -372,17 +475,19 @@ export default function SectionLoanDetail({
                     <RotateCcw className="h-4 w-4" />
                     Clear
                   </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    className="h-9 gap-1.5 text-red-500 hover:bg-red-500 hover:text-white"
-                    disabled={!isEditing}
-                    onClick={() => setDeleteOpen(true)}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                    Remove
-                  </Button>
+                  {canDelete ? (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="h-9 gap-1.5 text-red-500 hover:bg-red-500 hover:text-white"
+                      disabled={!isEditing || saving || deleting}
+                      onClick={() => setDeleteOpen(true)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      Remove
+                    </Button>
+                  ) : null}
                 </div>
 
                 <div className="grid gap-2 border-t border-border pt-3 text-xs text-muted-foreground">
@@ -426,14 +531,33 @@ export default function SectionLoanDetail({
             ? `Remove ${selectedRecord.componentName} for ${selectedRecord.staffName} (${selectedRecord.loanNumber})?`
             : 'Remove this loan / advance record?'
         }
-        loading={false}
-        handleContinue={() => {
-          setDeleteOpen(false);
-          clearSelection();
-          toast({
-            title: 'Remove loan / advance',
-            description: LATER
-          });
+        loading={deleting}
+        handleContinue={async () => {
+          if (!selectedRecord) return;
+          setDeleting(true);
+          try {
+            const result = await deleteLoanAdvanceAction(selectedRecord.id);
+            setDeleteOpen(false);
+            if (result.isError) {
+              toast({
+                variant: 'destructive',
+                title: 'Remove failed',
+                description:
+                  (result.errors.message as string) ??
+                  'Could not remove loan / advance.'
+              });
+              return;
+            }
+            toast({
+              title: 'Loan / advance removed',
+              description: `${selectedRecord.staffName} · ${selectedRecord.loanNumber}`
+            });
+            clearSelection();
+            setFormKey((key) => key + 1);
+            router.refresh();
+          } finally {
+            setDeleting(false);
+          }
         }}
         className={{
           actionButton:

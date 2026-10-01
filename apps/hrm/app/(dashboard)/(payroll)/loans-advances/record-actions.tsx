@@ -1,8 +1,10 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Eye, Pencil, Trash2 } from 'lucide-react';
 import { Button, CustomAlertDialog, useToast } from '@archmage/ui';
+import { deleteLoanAdvanceAction } from '@/app/actions/payroll-actions/loan-advance.actions';
 import { usePermissions } from '@/components/hooks/use-permissions';
 import type { LoanAdvanceRecord } from '@/types/payroll';
 import { useLoansAdvancesUi } from './loans-advances-ui-context';
@@ -11,13 +13,13 @@ type RecordActionsProps = {
   record: LoanAdvanceRecord;
 };
 
-const LATER = 'Will be wired in the dynamic phase.';
-
 export default function RecordActions({ record }: RecordActionsProps) {
   const { toast } = useToast();
+  const router = useRouter();
   const { has } = usePermissions();
   const { selectRecord, openView, clearSelection } = useLoansAdvancesUi();
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   const canEdit = has('payroll', 'edit');
   const canDelete = has('payroll', 'delete');
@@ -66,14 +68,31 @@ export default function RecordActions({ record }: RecordActionsProps) {
         handleVisibilityChange={setDeleteOpen}
         title="Delete loan / advance?"
         description={`Remove ${record.componentName} for ${record.staffName} (${record.loanNumber})?`}
-        loading={false}
-        handleContinue={() => {
-          setDeleteOpen(false);
-          clearSelection();
-          toast({
-            title: 'Delete loan / advance',
-            description: LATER
-          });
+        loading={loading}
+        handleContinue={async () => {
+          setLoading(true);
+          try {
+            const result = await deleteLoanAdvanceAction(record.id);
+            setDeleteOpen(false);
+            if (result.isError) {
+              toast({
+                variant: 'destructive',
+                title: 'Delete failed',
+                description:
+                  (result.errors.message as string) ??
+                  'Could not delete loan / advance.'
+              });
+              return;
+            }
+            toast({
+              title: 'Loan / advance deleted',
+              description: `${record.staffName} · ${record.loanNumber}`
+            });
+            clearSelection();
+            router.refresh();
+          } finally {
+            setLoading(false);
+          }
         }}
         className={{
           actionButton:

@@ -279,7 +279,7 @@ export const LOAN_ADVANCE_EXPORT_COLUMNS = [
   'Created At',
   'Updated By',
   'Updated At'
-];
+] as const;
 
 export const LOAN_ADVANCE_EXPORT_KEYS = [
   'institution',
@@ -308,4 +308,4 @@ export const LOAN_ADVANCE_EXPORT_KEYS = [
   'createdAt',
   'updatedBy',
   'updatedAt'
-];
+] as const;

@@ -377,7 +377,9 @@ export const EMPTY_PERFORMANCE_ALLOWANCE_SUMMARY: PerformanceAllowanceSummary = 
   totalMonthlyValue: 0
 };
 
-/** Loans & Advances — Phase 0 UI shell. */
+/** Loans & Advances — separate collection (M7). */
+export const LOAN_ADVANCE_CODE_PREFIX = 'LAN';
+
 export type LoanAdvanceStatus = 'active' | 'ongoing' | 'completed';
 
 export type LoanAdvanceFilters = {
@@ -391,8 +393,14 @@ export type LoanAdvanceFilters = {
   rosterId?: string;
 };
 
+export type GetLoanAdvanceParams = LoanAdvanceFilters & {
+  page?: number;
+  limit?: number;
+};
+
 export type LoanAdvanceRecord = {
   id: string;
+  code: string;
   componentId: string;
   componentName: string;
   staffId: string;
@@ -425,6 +433,24 @@ export type LoanAdvanceRecord = {
   createdAt: string | null;
   updatedBy: string | null;
   updatedAt: string | null;
+};
+
+export type LoanAdvancePayload = {
+  componentId: string;
+  staffId: string;
+  loanNumber: string;
+  bankId: string;
+  branch: string;
+  accountNumber: string;
+  startingBalance: number;
+  loanAmount: number;
+  monthlyInstallment: number;
+  fromDate: Date | string;
+  toDate: Date | string;
+  comments?: string;
+  scheduleForPaid?: boolean;
+  completed?: boolean;
+  completionDate?: Date | string | null;
 };
 
 export type LoanAdvanceFormValues = {
