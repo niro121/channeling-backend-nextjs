@@ -1,6 +1,9 @@
 import prisma from "@/lib/prisma"
 import { getRefundFeeTypes } from "@/services/channel-booking/helpers"
-import type { PublicSessionDto } from "@/services/public/sessions.service"
+import {
+  resolveConsecutiveSessionFields,
+  type PublicSessionDto,
+} from "@/services/public/sessions.service"
 import moment from "moment"
 import type { Session } from "@/types/booking.dashboard"
 
@@ -109,6 +112,7 @@ export async function mapDoctorAppSessionsToDto(
 
     const advancedBookingEnabled =
       advancedBookingEnabledByTemplate.get(s.doctorSessionId) ?? false
+    const consecutive = resolveConsecutiveSessionFields(s, sessionByDoctorSessionOnDate)
 
     return {
       id: s.id,
@@ -120,6 +124,8 @@ export async function mapDoctorAppSessionsToDto(
       doctorOnLeave: onLeave,
       minPatientNumber: s.startingPatientNumber ?? 0,
       maxPatientNumber: s.maxPatientNumber ?? 0,
+      previousSessionId: consecutive.previousSessionId,
+      consecutiveStartNumber: consecutive.consecutiveStartNumber,
       appointmentNo: s.appointmentNo ?? 0,
       isFull: sessionFull,
       advancedBookingEnabled,
