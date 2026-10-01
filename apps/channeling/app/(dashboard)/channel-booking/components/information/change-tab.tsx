@@ -23,6 +23,14 @@ import {
 import { SEX_OPTIONS } from "@/types/channel-booking"
 import { TITLE_OPTIONS } from "@/types/title"
 
+/** Map stored Booking.sex onto the dropdown without rewriting the DB value. */
+function optionIdForStoredSex(value: string): string {
+  const v = value.trim().toLowerCase()
+  if (v === "m" || v === "male") return "male"
+  if (v === "f" || v === "female") return "female"
+  return ""
+}
+
 export function ChangeTab({ onUpdateSuccess }: { onUpdateSuccess?: () => void }) {
   const { selectedBooking, selectedSession, setBookings, setSelectedBooking } = useChannelBooking()
   const { toast } = useToast()
@@ -32,6 +40,7 @@ export function ChangeTab({ onUpdateSuccess }: { onUpdateSuccess?: () => void })
   const [title, setTitle] = useState("")
   const [name, setName] = useState("")
   const [sex, setSex] = useState("")
+  const [storedSex, setStoredSex] = useState("")
   const [phone, setPhone] = useState("")
   const [remarks, setRemarks] = useState("")
   const [submitting, setSubmitting] = useState(false)
@@ -40,6 +49,7 @@ export function ChangeTab({ onUpdateSuccess }: { onUpdateSuccess?: () => void })
     if (!selectedBooking?.id) {
       setDetails(null)
       setError(null)
+      setStoredSex("")
       return
     }
     setLoading(true)
@@ -50,11 +60,9 @@ export function ChangeTab({ onUpdateSuccess }: { onUpdateSuccess?: () => void })
           setDetails(res.data)
           setTitle(res.data.patientTitle ?? "")
           setName(res.data.patientName ?? "")
-          const patientSex = (res.data.patientSex ?? "").toLowerCase()
-          const sexOption = SEX_OPTIONS.find(
-            (s) => s.id.toLowerCase() === patientSex || s.name.toLowerCase() === patientSex
-          )
-          setSex(sexOption?.id ?? "")
+          const patientSex = res.data.patientSex ?? ""
+          setStoredSex(patientSex)
+          setSex(optionIdForStoredSex(patientSex))
           setPhone(res.data.phone ?? "")
           setRemarks(res.data.remark ?? "")
         } else {
@@ -126,17 +134,20 @@ export function ChangeTab({ onUpdateSuccess }: { onUpdateSuccess?: () => void })
       })
       return
     }
+    const sexToSave =
+      optionIdForStoredSex(storedSex) === sex ? storedSex.trim() : sex.trim()
     setSubmitting(true)
     try {
       const result = await updateBookingAction({
         booking_id: selectedBooking.id,
         title: title.trim(),
         name: name.trim(),
-        sex: sex.trim(),
+        sex: sexToSave,
         phone: phone.trim(),
         remarks: remarks.trim() || undefined,
       })
       if (result.success) {
+        setStoredSex(sexToSave)
         toast({ title: "Updated", description: "Channel details have been updated." })
         if (selectedSession?.id) {
           const res = await getBookingsBySession(selectedSession.id)
