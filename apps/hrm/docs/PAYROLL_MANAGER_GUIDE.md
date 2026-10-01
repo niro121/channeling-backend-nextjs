@@ -26,7 +26,7 @@ Use with:
 | Performance Allowance | `/performance-allowance` | Done | **PA1–PA3 live (M6)** | §13 |
 | Loans & Advances | `/loans-advances` | Done | Done | §14 |
 | Salary Generation | `/salary-generation` | Done | Done | §15 |
-| Salary Processing | `/salary-processing` | Done | Pending | §16 |
+| Salary Processing | `/salary-processing` | Done | Done | §16 |
 | Payslips | `/payslips` | Done | Pending | §17 |
 | Bank Transfer File | `/bank-transfer-file` | Done | Pending | §18 |
 | Salary History | `/salary-history` | Done | Pending | §19 |
@@ -171,7 +171,7 @@ Follow **dependency order**, not sidebar order alone.
 | ID | Module | Goal | Status |
 |----|--------|------|--------|
 | **M8** | Salary Generation | Draft payroll run from cycle + staff + assignments | **Done (SG1–SG3)** |
-| **M9** | Salary Processing | Statutory calc; approve / on-hold; payment status owner | Pending |
+| **M9** | Salary Processing | Statutory calc; approve / on-hold; payment status owner | **Done (SP1–SP3)** |
 
 ### Wave D — Outputs & history
 
@@ -398,7 +398,7 @@ app/(dashboard)/(payroll)/salary-structures/
 | **LA0** | UI shell | **Done** |
 | **LA1** | Model + balance / installment rules | **Done** |
 | **LA2** | Actions + ActivityLog + wire UI | **Done** |
-| **LA3** | Generation/Processing consume balances | Pending (SG) |
+| **LA3** | Generation/Processing consume balances | **Done (approve write-back)** |
 
 ---
 
@@ -431,17 +431,21 @@ app/(dashboard)/(payroll)/salary-structures/
 | Item | Decision |
 |------|----------|
 | Route | `/salary-processing` |
-| Role | Apply **HV5** rates; approve / hold; set payment status toward bank |
-| UI | Wizard / summary / staff table / payslip dialog |
+| Input | `PayrollRun` with status `generated` / `on_hold` (from M8 Save) |
+| Role | Recalc EPF/ETF/PAYE from **HV5**; approve → `processed`; hold → `on_hold` |
+| Employer amounts | `epf12` (company EPF) + `etf3` (company ETF) stored on lines; do not reduce net |
+| Loan write-back | On approve: decrement `LoanAdvance.outstanding` from line loan components; mark completed at 0 |
+| Permission | `payroll` (view/edit) |
+| UI | Run combobox · wizard · summary · breakdown · payslip dialogs · export |
 
 ### Dynamic phases
 
 | Phase | Deliverable |
 |-------|-------------|
 | **SP0** | UI shell | **Done** |
-| **SP1** | Calc engine (EPF/ETF/PAYE) using HV5 |
-| **SP2** | Approve / on-hold / batch actions |
-| **SP3** | Wire UI |
+| **SP1** | Calc engine (EPF/ETF/PAYE) using HV5 | **Done** |
+| **SP2** | Approve / on-hold / release + loan write-back | **Done** |
+| **SP3** | Wire UI | **Done** |
 
 ---
 

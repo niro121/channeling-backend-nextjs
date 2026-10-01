@@ -1021,6 +1021,12 @@ model PayrollRun {
   totalPaye             Float @default(0)
   totalLoans            Float @default(0)
   totalOtherDeductions  Float @default(0)
+  totalEpf12            Float @default(0)
+  totalEtf3             Float @default(0)
+  loansApplied          Boolean @default(false)
+  processedAt           DateTime?
+  processedBy           String?  @db.ObjectId
+  holdReason            String   @default("")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1062,10 +1068,13 @@ model PayrollRunLine {
   otherEarnings Float @default(0)
   gross       Float @default(0)
   epf8        Float @default(0)
+  epf12       Float @default(0)
+  etf3        Float @default(0)
   paye        Float @default(0)
   loans       Float @default(0)
   otherDeductions Float @default(0)
   net         Float @default(0)
+  lineStatus  String @default("pending") // pending | on_hold | approved
 
   structureId   String?
   structureCode String @default("")
@@ -1083,6 +1092,7 @@ model PayrollRunLine {
   @@index([departmentId])
   @@index([designationId])
   @@index([rosterId])
+  @@index([lineStatus])
 }
 
 /* ---------------------------------

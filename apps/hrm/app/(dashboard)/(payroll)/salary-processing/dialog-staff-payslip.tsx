@@ -40,8 +40,7 @@ export default function DialogStaffPayslip({
         {record ? (
           <>
             <p className="text-sm text-muted-foreground">
-              Individual staff payslip preview. Live slip layout will be wired in
-              the dynamic phase.
+              Individual staff payslip preview from the current payroll run.
             </p>
             <dl className="grid gap-3 sm:grid-cols-2">
               {rows.map((row) => (

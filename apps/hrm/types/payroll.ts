@@ -147,6 +147,9 @@ export type SalaryProcessingSummary = {
   periodLabel: string | null;
   staffCount: number;
   initiatedBy: string | null;
+  runId: string | null;
+  runCode: string | null;
+  runStatus: PayrollRunStatus | null;
   grossSalary: number;
   totalDeductions: number;
   netPayable: number;
@@ -155,33 +158,69 @@ export type SalaryProcessingSummary = {
 
 export type SalaryProcessingBreakdownRow = {
   id: string;
+  staffId: string;
   staffName: string;
   staffCode: string;
   basic: number;
   ot: number;
   allowances: number;
   deductions: number;
+  epf8: number;
   epf12: number;
   etf3: number;
   paye: number;
+  loans: number;
   netSalary: number;
+  lineStatus: string;
 };
 
-export const SALARY_PROCESSING_WIZARD_STEPS: SalaryProcessingWizardStep[] = [
-  { id: 1, label: 'Select Month', status: 'completed' },
-  { id: 2, label: 'Load Attendance', status: 'completed' },
-  { id: 3, label: 'Calculate Salary', status: 'completed' },
-  { id: 4, label: 'Review Allowances', status: 'completed' },
-  { id: 5, label: 'Review Deductions', status: 'current' },
-  { id: 6, label: 'Generate Payslips', status: 'pending' },
-  { id: 7, label: 'Approve Payroll', status: 'pending' },
-  { id: 8, label: 'Export Bank File', status: 'pending' }
+export type SalaryProcessingRunOption = {
+  id: string;
+  name: string;
+  status: PayrollRunStatus;
+  salaryCycleId: string;
+  staffCount: number;
+};
+
+export type SalaryProcessingWorkspaceData = {
+  runId: string;
+  runCode: string;
+  runStatus: PayrollRunStatus;
+  summary: SalaryProcessingSummary;
+  rows: SalaryProcessingBreakdownRow[];
+  wizardSteps: SalaryProcessingWizardStep[];
+  currentStepId: number;
+};
+
+export const SALARY_PROCESSING_WIZARD_STEP_DEFS: Array<{
+  id: number;
+  label: string;
+}> = [
+  { id: 1, label: 'Select Month' },
+  { id: 2, label: 'Load Attendance' },
+  { id: 3, label: 'Calculate Salary' },
+  { id: 4, label: 'Review Allowances' },
+  { id: 5, label: 'Review Deductions' },
+  { id: 6, label: 'Generate Payslips' },
+  { id: 7, label: 'Approve Payroll' },
+  { id: 8, label: 'Export Bank File' }
 ];
+
+/** @deprecated Use buildWizardSteps(status) — kept for shell fallback. */
+export const SALARY_PROCESSING_WIZARD_STEPS: SalaryProcessingWizardStep[] =
+  SALARY_PROCESSING_WIZARD_STEP_DEFS.map((step, index) => ({
+    ...step,
+    status:
+      index < 4 ? 'completed' : index === 4 ? 'current' : ('pending' as const)
+  }));
 
 export const EMPTY_SALARY_PROCESSING_SUMMARY: SalaryProcessingSummary = {
   periodLabel: null,
   staffCount: 0,
   initiatedBy: null,
+  runId: null,
+  runCode: null,
+  runStatus: null,
   grossSalary: 0,
   totalDeductions: 0,
   netPayable: 0,

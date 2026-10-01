@@ -85,6 +85,8 @@ type BuiltLine = {
   otherEarnings: number;
   gross: number;
   epf8: number;
+  epf12: number;
+  etf3: number;
   paye: number;
   loans: number;
   otherDeductions: number;
@@ -749,7 +751,7 @@ async function buildLineForStaff(args: {
     loans += amount;
     components.push({
       source: 'loan',
-      componentId: loan.componentId,
+      componentId: loan.id,
       name: `${loan.componentName || 'Loan'} (${loan.loanNumber})`,
       typeId: 'loan',
       section: 'deductions',
@@ -788,6 +790,8 @@ async function buildLineForStaff(args: {
     otherEarnings: roundMoney(otherEarnings),
     gross,
     epf8,
+    epf12: 0,
+    etf3: 0,
     paye,
     loans: roundMoney(loans),
     otherDeductions: roundMoney(otherDeductions),
@@ -834,10 +838,13 @@ async function persistLines(payrollRunId: string, lines: BuiltLine[]) {
             otherEarnings: line.otherEarnings,
             gross: line.gross,
             epf8: line.epf8,
+            epf12: line.epf12,
+            etf3: line.etf3,
             paye: line.paye,
             loans: line.loans,
             otherDeductions: line.otherDeductions,
             net: line.net,
+            lineStatus: 'pending',
             structureId: line.structureId,
             structureCode: line.structureCode,
             structureName: line.structureName,
@@ -1053,6 +1060,8 @@ export async function generatePayrollRun(
         otherEarnings: line.otherEarnings,
         gross: line.gross,
         epf8: line.epf8,
+        epf12: line.epf12 ?? 0,
+        etf3: line.etf3 ?? 0,
         paye: line.paye,
         loans: line.loans,
         otherDeductions: line.otherDeductions,

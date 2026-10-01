@@ -1,7 +1,7 @@
 'use client';
 
 import { CustomDialog } from '@archmage/ui';
-import { formatAmount, formatLkr, formatLkrCompact } from '@/lib/utils/currency';
+import { formatAmount, formatLkrCompact } from '@/lib/utils/currency';
 import type { SalaryProcessingSummary } from '@/types/payroll';
 
 type DialogCyclePayslipProps = {
@@ -33,7 +33,6 @@ export default function DialogCyclePayslip({
       <div className="space-y-4 py-4">
         <p className="text-sm text-muted-foreground">
           Cycle-level payslip summary for all staff in this processing run.
-          Detailed content will be wired in the dynamic phase.
         </p>
         <dl className="grid gap-3 sm:grid-cols-2">
           {rows.map((row) => (
@@ -50,9 +49,6 @@ export default function DialogCyclePayslip({
             </div>
           ))}
         </dl>
-        <p className="text-xs text-muted-foreground">
-          Totals shown as {formatLkr(0)} until live payroll data is available.
-        </p>
       </div>
     </CustomDialog>
   );

@@ -2,15 +2,17 @@
 
 import { Suspense, useMemo } from 'react';
 import { FileText } from 'lucide-react';
-import { Button, useToast } from '@archmage/ui';
+import { Button } from '@archmage/ui';
 import {
   CommonDataTable,
   DataTableExportFeature
 } from '@/components/common/common-data-table';
+import { getSalaryProcessingExportAction } from '@/app/actions/payroll-actions/salary-processing.actions';
 import type { SalaryProcessingBreakdownRow } from '@/types/payroll';
 import { createSalaryProcessingColumns } from './columns';
 
 type SectionSalaryBreakdownProps = {
+  runId?: string | null;
   records?: SalaryProcessingBreakdownRow[];
   totalRecords?: number;
   page?: string;
@@ -20,6 +22,7 @@ type SectionSalaryBreakdownProps = {
 };
 
 export default function SectionSalaryBreakdown({
+  runId = null,
   records = [],
   totalRecords = 0,
   page,
@@ -27,21 +30,28 @@ export default function SectionSalaryBreakdown({
   onViewPayslip,
   onCyclePayslipPreview
 }: SectionSalaryBreakdownProps) {
-  const { toast } = useToast();
-
   const columns = useMemo(
     () => createSalaryProcessingColumns({ onView: onViewPayslip }),
     [onViewPayslip]
   );
 
   const handleExport = async () => {
-    toast({
-      title: 'Export',
-      description: 'Will be wired in the dynamic phase.'
-    });
+    if (!runId) {
+      return {
+        success: false,
+        message: 'Select a payroll run before exporting.'
+      };
+    }
+    const result = await getSalaryProcessingExportAction(runId);
+    if (!result.success) {
+      return {
+        success: false,
+        message: result.message ?? 'Export failed'
+      };
+    }
     return {
-      success: false,
-      message: 'Export will be wired in the dynamic phase.'
+      success: true,
+      data: result.data ?? []
     };
   };
 
