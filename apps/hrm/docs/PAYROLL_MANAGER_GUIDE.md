@@ -27,7 +27,7 @@ Use with:
 | Loans & Advances | `/loans-advances` | Done | Done | §14 |
 | Salary Generation | `/salary-generation` | Done | Done | §15 |
 | Salary Processing | `/salary-processing` | Done | Done | §16 |
-| Payslips | `/payslips` | Done | Pending | §17 |
+| Payslips | `/payslips` | Done | Done | §17 |
 | Bank Transfer File | `/bank-transfer-file` | Done | Pending | §18 |
 | Salary History | `/salary-history` | Done | Pending | §19 |
 | Dynamization roadmap | — | — | — | §6–7 |
@@ -175,11 +175,11 @@ Follow **dependency order**, not sidebar order alone.
 
 ### Wave D — Outputs & history
 
-| ID | Module | Goal |
-|----|--------|------|
-| **M10** | Payslips | Read processed runs; view / export / print / email |
-| **M11** | Bank Transfer File | Batches + file + Mark Processed → Paid |
-| **M12** | Salary History | Read models + timeline events |
+| ID | Module | Goal | Status |
+|----|--------|------|--------|
+| **M10** | Payslips | Read processed runs; view / export / print / email / SMS | **Done (PS1–PS3)** |
+| **M11** | Bank Transfer File | Batches + file + Mark Processed → Paid | Pending |
+| **M12** | Salary History | Read models + timeline events | Pending |
 
 ### Suggested cadence
 
@@ -454,18 +454,22 @@ app/(dashboard)/(payroll)/salary-structures/
 | Item | Decision |
 |------|----------|
 | Route | `/payslips` |
-| Payment status | Read-only (`paid` \| `processed` \| `pending` \| `on_hold`) |
-| Staff filter | Combobox (`staffId`) + Staff Code text |
-| Sheet | View payslip; Print / Download / Email toast until file pipeline |
+| Source | `PayrollRunLine` on runs with status `generated` / `processed` / `on_hold` / `paid` |
+| Payment status | Read-only map: generated→pending · processed · on_hold · paid |
+| Staff filter | Combobox (`staffId`) + Staff Code text + period / dept / designation / institution |
+| Sheet | View payslip; Print / Download HTML / Email / SMS |
+| Notifications | Email via `lib/helpers/email` + `templates/email/payslip`; SMS via `lib/helpers/sms` + `templates/sms/payslip` |
+| Contact fields | Staff `hrDetails.email` · `contactMobile` |
+| Permission | `payroll` view; notify requires edit |
 
 ### Dynamic phases
 
 | Phase | Deliverable |
 |-------|-------------|
 | **PS0** | UI shell | **Done** |
-| **PS1** | Read from processed runs / payslip snapshots |
-| **PS2** | View sheet live |
-| **PS3** | PDF / print / email / export |
+| **PS1** | Read from processed runs / payslip snapshots | **Done** |
+| **PS2** | View sheet live | **Done** |
+| **PS3** | Print / download / email / SMS / export | **Done** |
 
 ---
 

@@ -1,6 +1,8 @@
 'use client';
 
-import { Download, History, Printer, X } from 'lucide-react';
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { Download, History, Mail, MessageSquare, Printer, X } from 'lucide-react';
 import {
   Badge,
   Button,
@@ -12,20 +14,24 @@ import {
   SheetTitle,
   useToast
 } from '@archmage/ui';
+import {
+  sendPayslipEmailAction,
+  sendPayslipSmsAction
+} from '@/app/actions/payroll-actions/payslip.actions';
+import { usePermissions } from '@/components/hooks/use-permissions';
 import { formatAmount } from '@/lib/utils/currency';
 import {
   PAYSLIP_PAYMENT_STATUS_LABELS,
   type PayslipPaymentStatus,
   type PayslipRecord
 } from '@/types/payroll';
+import { downloadPayslipHtml, printPayslip } from './payslip-print';
 
 type SheetPayslipViewProps = {
   open: boolean;
   record: PayslipRecord | null;
   onOpenChange: (open: boolean) => void;
 };
-
-const LATER = 'Will be wired in the dynamic phase.';
 
 const statusStyles: Record<PayslipPaymentStatus, string> = {
   paid: 'bg-emerald-100 text-emerald-800 hover:bg-emerald-100',
@@ -59,6 +65,10 @@ export default function SheetPayslipView({
   onOpenChange
 }: SheetPayslipViewProps) {
   const { toast } = useToast();
+  const router = useRouter();
+  const { has } = usePermissions();
+  const canNotify = has('payroll', 'edit');
+  const [busy, setBusy] = useState(false);
   const handleClose = () => onOpenChange(false);
 
   const title = record
@@ -91,7 +101,9 @@ export default function SheetPayslipView({
               <div className="space-y-4 rounded-lg border border-border bg-card p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <p className="font-semibold">Ruhunu Hospital</p>
+                    <p className="font-semibold">
+                      {record.institution || 'Ruhunu Hospital'}
+                    </p>
                     <p className="text-sm text-muted-foreground">
                       Payslip · {record.salaryPeriod || '—'}
                     </p>
@@ -197,12 +209,15 @@ export default function SheetPayslipView({
                   size="sm"
                   variant="outline"
                   className="h-9 gap-1.5"
-                  onClick={() =>
+                  onClick={() => {
+                    const ok = printPayslip(record);
                     toast({
-                      title: 'Print payslip',
-                      description: LATER
-                    })
-                  }
+                      title: ok ? 'Print dialog opened' : 'Print blocked',
+                      description: ok
+                        ? record.staffCode
+                        : 'Allow pop-ups to print this payslip.'
+                    });
+                  }}
                 >
                   <Printer className="h-4 w-4" />
                   Print
@@ -212,27 +227,94 @@ export default function SheetPayslipView({
                   size="sm"
                   variant="outline"
                   className="h-9 gap-1.5"
-                  onClick={() =>
+                  onClick={() => {
+                    downloadPayslipHtml(record);
                     toast({
-                      title: 'Download payslip',
-                      description: LATER
-                    })
-                  }
+                      variant: 'success',
+                      title: 'Download started',
+                      description: record.staffCode
+                    });
+                  }}
                 >
                   <Download className="h-4 w-4" />
                   Download
                 </Button>
+                {canNotify ? (
+                  <>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="h-9 gap-1.5"
+                      disabled={busy}
+                      onClick={() => {
+                        setBusy(true);
+                        void sendPayslipEmailAction(record.id)
+                          .then((result) => {
+                            if (result.isError) {
+                              toast({
+                                variant: 'destructive',
+                                title: 'Email failed',
+                                description:
+                                  (typeof result.errors?.message === 'string' &&
+                                    result.errors.message) ||
+                                  'Unable to send email.'
+                              });
+                              return;
+                            }
+                            toast({
+                              variant: 'success',
+                              title: 'Email sent',
+                              description: record.staffEmail || record.staffCode
+                            });
+                          })
+                          .finally(() => setBusy(false));
+                      }}
+                    >
+                      <Mail className="h-4 w-4" />
+                      Email
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="h-9 gap-1.5"
+                      disabled={busy}
+                      onClick={() => {
+                        setBusy(true);
+                        void sendPayslipSmsAction(record.id)
+                          .then((result) => {
+                            if (result.isError) {
+                              toast({
+                                variant: 'destructive',
+                                title: 'SMS failed',
+                                description:
+                                  (typeof result.errors?.message === 'string' &&
+                                    result.errors.message) ||
+                                  'Unable to send SMS.'
+                              });
+                              return;
+                            }
+                            toast({
+                              variant: 'success',
+                              title: 'SMS sent',
+                              description: record.staffPhone || record.staffCode
+                            });
+                          })
+                          .finally(() => setBusy(false));
+                      }}
+                    >
+                      <MessageSquare className="h-4 w-4" />
+                      SMS
+                    </Button>
+                  </>
+                ) : null}
                 <Button
                   type="button"
                   size="sm"
                   variant="outline"
                   className="h-9 gap-1.5"
-                  onClick={() =>
-                    toast({
-                      title: 'Salary History',
-                      description: LATER
-                    })
-                  }
+                  onClick={() => router.push('/salary-history')}
                 >
                   <History className="h-4 w-4" />
                   Salary History

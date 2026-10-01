@@ -168,7 +168,7 @@ export const PAYSLIP_EXPORT_COLUMNS = [
   'Net Salary',
   'Payment Status',
   'Generated Date'
-];
+] as const;
 
 export const PAYSLIP_EXPORT_KEYS = [
   'staffCode',
@@ -182,4 +182,4 @@ export const PAYSLIP_EXPORT_KEYS = [
   'netSalary',
   'paymentStatus',
   'generatedAt'
-];
+] as const;

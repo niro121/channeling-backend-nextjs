@@ -1,11 +1,13 @@
 'use client';
 
-import { useState } from 'react';
 import { CommonManagerHeader } from '@/components/common/common-manager-header';
 import {
-  EMPTY_PAYSLIP_SUMMARY,
   PAYROLL_WORKFLOW_STEPS,
-  type PayslipRecord
+  type PaysheetStaffOption,
+  type PayslipFilters,
+  type PayslipRecord,
+  type PayslipSummary,
+  type SalaryFilterOption
 } from '@/types/payroll';
 import { PayslipsHeaderActions } from './header-actions';
 import { PayslipsUiProvider, usePayslipsUi } from './payslips-ui-context';
@@ -14,17 +16,35 @@ import SectionSummary from './section-summary';
 import SectionWorkflowSteps from './section-workflow-steps';
 import SheetPayslipView from './sheet-payslip-view';
 
-function PayslipsWorkspaceInner() {
+type PayslipsWorkspaceProps = {
+  initialRecords: PayslipRecord[];
+  totalRecords: number;
+  summary: PayslipSummary;
+  page?: string;
+  staffOptions?: PaysheetStaffOption[];
+  departmentOptions?: SalaryFilterOption[];
+  designationOptions?: SalaryFilterOption[];
+  initialFilters?: PayslipFilters;
+};
+
+function PayslipsWorkspaceInner({
+  initialRecords,
+  totalRecords,
+  summary,
+  page,
+  staffOptions = [],
+  departmentOptions = [],
+  designationOptions = [],
+  initialFilters
+}: PayslipsWorkspaceProps) {
   const { viewRecord, closeView } = usePayslipsUi();
-  const [records] = useState<PayslipRecord[]>([]);
-  const summary = EMPTY_PAYSLIP_SUMMARY;
 
   return (
     <div className="space-y-6">
       <CommonManagerHeader
         title="Payslips"
-        description="Search, view, download, print and email generated staff payslips."
-        actions={<PayslipsHeaderActions />}
+        description="Search, view, download, print, email and SMS generated staff payslips."
+        actions={<PayslipsHeaderActions filters={initialFilters} />}
       />
 
       <SectionWorkflowSteps steps={PAYROLL_WORKFLOW_STEPS} />
@@ -32,11 +52,13 @@ function PayslipsWorkspaceInner() {
       <SectionSummary summary={summary} />
 
       <SectionRegister
-        records={records}
-        totalRecords={records.length}
-        staffOptions={[]}
-        departmentOptions={[]}
-        designationOptions={[]}
+        records={initialRecords}
+        totalRecords={totalRecords}
+        page={page}
+        staffOptions={staffOptions}
+        departmentOptions={departmentOptions}
+        designationOptions={designationOptions}
+        initialFilters={initialFilters}
       />
 
       <SheetPayslipView
@@ -50,10 +72,10 @@ function PayslipsWorkspaceInner() {
   );
 }
 
-export default function PayslipsWorkspace() {
+export default function PayslipsWorkspace(props: PayslipsWorkspaceProps) {
   return (
     <PayslipsUiProvider>
-      <PayslipsWorkspaceInner />
+      <PayslipsWorkspaceInner {...props} />
     </PayslipsUiProvider>
   );
 }

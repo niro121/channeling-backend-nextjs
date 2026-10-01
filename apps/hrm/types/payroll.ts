@@ -1052,7 +1052,7 @@ export const EMPTY_DEDUCTION_SUMMARY: DeductionSummary = {
 };
 
 /**
- * Payslips — Phase 0 register + view sheet.
+ * Payslips — read view over PayrollRunLine snapshots.
  * Payment status is owned by Salary Processing / bank confirmation; Payslips only displays/filters it.
  */
 export type PayslipPaymentStatus =
@@ -1072,13 +1072,26 @@ export type PayslipFilters = {
   paymentStatus?: string;
 };
 
+export type GetPayslipParams = PayslipFilters & {
+  page?: number;
+  limit?: number;
+};
+
 export type PayslipRecord = {
   id: string;
+  payrollRunId: string;
+  payrollRunCode: string;
+  staffId: string;
   staffCode: string;
   staffName: string;
+  staffEmail: string | null;
+  staffPhone: string | null;
   department: string;
+  departmentId: string;
   designation: string;
+  designationId: string;
   institution: string;
+  institutionId: string;
   bankAccountMasked: string;
   epfNumber: string;
   salaryPeriod: string;

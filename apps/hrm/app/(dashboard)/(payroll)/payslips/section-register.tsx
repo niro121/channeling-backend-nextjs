@@ -1,13 +1,14 @@
 'use client';
 
 import { Suspense } from 'react';
-import { useToast } from '@archmage/ui';
 import {
   CommonDataTable,
   DataTableExportFeature
 } from '@/components/common/common-data-table';
+import { getPayslipExportAction } from '@/app/actions/payroll-actions/payslip.actions';
 import type {
   PaysheetStaffOption,
+  PayslipFilters,
   PayslipRecord,
   SalaryFilterOption
 } from '@/types/payroll';
@@ -25,6 +26,7 @@ type SectionRegisterProps = {
   staffOptions?: PaysheetStaffOption[];
   departmentOptions?: SalaryFilterOption[];
   designationOptions?: SalaryFilterOption[];
+  initialFilters?: PayslipFilters;
 };
 
 export default function SectionRegister({
@@ -33,18 +35,29 @@ export default function SectionRegister({
   page,
   staffOptions = [],
   departmentOptions = [],
-  designationOptions = []
+  designationOptions = [],
+  initialFilters
 }: SectionRegisterProps) {
-  const { toast } = useToast();
-
   const handleExport = async () => {
-    toast({
-      title: 'Export',
-      description: 'Will be wired in the dynamic phase.'
+    const result = await getPayslipExportAction({
+      salaryMonth: initialFilters?.salaryMonth,
+      salaryYear: initialFilters?.salaryYear,
+      staffId: initialFilters?.staffId,
+      staffCode: initialFilters?.staffCode,
+      departmentId: initialFilters?.departmentId,
+      designationId: initialFilters?.designationId,
+      institution: initialFilters?.institution,
+      paymentStatus: initialFilters?.paymentStatus
     });
+    if (!result.success) {
+      return {
+        success: false,
+        message: result.message ?? 'Export failed'
+      };
+    }
     return {
-      success: false,
-      message: 'Export will be wired in the dynamic phase.'
+      success: true,
+      data: result.data ?? []
     };
   };
 
@@ -54,6 +67,7 @@ export default function SectionRegister({
         staffOptions={staffOptions}
         departmentOptions={departmentOptions}
         designationOptions={designationOptions}
+        initial={initialFilters}
       />
 
       <Suspense
