@@ -10,6 +10,7 @@ import type { ExpectedHandoverCollectionSourceRow } from "@/lib/handover-utils"
 export function HandoverCollectionCalcInfo({
   summaryCents,
   previousHandovers = [],
+  sentToReconciliation = [],
   floatsIn = [],
   floatsOut = [],
   expectedCents,
@@ -17,12 +18,14 @@ export function HandoverCollectionCalcInfo({
 }: {
   summaryCents: number
   previousHandovers?: ExpectedHandoverCollectionSourceRow[]
+  sentToReconciliation?: ExpectedHandoverCollectionSourceRow[]
   floatsIn?: ExpectedHandoverCollectionSourceRow[]
   floatsOut?: ExpectedHandoverCollectionSourceRow[]
   expectedCents: number
   enteredCents?: number
 }) {
   const previousTotal = previousHandovers.reduce((s, r) => s + r.cents, 0)
+  const sentToReconciliationTotal = sentToReconciliation.reduce((s, r) => s + r.cents, 0)
   const floatsInTotal = floatsIn.reduce((s, r) => s + r.cents, 0)
   const floatsOutTotal = floatsOut.reduce((s, r) => s + r.cents, 0)
   const diff = enteredCents != null ? enteredCents - expectedCents : null
@@ -45,7 +48,7 @@ export function HandoverCollectionCalcInfo({
         <div className="border-b bg-muted/50 p-3">
           <h4 className="font-medium">How this is calculated</h4>
           <p className="mt-0.5 text-xs text-muted-foreground">
-            Expected = floats in + cashier summary + previous handovers − floats out
+            Expected = floats in + cashier summary + previous handovers − sent to reconciliation − floats out
           </p>
         </div>
         <div className="max-h-[min(60vh,24rem)] space-y-3 overflow-auto p-3">
@@ -68,6 +71,21 @@ export function HandoverCollectionCalcInfo({
               </ul>
             )}
           </CalcGroup>
+          {sentToReconciliationTotal > 0 ? (
+            <CalcGroup title="Sent to reconciliation" totalCents={sentToReconciliationTotal} subtract>
+              <ul className="space-y-1">
+                {sentToReconciliation.map((row) => (
+                  <li key={row.id} className="flex justify-between gap-3 text-xs">
+                    <span className="min-w-0 truncate">{row.label}</span>
+                    <span className="shrink-0 tabular-nums">({formatCents(row.cents)})</span>
+                  </li>
+                ))}
+              </ul>
+              <p className="text-xs text-muted-foreground">
+                Card, slips, cheques, and e-wallet stay with this cashier. Cash from these handovers is still handed over.
+              </p>
+            </CalcGroup>
+          ) : null}
           <CalcGroup title="Floats in" totalCents={floatsInTotal}>
             {floatsIn.length === 0 ? (
               <p className="text-xs text-muted-foreground">None received this shift.</p>
