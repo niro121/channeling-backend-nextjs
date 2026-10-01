@@ -104,10 +104,19 @@ export async function POST(request: Request) {
     }
 
     if (method === TWO_FACTOR_METHODS.EMAIL) {
-      const emailResult = await send2faEmail(user.email, '');
-      if (!emailResult.success) {
-        return NextResponse.json({ error: 'Email verification is currently unavailable. Please use another method.' }, { status: 503 });
+      const email = user.email?.trim();
+      if (!email) {
+        return NextResponse.json({ error: 'Email not set on this account.' }, { status: 400 });
       }
+      const code = generateSixDigitCode();
+      const emailResult = await send2faEmail(email, code);
+      if (!emailResult.success) {
+        return NextResponse.json({ error: 'Failed to send email. Please try again or use another method.' }, { status: 503 });
+      }
+      await authPrisma.user.update({
+        where: { id: user.id },
+        data: { twoFactorTempCode: code, twoFactorExpires: expiresAt, twoFactorPendingSecret: null },
+      });
       return NextResponse.json({ message: 'A verification code has been sent to your email' });
     }
 
