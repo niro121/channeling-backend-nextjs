@@ -262,7 +262,6 @@ export async function getStaffOptions(): Promise<{
     const records = await prisma.staff.findMany({
       where: { status: 1 },
       orderBy: { name: "asc" },
-      take: 500,
       select: { id: true, name: true, code: true },
     })
     const data: StaffOption[] = records.map((r) => ({

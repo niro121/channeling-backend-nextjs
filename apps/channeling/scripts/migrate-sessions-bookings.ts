@@ -1298,6 +1298,11 @@ function buildBookingData(
     : null;
   const movedBy = isValidObjectId(row.movedby) ? row.movedby! : null;
 
+  // Legacy amount is the fee subtotal (professional + hospital, including card commission).
+  // This app stores amount as the bill total after discount; the screen adds discount back for the subtotal.
+  const discount = safeNumber(row.discount);
+  const amount = Math.round((safeNumber(row.amount) - discount) * 100) / 100;
+
   return {
     migrateSourceId: legacyId,
     title: row.title ?? '',
@@ -1309,8 +1314,8 @@ function buildBookingData(
     method: safeNumber(row.method),
     sessionId,
     doctorId,
-    amount: safeNumber(row.amount),
-    discount: safeNumber(row.discount),
+    amount,
+    discount,
     foriegner: Boolean(row.foriegner),
     status: safeNumber(row.status),
     createdBy: isValidObjectId(row.createdBy) ? row.createdBy! : importUserId,
