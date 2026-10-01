@@ -569,6 +569,8 @@ Authorization: Bearer <access_token>
       "doctorOnLeave": false,
       "minPatientNumber": 1,
       "maxPatientNumber": 50,
+      "previousSessionId": null,
+      "consecutiveStartNumber": 1,
       "appointmentNo": 12,
       "isFull": false,
       "amountLocal": {
@@ -668,6 +670,8 @@ Authorization: Bearer <access_token>
     "doctorOnLeave": false,
     "minPatientNumber": 1,
     "maxPatientNumber": 50,
+    "previousSessionId": null,
+    "consecutiveStartNumber": 1,
     "appointmentNo": 12,
     "isFull": false,
     "amountLocal": {
