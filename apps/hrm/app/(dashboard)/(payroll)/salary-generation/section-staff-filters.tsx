@@ -1,12 +1,13 @@
 'use client';
 
 import { Suspense } from 'react';
-import { Button, Combobox, Selector, Separator, useToast } from '@archmage/ui';
+import { Button, Combobox, Selector, Separator } from '@archmage/ui';
 import { FilterWrapper } from '@/app/(dashboard)/filter-wrapper';
 import { INSTITUTION_OPTIONS } from '@/types/institution';
 import { STAFF_CATEGORY_OPTIONS } from '@/types/staff-employment-options';
 import type {
   SalaryFilterOption,
+  SalaryGenerationFillMode,
   SalaryGenerationStaffFilters
 } from '@/types/payroll';
 import { Label } from '@archmage/ui';
@@ -19,17 +20,17 @@ type SectionStaffFiltersProps = {
   designationOptions?: SalaryFilterOption[];
   rosterOptions?: SalaryFilterOption[];
   initial?: SalaryGenerationStaffFilters;
+  busy?: boolean;
+  onFill?: (mode: SalaryGenerationFillMode) => void;
   onValuesChange?: (values: FilterValues) => void;
 };
 
-const LATER = 'Will be wired in the dynamic phase.';
-
-const FILL_ACTIONS = [
+const FILL_ACTIONS: Array<{ id: SalaryGenerationFillMode; label: string }> = [
   { id: 'all', label: 'Fill All Staff' },
   { id: 'not-generated', label: 'Fill Salary Not Generated Staff Only' },
   { id: 'generated', label: 'Fill Salary Generated Staff Only' },
   { id: 'resigned', label: 'Fill Resigned Staff' }
-] as const;
+];
 
 function SectionStaffFiltersInner({
   staffOptions = [],
@@ -37,10 +38,10 @@ function SectionStaffFiltersInner({
   designationOptions = [],
   rosterOptions = [],
   initial = {},
+  busy = false,
+  onFill,
   onValuesChange
 }: SectionStaffFiltersProps) {
-  const { toast } = useToast();
-
   const staffCategoryOptions = STAFF_CATEGORY_OPTIONS.map((item) => ({
     id: item.id,
     name: item.name
@@ -65,12 +66,8 @@ function SectionStaffFiltersInner({
             size="sm"
             variant="outline"
             className="h-9"
-            onClick={() =>
-              toast({
-                title: action.label,
-                description: LATER
-              })
-            }
+            disabled={busy}
+            onClick={() => onFill?.(action.id)}
           >
             {action.label}
           </Button>
@@ -104,10 +101,7 @@ function SectionStaffFiltersInner({
         {({ values, setValue }) => (
           <>
             <div className="space-y-2">
-              <Label
-                htmlFor="paysheet-component-search"
-                className="text-xs uppercase text-muted-foreground"
-              >
+              <Label className="text-xs uppercase text-muted-foreground">
                 Select Employee
               </Label>
               <Combobox
@@ -120,10 +114,7 @@ function SectionStaffFiltersInner({
               />
             </div>
             <div className="space-y-2">
-              <Label
-                htmlFor="paysheet-component-search"
-                className="text-xs uppercase text-muted-foreground"
-              >
+              <Label className="text-xs uppercase text-muted-foreground">
                 Select Institution
               </Label>
               <Selector
@@ -135,10 +126,7 @@ function SectionStaffFiltersInner({
               />
             </div>
             <div className="space-y-2">
-              <Label
-                htmlFor="paysheet-component-search"
-                className="text-xs uppercase text-muted-foreground"
-              >
+              <Label className="text-xs uppercase text-muted-foreground">
                 Select Department
               </Label>
               <Combobox
@@ -151,10 +139,7 @@ function SectionStaffFiltersInner({
               />
             </div>
             <div className="space-y-2">
-              <Label
-                htmlFor="paysheet-component-search"
-                className="text-xs uppercase text-muted-foreground"
-              >
+              <Label className="text-xs uppercase text-muted-foreground">
                 Select Staff Category
               </Label>
               <Combobox
@@ -167,10 +152,7 @@ function SectionStaffFiltersInner({
               />
             </div>
             <div className="space-y-2">
-              <Label
-                htmlFor="paysheet-component-search"
-                className="text-xs uppercase text-muted-foreground"
-              >
+              <Label className="text-xs uppercase text-muted-foreground">
                 Select Designation
               </Label>
               <Combobox
@@ -183,10 +165,7 @@ function SectionStaffFiltersInner({
               />
             </div>
             <div className="space-y-2">
-              <Label
-                htmlFor="paysheet-component-search"
-                className="text-xs uppercase text-muted-foreground"
-              >
+              <Label className="text-xs uppercase text-muted-foreground">
                 Select Roster
               </Label>
               <Combobox

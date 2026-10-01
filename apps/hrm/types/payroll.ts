@@ -5,6 +5,21 @@ export type SalaryFilterOption = {
   name: string;
 };
 
+export const PAYROLL_RUN_CODE_PREFIX = 'PRN';
+
+export type PayrollRunStatus =
+  | 'draft'
+  | 'generated'
+  | 'processed'
+  | 'on_hold'
+  | 'paid';
+
+export type SalaryGenerationFillMode =
+  | 'all'
+  | 'not-generated'
+  | 'generated'
+  | 'resigned';
+
 export type SalaryGenerationCycleFormValues = {
   salaryCycleId: string;
   salaryFromDate: Date | null;
@@ -22,8 +37,19 @@ export type SalaryGenerationStaffFilters = {
   rosterId?: string;
 };
 
+export type GeneratePayrollRunPayload = {
+  salaryCycleId: string;
+  salaryFromDate: Date | string;
+  salaryToDate: Date | string;
+  workedFromDate: Date | string;
+  workedToDate: Date | string;
+  fillMode?: SalaryGenerationFillMode;
+  filters?: SalaryGenerationStaffFilters;
+};
+
 export type SalaryGenerationStaffRow = {
   id: string;
+  staffId: string;
   roster: string;
   resignedDate: string | null;
   workingDaysPh: number;
@@ -56,6 +82,34 @@ export type SalaryGenerationPreviewRow = {
   paye: number;
   loans: number;
   net: number;
+};
+
+export type PayrollRunRecord = {
+  id: string;
+  code: string;
+  salaryCycleId: string;
+  cycleLabel: string;
+  institutionId: number;
+  institution: string;
+  salaryFromDate: string;
+  salaryToDate: string;
+  workedFromDate: string;
+  workedToDate: string;
+  status: PayrollRunStatus;
+  staffCount: number;
+  summary: SalaryGenerationSummary;
+  earningsBreakdown: SalaryBreakdownChartPoint[];
+  deductionsBreakdown: SalaryBreakdownChartPoint[];
+  createdBy: string | null;
+  createdAt: string | null;
+  updatedBy: string | null;
+  updatedAt: string | null;
+};
+
+export type SalaryGenerationResult = {
+  run: PayrollRunRecord;
+  staffRows: SalaryGenerationStaffRow[];
+  previewRows: SalaryGenerationPreviewRow[];
 };
 
 export const EMPTY_SALARY_GENERATION_SUMMARY: SalaryGenerationSummary = {

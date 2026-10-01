@@ -5,15 +5,16 @@ import {
   Card,
   CardContent,
   CardHeader,
-  CardTitle,
-  useToast
+  CardTitle
 } from '@archmage/ui';
 import {
   CommonDataTable,
   DataTableExportFeature
 } from '@/components/common/common-data-table';
+import { getPayrollRunStaffExportAction } from '@/app/actions/payroll-actions/payroll-run.actions';
 import type {
   SalaryFilterOption,
+  SalaryGenerationFillMode,
   SalaryGenerationStaffFilters,
   SalaryGenerationStaffRow
 } from '@/types/payroll';
@@ -21,6 +22,7 @@ import { salaryGenerationStaffColumns } from './columns';
 import SectionStaffFilters from './section-staff-filters';
 
 type SectionStaffListProps = {
+  runId?: string | null;
   records?: SalaryGenerationStaffRow[];
   totalRecords?: number;
   page?: string;
@@ -29,9 +31,13 @@ type SectionStaffListProps = {
   departmentOptions?: SalaryFilterOption[];
   designationOptions?: SalaryFilterOption[];
   rosterOptions?: SalaryFilterOption[];
+  busy?: boolean;
+  onFill?: (mode: SalaryGenerationFillMode) => void;
+  onFiltersChange?: (filters: SalaryGenerationStaffFilters) => void;
 };
 
 export default function SectionStaffList({
+  runId = null,
   records = [],
   totalRecords = 0,
   page,
@@ -39,18 +45,28 @@ export default function SectionStaffList({
   staffOptions = [],
   departmentOptions = [],
   designationOptions = [],
-  rosterOptions = []
+  rosterOptions = [],
+  busy = false,
+  onFill,
+  onFiltersChange
 }: SectionStaffListProps) {
-  const { toast } = useToast();
-
   const handleExport = async () => {
-    toast({
-      title: 'Export',
-      description: 'Will be wired in the dynamic phase.'
-    });
+    if (!runId) {
+      return {
+        success: false,
+        message: 'Generate salary before exporting.'
+      };
+    }
+    const result = await getPayrollRunStaffExportAction(runId);
+    if (!result.success) {
+      return {
+        success: false,
+        message: result.message ?? 'Export failed'
+      };
+    }
     return {
-      success: false,
-      message: 'Export will be wired in the dynamic phase.'
+      success: true,
+      data: result.data ?? []
     };
   };
 
@@ -67,6 +83,18 @@ export default function SectionStaffList({
             designationOptions={designationOptions}
             rosterOptions={rosterOptions}
             initial={initialFilters}
+            busy={busy}
+            onFill={onFill}
+            onValuesChange={(values) =>
+              onFiltersChange?.({
+                staffId: values.staffId || undefined,
+                institution: values.institution || undefined,
+                departmentId: values.departmentId || undefined,
+                staffCategory: values.staffCategory || undefined,
+                designationId: values.designationId || undefined,
+                rosterId: values.rosterId || undefined
+              })
+            }
           />
         </CardContent>
       </Card>

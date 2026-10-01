@@ -985,6 +985,106 @@ model LoanAdvance {
   @@index([staffCode])
 }
 
+/// Component snapshot on a payroll run line (denormalized for history).
+type PayrollRunLineComponentEmbedded {
+  source      String // structure | assignment | performance | loan
+  componentId String?
+  name        String
+  typeId      String @default("")
+  section     String // earnings | deductions
+  amount      Float  @default(0)
+}
+
+/// Draft / generated / processed payroll run for one salary cycle.
+model PayrollRun {
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  code            String   @unique // PRN-n
+  salaryCycleId   String   @db.ObjectId
+  cycleLabel      String   @default("")
+  institutionId   Int
+  institution     String   @default("")
+  salaryFromDate  DateTime
+  salaryToDate    DateTime
+  workedFromDate  DateTime
+  workedToDate    DateTime
+  status          String // draft | generated | processed | on_hold | paid
+
+  staffCount            Int   @default(0)
+  totalEarnings         Float @default(0)
+  totalDeductions       Float @default(0)
+  netPayable            Float @default(0)
+  totalBasic            Float @default(0)
+  totalAllowances       Float @default(0)
+  totalOt               Float @default(0)
+  totalOtherEarnings    Float @default(0)
+  totalEpf8             Float @default(0)
+  totalPaye             Float @default(0)
+  totalLoans            Float @default(0)
+  totalOtherDeductions  Float @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy String?  @db.ObjectId
+  updatedBy String?  @db.ObjectId
+
+  @@index([salaryCycleId])
+  @@index([status])
+  @@index([institutionId])
+  @@index([salaryFromDate])
+  @@index([salaryCycleId, status])
+}
+
+/// Per-staff snapshot line belonging to a PayrollRun.
+model PayrollRunLine {
+  id            String @id @default(auto()) @map("_id") @db.ObjectId
+  payrollRunId  String @db.ObjectId
+  staffId       String @db.ObjectId
+  staffCode     String @default("")
+  staffName     String @default("")
+  roster        String @default("")
+  rosterId      String @default("")
+  designation   String @default("")
+  designationId String @default("")
+  department    String @default("")
+  departmentId  String @default("")
+  institution   String @default("")
+  institutionId String @default("")
+  staffCategory String @default("")
+  staffCategoryId String @default("")
+  resignDate    DateTime?
+
+  workingDaysPh   Float @default(0)
+  workingDaysWork Float @default(0)
+
+  basic       Float @default(0)
+  allowances  Float @default(0)
+  ot          Float @default(0)
+  otherEarnings Float @default(0)
+  gross       Float @default(0)
+  epf8        Float @default(0)
+  paye        Float @default(0)
+  loans       Float @default(0)
+  otherDeductions Float @default(0)
+  net         Float @default(0)
+
+  structureId   String?
+  structureCode String @default("")
+  structureName String @default("")
+
+  components PayrollRunLineComponentEmbedded[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([payrollRunId, staffId])
+  @@index([payrollRunId])
+  @@index([staffId])
+  @@index([staffCode])
+  @@index([departmentId])
+  @@index([designationId])
+  @@index([rosterId])
+}
+
 /* ---------------------------------
 ORGANIZATION
 --------------------------------- */

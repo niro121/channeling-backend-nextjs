@@ -25,7 +25,7 @@ Use with:
 | Bulk Assign Paysheet Component | `/bulk-assign-paysheet-component` | Done | **BA1–BA2 live (M5)** | §12 |
 | Performance Allowance | `/performance-allowance` | Done | **PA1–PA3 live (M6)** | §13 |
 | Loans & Advances | `/loans-advances` | Done | Done | §14 |
-| Salary Generation | `/salary-generation` | Done | Pending | §15 |
+| Salary Generation | `/salary-generation` | Done | Done | §15 |
 | Salary Processing | `/salary-processing` | Done | Pending | §16 |
 | Payslips | `/payslips` | Done | Pending | §17 |
 | Bank Transfer File | `/bank-transfer-file` | Done | Pending | §18 |
@@ -168,10 +168,10 @@ Follow **dependency order**, not sidebar order alone.
 
 ### Wave C — Engine
 
-| ID | Module | Goal |
-|----|--------|------|
-| **M8** | Salary Generation | Draft payroll run from cycle + staff + assignments |
-| **M9** | Salary Processing | Statutory calc; approve / on-hold; payment status owner |
+| ID | Module | Goal | Status |
+|----|--------|------|--------|
+| **M8** | Salary Generation | Draft payroll run from cycle + staff + assignments | **Done (SG1–SG3)** |
+| **M9** | Salary Processing | Statutory calc; approve / on-hold; payment status owner | Pending |
 
 ### Wave D — Outputs & history
 
@@ -194,15 +194,15 @@ Follow **dependency order**, not sidebar order alone.
 
 ## 7. Planned domain (Prisma — draft)
 
-No Payroll-run models exist yet in `schema.prisma` (only PaysheetComponent / HrmVariable / SalaryCycle). Draft entities for design lock before M1:
+Payroll domain models in `schema.prisma` (structures through runs). Draft entities for remaining Wave D:
 
 ```
 SalaryStructure 1──* SalaryStructureLine (embedded)
 PaysheetComponent          ← Allowances / Deductions are filtered UIs over this (see §20 #1)
 PerformanceAllowance *── Staff, period   ← **M6 live (separate collection)**
 PaysheetAssignment *── Staff, PaysheetComponent   ← **M4 live**
-LoanAdvance *── Staff (+ schedule / balance)
-PayrollRun 1──* PayrollRunLine   (Generation → Processing statuses)
+LoanAdvance *── Staff (+ schedule / balance) ← **M7 live**
+PayrollRun 1──* PayrollRunLine   ← **M8 live (`PRN-n`, draft → generated)**
 Payslip                          (view of approved line / snapshot)
 BankTransferBatch 1──* BankTransferBatchLine
 SalaryTimelineEvent              (history feed)
@@ -407,7 +407,12 @@ app/(dashboard)/(payroll)/salary-structures/
 | Item | Decision |
 |------|----------|
 | Route | `/salary-generation` |
-| Tabs | Cycle · Staff list · Staff salary preview |
+| Collection | `PayrollRun` (`PRN-n`) + `PayrollRunLine` snapshots |
+| Status | `draft` → `generated` (Processing continues to `processed` / `on_hold` / `paid`) |
+| Snapshot sources | SalaryStructure · PaysheetAssignment · PerformanceAllowance · LoanAdvance |
+| Statutory preview | EPF employee % + PAYE slabs from `HrmVariable` (draft); OT / PH days pending attendance |
+| Permission | `payroll` (view/add/edit/delete) |
+| UI | Cycle · Staff list (fill modes) · Staff salary preview + charts + export |
 | Depends on | **SC5** cycles; assignments from M4–M7; structures |
 
 ### Dynamic phases
@@ -415,9 +420,9 @@ app/(dashboard)/(payroll)/salary-structures/
 | Phase | Deliverable |
 |-------|-------------|
 | **SG0** | UI shell | **Done** |
-| **SG1** | `PayrollRun` draft model + line snapshot builder |
-| **SG2** | Actions: generate / clear / export preview |
-| **SG3** | Wire cycle options (SC5) + staff selection |
+| **SG1** | `PayrollRun` draft model + line snapshot builder | **Done** |
+| **SG2** | Actions: generate / save / clear / export preview | **Done** |
+| **SG3** | Wire cycle options + staff selection / fill modes | **Done** |
 
 ---
 

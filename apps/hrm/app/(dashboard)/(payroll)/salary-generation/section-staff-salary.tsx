@@ -1,11 +1,11 @@
 'use client';
 
 import { Suspense } from 'react';
-import { useToast } from '@archmage/ui';
 import {
   CommonDataTable,
   DataTableExportFeature
 } from '@/components/common/common-data-table';
+import { getPayrollRunPreviewExportAction } from '@/app/actions/payroll-actions/payroll-run.actions';
 import type {
   SalaryBreakdownChartPoint,
   SalaryGenerationPreviewRow,
@@ -21,6 +21,7 @@ import SectionSalaryCharts from './section-salary-charts';
 import SectionSalarySummary from './section-salary-summary';
 
 type SectionStaffSalaryProps = {
+  runId?: string | null;
   summary?: SalaryGenerationSummary;
   earningsBreakdown?: SalaryBreakdownChartPoint[];
   deductionsBreakdown?: SalaryBreakdownChartPoint[];
@@ -29,22 +30,30 @@ type SectionStaffSalaryProps = {
 };
 
 export default function SectionStaffSalary({
+  runId = null,
   summary = EMPTY_SALARY_GENERATION_SUMMARY,
   earningsBreakdown = EMPTY_EARNINGS_BREAKDOWN,
   deductionsBreakdown = EMPTY_DEDUCTIONS_BREAKDOWN,
   previewRows = [],
   page
 }: SectionStaffSalaryProps) {
-  const { toast } = useToast();
-
   const handleExport = async () => {
-    toast({
-      title: 'Export',
-      description: 'Will be wired in the dynamic phase.'
-    });
+    if (!runId) {
+      return {
+        success: false,
+        message: 'Generate salary before exporting.'
+      };
+    }
+    const result = await getPayrollRunPreviewExportAction(runId);
+    if (!result.success) {
+      return {
+        success: false,
+        message: result.message ?? 'Export failed'
+      };
+    }
     return {
-      success: false,
-      message: 'Export will be wired in the dynamic phase.'
+      success: true,
+      data: result.data ?? []
     };
   };
 

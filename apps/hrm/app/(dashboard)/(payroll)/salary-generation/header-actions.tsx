@@ -6,6 +6,7 @@ import { Badge, Button } from '@archmage/ui';
 type SalaryGenerationHeaderActionsProps = {
   cycleLabel: string | null;
   staffCountLabel: string;
+  busy?: boolean;
   onGenerate: () => void;
   onSave: () => void;
   onClear: () => void;
@@ -14,6 +15,7 @@ type SalaryGenerationHeaderActionsProps = {
 export function SalaryGenerationHeaderActions({
   cycleLabel,
   staffCountLabel,
+  busy = false,
   onGenerate,
   onSave,
   onClear
@@ -24,16 +26,18 @@ export function SalaryGenerationHeaderActions({
         type="button"
         size="sm"
         className="h-9 gap-1.5"
+        disabled={busy}
         onClick={onGenerate}
       >
         <Play className="h-4 w-4 fill-current" />
-        Generate Salary
+        {busy ? 'Working…' : 'Generate Salary'}
       </Button>
       <Button
         type="button"
         size="sm"
         variant="outline"
         className="h-9 gap-1.5"
+        disabled={busy}
         onClick={onSave}
       >
         <Save className="h-4 w-4" />
@@ -44,6 +48,7 @@ export function SalaryGenerationHeaderActions({
         size="sm"
         variant="outline"
         className="h-9 gap-1.5"
+        disabled={busy}
         onClick={onClear}
       >
         <RotateCcw className="h-4 w-4" />
