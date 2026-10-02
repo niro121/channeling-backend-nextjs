@@ -1,0 +1,129 @@
+import { Speciality } from "./speciality";
+import { User } from "./user";
+
+export type Doctor = {
+  id?: string;
+  title: string;
+  name: string;
+  code: string;
+  order: number;
+  phone: string | null;
+  mobile: string | null;
+  fax: string | null;
+  addressLine1: string | null;
+  addressLine2: string | null;
+  city: string | null;
+  registrationNumber: string | null;
+  qualification: string;
+  referralCharge: number;
+  sessionNoPrefix: string | null;
+  status: number; // == 0: unpublish, 1: publish == //
+  specialityId: string | null;
+  speciality?: Speciality | null
+  createdUser?: User | null
+  updatedUser?: User | null
+  createdAt?: Date | undefined;
+  updatedAt?: Date | undefined;
+  /** Linked GL account (PAYABLE) for balance/statement */
+  accountId?: string | null;
+  accountName?: string | null;
+  accountCode?: string | null;
+  /** Balance from linked account (display units) */
+  balance?: number | null;
+  /** Branches (locations) this doctor is tagged to */
+  doctorLocations?: { locationId: string; location?: { id: string; name: string } | null }[];
+  locationIds?: string[];
+};
+
+export type DoctorFormValues = {
+  title: string;
+  name: string;
+  code: string;
+  order: number;
+  phone: string;
+  mobile: string;
+  fax: string;
+  addressLine1: string;
+  addressLine2: string;
+  city: string;
+  registrationNumber: string;
+  qualification: string;
+  referralCharge: number;
+  sessionNoPrefix: string;
+  status: number; // == 0: unpublish, 1: publish == //
+  specialityId: string;
+  locationIds: string[];
+};
+
+export type CreateDoctorPayload = DoctorFormValues & {
+  createdBy?: string;
+  updatedBy?: string;
+};
+
+export type UpdateDoctorPayload = Partial<{
+  title: string;
+  name: string;
+  order: number;
+  phone: string;
+  mobile: string;
+  fax: string;
+  addressLine1: string;
+  addressLine2: string;
+  city: string;
+  registrationNumber: string;
+  qualification: string;
+  referralCharge: number;
+  sessionNoPrefix: string;
+  status: number; // == 0: unpublish, 1: publish == //
+  specialityId: string;
+  locationIds: string[];
+}>;
+
+
+export type getDoctorParams = {
+  page?: string;
+  limit?: string;
+  keyword?: string;
+  specialityId?: string;
+  /** Comma-separated location ObjectIds, or string[] from callers. */
+  locationIds?: string | string[];
+};
+
+export type getDoctorQuery = {
+  page: number;
+  limit: number;
+  keyword: string;
+  specialityId?: string;
+  locationIds?: string[];
+};
+
+export type GetDoctorResponse = {
+  data: Doctor[];
+  totalRecords: number;
+};
+
+/** Re-export shared title list and helpers (canonical source: @/types/title). */
+export {
+  type TitleItem,
+  TITLE_LIST,
+  TITLE_OPTIONS,
+  getSexForTitle,
+  normalizeTitleForSelect,
+  getTitleNameById,
+} from "./title";
+
+export type ExportDoctorParams = {
+  keyword?: string;
+  specialityId?: string;
+  locationIds?: string | string[];
+};
+
+export type ExportDoctorQuery = {
+  keyword?: string;
+  specialityId?: string;
+  locationIds?: string[];
+};
+
+export type ExportDoctorsPdfResponse =
+  | { success: true; data: Doctor[]; totalRecords: number }
+  | { success: false; message: string };

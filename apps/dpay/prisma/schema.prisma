@@ -1,0 +1,204 @@
+generator client {
+  provider      = "prisma-client-js"
+  output        = "../lib/generated/prisma"
+  binaryTargets = ["native", "darwin-arm64", "darwin", "debian-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+model Sequence {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  scopeKey  String   @unique
+  lastValue Int      @default(0)
+  updatedAt DateTime @updatedAt
+}
+
+model PatientBill {
+  id                String   @id @default(auto()) @map("_id") @db.ObjectId
+  bxtNumber         String   @unique
+  billNumber        String   @unique
+  admissionDate     DateTime
+  dischargeDate     DateTime?
+  customerName      String
+  customerNicPhone  String?
+  customerAddress   String?
+  totalAmount       Float
+  paidAmount        Float    @default(0)
+  outstandingAmount Float
+  status            String   @default("draft")
+  cancelReason      String?
+  canceledAt        DateTime?
+  canceledBy        String?  @db.ObjectId
+  canceledByName    String?
+  createdBy         String?  @db.ObjectId
+  createdByName     String?
+  createdAt         DateTime @default(now())
+  updatedBy         String?  @db.ObjectId
+  updatedByName     String?
+  updatedAt         DateTime @updatedAt
+
+  lineItems           PatientBillItem[]
+  receipts            PatientBillReceipt[]
+  doctorPaymentItems  DoctorPaymentItem[]
+}
+
+model PatientBillItem {
+  id              String    @id @default(auto()) @map("_id") @db.ObjectId
+  billId          String    @db.ObjectId
+  sortOrder       Int
+  doctorName      String
+  description     String
+  amount          Float
+  status          String    @default("active")
+  doctorPaymentId String?   @db.ObjectId
+  doctorPaidAt    DateTime?
+  deletedAt       DateTime?
+  deletedBy       String?   @db.ObjectId
+  deletedByName   String?
+  createdBy       String?   @db.ObjectId
+  createdByName   String?
+  createdAt       DateTime  @default(now())
+  updatedBy       String?   @db.ObjectId
+  updatedByName   String?
+  updatedAt       DateTime  @updatedAt
+
+  bill          PatientBill    @relation(fields: [billId], references: [id], onDelete: Cascade)
+  doctorPayment DoctorPayment? @relation(fields: [doctorPaymentId], references: [id])
+}
+
+/// Append-only audit log for bill line items. Kept independent of item deletes.
+model PatientBillItemHistory {
+  id                  String   @id @default(auto()) @map("_id") @db.ObjectId
+  billId              String   @db.ObjectId
+  lineItemId          String   @db.ObjectId
+  action              String
+  changedAt           DateTime @default(now())
+  changedBy           String?  @db.ObjectId
+  changedByName       String?
+  doctorName          String?
+  description         String?
+  amount              Float?
+  sortOrder           Int?
+  previousDoctorName  String?
+  previousDescription String?
+  previousAmount      Float?
+  previousSortOrder   Int?
+
+  @@index([lineItemId, changedAt])
+  @@index([billId])
+}
+
+model ActivityLog {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId      String   @db.ObjectId
+  action      String
+  entityType  String
+  entityId    String?  @db.ObjectId
+  metadata    Json?
+  ipAddress   String?
+  importance  String?
+  createdAt   DateTime @default(now())
+
+  @@index([userId])
+  @@index([action])
+  @@index([entityType, entityId])
+  @@index([importance, createdAt(sort: Desc)])
+  @@index([createdAt(sort: Desc)])
+}
+
+model PatientBillReceipt {
+  id               String    @id @default(auto()) @map("_id") @db.ObjectId
+  billId           String    @db.ObjectId
+  receiptNumber    String    @unique
+  amountPaid       Float
+  /// Shared RECEIPT_PAYMENT_METHOD code stored as string ("0"–"6"). Legacy string labels may remain on old rows.
+  paymentMethod    String
+  referenceNumber  String?
+  bank             String?
+  bankId           String?
+  cardReference    String?
+  slipReference    String?
+  slipDate         DateTime?
+  /// Branch used for receipt numbering (Channeling Location id / code / name).
+  locationId       String?
+  locationCode     String?
+  locationName     String?
+  remarks          String?
+  outstandingAfter Float
+  paymentDate      DateTime  @default(now())
+  status           String    @default("active")
+  /// Set when this payment is voided — links to the separate refund/cancel receipt number.
+  cancelReceiptNumber String?
+  /// If this row is a refund receipt, points at the original payment receipt.
+  refundOfReceiptId   String?  @db.ObjectId
+  cancelReason     String?
+  canceledAt       DateTime?
+  canceledBy       String?   @db.ObjectId
+  canceledByName   String?
+  createdBy        String?   @db.ObjectId
+  createdByName    String?
+  createdAt        DateTime  @default(now())
+
+  bill PatientBill @relation(fields: [billId], references: [id], onDelete: Cascade)
+}
+
+model DoctorPayment {
+  id                   String    @id @default(auto()) @map("_id") @db.ObjectId
+  receiptNumber        String    @unique
+  doctorName           String
+  paymentMethod        String
+  referenceNumber      String?
+  bank                 String?
+  bankId               String?
+  cardReference        String?
+  slipReference        String?
+  slipDate             DateTime?
+  remarks              String?
+  locationId           String?
+  locationCode         String?
+  /// Denormalized location name (same pattern as patient bill receipts).
+  locationName         String?
+  totalAmount          Float
+  whtAmount            Float     @default(0)
+  whtPercentage        Float     @default(0)
+  netAmount            Float
+  applyWht             Boolean   @default(false)
+  /// paid | cancelled | refund
+  status               String    @default("paid")
+  cancelReason         String?
+  /// On the original payment: receipt number of the linked refund row.
+  cancelReceiptNumber  String?
+  /// On a refund row: id of the original doctor payment.
+  refundOfPaymentId    String?   @db.ObjectId
+  canceledAt           DateTime?
+  canceledBy           String?   @db.ObjectId
+  canceledByName       String?
+  createdBy            String?   @db.ObjectId
+  createdByName        String?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  items     DoctorPaymentItem[]
+  lineItems PatientBillItem[]
+}
+
+model DoctorPaymentItem {
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  doctorPaymentId String   @db.ObjectId
+  patientBillId   String   @db.ObjectId
+  billNumber      String
+  patientName     String
+  admissionDate   DateTime
+  doctorName      String
+  doctorFee       Float
+  discount        Float    @default(0)
+  refund          Float    @default(0)
+  payableAmount   Float
+  lineItemIds     String[] @db.ObjectId
+
+  doctorPayment DoctorPayment @relation(fields: [doctorPaymentId], references: [id], onDelete: Cascade)
+  patientBill   PatientBill   @relation(fields: [patientBillId], references: [id])
+}

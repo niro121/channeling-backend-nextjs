@@ -1,0 +1,73 @@
+generator client {
+  provider      = "prisma-client-js"
+  output        = "../src/generated/client"
+  binaryTargets = ["native", "darwin-arm64", "darwin", "debian-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("AUTH_DATABASE_URL")
+}
+
+model User {
+  id       String  @id @default(auto()) @map("_id") @db.ObjectId
+  name     String
+  email    String  @unique
+  username String?
+  phone    String?
+
+  password String
+  userType Int     // 1 = admin, 2 = staff, 3 = doctor
+  status   Int     // 0 = inactive, 1 = active
+
+  // 2FA
+  twoFactorEnabled       Boolean   @default(false)
+  twoFactorMethod        String?
+  twoFactorSecret        String?
+  twoFactorPendingSecret String?
+  twoFactorTempCode      String?
+  twoFactorExpires       DateTime?
+  twoFactorVerified      Boolean   @default(false)
+
+  mustChangePassword Boolean @default(false)
+
+  // Cross-DB references — plain IDs, no Prisma relations across databases
+  staffId  String? @db.ObjectId  // → HRM DB: Staff.id
+  doctorId String? @db.ObjectId  // → Channeling DB: Doctor.id
+
+  /// Assigned branch (Channeling Location id). Used by DPAY receipt numbering.
+  userLocationId String? @db.ObjectId
+  /// Denormalized Location.code for receipt prefixes (e.g. NH → NHDPAY/00000001).
+  locationCode   String?
+
+  userGroupId String?    @db.ObjectId
+  userGroup   UserGroup? @relation(fields: [userGroupId], references: [id], onDelete: NoAction)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now())
+}
+
+model UserGroup {
+  id          String  @id @default(auto()) @map("_id") @db.ObjectId
+  name        String
+  description String?
+  status      Int     // 0 = inactive, 1 = active
+
+  /// App ownership for multi-app auth. Optional for backward compatibility.
+  /// Values: "hrm" | "dpay" | "channeling" (see AUTH_APPS in @archmage/shared)
+  app String?
+
+  // { "resource": { "view": true, "add": true, "edit": true, "delete": true } }
+  permissions Json
+
+  twoFactorEnabled Boolean  @default(false)
+  twoFactorMethods String[]
+
+  users User[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now())
+
+  @@index([app])
+  @@index([status])
+}
