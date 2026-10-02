@@ -13,10 +13,13 @@ import { useToast } from '@/components/hooks/use-toast';
 import { Printer } from 'lucide-react';
 import moment from 'moment';
 import { Button } from '@/components/ui/button';
-import { ReportPrintLayout, toBrandedPdfSummaryItems, downloadBrandedReportPdf } from '@/components/common/report-print';
+import { ReportPrintLayout, toBrandedPdfSummaryItems, downloadBrandedReportPdf, downloadBrandedReportExcel } from '@/components/common/report-print';
 import type { ReportPrintSummaryItem } from '@/components/common/report-print';
 import { ExportWrapper } from '@/app/(dashboard)/export-wrapper';
 import Loading from '@/app/(dashboard)/loading';
+
+/** Same body-column shares as the printed Nurse View table. */
+const NURSE_VIEW_COLUMN_WIDTH_PERCENTS = [6, 18, 11, 20, 10, 20, 9, 6];
 
 type NurseViewReportContentProps = {
   sessionId: string;
@@ -224,22 +227,11 @@ export default function NurseViewReportContentLegacy({
             overflow-wrap: anywhere !important;
             box-sizing: border-box !important;
           }
-          .nurse-view-print-root .rpt-print-root table.nv-print-table th:nth-child(1),
-          .nurse-view-print-root .rpt-print-root table.nv-print-table td:nth-child(1) { width: 8% !important; }
-          .nurse-view-print-root .rpt-print-root table.nv-print-table th:nth-child(2),
-          .nurse-view-print-root .rpt-print-root table.nv-print-table td:nth-child(2) { width: 18% !important; }
-          .nurse-view-print-root .rpt-print-root table.nv-print-table th:nth-child(3),
-          .nurse-view-print-root .rpt-print-root table.nv-print-table td:nth-child(3) { width: 11% !important; }
-          .nurse-view-print-root .rpt-print-root table.nv-print-table th:nth-child(4),
-          .nurse-view-print-root .rpt-print-root table.nv-print-table td:nth-child(4) { width: 13% !important; }
-          .nurse-view-print-root .rpt-print-root table.nv-print-table th:nth-child(5),
-          .nurse-view-print-root .rpt-print-root table.nv-print-table td:nth-child(5) { width: 10% !important; }
-          .nurse-view-print-root .rpt-print-root table.nv-print-table th:nth-child(6),
-          .nurse-view-print-root .rpt-print-root table.nv-print-table td:nth-child(6) { width: 20% !important; }
-          .nurse-view-print-root .rpt-print-root table.nv-print-table th:nth-child(7),
-          .nurse-view-print-root .rpt-print-root table.nv-print-table td:nth-child(7) { width: 14% !important; }
-          .nurse-view-print-root .rpt-print-root table.nv-print-table th:nth-child(8),
-          .nurse-view-print-root .rpt-print-root table.nv-print-table td:nth-child(8) { width: 6% !important; }
+          ${NURSE_VIEW_COLUMN_WIDTH_PERCENTS.map(
+            (width, index) =>
+              `.nurse-view-print-root .rpt-print-root table.nv-print-table th:nth-child(${index + 1}),
+          .nurse-view-print-root .rpt-print-root table.nv-print-table td:nth-child(${index + 1}) { width: ${width}% !important; }`
+          ).join('\n')}
           .nurse-view-print-root input[type="checkbox"] {
             width: 3.2mm !important;
             height: 3.2mm !important;
@@ -294,6 +286,23 @@ export default function NurseViewReportContentLegacy({
                     orientation: 'portrait',
                     compactTable: true,
                     pageMarginMm: 5,
+                    columnWidthPercents: NURSE_VIEW_COLUMN_WIDTH_PERCENTS,
+                  });
+                }}
+                customDownloadExcel={async (args) => {
+                  await downloadBrandedReportExcel({
+                    reportName: args.title,
+                    summaryItems: toBrandedPdfSummaryItems(printSummaryItems),
+                    generatedAt: new Date().toLocaleString(),
+                    data: args.data,
+                    columns: args.columns,
+                    keys: args.keys,
+                    fileName: args.fileName,
+                    sheetName: args.title.slice(0, 31),
+                    orientation: 'portrait',
+                    compactTable: true,
+                    columnWidths: NURSE_VIEW_COLUMN_WIDTH_PERCENTS,
+                    extraWrapColumnIndexes: [3, 6],
                   });
                 }}
               />
