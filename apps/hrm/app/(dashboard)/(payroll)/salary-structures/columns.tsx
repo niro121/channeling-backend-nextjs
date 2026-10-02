@@ -52,7 +52,7 @@ export const salaryStructureColumns: ColumnDef<SalaryStructureRecord>[] = [
     accessorKey: 'code',
     header: 'Code',
     cell: ({ row }) => (
-      <span className="font-medium tabular-nums">
+      <span className="font-medium tabular-nums whitespace-nowrap">
         {row.original.code || '—'}
       </span>
     )
@@ -88,7 +88,7 @@ export const salaryStructureColumns: ColumnDef<SalaryStructureRecord>[] = [
     accessorKey: 'basicSalary',
     header: 'Basic',
     cell: ({ row }) => (
-      <span className="tabular-nums">
+      <span className="tabular-nums whitespace-nowrap">
         {formatLkr(row.original.basicSalary)}
       </span>
     )
@@ -97,7 +97,7 @@ export const salaryStructureColumns: ColumnDef<SalaryStructureRecord>[] = [
     accessorKey: 'allowancesTotal',
     header: 'Allowances',
     cell: ({ row }) => (
-      <span className="tabular-nums">
+      <span className="tabular-nums whitespace-nowrap">
         {formatLkr(row.original.allowancesTotal)}
       </span>
     )
@@ -106,7 +106,7 @@ export const salaryStructureColumns: ColumnDef<SalaryStructureRecord>[] = [
     accessorKey: 'deductionsTotal',
     header: 'Deductions',
     cell: ({ row }) => (
-      <span className="tabular-nums">
+      <span className="tabular-nums whitespace-nowrap">
         {formatLkr(row.original.deductionsTotal)}
       </span>
     )
@@ -115,7 +115,7 @@ export const salaryStructureColumns: ColumnDef<SalaryStructureRecord>[] = [
     accessorKey: 'gross',
     header: 'Gross',
     cell: ({ row }) => (
-      <span className="font-medium tabular-nums">
+      <span className="font-medium tabular-nums whitespace-nowrap">
         {formatLkr(row.original.gross)}
       </span>
     )

@@ -15,9 +15,10 @@ import {
 import RecordActions from './record-actions';
 
 const typeStyles: Record<DeductionComponentTypeId, string> = {
-  fixed_deduction: 'bg-rose-100 text-rose-800 hover:bg-rose-100',
-  loan: 'bg-orange-100 text-orange-800 hover:bg-orange-100',
-  advance: 'bg-amber-100 text-amber-800 hover:bg-amber-100'
+  fixed_deduction:
+    'bg-rose-100 text-rose-800 hover:bg-rose-100 whitespace-nowrap',
+  loan: 'bg-orange-100 text-orange-800 hover:bg-orange-100 whitespace-nowrap',
+  advance: 'bg-amber-100 text-amber-800 hover:bg-amber-100 whitespace-nowrap'
 };
 
 const kindStyles: Record<string, string> = {
@@ -31,16 +32,12 @@ function typeLabel(typeId: string): string {
   );
 }
 
-function includedLabel(ids: string[]): string {
-  if (!ids.length) return '—';
-  return ids
-    .map(
-      (id) =>
-        PAYSHEET_COMPONENT_INCLUDED_FOR_LABELS[
-          id as PaysheetComponentIncludedForId
-        ] ?? id
-    )
-    .join(', ');
+function includedForLabel(id: string): string {
+  return (
+    PAYSHEET_COMPONENT_INCLUDED_FOR_LABELS[
+      id as PaysheetComponentIncludedForId
+    ] ?? id
+  );
 }
 
 export const deductionColumns: ColumnDef<DeductionRecord>[] = [
@@ -62,7 +59,7 @@ export const deductionColumns: ColumnDef<DeductionRecord>[] = [
     accessorKey: 'code',
     header: 'Code',
     cell: ({ row }) => (
-      <span className="font-medium tabular-nums">
+      <span className="font-medium tabular-nums whitespace-nowrap">
         {row.original.code || '—'}
       </span>
     )
@@ -96,7 +93,7 @@ export const deductionColumns: ColumnDef<DeductionRecord>[] = [
         variant="secondary"
         className={
           typeStyles[row.original.typeId as DeductionComponentTypeId] ??
-          'bg-slate-100 text-slate-700'
+          'bg-slate-100 text-slate-700 whitespace-nowrap'
         }
       >
         {typeLabel(row.original.typeId)}
@@ -113,11 +110,26 @@ export const deductionColumns: ColumnDef<DeductionRecord>[] = [
   {
     id: 'includedFor',
     header: 'Included For',
-    cell: ({ row }) => (
-      <span className="max-w-[220px] truncate text-sm text-muted-foreground">
-        {includedLabel(row.original.includedForIds)}
-      </span>
-    )
+    cell: ({ row }) => {
+      const ids = row.original.includedForIds;
+      if (!ids.length) {
+        return <span className="text-muted-foreground">—</span>;
+      }
+      return (
+        <div className="flex max-w-60 flex-col gap-1">
+          {ids.map((id) => (
+            <Badge
+              key={id}
+              variant="secondary"
+              title={includedForLabel(id)}
+              className="h-auto max-w-full justify-start whitespace-normal break-words bg-slate-100 text-left text-slate-700 hover:bg-slate-100 rounded-xs!"
+            >
+              {includedForLabel(id)}
+            </Badge>
+          ))}
+        </div>
+      );
+    }
   },
   {
     id: 'created',

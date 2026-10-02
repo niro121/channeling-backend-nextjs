@@ -15,8 +15,10 @@ import {
 import RecordActions from './record-actions';
 
 const typeStyles: Record<AllowanceComponentTypeId, string> = {
-  fixed_allowance: 'bg-emerald-100 text-emerald-800 hover:bg-emerald-100',
-  percentage_allowance: 'bg-lime-100 text-lime-800 hover:bg-lime-100'
+  fixed_allowance:
+    'bg-emerald-100 text-emerald-800 hover:bg-emerald-100 whitespace-nowrap',
+  percentage_allowance:
+    'bg-lime-100 text-lime-800 hover:bg-lime-100 whitespace-nowrap'
 };
 
 const kindStyles: Record<string, string> = {
@@ -30,16 +32,12 @@ function typeLabel(typeId: string): string {
   );
 }
 
-function includedLabel(ids: string[]): string {
-  if (!ids.length) return '—';
-  return ids
-    .map(
-      (id) =>
-        PAYSHEET_COMPONENT_INCLUDED_FOR_LABELS[
-          id as PaysheetComponentIncludedForId
-        ] ?? id
-    )
-    .join(', ');
+function includedForLabel(id: string): string {
+  return (
+    PAYSHEET_COMPONENT_INCLUDED_FOR_LABELS[
+      id as PaysheetComponentIncludedForId
+    ] ?? id
+  );
 }
 
 export const allowanceColumns: ColumnDef<AllowanceRecord>[] = [
@@ -61,7 +59,7 @@ export const allowanceColumns: ColumnDef<AllowanceRecord>[] = [
     accessorKey: 'code',
     header: 'Code',
     cell: ({ row }) => (
-      <span className="font-medium tabular-nums">
+      <span className="font-medium tabular-nums whitespace-nowrap">
         {row.original.code || '—'}
       </span>
     )
@@ -95,7 +93,7 @@ export const allowanceColumns: ColumnDef<AllowanceRecord>[] = [
         variant="secondary"
         className={
           typeStyles[row.original.typeId as AllowanceComponentTypeId] ??
-          'bg-slate-100 text-slate-700'
+          'bg-slate-100 text-slate-700 whitespace-nowrap'
         }
       >
         {typeLabel(row.original.typeId)}
@@ -124,11 +122,26 @@ export const allowanceColumns: ColumnDef<AllowanceRecord>[] = [
   {
     id: 'includedFor',
     header: 'Included For',
-    cell: ({ row }) => (
-      <span className="max-w-[220px] truncate text-sm text-muted-foreground">
-        {includedLabel(row.original.includedForIds)}
-      </span>
-    )
+    cell: ({ row }) => {
+      const ids = row.original.includedForIds;
+      if (!ids.length) {
+        return <span className="text-muted-foreground">—</span>;
+      }
+      return (
+        <div className="flex max-w-60 flex-col gap-1">
+          {ids.map((id) => (
+            <Badge
+              key={id}
+              variant="secondary"
+              title={includedForLabel(id)}
+              className="h-auto max-w-full justify-start whitespace-normal break-words bg-slate-100 text-left text-slate-700 hover:bg-slate-100 rounded-xs!"
+            >
+              {includedForLabel(id)}
+            </Badge>
+          ))}
+        </div>
+      );
+    }
   },
   {
     id: 'created',
