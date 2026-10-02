@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense } from 'react';
+import { Suspense, useCallback } from 'react';
 import {
   Card,
   CardContent,
@@ -50,6 +50,20 @@ export default function SectionStaffList({
   onFill,
   onFiltersChange
 }: SectionStaffListProps) {
+  const handleFiltersChange = useCallback(
+    (values: Record<string, string | undefined>) => {
+      onFiltersChange?.({
+        staffId: values.staffId || undefined,
+        institution: values.institution || undefined,
+        departmentId: values.departmentId || undefined,
+        staffCategory: values.staffCategory || undefined,
+        designationId: values.designationId || undefined,
+        rosterId: values.rosterId || undefined
+      });
+    },
+    [onFiltersChange]
+  );
+
   const handleExport = async () => {
     if (!runId) {
       return {
@@ -85,16 +99,7 @@ export default function SectionStaffList({
             initial={initialFilters}
             busy={busy}
             onFill={onFill}
-            onValuesChange={(values) =>
-              onFiltersChange?.({
-                staffId: values.staffId || undefined,
-                institution: values.institution || undefined,
-                departmentId: values.departmentId || undefined,
-                staffCategory: values.staffCategory || undefined,
-                designationId: values.designationId || undefined,
-                rosterId: values.rosterId || undefined
-              })
-            }
+            onValuesChange={handleFiltersChange}
           />
         </CardContent>
       </Card>

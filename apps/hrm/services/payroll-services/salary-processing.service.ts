@@ -61,7 +61,7 @@ function periodLabel(from: Date, to: Date): string {
 }
 
 /** Map run status → wizard current step (1–8). */
-export function wizardCurrentStepForStatus(
+function wizardCurrentStepForStatus(
   status: PayrollRunStatus,
   calculated: boolean
 ): number {
@@ -72,7 +72,7 @@ export function wizardCurrentStepForStatus(
   return 1;
 }
 
-export function buildWizardSteps(
+function buildWizardSteps(
   status: PayrollRunStatus,
   calculated: boolean,
   overrideCurrentStepId?: number
@@ -617,7 +617,7 @@ export async function getSalaryProcessingExportRows(
   }
 }
 
-export function emptyProcessingWorkspace(): {
+function emptyProcessingWorkspace(): {
   summary: SalaryProcessingSummary;
   rows: SalaryProcessingBreakdownRow[];
   wizardSteps: SalaryProcessingWizardStep[];

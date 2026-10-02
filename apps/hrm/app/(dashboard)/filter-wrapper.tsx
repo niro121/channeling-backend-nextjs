@@ -62,14 +62,21 @@ export function FilterWrapper({
   const isInitialMount = React.useRef(true);
   const expectedParamsKeyRef = React.useRef<string | null>(null);
   const applyingTimeoutRef = React.useRef<number | null>(null);
+  const onValuesChangeRef = React.useRef(onValuesChange);
 
+  React.useEffect(() => {
+    onValuesChangeRef.current = onValuesChange;
+  });
+
+  // Only notify when filter values change — not when the callback identity changes
+  // (inline handlers from parents would otherwise infinite-loop via setState).
   React.useEffect(() => {
     if (isInitialMount.current) {
       isInitialMount.current = false;
       return;
     }
-    onValuesChange?.(values);
-  }, [values, onValuesChange]);
+    onValuesChangeRef.current?.(values);
+  }, [values]);
 
   React.useEffect(() => {
     if (!isApplying) return;

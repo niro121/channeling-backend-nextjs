@@ -1320,7 +1320,7 @@ export async function getPayrollRunPreviewExportRows(
 }
 
 /** Empty chart defaults for UI when no run is loaded. */
-export function emptyGenerationCharts(): {
+function emptyGenerationCharts(): {
   earningsBreakdown: SalaryBreakdownChartPoint[];
   deductionsBreakdown: SalaryBreakdownChartPoint[];
 } {
