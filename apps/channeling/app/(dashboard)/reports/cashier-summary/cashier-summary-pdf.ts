@@ -1,9 +1,9 @@
 'use client';
 
 /**
- * Userwise Cashier — PDF ONLY (A4 landscape, matches Print).
- * Summary and Detail both use the same horizontal payment-column tables.
- * Amount columns are fixed ≥18mm (min 6 digits, e.g. 999,999.00).
+ * Userwise Cashier — PDF ONLY (matches Print).
+ * Summary is A4 portrait; Detail stays A4 landscape.
+ * Same payment-column tables. Detail amount columns stay ≥18mm.
  */
 
 import jsPDF from 'jspdf';
@@ -137,13 +137,26 @@ function drawSectionTitle(doc: jsPDF, title: string, y: number, margin: number):
 }
 
 function rowTableColumnStyles(
-  tableWidth: number
+  tableWidth: number,
+  portrait = false
 ): Record<number, { cellWidth: number; halign: 'left' | 'right' | 'center' }> {
+  const styles: Record<number, { cellWidth: number; halign: 'left' | 'right' | 'center' }> = {};
+  if (portrait) {
+    // Same shares as summary print so the 13-column refund table fits A4 portrait.
+    const raw = [0.04, 0.13, 0.09, 0.1, 0.08, 0.08, ...Array(PAYMENT_COLUMNS.length).fill(0.0685)];
+    const sum = raw.reduce((a, b) => a + b, 0);
+    raw.forEach((frac, i) => {
+      styles[i] = {
+        cellWidth: (frac / sum) * tableWidth,
+        halign: i === 0 ? 'center' : i >= META_WIDTHS_MM.length ? 'right' : 'left',
+      };
+    });
+    return styles;
+  }
   const amountTotal = AMOUNT_COL_MM * PAYMENT_COLUMNS.length;
   const metaSum = META_WIDTHS_MM.reduce((a, b) => a + b, 0);
   const metaBudget = Math.max(metaSum, tableWidth - amountTotal);
   const scale = metaBudget / metaSum;
-  const styles: Record<number, { cellWidth: number; halign: 'left' | 'right' | 'center' }> = {};
   META_WIDTHS_MM.forEach((mm, i) => {
     styles[i] = {
       cellWidth: mm * scale,
@@ -159,10 +172,23 @@ function rowTableColumnStyles(
   return styles;
 }
 
-/** Totals-only: Total label + 7 amount cols (amount ≥ AMOUNT_COL_MM). */
+/** Totals-only: Total label + 7 amount cols. Portrait shares match summary print (16% / 12%). */
 function totalsOnlyColumnStyles(
-  tableWidth: number
+  tableWidth: number,
+  portrait = false
 ): Record<number, { cellWidth: number; halign: 'left' | 'right' | 'center' }> {
+  if (portrait) {
+    const raw = [0.16, ...Array(PAYMENT_COLUMNS.length).fill(0.12)];
+    const sum = raw.reduce((a, b) => a + b, 0);
+    const styles: Record<number, { cellWidth: number; halign: 'left' | 'right' | 'center' }> = {};
+    raw.forEach((frac, i) => {
+      styles[i] = {
+        cellWidth: (frac / sum) * tableWidth,
+        halign: i === 0 ? 'left' : 'right',
+      };
+    });
+    return styles;
+  }
   const amountTotal = AMOUNT_COL_MM * PAYMENT_COLUMNS.length;
   const labelWidth = Math.max(24, tableWidth - amountTotal);
   const styles: Record<number, { cellWidth: number; halign: 'left' | 'right' | 'center' }> = {
@@ -258,7 +284,7 @@ export type DownloadCashierSummaryPdfOptions = CommonOpts & {
   mode: 'summary' | 'detail';
 };
 
-/** Landscape wide tables matching print / screen view (Summary + Detail). */
+/** Wide tables matching print. Summary portrait; Detail landscape. */
 function drawBodyTables(
   doc: jsPDF,
   mode: 'summary' | 'detail',
@@ -268,8 +294,9 @@ function drawBodyTables(
   tableWidth: number
 ): number {
   let y = startY;
-  const rowStyles = rowTableColumnStyles(tableWidth);
-  const totalStyles = totalsOnlyColumnStyles(tableWidth);
+  const portrait = mode === 'summary';
+  const rowStyles = rowTableColumnStyles(tableWidth, portrait);
+  const totalStyles = totalsOnlyColumnStyles(tableWidth, portrait);
   const lastAmountCol = META_WIDTHS_MM.length + PAYMENT_COLUMNS.length - 1;
   const lastTotalsCol = PAYMENT_COLUMNS.length;
 
@@ -321,7 +348,7 @@ function drawBodyTables(
         showHead: 'everyPage',
         styles: {
           font: 'helvetica',
-          fontSize: 6.5,
+          fontSize: portrait ? 6 : 6.5,
           cellPadding: { top: 0.8, right: 0.9, bottom: 0.8, left: 0.9 },
           overflow: 'linebreak',
           valign: 'top',
@@ -396,9 +423,13 @@ function drawBodyTables(
 export async function downloadCashierSummaryReportPdf(
   opts: DownloadCashierSummaryPdfOptions
 ): Promise<void> {
-  // Match print: 5mm side margins, A4 landscape, shared branded header
+  // Match print: 5mm side margins, shared branded header.
+  // Summary is A4 portrait; Detail stays A4 landscape.
   const margin = 5;
-  const doc = new jsPDF({ orientation: 'l', format: 'a4' });
+  const doc = new jsPDF({
+    orientation: opts.mode === 'summary' ? 'p' : 'l',
+    format: 'a4',
+  });
   const { width: pageWidth } = pageSize(doc);
   const tableWidth = pageWidth - margin * 2;
 
