@@ -495,7 +495,11 @@ export default function CashierSummaryContent({
   const hasData = sections.some((s) => s.rows.length > 0 || PAYMENT_COLUMNS.some((col) => s.totals[col.key] !== 0));
 
   return (
-    <div className="w-full py-2 space-y-3 print:py-2 cashier-summary-report-root">
+    <div
+      className={`w-full py-2 space-y-3 print:py-2 cashier-summary-report-root${
+        reportMeta?.format === 'summary' ? ' ucs-print-portrait' : ''
+      }`}
+    >
       <Card className="print:hidden">
         <CardHeader className="pb-2">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
@@ -643,14 +647,17 @@ export default function CashierSummaryContent({
                   ? 'Userwise Cashier Detail - Channel'
                   : 'Userwise Cashier Summary'
               }
-              pageSize="A4 landscape"
+              pageSize={reportMeta.format === 'summary' ? 'A4 portrait' : 'A4 landscape'}
               pageMargins="7mm 5mm 18mm"
               generatedAt={reportMeta.generatedAt}
               summaryItems={buildSummaryItems(reportMeta)}
               className="print:space-y-0"
             >
-              {/* Print styles only: A4 landscape + view body tables; branded header unchanged */}
-              <CashierSummaryPrintLayout generatedAt={reportMeta.generatedAt} />
+              {/* Summary prints A4 portrait; detail stays landscape. Header is ReportPrintLayout. */}
+              <CashierSummaryPrintLayout
+                generatedAt={reportMeta.generatedAt}
+                pageSize={reportMeta.format === 'summary' ? 'A4 portrait' : 'A4 landscape'}
+              />
 
               {loading ? (
                 <div className="text-center py-8">Loading...</div>

@@ -1,8 +1,9 @@
 'use client';
 
 /**
- * Userwise Cashier — Excel ONLY (A4 landscape, matches Print / PDF).
- * Summary and Detail both use the same horizontal payment-column tables.
+ * Userwise Cashier — Excel ONLY (matches Print / PDF).
+ * Summary page setup is A4 portrait; Detail stays A4 landscape.
+ * Same horizontal payment-column tables.
  */
 
 import ExcelJS from 'exceljs';
@@ -44,8 +45,44 @@ const CASH_SUMMARY_KEYS: (keyof CashierSummaryPaymentAmounts)[] = [
   'eWallet',
 ];
 
-/** A4 landscape matching print: Tx wide, Receipt narrower, Consultant wider; amounts ≥12. */
+/** Detail landscape widths: Tx wide, Receipt narrower, Consultant wider; amounts ≥12. */
 const ROW_WIDTHS = [5, 36, 19, 19, 11, 12, 12, 12, 12, 12, 12, 12, 12];
+
+/**
+ * Equal columns that sum to an A4 portrait page. Logical columns are merges
+ * of these, using the same shares as summary print.
+ */
+const SUMMARY_GRID = 20;
+const SUMMARY_GRID_WIDTH = 4;
+const SUMMARY_TOTALS_SHARES = [16, 12, 12, 12, 12, 12, 12, 12];
+const SUMMARY_LINE_SHARES = [4, 13, 9, 10, 8, 8, 6.85, 6.85, 6.85, 6.85, 6.85, 6.85, 6.85];
+
+function columnSpans(shares: number[], columns: number): number[] {
+  const sum = shares.reduce((total, share) => total + share, 0);
+  const exact = shares.map((share) => (share / sum) * columns);
+  const spans = exact.map((value) => Math.max(0, Math.floor(value)));
+  let remaining = columns - spans.reduce((total, span) => total + span, 0);
+  const order = exact
+    .map((value, index) => ({ index, frac: value - Math.floor(value) }))
+    .sort((a, b) => b.frac - a.frac || a.index - b.index);
+  for (const item of order) {
+    if (remaining <= 0) break;
+    spans[item.index] += 1;
+    remaining -= 1;
+  }
+  for (let i = 0; i < spans.length; i += 1) {
+    if (spans[i]! >= 1) continue;
+    const donor = spans.findIndex((span, index) => index !== i && span > 1);
+    if (donor >= 0) {
+      spans[donor] -= 1;
+      spans[i] = 1;
+    }
+  }
+  return spans;
+}
+
+const SUMMARY_TOTALS_SPANS = columnSpans(SUMMARY_TOTALS_SHARES, SUMMARY_GRID);
+const SUMMARY_LINE_SPANS = columnSpans(SUMMARY_LINE_SHARES, SUMMARY_GRID);
 
 let cachedLogoBase64: string | null | undefined;
 
@@ -135,6 +172,8 @@ async function drawBrandedHeader(
     reportName: string;
     summaryItems: BrandedPdfSummaryItem[];
     colCount: number;
+    /** First column of the report title, past the logo on a narrow portrait grid. */
+    titleStartCol?: number;
   }
 ): Promise<number> {
   const { reportName, summaryItems, colCount } = opts;
@@ -150,7 +189,7 @@ async function drawBrandedHeader(
     sheet.getRow(1).height = 18;
     sheet.getRow(2).height = 18;
     hasLogo = true;
-    titleStartCol = Math.min(3, colCount);
+    titleStartCol = opts.titleStartCol ?? Math.min(3, colCount);
   }
 
   sheet.mergeCells(row, titleStartCol, row, colCount);
@@ -304,7 +343,8 @@ function writeHeaderRow(
   sheet: ExcelJS.Worksheet,
   row: number,
   headers: Array<string | null>,
-  rightFrom = 99
+  rightFrom = 99,
+  height = 18
 ): number {
   for (let c = 0; c < headers.length; c++) {
     const cell = sheet.getCell(row, c + 1);
@@ -318,7 +358,7 @@ function writeHeaderRow(
       wrapText: true,
     };
   }
-  sheet.getRow(row).height = 18;
+  sheet.getRow(row).height = height;
   return row + 1;
 }
 
@@ -326,10 +366,11 @@ function writeDataRow(
   sheet: ExcelJS.Worksheet,
   row: number,
   values: Array<string | null>,
-  opts?: { bold?: boolean; fill?: string; rightFrom?: number; height?: number }
+  opts?: { bold?: boolean; fill?: string; rightFrom?: number; height?: number; shrinkFrom?: number }
 ): number {
   const rightFrom = opts?.rightFrom ?? 99;
   for (let c = 0; c < values.length; c++) {
+    const shrink = opts?.shrinkFrom != null && c >= opts.shrinkFrom;
     const cell = sheet.getCell(row, c + 1);
     cell.value = cellValue(values[c]);
     cell.numFmt = '@';
@@ -338,13 +379,57 @@ function writeDataRow(
     cell.alignment = {
       vertical: 'top',
       horizontal: c === 0 ? 'center' : c >= rightFrom ? 'right' : 'left',
-      wrapText: true,
+      wrapText: !shrink,
+      shrinkToFit: shrink,
     };
     if (opts?.fill) {
       cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: opts.fill } };
     }
   }
   sheet.getRow(row).height = opts?.height ?? 16;
+  return row + 1;
+}
+
+function writeSpannedRow(
+  sheet: ExcelJS.Worksheet,
+  row: number,
+  cells: Array<{
+    value: string | number | ExcelJS.CellRichTextValue | null;
+    span: number;
+    bold?: boolean;
+    fill?: string;
+    align?: 'left' | 'right' | 'center';
+    shrink?: boolean;
+    fontSize?: number;
+  }>,
+  height: number
+): number {
+  let col = 1;
+  for (const spec of cells) {
+    const span = Math.max(1, spec.span);
+    const end = col + span - 1;
+    if (end > col) sheet.mergeCells(row, col, row, end);
+    const cell = sheet.getCell(row, col);
+    cell.value = spec.value ?? null;
+    if (typeof spec.value !== 'object' || spec.value === null) cell.numFmt = '@';
+    cell.font = { size: spec.fontSize ?? 7, name: 'Arial', bold: Boolean(spec.bold) };
+    cell.alignment = {
+      vertical: 'middle',
+      horizontal: spec.align ?? 'left',
+      wrapText: !spec.shrink,
+      shrinkToFit: Boolean(spec.shrink),
+    };
+    const fill = spec.fill
+      ? { type: 'pattern' as const, pattern: 'solid' as const, fgColor: { argb: spec.fill } }
+      : undefined;
+    for (let c = col; c <= end; c += 1) {
+      const merged = sheet.getCell(row, c);
+      merged.border = thinBorder;
+      if (fill) merged.fill = fill;
+    }
+    col = end + 1;
+  }
+  sheet.getRow(row).height = height;
   return row + 1;
 }
 
@@ -365,7 +450,8 @@ function writeSectionTitle(
 function writeCreditCashFooter(
   sheet: ExcelJS.Worksheet,
   startRow: number,
-  totals: CashierSummaryPaymentAmounts
+  totals: CashierSummaryPaymentAmounts,
+  layout?: { labelEndCol: number; valueCol: number; valueEndCol: number; footerEndCol: number }
 ): number {
   const slip = Number(totals.slip);
   const creditCustomer = Number(totals.agentCredit);
@@ -376,9 +462,10 @@ function writeCreditCashFooter(
 
   // Main table col A is narrow (No.); merge A–B for labels, put values in C
   // so names like "Credit Card Total" / "Grand Total" are fully visible.
-  const labelEndCol = 2;
-  const valueCol = 3;
-  const footerEndCol = 3;
+  const labelEndCol = layout?.labelEndCol ?? 2;
+  const valueCol = layout?.valueCol ?? 3;
+  const valueEndCol = layout?.valueEndCol ?? valueCol;
+  const footerEndCol = layout?.footerEndCol ?? 3;
 
   let row = startRow;
   sheet.mergeCells(row, 1, row, footerEndCol);
@@ -407,7 +494,8 @@ function writeCreditCashFooter(
         };
       }
     } else {
-      sheet.mergeCells(row, 1, row, labelEndCol);
+      if (labelEndCol > 1) sheet.mergeCells(row, 1, row, labelEndCol);
+      if (valueEndCol > valueCol) sheet.mergeCells(row, valueCol, row, valueEndCol);
       const left = sheet.getCell(row, 1);
       const right = sheet.getCell(row, valueCol);
       left.value = label;
@@ -417,15 +505,19 @@ function writeCreditCashFooter(
       left.font = { size: 8, name: 'Arial', bold: Boolean(opts?.bold) };
       right.font = { size: 8, name: 'Arial', bold: Boolean(opts?.bold) };
       left.alignment = { horizontal: 'left', vertical: 'middle', wrapText: false };
-      right.alignment = { horizontal: 'right', vertical: 'middle' };
-      left.border = thinBorder;
-      sheet.getCell(row, labelEndCol).border = thinBorder;
-      right.border = thinBorder;
-      if (opts?.fill) {
-        const fill = { type: 'pattern' as const, pattern: 'solid' as const, fgColor: { argb: opts.fill } };
-        left.fill = fill;
-        sheet.getCell(row, labelEndCol).fill = fill;
-        right.fill = fill;
+      right.alignment = { horizontal: 'right', vertical: 'middle', shrinkToFit: true, wrapText: false };
+      const fill = opts?.fill
+        ? { type: 'pattern' as const, pattern: 'solid' as const, fgColor: { argb: opts.fill } }
+        : undefined;
+      for (let c = 1; c <= labelEndCol; c += 1) {
+        const cell = sheet.getCell(row, c);
+        cell.border = thinBorder;
+        if (fill) cell.fill = fill;
+      }
+      for (let c = valueCol; c <= valueEndCol; c += 1) {
+        const cell = sheet.getCell(row, c);
+        cell.border = thinBorder;
+        if (fill) cell.fill = fill;
       }
     }
     sheet.getRow(row).height = 16;
@@ -462,8 +554,13 @@ export type DownloadCashierSummaryExcelOptions = {
 export async function downloadCashierSummaryReportExcel(
   opts: DownloadCashierSummaryExcelOptions
 ): Promise<void> {
-  const colCount = ROW_WIDTHS.length;
+  const isPortrait = opts.mode === 'summary';
+  const columnWidths = isPortrait
+    ? Array.from({ length: SUMMARY_GRID }, () => SUMMARY_GRID_WIDTH)
+    : ROW_WIDTHS;
+  const colCount = columnWidths.length;
   const lastCol = colLetter(colCount);
+  const pageOrientation = isPortrait ? 'portrait' : 'landscape';
   const fileName = opts.fileName ?? 'cashier-summary.xlsx';
   const safeSheetName = (
     opts.sheetName || (opts.mode === 'detail' ? 'Cashier Detail' : 'Cashier Summary')
@@ -479,7 +576,7 @@ export async function downloadCashierSummaryReportExcel(
     views: [{ showGridLines: false }],
     pageSetup: {
       paperSize: 9, // A4
-      orientation: 'landscape',
+      orientation: pageOrientation,
       fitToPage: true,
       fitToWidth: 1,
       fitToHeight: 0,
@@ -496,13 +593,14 @@ export async function downloadCashierSummaryReportExcel(
   });
 
   for (let i = 0; i < colCount; i++) {
-    sheet.getColumn(i + 1).width = ROW_WIDTHS[i] ?? 10;
+    sheet.getColumn(i + 1).width = columnWidths[i] ?? 10;
   }
 
   let row = await drawBrandedHeader(workbook, sheet, {
     reportName: opts.reportName,
     summaryItems: opts.summaryItems,
     colCount,
+    titleStartCol: isPortrait ? 6 : undefined,
   });
 
   for (const section of opts.sections) {
@@ -514,7 +612,100 @@ export async function downloadCashierSummaryReportExcel(
     const isIncomeExpense = section.key === 'incomeExpense';
     const isAgency = AGENCY_BILL_SECTION_KEYS.has(section.key);
 
-    if (withRows) {
+    if (isPortrait && withRows) {
+      const partyHead = isIncomeExpense ? 'Name' : isAgency ? 'Agency' : 'Patient';
+      const secondHead = isIncomeExpense ? 'Type' : 'Consultant';
+      const lineHeads = [
+        'No.',
+        'Tx Created / Shift',
+        'Session Date/Time',
+        'Receipt ID / Bill ID',
+        partyHead,
+        secondHead,
+        ...PAYMENT_COLUMNS.map((c) => c.label),
+      ];
+      row = writeSpannedRow(
+        sheet,
+        row,
+        lineHeads.map((label, index) => ({
+          value: label,
+          span: SUMMARY_LINE_SPANS[index] ?? 1,
+          bold: true,
+          fill: 'FFE8E8E8',
+          align: index === 0 ? 'center' : index >= 6 ? 'right' : 'left',
+          fontSize: 6,
+        })),
+        22
+      );
+      section.rows.forEach((r, idx) => {
+        const values = [
+          String(idx + 1),
+          txLabel(r),
+          r.sessionDateTime ?? '—',
+          `${r.receiptId || '—'}\n${r.billId ?? '—'}`,
+          isIncomeExpense ? (r.name ?? '—') : (r.patient ?? '—'),
+          isIncomeExpense ? (r.type ?? '—') : (r.consultant ?? '—'),
+          ...amountCells(r),
+        ];
+        row = writeSpannedRow(
+          sheet,
+          row,
+          values.map((value, index) => ({
+            value,
+            span: SUMMARY_LINE_SPANS[index] ?? 1,
+            align: index === 0 ? 'center' : index >= 6 ? 'right' : 'left',
+            shrink: index >= 6,
+          })),
+          28
+        );
+      });
+      const metaSpan = SUMMARY_LINE_SPANS.slice(0, 6).reduce((total, span) => total + span, 0);
+      row = writeSpannedRow(
+        sheet,
+        row,
+        [
+          { value: 'Total', span: metaSpan, bold: true, fill: 'FFF3F3F3', align: 'left' },
+          ...amountCells(section.totals).map((value, index) => ({
+            value,
+            span: SUMMARY_LINE_SPANS[6 + index] ?? 1,
+            bold: true,
+            fill: 'FFF3F3F3',
+            align: 'right' as const,
+            shrink: true,
+          })),
+        ],
+        18
+      );
+    } else if (isPortrait) {
+      const labels = ['Total', ...PAYMENT_COLUMNS.map((c) => c.label)];
+      const amounts = ['Total', ...amountCells(section.totals)];
+      row = writeSpannedRow(
+        sheet,
+        row,
+        labels.map((label, index) => ({
+          value: label,
+          span: SUMMARY_TOTALS_SPANS[index] ?? 1,
+          bold: true,
+          fill: 'FFE8E8E8',
+          align: index === 0 ? 'left' : 'right',
+          fontSize: 6,
+        })),
+        18
+      );
+      row = writeSpannedRow(
+        sheet,
+        row,
+        amounts.map((value, index) => ({
+          value,
+          span: SUMMARY_TOTALS_SPANS[index] ?? 1,
+          bold: true,
+          fill: 'FFF3F3F3',
+          align: index === 0 ? 'left' : 'right',
+          shrink: index > 0,
+        })),
+        18
+      );
+    } else if (withRows) {
       const partyHead = isIncomeExpense ? 'Name' : isAgency ? 'Agency' : 'Patient';
       const secondHead = isIncomeExpense ? 'Type' : 'Consultant';
       row = writeHeaderRow(
@@ -529,7 +720,8 @@ export async function downloadCashierSummaryReportExcel(
           secondHead,
           ...PAYMENT_COLUMNS.map((c) => c.label),
         ],
-        6
+        6,
+        isPortrait ? 32 : 18
       );
       section.rows.forEach((r, idx) => {
         row = writeDataRow(
@@ -544,7 +736,7 @@ export async function downloadCashierSummaryReportExcel(
             isIncomeExpense ? (r.type ?? '—') : (r.consultant ?? '—'),
             ...amountCells(r),
           ],
-          { rightFrom: 6, height: 28 }
+          { rightFrom: 6, height: 28, shrinkFrom: isPortrait ? 6 : undefined }
         );
       });
       // Match print: Total spans first 6 columns, then 7 payment amounts.
@@ -554,7 +746,7 @@ export async function downloadCashierSummaryReportExcel(
         sheet,
         row,
         ['Total', null, null, null, null, null, ...amountCells(section.totals)],
-        { bold: true, fill: 'FFF3F3F3', rightFrom: 6 }
+        { bold: true, fill: 'FFF3F3F3', rightFrom: 6, shrinkFrom: isPortrait ? 6 : undefined }
       );
       sheet.mergeCells(totalRow, 1, totalRow, 6);
       sheet.getCell(totalRow, 1).value = 'Total';
@@ -564,13 +756,14 @@ export async function downloadCashierSummaryReportExcel(
         wrapText: true,
       };
     } else {
-      // Totals-only: full 13-col width (Total spans 1–6, payments 7–13) — same as print
+      // Detail totals-only: Total spans the first 6 columns, then the payment amounts.
       const totalsHeaderRow = row;
       row = writeHeaderRow(
         sheet,
         row,
         ['Total', null, null, null, null, null, ...PAYMENT_COLUMNS.map((c) => c.label)],
-        6
+        6,
+        isPortrait ? 32 : 18
       );
       sheet.mergeCells(totalsHeaderRow, 1, totalsHeaderRow, 6);
       sheet.getCell(totalsHeaderRow, 1).value = 'Total';
@@ -584,7 +777,7 @@ export async function downloadCashierSummaryReportExcel(
         sheet,
         row,
         ['Total', null, null, null, null, null, ...amountCells(section.totals)],
-        { bold: true, fill: 'FFF3F3F3', rightFrom: 6 }
+        { bold: true, fill: 'FFF3F3F3', rightFrom: 6, shrinkFrom: isPortrait ? 6 : undefined }
       );
       sheet.mergeCells(totalsDataRow, 1, totalsDataRow, 6);
       sheet.getCell(totalsDataRow, 1).value = 'Total';
@@ -598,7 +791,14 @@ export async function downloadCashierSummaryReportExcel(
   }
 
   if (opts.grandTotals) {
-    row = writeCreditCashFooter(sheet, row, opts.grandTotals);
+    row = writeCreditCashFooter(
+      sheet,
+      row,
+      opts.grandTotals,
+      isPortrait
+        ? { labelEndCol: 6, valueCol: 7, valueEndCol: 9, footerEndCol: 9 }
+        : undefined
+    );
   }
 
   row += 1;
@@ -611,11 +811,15 @@ export async function downloadCashierSummaryReportExcel(
 
   sheet.pageSetup.printArea = `A1:${lastCol}${row}`;
   sheet.pageSetup.paperSize = 9;
-  sheet.pageSetup.orientation = 'landscape';
+  sheet.pageSetup.orientation = pageOrientation;
   sheet.pageSetup.fitToPage = true;
   sheet.pageSetup.fitToWidth = 1;
   sheet.pageSetup.fitToHeight = 0;
   sheet.pageSetup.horizontalCentered = false;
+  // Drop the default 100% scale so Excel honors fit-to-width on the portrait page.
+  if (isPortrait) {
+    delete (sheet.pageSetup as { scale?: number }).scale;
+  }
   sheet.pageSetup.margins = {
     left: 0.39,
     right: 0.39,
