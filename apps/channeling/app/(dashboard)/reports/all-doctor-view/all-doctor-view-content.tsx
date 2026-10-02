@@ -17,7 +17,7 @@ import CustomDatePickerField from '@/components/common/custom-date-picker-field'
 import { Selector } from '@/components/common/selector';
 import { SearchIcon } from '@/components/icons';
 import moment from 'moment';
-import { ReportPrintLayout, toBrandedPdfSummaryItems } from '@/components/common/report-print';
+import { ReportPrintLayout, toBrandedPdfSummaryItems, downloadBrandedReportPdf } from '@/components/common/report-print';
 import type { ReportPrintSummaryItem } from '@/components/common/report-print';
 import Loading from '@/app/(dashboard)/loading';
 
@@ -161,18 +161,26 @@ export default function AllDoctorViewReportContent({
   };
 
   return (
-    <div className="container mx-auto py-6 space-y-6 print:py-2 all-doctor-view-print-root">
+    <div className="container mx-auto py-6 space-y-6 print:py-0 all-doctor-view-print-root">
       <style>{`
         @media print {
-          /* Match branded PDF body: full content width under same page margins */
+          /* Full printable width. Card padding and the screen container are removed. */
           .all-doctor-view-print-root,
           .all-doctor-view-print-root.container {
             width: 100% !important;
             max-width: none !important;
-            margin-left: 0 !important;
-            margin-right: 0 !important;
-            padding-left: 0 !important;
-            padding-right: 0 !important;
+            margin: 0 !important;
+            padding: 0 !important;
+          }
+          .all-doctor-view-print-root > .print\\:shadow-none,
+          .all-doctor-view-print-root [class*="p-6"] {
+            width: 100% !important;
+            max-width: none !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            border: none !important;
+            box-shadow: none !important;
+            background: #fff !important;
           }
           .all-doctor-view-print-root .rpt-print-root,
           .all-doctor-view-print-root .rpt-print-body,
@@ -220,7 +228,7 @@ export default function AllDoctorViewReportContent({
             line-height: 1.2 !important;
             white-space: normal !important;
             word-break: break-word !important;
-            overflow-wrap: break-word !important;
+            overflow-wrap: anywhere !important;
             overflow: hidden !important;
             text-overflow: clip !important;
             max-width: none !important;
@@ -239,11 +247,11 @@ export default function AllDoctorViewReportContent({
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
           }
-          /* Numeric + Total columns — like PDF compact body */
+          /* Numeric + Total stay right-aligned, but wrap so values are not cut off the page */
           .all-doctor-view-print-root .rpt-print-root table.adv-print-table th:nth-child(n+3):nth-child(-n+11),
           .all-doctor-view-print-root .rpt-print-root table.adv-print-table td:nth-child(n+3):nth-child(-n+11) {
             text-align: right !important;
-            white-space: nowrap !important;
+            white-space: normal !important;
             font-variant-numeric: tabular-nums !important;
           }
           .all-doctor-view-print-root .rpt-print-root table.adv-print-table th:first-child,
@@ -277,7 +285,7 @@ export default function AllDoctorViewReportContent({
 
           </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="print:p-0">
           {/* Filters */}
           <div className="flex flex-col sm:flex-row gap-4 items-end mb-6 pb-4 border-b print:hidden">
             <div className="flex-shrink-0" style={{ minWidth: '140px' }}>
@@ -397,6 +405,43 @@ export default function AllDoctorViewReportContent({
               showPrintButton
               exportOrientation="portrait"
               compactTable
+              customDownloadPdf={async (args) => {
+                await downloadBrandedReportPdf({
+                  reportName: args.title,
+                  summaryItems: toBrandedPdfSummaryItems([
+                    { label: 'Date', value: date ? moment(date).format('YYYY-MM-DD') : '—' },
+                    {
+                      label: 'Session Type',
+                      value:
+                        sessionType === '__all__'
+                          ? 'All'
+                          : sessionTypeOptions.find((s) => s.id === sessionType)?.name ?? sessionType,
+                    },
+                    {
+                      label: 'Fee Type',
+                      value:
+                        feeType === '__all__'
+                          ? 'All'
+                          : feeTypeOptions.find((f) => f.id === feeType)?.name ?? feeType,
+                    },
+                    {
+                      label: 'Branch',
+                      value:
+                        locationId === '__all__'
+                          ? 'All Branches'
+                          : locationOptions.find((l) => l.id === locationId)?.name ?? locationId,
+                    },
+                  ]),
+                  generatedAt: new Date().toLocaleString(),
+                  data: args.data,
+                  columns: args.columns,
+                  keys: args.keys,
+                  fileName: args.fileName,
+                  orientation: 'portrait',
+                  compactTable: true,
+                  pageMarginMm: 5,
+                });
+              }}
               pdfSummaryItems={toBrandedPdfSummaryItems([
                 { label: 'Date', value: date ? moment(date).format('YYYY-MM-DD') : '—' },
                 {
