@@ -40,20 +40,83 @@ export function ShiftHandoverMarks({
 
 /**
  * Print styles for All Cashier Summary / Detail.
- * A4 landscape — same horizontal payment-column layout as the screen view.
+ * Summary prints A4 portrait; Detail stays A4 landscape.
+ * Header is the shared ReportPrintLayout — stretch it, do not restyle it.
  */
 export function AllCashierSummaryDetailPrintLayout({
   generatedAt,
+  pageSize = 'A4 landscape',
 }: {
   generatedAt?: string;
+  pageSize?: 'A4 landscape' | 'A4 portrait';
 }) {
   const footerGenerated = (generatedAt || '').replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+  const portraitFit =
+    pageSize === 'A4 portrait'
+      ? `
+          /*
+            Summary only: same columns, fitted to A4 portrait.
+            Detail print does not include these rules.
+          */
+          .all-cashier-summary-detail-report-root.acs-print-portrait .acs-screen-table th:nth-child(1),
+          .all-cashier-summary-detail-report-root.acs-print-portrait .acs-screen-table td:nth-child(1) {
+            width: 4% !important;
+            min-width: 0 !important;
+          }
+          .all-cashier-summary-detail-report-root.acs-print-portrait .acs-screen-table th:nth-child(2),
+          .all-cashier-summary-detail-report-root.acs-print-portrait .acs-screen-table td:nth-child(2) {
+            width: 14% !important;
+            min-width: 0 !important;
+          }
+          .all-cashier-summary-detail-report-root.acs-print-portrait .acs-receipts {
+            width: 6% !important;
+            min-width: 0 !important;
+            max-width: none !important;
+          }
+          .all-cashier-summary-detail-report-root.acs-print-portrait .acs-amt {
+            width: 6.5% !important;
+            min-width: 0 !important;
+            font-size: 6pt !important;
+          }
+          .all-cashier-summary-detail-report-root.acs-print-portrait .acs-shifts {
+            width: 18% !important;
+            min-width: 0 !important;
+            max-width: none !important;
+          }
+          .all-cashier-summary-detail-report-root.acs-print-portrait .acs-screen-table th:nth-child(12),
+          .all-cashier-summary-detail-report-root.acs-print-portrait .acs-screen-table td:nth-child(12) {
+            width: 12.5% !important;
+            min-width: 0 !important;
+          }
+          .all-cashier-summary-detail-report-root.acs-print-portrait .acs-screen-table td:nth-child(12) .w-\\[130px\\] {
+            width: 100% !important;
+            max-width: 100% !important;
+          }
+          /* Stay with the summary table, not on a following blank page. */
+          .all-cashier-summary-detail-report-root.acs-print-portrait .acs-print-signoff {
+            display: flex !important;
+            justify-content: space-between !important;
+            align-items: flex-end !important;
+            width: 86% !important;
+            margin: 18mm 0 0 !important;
+            padding: 0 !important;
+            font-family: Arial, Helvetica, sans-serif !important;
+            font-size: 11pt !important;
+            font-weight: 700 !important;
+            color: #000 !important;
+            break-before: avoid !important;
+            page-break-before: avoid !important;
+            break-inside: avoid !important;
+            page-break-inside: avoid !important;
+          }
+      `
+      : '';
   return (
     <div className="acs-print-root">
       <style>{`
         @media print {
           @page {
-            size: A4 landscape;
+            size: ${pageSize};
             /* Tight sides so the table fills the page; extra bottom for the footer */
             margin: 7mm 5mm 18mm;
             @top-left { content: ""; }
@@ -292,6 +355,7 @@ export function AllCashierSummaryDetailPrintLayout({
           .all-cashier-summary-detail-report-root .acs-total-receipts .font-semibold {
             font-weight: 700 !important;
           }
+          ${portraitFit}
         }
       `}</style>
     </div>

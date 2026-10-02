@@ -1,7 +1,8 @@
 'use client';
 
 /**
- * All Cashier Summary and Detail — Excel ONLY (A4 landscape, matches Print / PDF).
+ * All Cashier Summary and Detail — Excel ONLY (matches Print / PDF).
+ * Summary page setup is A4 portrait; Detail stays A4 landscape.
  * Horizontal payment columns; Detail = one table block per user + Grand Total.
  */
 
@@ -70,8 +71,21 @@ const thinBorder: Partial<ExcelJS.Borders> = {
   bottom: { style: 'thin', color: { argb: 'FF000000' } },
 };
 
-/** Landscape widths matching print: Receipts narrower, Shifts wider (same Δ). */
-const SUMMARY_COLUMN_WIDTHS = [5, 22, 8, 12, 12, 12, 12, 12, 12, 12, 30, 14];
+/**
+ * Summary print shares: No 4 | User 14 | Receipts 6 | amounts 6.5×7 | Shifts 18 | Checked By 12.5.
+ */
+const SUMMARY_PRINT_SHARES = [4, 14, 6, 6.5, 6.5, 6.5, 6.5, 6.5, 6.5, 6.5, 18, 12.5];
+
+function shareWidths(shares: number[], budget = 100): number[] {
+  const sum = shares.reduce((total, share) => total + share, 0);
+  return shares.map((share) => Math.round((share / sum) * budget * 10) / 10);
+}
+
+/** Character widths that fit inside an A4 portrait page at 100% zoom. */
+function portraitCharacterBudget(columnCount: number): number {
+  const printablePx = ((210 - 20) / 25.4) * 96;
+  return Math.max(48, Math.floor((printablePx - 5 * columnCount) / 7) - 8);
+}
 const DETAIL_COLUMN_WIDTHS = [5, 18, 18, 8, 12, 12, 12, 12, 12, 12, 12, 32, 12];
 
 const SUMMARY_AMOUNT_START = 3; // Cash
@@ -277,7 +291,8 @@ function writeHeaderRow(
   sheet: ExcelJS.Worksheet,
   row: number,
   headers: readonly string[],
-  amountStart: number
+  amountStart: number,
+  height = 18
 ): number {
   for (let c = 0; c < headers.length; c++) {
     const cell = sheet.getCell(row, c + 1);
@@ -298,7 +313,7 @@ function writeHeaderRow(
       wrapText: true,
     };
   }
-  sheet.getRow(row).height = 18;
+  sheet.getRow(row).height = height;
   return row + 1;
 }
 
@@ -312,10 +327,13 @@ function writeDataCells(
     shiftMarks?: AcsShiftMarkLine[];
     bold?: boolean;
     fill?: string;
+    shrinkAmounts?: boolean;
   }
 ): number {
   const colCount = cells.length;
   for (let c = 0; c < colCount; c++) {
+    const isAmount = c >= opts.amountStart && c < opts.amountStart + ACS_PAYMENT_COLUMNS.length;
+    const shrink = Boolean(opts.shrinkAmounts && isAmount);
     const cell = sheet.getCell(row, c + 1);
     const marks = opts.shiftMarks && c === opts.shiftsCol ? opts.shiftMarks : undefined;
     if (marks?.length) {
@@ -331,12 +349,13 @@ function writeDataCells(
       horizontal:
         c === 0
           ? 'center'
-          : c >= opts.amountStart && c < opts.amountStart + ACS_PAYMENT_COLUMNS.length
+          : isAmount
             ? 'right'
             : c === opts.amountStart - 1
               ? 'right'
               : 'left',
-      wrapText: true,
+      wrapText: !shrink,
+      shrinkToFit: shrink,
     };
     if (opts.fill) {
       cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: opts.fill } };
@@ -354,7 +373,10 @@ export async function downloadAllCashierSummaryDetailReportExcel(
   const isDetail = opts.mode === 'detail';
   const headers = isDetail ? ACS_DETAIL_WIDE_HEADERS : ACS_SUMMARY_WIDE_HEADERS;
   const colCount = headers.length;
-  const widths = isDetail ? DETAIL_COLUMN_WIDTHS : SUMMARY_COLUMN_WIDTHS;
+  const widths = isDetail
+    ? DETAIL_COLUMN_WIDTHS
+    : shareWidths(SUMMARY_PRINT_SHARES, portraitCharacterBudget(SUMMARY_PRINT_SHARES.length));
+  const pageOrientation = isDetail ? 'landscape' : 'portrait';
   const amountStart = isDetail ? DETAIL_AMOUNT_START : SUMMARY_AMOUNT_START;
   const shiftsCol = isDetail ? DETAIL_SHIFTS_COL : SUMMARY_SHIFTS_COL;
   const lastCol = colLetter(colCount);
@@ -372,7 +394,7 @@ export async function downloadAllCashierSummaryDetailReportExcel(
     views: [{ showGridLines: false }],
     pageSetup: {
       paperSize: 9,
-      orientation: 'landscape',
+      orientation: pageOrientation,
       fitToPage: true,
       fitToWidth: 1,
       fitToHeight: 0,
@@ -399,21 +421,65 @@ export async function downloadAllCashierSummaryDetailReportExcel(
   });
 
   if (opts.mode === 'summary') {
-    row = writeHeaderRow(sheet, row, headers, amountStart);
+    row = writeHeaderRow(sheet, row, headers, amountStart, 32);
+    const checkedByHeader = sheet.getCell(row - 1, shiftsCol + 2);
+    checkedByHeader.alignment = {
+      vertical: 'middle',
+      horizontal: 'center',
+      wrapText: true,
+    };
     const wideRows = buildAcsSummaryWideRows(
       opts.summaryRows,
       opts.grandTotals,
       opts.totalReceipts
     );
     for (const wide of wideRows) {
+      const dataRow = row;
       row = writeDataCells(sheet, row, wide.cells, {
         amountStart,
         shiftsCol,
         shiftMarks: wide.shiftMarks,
         bold: wide.isTotal,
         fill: wide.isTotal ? 'FFF3F3F3' : undefined,
+        shrinkAmounts: true,
       });
+      if (wide.isTotal) {
+        // Print total spans No + User + Receipts.
+        sheet.mergeCells(dataRow, 1, dataRow, 3);
+        const totalCell = sheet.getCell(dataRow, 1);
+        totalCell.value = 'Total';
+        totalCell.alignment = { vertical: 'middle', horizontal: 'left', wrapText: true };
+        totalCell.font = { bold: true, size: 7, name: 'Arial' };
+        totalCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF3F3F3' } };
+      } else {
+        // Print Checked By column: dotted signature line.
+        const signCell = sheet.getCell(dataRow, shiftsCol + 2);
+        signCell.border = {
+          top: thinBorder.top,
+          left: thinBorder.left,
+          right: thinBorder.right,
+          bottom: { style: 'dotted', color: { argb: 'FF666666' } },
+        };
+        signCell.alignment = { vertical: 'bottom', horizontal: 'center', wrapText: false };
+      }
     }
+
+    // Same sign-off as summary print / PDF, under the table on this sheet.
+    row += 1;
+    sheet.getRow(row).height = 48;
+    row += 1;
+    sheet.mergeCells(row, 1, row, 4);
+    const approved = sheet.getCell(row, 1);
+    approved.value = 'Approved By ...........';
+    approved.font = { bold: true, size: 11, name: 'Arial' };
+    approved.alignment = { vertical: 'middle', horizontal: 'left' };
+    sheet.mergeCells(row, 7, row, 11);
+    const authorised = sheet.getCell(row, 7);
+    authorised.value = 'Authorised By ...........';
+    authorised.font = { bold: true, size: 11, name: 'Arial' };
+    authorised.alignment = { vertical: 'middle', horizontal: 'right' };
+    sheet.getRow(row).height = 22;
+    row += 1;
   } else {
     // Match print: one header+body block per user, then Grand Total table
     opts.detailRows.forEach((user, idx) => {
@@ -517,11 +583,14 @@ export async function downloadAllCashierSummaryDetailReportExcel(
 
   sheet.pageSetup.printArea = `A1:${lastCol}${row}`;
   sheet.pageSetup.paperSize = 9;
-  sheet.pageSetup.orientation = 'landscape';
+  sheet.pageSetup.orientation = pageOrientation;
   sheet.pageSetup.fitToPage = true;
   sheet.pageSetup.fitToWidth = 1;
   sheet.pageSetup.fitToHeight = 0;
   sheet.pageSetup.horizontalCentered = false;
+  if (!isDetail) {
+    delete (sheet.pageSetup as { scale?: number }).scale;
+  }
   sheet.pageSetup.margins = {
     left: 0.39,
     right: 0.39,
