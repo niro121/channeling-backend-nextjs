@@ -381,7 +381,8 @@ export function DesktopSidebar({ session, className }: { session: Session | null
             </SidebarCollapsible>
           </SidebarGroup>
         )}
-        {(hasAccess('/salary-generation') ||
+        {(hasAccess('/payroll') ||
+          hasAccess('/salary-generation') ||
           hasAccess('/salary-processing') ||
           hasAccess('/assign-paysheet-component') ||
           hasAccess('/bulk-assign-paysheet-component') ||
@@ -398,6 +399,7 @@ export function DesktopSidebar({ session, className }: { session: Session | null
               label="Payroll"
               icon={<Wallet className="h-5 w-5" />}
               paths={[
+                '/payroll',
                 '/salary-structures',
                 '/allowances',
                 '/deductions',
@@ -413,6 +415,13 @@ export function DesktopSidebar({ session, className }: { session: Session | null
               ]}
               defaultOpen
             >
+              {hasAccess('/payroll') && (
+                <NavLink
+                  href="/payroll"
+                  label="Guide"
+                  icon={<BookOpen className="h-5 w-5" />}
+                />
+              )}
               {hasAccess('/salary-structures') && (
                 <NavLink
                   href="/salary-structures"

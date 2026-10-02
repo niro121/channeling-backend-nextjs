@@ -41,6 +41,7 @@ Use with:
 
 | Route | Resource | Role |
 |-------|----------|------|
+| `/payroll` | `payroll` | **Guide** hub (permissions, procedure, module links) |
 | `/salary-structures` | `payroll` | Structure templates (earnings / deductions / employer lines) |
 | `/allowances` | `payroll` | Allowance master catalog |
 | `/deductions` | `payroll` | Deduction master catalog |

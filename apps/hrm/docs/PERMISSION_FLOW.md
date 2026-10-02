@@ -231,19 +231,19 @@ From `lib/permissions.ts` / `RESOURCES` (keep these in sync when editing).
 | `/attendance-corrections` | `attendance` | Staff Attendance (same grant) |
 | `/attendance-summary` | `attendance` | Staff Attendance (same grant) |
 | `/attendance-logs` | `attendance` | Staff Attendance (same grant) |
-| `/salary-generation` | `payroll` | Payroll |
-| `/salary-processing` | `payroll` | Payroll |
-| `/assign-paysheet-component` | `payroll` | Payroll |
-| `/bulk-assign-paysheet-component` | `payroll` | Payroll |
-| `/performance-allowance` | `payroll` | Payroll |
-| `/loans-advances` | `payroll` | Payroll |
-| `/salary-structures` | `payroll` | Payroll |
-| `/allowances` | `payroll` | Payroll |
-| `/deductions` | `payroll` | Payroll |
-| `/payslips` | `payroll` | Payroll |
-| `/bank-transfer-file` | `payroll` | Payroll |
-| `/salary-history` | `payroll` | Payroll |
-| `/payroll` | `payroll` | Payroll *(hub reserved)* |
+| `/payroll` | `payroll` | Payroll — **Guide** hub (`view`) |
+| `/salary-generation` | `payroll` | Payroll (same grant) |
+| `/salary-processing` | `payroll` | Payroll (same grant) |
+| `/assign-paysheet-component` | `payroll` | Payroll (same grant) |
+| `/bulk-assign-paysheet-component` | `payroll` | Payroll (same grant) |
+| `/performance-allowance` | `payroll` | Payroll (same grant) |
+| `/loans-advances` | `payroll` | Payroll (same grant) |
+| `/salary-structures` | `payroll` | Payroll (same grant) |
+| `/allowances` | `payroll` | Payroll (same grant) |
+| `/deductions` | `payroll` | Payroll (same grant) |
+| `/payslips` | `payroll` | Payroll (same grant) |
+| `/bank-transfer-file` | `payroll` | Payroll (same grant) |
+| `/salary-history` | `payroll` | Payroll (same grant) |
 | `/reports` | `reports` | Reports |
 | `/users` | `users` | Users & User Groups |
 | `/user-groups` | `users` | (same resource) |

@@ -9,6 +9,7 @@ export const ROUTE_TO_RESOURCE: Record<string, string> = {
   '/hrm-variables': 'hrm-variables',
   '/salary-cycles': 'salary-cycles',
   // Payroll
+  '/payroll': 'payroll',
   '/salary-generation': 'payroll',
   '/salary-processing': 'payroll',
   '/assign-paysheet-component': 'payroll',
