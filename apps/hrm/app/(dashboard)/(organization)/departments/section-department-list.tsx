@@ -1,12 +1,10 @@
 'use client';
 
 import { useMemo } from 'react';
-import { Plus, Search } from 'lucide-react';
-import { Button, Input, useToast } from '@archmage/ui';
+import { Plus } from 'lucide-react';
+import { Button, useToast } from '@archmage/ui';
 import { cn } from '@/lib/utils';
-import { INSTITUTION_OPTIONS } from '@/types/institution';
 import {
-  DEPARTMENT_STATUS_OPTIONS,
   departmentInstitutionLabel,
   departmentStatusLabel
 } from '@/types/department';
@@ -15,29 +13,23 @@ import { useDepartmentUi } from './department-ui-context';
 
 export default function SectionDepartmentList() {
   const { toast } = useToast();
-  const {
-    records,
-    selectedId,
-    setSelectedId,
-    startNewDepartment,
-    search,
-    setSearch,
-    statusFilter,
-    setStatusFilter,
-    institutionFilter,
-    setInstitutionFilter
-  } = useDepartmentUi();
+  const { records, selectedId, setSelectedId, startNewDepartment, filters } =
+    useDepartmentUi();
 
   const filteredRecords = useMemo(() => {
-    const query = search.trim().toLowerCase();
+    const query = (filters.search ?? '').trim().toLowerCase();
+    const institution =
+      filters.institution && filters.institution !== '__all__'
+        ? filters.institution
+        : '';
+    const status =
+      filters.status && filters.status !== '__all__' ? filters.status : '';
+
     return records.filter((record) => {
-      if (statusFilter !== '' && String(record.status) !== statusFilter) {
+      if (status !== '' && String(record.status) !== status) {
         return false;
       }
-      if (
-        institutionFilter !== '' &&
-        String(record.institution) !== institutionFilter
-      ) {
+      if (institution !== '' && String(record.institution) !== institution) {
         return false;
       }
       if (!query) return true;
@@ -49,7 +41,7 @@ export default function SectionDepartmentList() {
           .includes(query)
       );
     });
-  }, [records, search, statusFilter, institutionFilter]);
+  }, [records, filters]);
 
   const handleAdd = () => {
     startNewDepartment();
@@ -79,51 +71,10 @@ export default function SectionDepartmentList() {
         </div>
       </div>
 
-      <div className="space-y-2 border-b border-primary/10 px-3 py-3">
-        <div className="relative w-full">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search by name or description..."
-            className="w-full rounded-md border-primary/15 pl-9"
-            aria-label="Search departments"
-          />
-        </div>
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-          <select
-            value={institutionFilter}
-            onChange={(e) => setInstitutionFilter(e.target.value)}
-            className="h-9 w-full rounded-md border border-primary/15 bg-background px-3 text-sm text-foreground"
-            aria-label="Filter by institution"
-          >
-            <option value="">All institutions</option>
-            {INSTITUTION_OPTIONS.map((opt) => (
-              <option key={opt.id} value={opt.id}>
-                {opt.name}
-              </option>
-            ))}
-          </select>
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="h-9 w-full rounded-md border border-primary/15 bg-background px-3 text-sm text-foreground"
-            aria-label="Filter by status"
-          >
-            <option value="">All statuses</option>
-            {DEPARTMENT_STATUS_OPTIONS.map((opt) => (
-              <option key={opt.id} value={opt.id}>
-                {opt.name}
-              </option>
-            ))}
-          </select>
-        </div>
-      </div>
-
       <div className="flex-1 overflow-y-auto px-3 py-3">
         {filteredRecords.length === 0 ? (
           <p className="px-2 py-6 text-center text-sm text-muted-foreground">
-            No departments found.
+            No departments match the current filters.
           </p>
         ) : (
           <ul className="flex flex-col gap-2">
