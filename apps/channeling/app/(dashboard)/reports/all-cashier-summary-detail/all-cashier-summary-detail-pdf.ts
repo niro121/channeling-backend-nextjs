@@ -1,7 +1,8 @@
 'use client';
 
 /**
- * All Cashier Summary and Detail — PDF ONLY (A4 landscape, matches Print / screen).
+ * All Cashier Summary and Detail — PDF ONLY (matches Print / screen).
+ * Summary is A4 portrait; Detail stays A4 landscape.
  * Horizontal payment columns (Cash … E-wallet), not compact stacked Payments.
  */
 
@@ -67,6 +68,29 @@ function hideShiftMarkText(
   hookData.cell.styles.textColor = [255, 255, 255];
 }
 
+/** Print Checked By column: dotted signature line, not a text value. */
+function drawCheckedByLine(
+  doc: jsPDF,
+  hookData: {
+    section: string;
+    column: { index: number };
+    cell: { x: number; y: number; width: number; height: number };
+  },
+  row: ShiftMarkRow | undefined,
+  checkedByCol: number
+) {
+  if (hookData.section !== 'body' || hookData.column.index !== checkedByCol) return;
+  if (!row || row.isTotal || row.isUserTotal || row.isGrandTotal) return;
+  const y = hookData.cell.y + hookData.cell.height - 2.4;
+  const x1 = hookData.cell.x + 1.6;
+  const x2 = hookData.cell.x + hookData.cell.width - 1.6;
+  doc.setDrawColor(70, 70, 70);
+  doc.setLineWidth(0.35);
+  doc.setLineDashPattern([0.5, 0.6], 0);
+  doc.line(x1, y, x2, y);
+  doc.setLineDashPattern([], 0);
+}
+
 function drawShiftMarkText(
   doc: jsPDF,
   hookData: {
@@ -91,6 +115,24 @@ function drawShiftMarkText(
     doc.text(wrapped, x, y);
     y += wrapped.length * 2.55;
   }
+}
+
+/** Summary print shares, scaled to the portrait page width. */
+function buildSummaryPortraitColumnStyles(
+  tableWidth: number
+): Record<number, { cellWidth: number; halign: 'left' | 'right' | 'center' }> {
+  const raw = [0.04, 0.14, 0.06, ...Array(ACS_PAYMENT_COLUMNS.length).fill(0.065), 0.18, 0.125];
+  const sum = raw.reduce((a, b) => a + b, 0);
+  const amountStart = ACS_SUMMARY_META_BEFORE_MM.length;
+  const styles: Record<number, { cellWidth: number; halign: 'left' | 'right' | 'center' }> = {};
+  raw.forEach((frac, i) => {
+    const isAmount = i >= amountStart && i < amountStart + ACS_PAYMENT_COLUMNS.length;
+    styles[i] = {
+      cellWidth: (frac / sum) * tableWidth,
+      halign: i === 0 ? 'center' : isAmount || i === 2 ? 'right' : 'left',
+    };
+  });
+  return styles;
 }
 
 function buildColumnStyles(
@@ -121,6 +163,27 @@ function buildColumnStyles(
     col += 1;
   });
   return styles;
+}
+
+/** Same sign-off as summary print: under the table, not on a blank page. */
+function drawSummarySignOff(doc: jsPDF, afterY: number, margin: number) {
+  const { width, height } = pageSize(doc);
+  const gap = 18;
+  let y = afterY + gap;
+  if (y > height - 16) {
+    if (height - 16 - afterY >= 8) {
+      y = height - 16;
+    } else {
+      doc.addPage();
+      y = margin + gap;
+    }
+  }
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(11);
+  doc.setTextColor(0, 0, 0);
+  const blockRight = margin + (width - margin * 2) * 0.86;
+  doc.text('Approved By ...........', margin, y);
+  doc.text('Authorised By ...........', blockRight, y, { align: 'right' });
 }
 
 function drawFooter(doc: jsPDF, generatedAt: string, margin: number) {
@@ -166,9 +229,13 @@ export type DownloadAllCashierSummaryDetailPdfOptions =
 export async function downloadAllCashierSummaryDetailReportPdf(
   opts: DownloadAllCashierSummaryDetailPdfOptions
 ): Promise<void> {
-  // Match print: 5mm side margins, A4 landscape, shared branded header
+  // Match print: 5mm side margins, shared branded header.
+  // Summary is A4 portrait; Detail stays A4 landscape.
   const margin = 5;
-  const doc = new jsPDF({ orientation: 'l', format: 'a4' });
+  const doc = new jsPDF({
+    orientation: opts.mode === 'summary' ? 'p' : 'l',
+    format: 'a4',
+  });
   const { width: pageWidth } = pageSize(doc);
   const tableWidth = pageWidth - margin * 2;
 
@@ -207,31 +274,46 @@ export async function downloadAllCashierSummaryDetailReportPdf(
     );
     const amountStart = ACS_SUMMARY_META_BEFORE_MM.length;
     const shiftsCol = amountStart + ACS_PAYMENT_COLUMNS.length;
+    const checkedByCol = shiftsCol + 1;
     const lastCol = shiftsCol + ACS_SUMMARY_META_AFTER_MM.length - 1;
-    const columnStyles = buildColumnStyles(
-      tableWidth,
-      ACS_SUMMARY_META_BEFORE_MM,
-      ACS_SUMMARY_META_AFTER_MM,
-      amountStart
-    );
-    // Receipts col right-align
-    columnStyles[2] = { ...columnStyles[2], halign: 'right' };
+    const columnStyles = buildSummaryPortraitColumnStyles(tableWidth);
+    columnStyles[checkedByCol] = { ...columnStyles[checkedByCol], halign: 'center' };
 
     autoTable(doc, {
       head: [Array.from(ACS_SUMMARY_WIDE_HEADERS)],
-      body: wideRows.map((r) => r.cells),
+      body: wideRows.map((r) => {
+        if (!r.isTotal) return r.cells;
+        // Print total spans No + User + Receipts, then the seven amounts.
+        return [
+          {
+            content: 'Total',
+            colSpan: 3,
+            styles: { halign: 'left' as const, fontStyle: 'bold' as const },
+          },
+          ...r.cells.slice(amountStart, shiftsCol),
+          '',
+          '',
+        ];
+      }),
       startY,
       margin: tableMargin,
       tableWidth,
       showHead: 'everyPage',
-      styles: commonStyles,
+      styles: { ...commonStyles, fontSize: 6.5, minCellHeight: 10 },
       headStyles,
       columnStyles,
       didParseCell: (hookData) => {
         const row = wideRows[hookData.row.index] as AcsSummaryWideRow | undefined;
+        const isAmount =
+          hookData.column.index >= amountStart && hookData.column.index < shiftsCol;
+        if (isAmount) {
+          hookData.cell.styles.fontSize = 6;
+          hookData.cell.styles.overflow = 'hidden';
+        }
         if (hookData.section === 'body' && row?.isTotal) {
           hookData.cell.styles.fontStyle = 'bold';
           hookData.cell.styles.fillColor = [243, 243, 243];
+          hookData.cell.styles.minCellHeight = 6;
         }
         if (hookData.column.index === 0 || hookData.column.index === lastCol) {
           hookData.cell.styles.lineWidth = 0.35;
@@ -239,9 +321,12 @@ export async function downloadAllCashierSummaryDetailReportPdf(
         hideShiftMarkText(hookData, row, shiftsCol);
       },
       didDrawCell: (hookData) => {
-        drawShiftMarkText(doc, hookData, wideRows[hookData.row.index], shiftsCol);
+        const row = wideRows[hookData.row.index];
+        drawShiftMarkText(doc, hookData, row, shiftsCol);
+        drawCheckedByLine(doc, hookData, row, checkedByCol);
       },
     });
+    drawSummarySignOff(doc, lastTableY(doc, startY), margin);
   } else {
     // Match print: separate table per user, then Grand Total table
     const amountStart = ACS_DETAIL_META_BEFORE_MM.length;

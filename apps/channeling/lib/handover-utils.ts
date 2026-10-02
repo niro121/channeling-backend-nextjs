@@ -1,5 +1,6 @@
 import { formatCents } from "@/lib/format-money"
 import { FLOAT_REQUEST_STATUS } from "@/types/float-request"
+import { RECONCILIATION_STATUS } from "@/types/handover"
 
 export const HANDOVER_AMOUNT_METHOD_KEYS = [
   "cashCents",
@@ -74,6 +75,8 @@ export type HandoverExpectedCollectionParts = {
   floatsOutCents: number
   summaryCents: number
   previousHandoversCents: number
+  /** Non-cash on handovers already sent to reconciliation. Stays with this cashier. */
+  sentToReconciliationCents?: number
 }
 
 export type ExpectedHandoverCollectionSourceRow = {
@@ -85,13 +88,48 @@ export type ExpectedHandoverCollectionSourceRow = {
 export type ExpectedHandoverCollection = HandoverExpectedCollectionParts & {
   expectedCents: number
   previousHandovers: ExpectedHandoverCollectionSourceRow[]
+  sentToReconciliation: ExpectedHandoverCollectionSourceRow[]
   floatsIn: ExpectedHandoverCollectionSourceRow[]
   floatsOut: ExpectedHandoverCollectionSourceRow[]
 }
 
-/** Total Collection on the handover page: floats in + Summary + previous handovers − floats out. */
+/**
+ * Non-cash already with reconciliation is not handed to the next cashier.
+ * Cash from that handover stays in the till and is still handed over.
+ */
+export function isHandoverHeldForReconciliation(reconciliationStatus: number | null | undefined): boolean {
+  const status = Number(reconciliationStatus ?? RECONCILIATION_STATUS.PENDING)
+  return (
+    status === RECONCILIATION_STATUS.IN_RECONCILIATION ||
+    status === RECONCILIATION_STATUS.RECONCILED_APPROVED
+  )
+}
+
+export function handoverNonCashHeldCents(handover: {
+  reconciliationStatus?: number | null
+  cardCents?: number | null
+  slipCents?: number | null
+  checkCents?: number | null
+  eWalletCents?: number | null
+}): number {
+  if (!isHandoverHeldForReconciliation(handover.reconciliationStatus)) return 0
+  return (
+    (handover.cardCents ?? 0) +
+    (handover.slipCents ?? 0) +
+    (handover.checkCents ?? 0) +
+    (handover.eWalletCents ?? 0)
+  )
+}
+
+/** Total Collection: floats in + summary + previous handovers − sent to reconciliation − floats out. */
 export function expectedHandoverCollectionCents(parts: HandoverExpectedCollectionParts): number {
-  return parts.floatsInCents + parts.summaryCents + parts.previousHandoversCents - parts.floatsOutCents
+  return (
+    parts.floatsInCents +
+    parts.summaryCents +
+    parts.previousHandoversCents -
+    (parts.sentToReconciliationCents ?? 0) -
+    parts.floatsOutCents
+  )
 }
 
 export function handoverAmountsTotalCents(amounts: HandoverMethodAmounts): number {

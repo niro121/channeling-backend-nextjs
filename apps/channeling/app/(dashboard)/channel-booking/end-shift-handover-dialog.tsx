@@ -1300,6 +1300,7 @@ export function EndShiftHandoverDialog({
                   <HandoverCollectionCalcInfo
                     summaryCents={expectedCollection.summaryCents}
                     previousHandovers={expectedCollection.previousHandovers}
+                    sentToReconciliation={expectedCollection.sentToReconciliation}
                     floatsIn={expectedCollection.floatsIn}
                     floatsOut={expectedCollection.floatsOut}
                     expectedCents={expectedCollection.expectedCents}
@@ -1320,6 +1321,12 @@ export function EndShiftHandoverDialog({
                   <span className="text-muted-foreground">Previous handovers</span>
                   <span className="tabular-nums">{formatCents(expectedCollection.previousHandoversCents)}</span>
                 </div>
+                {(expectedCollection.sentToReconciliationCents ?? 0) > 0 ? (
+                  <div className="flex justify-between gap-4">
+                    <span className="text-muted-foreground">Sent to reconciliation</span>
+                    <span className="tabular-nums">({formatCents(expectedCollection.sentToReconciliationCents ?? 0)})</span>
+                  </div>
+                ) : null}
                 {expectedCollection.floatsOutCents > 0 ? (
                   <div className="flex justify-between gap-4">
                     <span className="text-muted-foreground">Floats Out</span>

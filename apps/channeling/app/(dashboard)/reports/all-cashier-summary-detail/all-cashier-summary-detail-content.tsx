@@ -286,7 +286,11 @@ export default function AllCashierSummaryDetailContent({
   };
 
   return (
-    <div className="w-full py-2 space-y-3 all-cashier-summary-detail-report-root">
+    <div
+      className={`w-full py-2 space-y-3 all-cashier-summary-detail-report-root${
+        reportMeta?.format === 'summary' ? ' acs-print-portrait' : ''
+      }`}
+    >
       <Card className="print:hidden">
         <CardHeader className="pb-2">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
@@ -415,12 +419,15 @@ export default function AllCashierSummaryDetailContent({
           <CardContent className="space-y-3 py-2">
             <ReportPrintLayout
               reportName="All Cashier Summary and Detail Report"
-              pageSize="A4 landscape"
+              pageSize={reportMeta.format === 'summary' ? 'A4 portrait' : 'A4 landscape'}
               pageMargins="7mm 5mm 18mm"
               generatedAt={reportMeta.generatedAt}
               summaryItems={buildSummaryItems(reportMeta)}
             >
-              <AllCashierSummaryDetailPrintLayout generatedAt={reportMeta.generatedAt} />
+              <AllCashierSummaryDetailPrintLayout
+                generatedAt={reportMeta.generatedAt}
+                pageSize={reportMeta.format === 'summary' ? 'A4 portrait' : 'A4 landscape'}
+              />
               {loading ? (
                 <div className="text-center py-8">Loading...</div>
               ) : (
@@ -593,6 +600,12 @@ export default function AllCashierSummaryDetailContent({
                       </div>
                     )}
                   </div>
+                  {reportMeta.format === 'summary' ? (
+                    <div className="acs-print-signoff hidden">
+                      <span>Approved By ...........</span>
+                      <span>Authorised By ...........</span>
+                    </div>
+                  ) : null}
                 </>
               )}
             </ReportPrintLayout>
