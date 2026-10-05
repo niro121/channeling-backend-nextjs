@@ -10,9 +10,11 @@ import {
   OPEN_APPROVAL_STATUSES,
 } from '@/types/approval-request'
 import { FLOAT_REQUEST_STATUS } from '@/types/float-request'
+import { HANDOVER_STATUS } from '@/types/handover'
 import type {
   DashboardApprovalStats,
   DashboardFloatStats,
+  DashboardHandoverStats,
   DashboardKpiCount,
   DashboardQueueSnapshot,
   DashboardRecentBookingRow,
@@ -218,4 +220,39 @@ export async function getDashboardFloatStatsService(
     }),
   ])
   return { toApprove, toReceive }
+}
+
+const CLOSED_HANDOVER_STATUSES = [
+  HANDOVER_STATUS.APPROVED,
+  HANDOVER_STATUS.REJECTED,
+  HANDOVER_STATUS.CANCELLED,
+] as const
+
+/** Status 0 is stored inconsistently in Mongo, so pending is filtered in memory. */
+async function countPendingHandovers(
+  where: { toUserId: string } | { fromUserId: string }
+): Promise<number> {
+  const rows = await prisma.shiftHandover.findMany({
+    where: {
+      ...where,
+      status: { notIn: [...CLOSED_HANDOVER_STATUSES] },
+    },
+    select: { status: true },
+  })
+  return rows.filter((row) => Number(row.status) === HANDOVER_STATUS.PENDING).length
+}
+
+/**
+ * Pending handovers for this user: ones waiting for their acceptance, and
+ * ones they submitted that the recipient has not yet accepted or rejected.
+ */
+export async function getDashboardHandoverStatsService(
+  userId: string,
+  scope: { incoming: boolean; outgoing: boolean }
+): Promise<DashboardHandoverStats> {
+  const [toAccept, sentByMe] = await Promise.all([
+    scope.incoming ? countPendingHandovers({ toUserId: userId }) : Promise.resolve(null),
+    scope.outgoing ? countPendingHandovers({ fromUserId: userId }) : Promise.resolve(null),
+  ])
+  return { toAccept, sentByMe }
 }

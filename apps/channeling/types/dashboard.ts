@@ -35,3 +35,9 @@ export type DashboardFloatStats = {
   toApprove: number
   toReceive: number
 }
+
+/** Pending shift handovers involving the signed-in user. Null means that side is hidden. */
+export type DashboardHandoverStats = {
+  toAccept: number | null
+  sentByMe: number | null
+}

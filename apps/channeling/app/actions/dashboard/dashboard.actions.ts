@@ -7,12 +7,13 @@ import {
   DASHBOARD_RESOURCE,
   type DashboardModuleAction,
 } from '@/lib/dashboard-permissions'
-import { checkRouteAccess, requirePermission } from '@/lib/server-permissions'
+import { checkPermission, checkRouteAccess, requirePermission } from '@/lib/server-permissions'
 import { userTypes } from '@/lib/roles'
 import { getCurrentShift } from '@/services/shift.service'
 import {
   getDashboardApprovalStatsService,
   getDashboardFloatStatsService,
+  getDashboardHandoverStatsService,
   getDashboardQueueSnapshotService,
   getDashboardRecentBookingsService,
   getDashboardSessionsTodayService,
@@ -22,6 +23,7 @@ import {
 import type {
   DashboardApprovalStats,
   DashboardFloatStats,
+  DashboardHandoverStats,
   DashboardKpiCount,
   DashboardQueueSnapshot,
   DashboardRecentBookingRow,
@@ -83,6 +85,18 @@ export async function getDashboardFloatStatsAction(): Promise<DashboardFloatStat
   const session = await getServerSession(authOptions)
   if ((!bulk && !transfers) || !session?.user?.id) return EMPTY_FLOAT_STATS
   return getDashboardFloatStatsService(session.user.id)
+}
+
+const EMPTY_HANDOVER_STATS: DashboardHandoverStats = { toAccept: null, sentByMe: null }
+
+export async function getDashboardHandoverStatsAction(): Promise<DashboardHandoverStats> {
+  const [incoming, outgoing] = await Promise.all([
+    checkRouteAccess('/handovers'),
+    checkPermission('shift', 'view'),
+  ])
+  const session = await getServerSession(authOptions)
+  if ((!incoming && !outgoing) || !session?.user?.id) return EMPTY_HANDOVER_STATS
+  return getDashboardHandoverStatsService(session.user.id, { incoming, outgoing })
 }
 
 export async function getDashboardRecentBookingsAction(): Promise<
