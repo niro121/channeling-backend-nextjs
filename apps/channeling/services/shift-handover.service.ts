@@ -917,6 +917,18 @@ export async function approveHandover(
   return { success: true }
 }
 
+/**
+ * Included handovers are marked forwarded when a bulk cashier passes them on.
+ * If that handover is rejected or cancelled, those documents stay with the sender
+ * and must be available to send to reconciliation or include again.
+ */
+async function releaseIncludedHandovers(handoverId: string): Promise<void> {
+  await prisma.shiftHandover.updateMany({
+    where: { forwardedToHandoverId: handoverId },
+    data: { forwardedToHandoverId: null },
+  })
+}
+
 /** Reject handover (to user only). Requires rejectReason. Shift returns to ACTIVE. */
 export async function rejectHandover(
   handoverId: string,
@@ -952,6 +964,7 @@ export async function rejectHandover(
       rejectReason: trimmed,
     },
   })
+  await releaseIncludedHandovers(handoverId)
   await unlinkShiftBillsFromHandover(handoverId)
 
   await shiftModel.update({
@@ -1013,6 +1026,7 @@ export async function cancelHandover(
       cancelledBy: cancelledByUserId,
     },
   })
+  await releaseIncludedHandovers(handoverId)
   await unlinkShiftBillsFromHandover(handoverId)
 
   await shiftModel.update({
@@ -1337,6 +1351,17 @@ function isExcludedFromBulkTransfer(reconciliationStatus: number | null | undefi
   )
 }
 
+/** One approved handover whose non-cash is in reconciliation and must stay with this cashier. */
+export type HeldReconciliationHandover = {
+  id: string
+  handoverNoString: string | null
+  fromLabel: string
+  cardCents: number
+  slipCents: number
+  checkCents: number
+  eWalletCents: number
+}
+
 /** Non-cash cents still on till but held by open reconciliation (must not be handed to next bulk). */
 export type NonCashHeldInReconciliation = {
   cardCents: number
@@ -1344,6 +1369,7 @@ export type NonCashHeldInReconciliation = {
   checkCents: number
   eWalletCents: number
   handoverCount: number
+  handovers: HeldReconciliationHandover[]
 }
 
 export async function getNonCashHeldInReconciliation(
@@ -1355,21 +1381,35 @@ export async function getNonCashHeldInReconciliation(
       status: HANDOVER_STATUS.APPROVED,
       reconciliationStatus: RECONCILIATION_STATUS.IN_RECONCILIATION,
     },
+    orderBy: { createdAt: "desc" },
     select: {
+      id: true,
+      handoverNoString: true,
       cardCents: true,
       slipCents: true,
       checkCents: true,
       eWalletCents: true,
       forwardedToHandoverId: true,
+      fromUser: { select: { name: true, staff: { select: { code: true } } } },
     },
   })
   const held = list.filter((h) => h.forwardedToHandoverId == null)
+  const handovers: HeldReconciliationHandover[] = held.map((h) => ({
+    id: h.id,
+    handoverNoString: h.handoverNoString,
+    fromLabel: handoverFromLabel(h.fromUser),
+    cardCents: h.cardCents ?? 0,
+    slipCents: h.slipCents ?? 0,
+    checkCents: h.checkCents ?? 0,
+    eWalletCents: h.eWalletCents ?? 0,
+  }))
   return {
-    cardCents: held.reduce((s, h) => s + (h.cardCents ?? 0), 0),
-    slipCents: held.reduce((s, h) => s + (h.slipCents ?? 0), 0),
-    checkCents: held.reduce((s, h) => s + (h.checkCents ?? 0), 0),
-    eWalletCents: held.reduce((s, h) => s + (h.eWalletCents ?? 0), 0),
-    handoverCount: held.length,
+    cardCents: handovers.reduce((s, h) => s + h.cardCents, 0),
+    slipCents: handovers.reduce((s, h) => s + h.slipCents, 0),
+    checkCents: handovers.reduce((s, h) => s + h.checkCents, 0),
+    eWalletCents: handovers.reduce((s, h) => s + h.eWalletCents, 0),
+    handoverCount: handovers.length,
+    handovers,
   }
 }
 

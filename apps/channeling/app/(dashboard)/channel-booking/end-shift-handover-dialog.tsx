@@ -196,6 +196,15 @@ export function EndShiftHandoverDialog({
     checkCents: number
     eWalletCents: number
     handoverCount: number
+    handovers: {
+      id: string
+      handoverNoString: string | null
+      fromLabel: string
+      cardCents: number
+      slipCents: number
+      checkCents: number
+      eWalletCents: number
+    }[]
   } | null>(null)
   const [balanceLoading, setBalanceLoading] = useState(false)
   const [handoverUsers, setHandoverUsers] = useState<
@@ -852,17 +861,38 @@ export function EndShiftHandoverDialog({
               <Alert className="mb-4 border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/40">
                 <CircleAlert className="h-4 w-4 text-amber-600 dark:text-amber-400" />
                 <AlertTitle className="text-amber-800 dark:text-amber-200">Held for reconciliation</AlertTitle>
-                <AlertDescription>
-                  {heldInReconciliation.handoverCount} handover(s) are in reconciliation and will stay with you.
-                  Their non-cash amounts are not pre-filled and will not transfer to the next bulk cashier
-                  {heldInReconciliation.cardCents +
-                    heldInReconciliation.slipCents +
-                    heldInReconciliation.checkCents +
-                    heldInReconciliation.eWalletCents >
-                  0
-                    ? ` (held: card ${formatCents(heldInReconciliation.cardCents)}, slips ${formatCents(heldInReconciliation.slipCents)}, cheques ${formatCents(heldInReconciliation.checkCents)}, e-wallet ${formatCents(heldInReconciliation.eWalletCents)})`
-                    : ""}
-                  .
+                <AlertDescription className="space-y-1">
+                  <p>
+                    {heldInReconciliation.handoverCount === 1
+                      ? "1 handover is in reconciliation and will stay with you."
+                      : `${heldInReconciliation.handoverCount} handovers are in reconciliation and will stay with you.`}{" "}
+                    Their non-cash amounts are not pre-filled and will not transfer to the next bulk cashier.
+                  </p>
+                  <ul className="mt-1 space-y-1">
+                    {heldInReconciliation.handovers.map((h) => {
+                      const amounts = [
+                        h.cardCents > 0 ? `card ${formatCents(h.cardCents)}` : null,
+                        h.slipCents > 0 ? `slips ${formatCents(h.slipCents)}` : null,
+                        h.checkCents > 0 ? `cheques ${formatCents(h.checkCents)}` : null,
+                        h.eWalletCents > 0 ? `e-wallet ${formatCents(h.eWalletCents)}` : null,
+                      ].filter(Boolean)
+                      return (
+                        <li key={h.id} className="text-sm">
+                          <Link
+                            href={`/handovers/${h.id}`}
+                            className="font-medium text-foreground underline hover:no-underline"
+                            onClick={() => onOpenChange(false)}
+                          >
+                            {h.handoverNoString?.trim() || "Handover"}
+                          </Link>
+                          <span className="text-foreground"> · From {h.fromLabel}</span>
+                          {amounts.length > 0 && (
+                            <span className="block tabular-nums text-muted-foreground">{amounts.join(", ")}</span>
+                          )}
+                        </li>
+                      )
+                    })}
+                  </ul>
                 </AlertDescription>
               </Alert>
             )}
