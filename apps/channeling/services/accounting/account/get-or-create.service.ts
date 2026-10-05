@@ -20,11 +20,16 @@
  * - Agency PAYABLE: type=PAYABLE, agencyId (prepaid balance / liability to agent).
  * - Credit customer RECEIVABLE: type=RECEIVABLE, creditCustomerId.
  * - Branch INCOME / EXPENSE: type=INCOME|EXPENSE, optional locationId (profit and loss; no parent cash book).
+ *   Expense adjustment accounts (code EA-) are excluded from the branch EXPENSE lookup so a location can have both.
  */
 
 import prisma from '@/lib/prisma';
 import type { Account, CreateAccountInput } from '@/types/accounting';
 import { AccountType } from '@prisma/client';
+import {
+  EXPENSE_ADJUSTMENT_CODE_PREFIX,
+  EXPENSE_ADJUSTMENT_NAME_PREFIX,
+} from './expense-adjustment-account.constants';
 import { getAccountCreateNameAndCode } from './get-account-create-name-code.service';
 import { getMainCashBookAccount } from './read.service';
 import { createAccount } from './write.service';
@@ -117,6 +122,26 @@ export async function getOrCreateAccount(
   if (creditCustomerId != null) where.creditCustomerId = creditCustomerId;
   if (userId != null) where.userId = userId;
 
+  // Branch expense lookup must ignore the per-location expense adjustment account (also type EXPENSE).
+  const excludeExpenseAdjustment =
+    type === 'EXPENSE' &&
+    locationId != null &&
+    doctorIdStr == null &&
+    agencyId == null &&
+    creditCustomerId == null &&
+    userId == null;
+  const accountWhere = excludeExpenseAdjustment
+    ? {
+        ...where,
+        NOT: {
+          OR: [
+            { code: { startsWith: EXPENSE_ADJUSTMENT_CODE_PREFIX } },
+            { name: { startsWith: EXPENSE_ADJUSTMENT_NAME_PREFIX } },
+          ],
+        },
+      }
+    : where;
+
   const include = {
     location: { select: { id: true, name: true } },
     doctor: { select: { id: true, name: true, code: true } },
@@ -125,7 +150,7 @@ export async function getOrCreateAccount(
   };
 
   const rows = await prisma.account.findMany({
-    where,
+    where: accountWhere,
     take: 2,
     include,
   });
@@ -160,7 +185,7 @@ export async function getOrCreateAccount(
 
   // If only inactive account exists for same identity, reuse by re-activating.
   const inactiveRows = await prisma.account.findMany({
-    where: { ...where, isActive: false },
+    where: { ...accountWhere, isActive: false },
     take: 2,
     include,
   });

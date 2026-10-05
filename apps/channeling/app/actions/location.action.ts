@@ -23,7 +23,7 @@ import {
 import { revalidatePath } from 'next/cache';
 import { requirePermission } from '@/lib/server-permissions';
 import { logActivityNonBlocking } from '@/lib/activity-log';
-import { getOrCreateAccount } from '@/services/accounting/account.service';
+import { getOrCreateAccount, getOrCreateExpenseAdjustmentAccount } from '@/services/accounting/account.service';
 import prisma from '@/lib/prisma';
 
 type CreateLocationPayload = LocationFormValues & {
@@ -112,6 +112,7 @@ export async function createLocationAccount(locationId: string) {
         name: `Branch Expense - ${location.name}`,
         code: location.code ? `BE-${location.code}` : null,
       }),
+      getOrCreateExpenseAdjustmentAccount(location.id),
     ]);
 
     const failed = accountResults.filter((r) => !r.success) as { success: false; error: string }[];
@@ -119,13 +120,18 @@ export async function createLocationAccount(locationId: string) {
       return { success: false, message: failed.map((f) => f.error).join('; ') };
     }
 
-    const [cash, income, expense] = accountResults as Array<{ success: true; account: { id: string } }>;
+    const [cash, income, expense, expenseAdjustment] = accountResults as Array<{ success: true; account: { id: string } }>;
     revalidatePath('/locations');
     revalidatePath(`/locations/${locationId}/edit`);
     return {
       success: true,
-      message: 'Location GL accounts are ready (cash, income, expense).',
-      accountIds: { cash: cash.account.id, income: income.account.id, expense: expense.account.id },
+      message: 'Location GL accounts are ready (cash, income, expense, expense adjustment).',
+      accountIds: {
+        cash: cash.account.id,
+        income: income.account.id,
+        expense: expense.account.id,
+        expenseAdjustment: expenseAdjustment.account.id,
+      },
     };
   } catch (e: unknown) {
     return {

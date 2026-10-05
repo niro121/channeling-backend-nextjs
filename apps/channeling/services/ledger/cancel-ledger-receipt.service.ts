@@ -197,6 +197,17 @@ export async function cancelLedgerReceiptService(
   }
   accounts = reqResult.accounts
 
+  if (
+    (reverseMethod === RECEIPT_METHOD.DEBIT_NOTE || reverseMethod === RECEIPT_METHOD.CREDIT_NOTE) &&
+    !accounts.expenseAdjustmentAccountId
+  ) {
+    return {
+      success: false,
+      errorCode: "EXPENSE_ADJUSTMENT_ACCOUNT_NOT_FOUND",
+      message: "Expense adjustment account could not be found or created for this branch.",
+    }
+  }
+
   // Canceling an agency deposit reverses via agency withdraw (pays out from till by payment method).
   if (
     original.method === RECEIPT_METHOD.AGENCY_DEPOSIT &&
