@@ -100,6 +100,8 @@ export type ApprovalRequestListItem = BookingApprovalSummary & {
   paymentMethodName: string
   /** Booking.receiptPaymentMethod: Cash, Credit Card, Slip, and so on. */
   paymentTypeName: string
+  /** Requested refund method for cancel/refund (Cash, Credit Card, and so on). */
+  refundMethodName: string
   receiptId: string | null
   receiptNoString: string | null
   slipImageUrl: string | null

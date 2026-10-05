@@ -120,7 +120,7 @@ const reportsData: Omit<ReportListItem, 'category'>[] = [
     rank: 22,
     masterData: 'Agent Wise Appointments - Summary and Detail',
     description:
-      'Agent channel appointments by session date & time with institution, branch, department, and agent filters; summary counts per month or full detail with fee totals.',
+      'Agent and API appointments by receipt/refund date with institution, branch, department, and agent filters; summary counts per month or full detail with fee totals.',
     route: '/reports/agent-wise-appointments'
   },
   {

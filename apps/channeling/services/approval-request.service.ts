@@ -75,6 +75,42 @@ function depositSnapshot(raw: unknown): BankDepositSnapshot {
   return raw as BankDepositSnapshot
 }
 
+function paymentLineSnapshots(raw: unknown): ApprovalPaymentLineSnapshot[] {
+  if (!Array.isArray(raw)) return []
+  return raw.filter(
+    (line): line is ApprovalPaymentLineSnapshot =>
+      !!line &&
+      typeof line === "object" &&
+      typeof (line as ApprovalPaymentLineSnapshot).payment_method === "number"
+  )
+}
+
+/** How the cancel or refund is being paid back (Cash, Credit Card, mixed lines, and so on). */
+function requestedRefundMethodName(
+  type: string,
+  refundTo: number | null,
+  paymentLines: unknown
+): string {
+  if (
+    type !== APPROVAL_REQUEST_TYPE.CHANNEL_CANCEL &&
+    type !== APPROVAL_REQUEST_TYPE.CHANNEL_REFUND
+  ) {
+    return "—"
+  }
+
+  const lineLabels = [
+    ...new Set(
+      paymentLineSnapshots(paymentLines)
+        .map((line) => PAYMENT_METHOD_NAMES[line.payment_method])
+        .filter((label): label is string => Boolean(label))
+    ),
+  ]
+  if (lineLabels.length > 0) return lineLabels.join(", ")
+
+  if (refundTo == null) return "—"
+  return PAYMENT_METHOD_NAMES[refundTo] ?? "—"
+}
+
 function formatRs(amount: number): string {
   return `Rs. ${Number(amount || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
@@ -988,6 +1024,7 @@ export async function listApprovalRequests(
       isDeposit || receiptPaymentMethod == null
         ? "—"
         : PAYMENT_METHOD_NAMES[receiptPaymentMethod] ?? "—"
+    const refundMethodName = requestedRefundMethodName(row.type, row.refundTo, row.paymentLines)
     const bankLabel =
       row.bankAccount?.name ||
       snap.bank_name ||
@@ -1010,6 +1047,7 @@ export async function listApprovalRequests(
       detailTitle: isDeposit ? bankLabel : patientName,
       paymentMethodName,
       paymentTypeName,
+      refundMethodName,
       detailSub: isDeposit
         ? bankSub
         : `Appt ${String(row.booking?.appointmentNo ?? 0).padStart(2, "0")} · ${row.booking?.receiptNoString ?? row.booking?.bookingid_string ?? row.booking?.id ?? "—"}`,
