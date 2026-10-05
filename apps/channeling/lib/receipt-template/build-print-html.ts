@@ -425,7 +425,7 @@ const LEDGER_RECEIPT_PAGE_STYLES = `
   .hospital-name,
   .print-title {
     text-align: center;
-    font-size: 18px;
+    font-size: 14px;
     font-weight: 700;
     margin: 0;
     line-height: 1.25;
@@ -462,13 +462,13 @@ const LEDGER_RECEIPT_PAGE_STYLES = `
     letter-spacing: 0.04em;
   }
   .bill-title {
-    font-size: 17px;
+    font-size: 13px;
     letter-spacing: 0.06em;
     text-transform: uppercase;
   }
   .status-banner {
     text-align: center;
-    font-size: 17px;
+    font-size: 13px;
     font-weight: 700;
     margin: 2px 0 8px;
     letter-spacing: 0.06em;
@@ -550,9 +550,9 @@ const LEDGER_RECEIPT_PAGE_STYLES = `
       line-height: 1.3;
       padding: 2mm 4mm;
     }
-    .hospital-name, .print-title { font-size: 20px; }
+    .hospital-name, .print-title { font-size: 14px; }
     .hospital-name + .hospital-name, .hospital-address { font-size: 11px; }
-    .bill-title, .status-banner { font-size: 18px; }
+    .bill-title, .status-banner { font-size: 13px; }
     .print-status { font-size: 14px; }
     .info-grid td, .lines th, .lines td, .remarks, .generated { font-size: 12px; }
     .contact { font-size: 10px; white-space: nowrap; }
