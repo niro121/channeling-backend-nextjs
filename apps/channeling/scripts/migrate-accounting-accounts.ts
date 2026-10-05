@@ -13,6 +13,11 @@
 import 'dotenv/config';
 import { PrismaClient } from '@prisma/client';
 import { getOrCreateAccount } from '@/services/accounting/account/get-or-create.service';
+import { getOrCreateExpenseAdjustmentAccount } from '@/services/accounting/account/expense-adjustment-account.service';
+import {
+  expenseAdjustmentAccountCode,
+  isExpenseAdjustmentAccount,
+} from '@/services/accounting/account/expense-adjustment-account.constants';
 import { getMainCashBookAccount } from '@/services/accounting/account/read.service';
 import { createAccount } from '@/services/accounting/account/write.service';
 import { getOrCreateWhtPayableAccount } from '@/services/accounting/account/wht-payable-account.service';
@@ -45,7 +50,7 @@ function emptyStats(): EnsureStats {
 
 function printHelp(): void {
   console.log(`
-Create missing GL accounts for locations (cash/income/expense), doctors, agencies, credit customers,
+Create missing GL accounts for locations (cash/income/expense/expense adjustment), doctors, agencies, credit customers,
 Main Cash Book, WHT Payable, and Agent Opening Balances.
 
 Does not delete existing accounts or journals.
@@ -109,8 +114,35 @@ async function lookupExisting(params: Parameters<typeof getOrCreateAccount>[0]):
   if (params.agencyId) where.agencyId = params.agencyId;
   if (params.creditCustomerId) where.creditCustomerId = params.creditCustomerId;
   if (params.userId) where.userId = params.userId;
+  if (params.type === 'EXPENSE' && params.locationId && !params.doctorId && !params.agencyId && !params.creditCustomerId && !params.userId) {
+    const rows = await prisma.account.findMany({
+      where,
+      select: { id: true, code: true, name: true },
+    });
+    return rows.some((row) => !isExpenseAdjustmentAccount(row));
+  }
   const row = await prisma.account.findFirst({ where, select: { id: true } });
   return Boolean(row);
+}
+
+async function ensureExpenseAdjustment(
+  loc: { id: string; name: string; code: string },
+  stats: EnsureStats,
+  failures: string[]
+): Promise<void> {
+  const code = expenseAdjustmentAccountCode(loc.code);
+  const before = await prisma.account.findFirst({
+    where: { code, type: 'EXPENSE', locationId: loc.id, isActive: true },
+    select: { id: true },
+  });
+  const result = await getOrCreateExpenseAdjustmentAccount(loc.id);
+  if (!result.success) {
+    stats.failed++;
+    failures.push(`Expense adjustment ${loc.code ?? loc.name}: ${result.error}`);
+    return;
+  }
+  if (before) stats.existing++;
+  else stats.created++;
 }
 
 async function main(): Promise<void> {
@@ -139,9 +171,10 @@ async function main(): Promise<void> {
     await ensureOne({ type: 'CASH', locationId: loc.id }, locationStats, failures, `Cash ${loc.code ?? loc.name}`);
     await ensureOne({ type: 'INCOME', locationId: loc.id }, locationStats, failures, `Income ${loc.code ?? loc.name}`);
     await ensureOne({ type: 'EXPENSE', locationId: loc.id }, locationStats, failures, `Expense ${loc.code ?? loc.name}`);
+    await ensureExpenseAdjustment(loc, locationStats, failures);
   }
   console.log(
-    `  Locations (${fmtN(locations.length)})  cash/income/expense  ${fmtN(locationStats.created)} created  ${fmtN(locationStats.existing)} existing` +
+    `  Locations (${fmtN(locations.length)})  cash/income/expense/expense adjustment  ${fmtN(locationStats.created)} created  ${fmtN(locationStats.existing)} existing` +
       (locationStats.failed ? `  ${ANSI.red}${fmtN(locationStats.failed)} failed${ANSI.reset}` : '')
   );
 

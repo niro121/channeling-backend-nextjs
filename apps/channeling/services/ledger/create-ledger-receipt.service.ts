@@ -413,6 +413,17 @@ export async function createLedgerReceipt(
   }
   accounts = reqResult.accounts
 
+  if (
+    (input.transactionType === "AGENCY_DEBIT_NOTE" || input.transactionType === "AGENCY_CREDIT_NOTE") &&
+    !accounts.expenseAdjustmentAccountId
+  ) {
+    return {
+      success: false,
+      errorCode: "EXPENSE_ADJUSTMENT_ACCOUNT_NOT_FOUND",
+      message: "Expense adjustment account could not be found or created for this branch.",
+    }
+  }
+
   // Transactions that pay out from the till: till must have sufficient balance for this payment method
   const amountCents = Math.round(input.amount * 100)
   const paysOutFromTill =

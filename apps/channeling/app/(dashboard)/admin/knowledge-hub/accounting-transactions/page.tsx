@@ -63,13 +63,13 @@ const SCENARIOS: Scenario[] = [
     when: "Ledger receipt method = DEBIT_NOTE",
     example: "Charge LKR 1,000 to agency payable balance.",
     debit: ["Agent PAYABLE"],
-    credit: ["Branch CASH book"],
+    credit: ["Expense Adjustment"],
   },
   {
     title: "Agency Credit Note",
     when: "Ledger receipt method = CREDIT_NOTE",
     example: "Reverse prior agency charge by LKR 1,000.",
-    debit: ["Branch CASH book"],
+    debit: ["Expense Adjustment"],
     credit: ["Agent PAYABLE"],
   },
   {
@@ -123,6 +123,7 @@ const ACCOUNT_NAME_PATTERNS = [
   "Doctor PAYABLE",
   "Branch EXPENSE",
   "Branch CASH book",
+  "Expense Adjustment",
   "Agent Opening Balances (control RECEIVABLE)",
 ] as const;
 

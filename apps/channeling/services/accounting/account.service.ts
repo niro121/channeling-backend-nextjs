@@ -26,6 +26,15 @@ export {
 export { getOrCreateWhtPayableAccount } from './account/wht-payable-account.service';
 export { WHT_PAYABLE_ACCOUNT_CODE, WHT_PAYABLE_NAME } from './account/wht-payable-account.constants';
 
+export { getOrCreateExpenseAdjustmentAccount } from './account/expense-adjustment-account.service';
+export {
+  EXPENSE_ADJUSTMENT_CODE_PREFIX,
+  EXPENSE_ADJUSTMENT_NAME_PREFIX,
+  expenseAdjustmentAccountCode,
+  expenseAdjustmentAccountName,
+  isExpenseAdjustmentAccount,
+} from './account/expense-adjustment-account.constants';
+
 export { getOrCreateAgentOpeningBalancesAccount } from './account/agent-opening-balances-account.service';
 export {
   AGENT_OPENING_BALANCES_ACCOUNT_CODE,
