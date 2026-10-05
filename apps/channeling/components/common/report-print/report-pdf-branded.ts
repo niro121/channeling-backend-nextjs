@@ -41,6 +41,11 @@ export type DownloadBrandedReportPdfOptions<T> = {
   compactTable?: boolean
   /** Page margin in mm (left/right/top). Default 10. Use ~5 for fuller page width. */
   pageMarginMm?: number
+  /**
+   * Column widths as percentages of the table (same order as `columns`).
+   * When omitted, jsPDF sizes columns from the content.
+   */
+  columnWidthPercents?: number[]
 }
 
 function pageSize(doc: jsPDF): { width: number; height: number } {
@@ -258,6 +263,18 @@ export async function drawBrandedPdfHeader(
   return summaryTop + boxH + 4
 }
 
+function columnStylesFromPercents(
+  percents: number[] | undefined,
+  tableWidth: number
+): Record<number, { cellWidth: number }> | undefined {
+  if (!percents?.length) return undefined
+  const widths = percents.map((pct) => (tableWidth * pct) / 100)
+  const drift = tableWidth - widths.reduce((sum, width) => sum + width, 0)
+  const last = widths.length - 1
+  widths[last] = (widths[last] ?? 0) + drift
+  return Object.fromEntries(widths.map((cellWidth, index) => [index, { cellWidth }]))
+}
+
 function drawBrandedPdfFooter(doc: jsPDF, generatedAt: string, margin: number) {
   const { width: pageWidth, height: pageHeight } = pageSize(doc)
   const pageCount = doc.getNumberOfPages()
@@ -290,6 +307,7 @@ export async function downloadBrandedReportPdf<T>({
   orientation = "landscape",
   compactTable = false,
   pageMarginMm = 10,
+  columnWidthPercents,
 }: DownloadBrandedReportPdfOptions<T>): Promise<void> {
   const margin = pageMarginMm
   const doc = new jsPDF({
@@ -301,6 +319,7 @@ export async function downloadBrandedReportPdf<T>({
   const bodyFontSize = compactTable ? 5.5 : 8
   const headFontSize = compactTable ? 5 : 7.5
   const cellPadding = compactTable ? 0.7 : 1.6
+  const columnStyles = columnStylesFromPercents(columnWidthPercents, tableWidth)
 
   let startY = await drawBrandedPdfHeader(doc, {
     reportName,
@@ -395,6 +414,7 @@ export async function downloadBrandedReportPdf<T>({
       bodyStyles: {
         fontStyle: "normal",
       },
+      ...(columnStyles ? { columnStyles } : {}),
       didParseCell: markTotalRows,
     })
 

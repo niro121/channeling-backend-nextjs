@@ -2,20 +2,72 @@
 
 /**
  * Print styles for Userwise Cashier Summary / Detail.
- * A4 landscape — same layout as screen. Clear physical-print footers.
+ * Summary prints A4 portrait; Detail stays A4 landscape.
+ * Header is the shared ReportPrintLayout — stretch it, do not restyle it.
  */
 export function CashierSummaryPrintLayout({
   generatedAt,
+  pageSize = 'A4 landscape',
 }: {
   generatedAt?: string;
+  pageSize?: 'A4 landscape' | 'A4 portrait';
 }) {
   const footerGenerated = (generatedAt || '').replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+  const portraitFit =
+    pageSize === 'A4 portrait'
+      ? `
+          /*
+            Summary only: keep the same columns, but fit them on A4 portrait.
+            Detail print does not include these rules.
+          */
+          .cashier-summary-report-root.ucs-print-portrait .ucs-screen-summary table:not(:has(.ucs-tx-shift)) th:first-child,
+          .cashier-summary-report-root.ucs-print-portrait .ucs-screen-summary table:not(:has(.ucs-tx-shift)) td:first-child {
+            width: 16% !important;
+            min-width: 0 !important;
+          }
+          .cashier-summary-report-root.ucs-print-portrait .ucs-screen-summary table:not(:has(.ucs-tx-shift)) .ucs-amt {
+            width: 12% !important;
+            min-width: 0 !important;
+          }
+          .cashier-summary-report-root.ucs-print-portrait .ucs-screen-summary table:has(.ucs-tx-shift) th:first-child,
+          .cashier-summary-report-root.ucs-print-portrait .ucs-screen-summary table:has(.ucs-tx-shift) td:first-child {
+            width: 4% !important;
+            min-width: 0 !important;
+          }
+          .cashier-summary-report-root.ucs-print-portrait .ucs-screen-summary table:has(.ucs-tx-shift) .ucs-tx-shift {
+            width: 13% !important;
+            min-width: 0 !important;
+            max-width: none !important;
+          }
+          .cashier-summary-report-root.ucs-print-portrait .ucs-screen-summary table:has(.ucs-tx-shift) .ucs-session {
+            width: 9% !important;
+            min-width: 0 !important;
+            max-width: none !important;
+          }
+          .cashier-summary-report-root.ucs-print-portrait .ucs-screen-summary table:has(.ucs-tx-shift) .ucs-receipt-bill {
+            width: 10% !important;
+            min-width: 0 !important;
+            max-width: none !important;
+          }
+          .cashier-summary-report-root.ucs-print-portrait .ucs-screen-summary table:has(.ucs-tx-shift) .ucs-patient,
+          .cashier-summary-report-root.ucs-print-portrait .ucs-screen-summary table:has(.ucs-tx-shift) .ucs-consultant {
+            width: 8% !important;
+            min-width: 0 !important;
+            max-width: none !important;
+          }
+          .cashier-summary-report-root.ucs-print-portrait .ucs-screen-summary table:has(.ucs-tx-shift) .ucs-amt {
+            width: 6.85% !important;
+            min-width: 0 !important;
+            font-size: 6pt !important;
+          }
+      `
+      : '';
   return (
     <div className="ucs-print-root">
       <style>{`
         @media print {
           @page {
-            size: A4 landscape;
+            size: ${pageSize};
             /* Tight sides so the table fills the page; extra bottom for the footer */
             margin: 7mm 5mm 18mm;
             @top-left { content: ""; }
@@ -304,6 +356,7 @@ export function CashierSummaryPrintLayout({
             page-break-inside: avoid !important;
             table-layout: fixed !important;
           }
+          ${portraitFit}
         }
       `}</style>
     </div>

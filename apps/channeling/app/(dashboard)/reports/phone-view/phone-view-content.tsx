@@ -12,7 +12,7 @@ import {
 import { useToast } from '@/components/hooks/use-toast';
 import moment from 'moment';
 import { ExportWrapper } from '../../export-wrapper';
-import { ReportPrintLayout, toBrandedPdfSummaryItems } from '@/components/common/report-print';
+import { ReportPrintLayout, toBrandedPdfSummaryItems, downloadBrandedReportPdf } from '@/components/common/report-print';
 import type { ReportPrintSummaryItem } from '@/components/common/report-print';
 import Loading from '@/app/(dashboard)/loading';
 
@@ -131,8 +131,93 @@ export default function PhoneViewReportContent({
     );
   }
 
+  const printSummaryItems = [
+    { label: 'Branch', value: sessionData.location?.name || 'Ruhunu Hospital (Pvt) Ltd' },
+    {
+      label: 'Consultant',
+      value: sessionData.doctor
+        ? `${sessionData.doctor.title} ${sessionData.doctor.name}`.trim()
+        : '-',
+    },
+    { label: 'Date', value: formatDate(sessionData.date) },
+    {
+      label: 'Session',
+      value: formatSessionName(sessionData.date, sessionData.startTime),
+      fullWidth: true,
+    },
+  ] satisfies ReportPrintSummaryItem[];
+
   return (
-    <div className="container mx-auto py-6 space-y-6 print:py-2">
+    <div className="phone-view-print-root container mx-auto py-6 space-y-6 print:py-0">
+      <style>{`
+        @media print {
+          .phone-view-print-root,
+          .phone-view-print-root.container {
+            width: 100% !important;
+            max-width: none !important;
+            margin: 0 !important;
+            padding: 0 !important;
+          }
+          .phone-view-print-root > .print\\:shadow-none,
+          .phone-view-print-root [class*="p-6"] {
+            width: 100% !important;
+            max-width: none !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            border: none !important;
+            box-shadow: none !important;
+            background: #fff !important;
+          }
+          .phone-view-print-root .rpt-print-root,
+          .phone-view-print-root .rpt-print-header,
+          .phone-view-print-root .rpt-print-summary,
+          .phone-view-print-root .rpt-print-body {
+            width: 100% !important;
+            max-width: none !important;
+            margin-left: 0 !important;
+            margin-right: 0 !important;
+            box-sizing: border-box !important;
+          }
+          .phone-view-print-root .overflow-x-auto,
+          .phone-view-print-root .rounded-md {
+            overflow: visible !important;
+            width: 100% !important;
+            max-width: none !important;
+            border-radius: 0 !important;
+            box-shadow: none !important;
+          }
+          .phone-view-print-root .rpt-print-root table.pv-print-table {
+            width: 100% !important;
+            max-width: 100% !important;
+            table-layout: fixed !important;
+            border-collapse: collapse !important;
+          }
+          .phone-view-print-root .rpt-print-root table.pv-print-table thead {
+            display: table-header-group !important;
+          }
+          .phone-view-print-root .rpt-print-root table.pv-print-table th,
+          .phone-view-print-root .rpt-print-root table.pv-print-table td {
+            overflow: hidden !important;
+            word-break: break-word !important;
+            overflow-wrap: anywhere !important;
+            box-sizing: border-box !important;
+          }
+          .phone-view-print-root .rpt-print-root table.pv-print-table th:nth-child(1),
+          .phone-view-print-root .rpt-print-root table.pv-print-table td:nth-child(1) { width: 9% !important; }
+          .phone-view-print-root .rpt-print-root table.pv-print-table th:nth-child(2),
+          .phone-view-print-root .rpt-print-root table.pv-print-table td:nth-child(2) { width: 16% !important; }
+          .phone-view-print-root .rpt-print-root table.pv-print-table th:nth-child(3),
+          .phone-view-print-root .rpt-print-root table.pv-print-table td:nth-child(3) { width: 26% !important; }
+          .phone-view-print-root .rpt-print-root table.pv-print-table th:nth-child(4),
+          .phone-view-print-root .rpt-print-root table.pv-print-table td:nth-child(4) { width: 16% !important; }
+          .phone-view-print-root .rpt-print-root table.pv-print-table th:nth-child(5),
+          .phone-view-print-root .rpt-print-root table.pv-print-table td:nth-child(5) { width: 15% !important; }
+          .phone-view-print-root .rpt-print-root table.pv-print-table th:nth-child(6),
+          .phone-view-print-root .rpt-print-root table.pv-print-table td:nth-child(6) { width: 8% !important; }
+          .phone-view-print-root .rpt-print-root table.pv-print-table th:nth-child(7),
+          .phone-view-print-root .rpt-print-root table.pv-print-table td:nth-child(7) { width: 10% !important; }
+        }
+      `}</style>
       <Card className="print:shadow-none print:border-none">
         <CardHeader className="print:hidden">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -141,7 +226,7 @@ export default function PhoneViewReportContent({
             </div>
           </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="print:p-0">
           {/* Header Information (screen only — print uses ReportPrintLayout summary) */}
           <div className="mb-6 space-y-2 text-center print:hidden">
             <div className="font-bold text-lg">
@@ -193,52 +278,38 @@ export default function PhoneViewReportContent({
               ]}
               title="Phone View Report"
               fileName={`phone-view-report-${formatDate(sessionData.date)}`}
+              exportOrientation="portrait"
               onBrowserPrint={handlePrint}
               showPrintButton
-              pdfSummaryItems={toBrandedPdfSummaryItems([
-                { label: 'Branch', value: sessionData.location?.name || 'Ruhunu Hospital (Pvt) Ltd' },
-                {
-                  label: 'Consultant',
-                  value: sessionData.doctor
-                    ? `${sessionData.doctor.title} ${sessionData.doctor.name}`.trim()
-                    : '-',
-                },
-                { label: 'Date', value: formatDate(sessionData.date) },
-                {
-                  label: 'Session',
-                  value: formatSessionName(sessionData.date, sessionData.startTime),
-                  fullWidth: true,
-                },
-              ])}
+              pdfSummaryItems={toBrandedPdfSummaryItems(printSummaryItems)}
+              customDownloadPdf={async (args) => {
+                await downloadBrandedReportPdf({
+                  reportName: args.title,
+                  summaryItems: toBrandedPdfSummaryItems(printSummaryItems),
+                  generatedAt: new Date().toLocaleString(),
+                  data: args.data,
+                  columns: args.columns,
+                  keys: args.keys,
+                  fileName: args.fileName,
+                  orientation: 'portrait',
+                  compactTable: true,
+                  pageMarginMm: 5,
+                });
+              }}
             />
           </div>
 
           {/* Patient List Table */}
           <ReportPrintLayout
             reportName="Phone View Report"
-            pageSize="A4 landscape"
+            pageSize="A4 portrait"
+            pageMargins="7mm 5mm 18mm"
             generatedAt={new Date().toLocaleString()}
-            summaryItems={
-              [
-                { label: 'Branch', value: sessionData.location?.name || 'Ruhunu Hospital (Pvt) Ltd' },
-                {
-                  label: 'Consultant',
-                  value: sessionData.doctor
-                    ? `${sessionData.doctor.title} ${sessionData.doctor.name}`.trim()
-                    : '-',
-                },
-                { label: 'Date', value: formatDate(sessionData.date) },
-                {
-                  label: 'Session',
-                  value: formatSessionName(sessionData.date, sessionData.startTime),
-                  fullWidth: true,
-                },
-              ] satisfies ReportPrintSummaryItem[]
-            }
+            summaryItems={printSummaryItems}
           >
           <div className="mt-6 print:mt-0">
             <div className="rounded-md border overflow-x-auto">
-              <table className="w-full border-collapse">
+              <table className="pv-print-table w-full border-collapse">
                 <thead>
                   <tr className="bg-muted">
                     <th className="border p-2 text-left font-semibold">App No.</th>
