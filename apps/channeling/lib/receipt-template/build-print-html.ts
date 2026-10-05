@@ -189,7 +189,7 @@ const BOOKING_RECEIPT_PAGE_STYLES = `
     padding-bottom: 4mm;
   }
   .hospital-name {
-    font-size: 17pt;
+    font-size: 16pt;
     font-weight: 700;
     margin: 0;
     line-height: 1.25;

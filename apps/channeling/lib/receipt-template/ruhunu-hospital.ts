@@ -20,7 +20,7 @@ export function formatLocationAddress(location: {
   city?: string | null
 }): string {
   return [location.addressLine1, location.addressLine2, location.city]
-    .map((part) => part?.trim())
+    .map((part) => part?.trim().replace(/^,+|,+$/g, "").trim())
     .filter((part): part is string => Boolean(part))
     .join(", ")
 }
