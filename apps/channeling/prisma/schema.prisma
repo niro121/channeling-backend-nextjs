@@ -646,6 +646,15 @@ model ShiftHandover {
   creditCents            Int            @default(0)
   eWalletCents           Int            @default(0)
   totalCents             Int            @default(0)
+  /// Missing money moved off the till onto the branch short receivable when the handover is approved.
+  shortCashCents         Int            @default(0)
+  shortCardCents         Int            @default(0)
+  shortSlipCents         Int            @default(0)
+  shortCheckCents        Int            @default(0)
+  shortCreditCents       Int            @default(0)
+  shortEWalletCents      Int            @default(0)
+  /// Cash brought in on this handover to pay down the existing branch short. Not part of the till.
+  settlementCents        Int            @default(0)
   discrepancyReason      String?        // Reason for discrepancy (required when there is a short or over > 100 cents)
   enteredBreakdown       Json?          // Cashier-entered denominations and references: { cashDenominations, cardEntries, slipEntries, ... }
   includedHandoverIds    Json?          // Array of handover ids ["id1","id2"] that the sender is passing on (chain)
