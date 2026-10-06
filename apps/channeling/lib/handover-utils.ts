@@ -136,6 +136,61 @@ export function handoverAmountsTotalCents(amounts: HandoverMethodAmounts): numbe
   return HANDOVER_AMOUNT_METHOD_KEYS.reduce((sum, key) => sum + (amounts[key] ?? 0), 0)
 }
 
+export const EMPTY_HANDOVER_AMOUNTS: HandoverMethodAmounts = {
+  cashCents: 0,
+  cardCents: 0,
+  slipCents: 0,
+  checkCents: 0,
+  creditCents: 0,
+  eWalletCents: 0,
+}
+
+/** How much of each method was not handed over and is still on the till. */
+export function handoverTillGaps(
+  entered: HandoverMethodAmounts,
+  available: HandoverMethodAmounts
+): HandoverMethodAmounts {
+  const gaps = { ...EMPTY_HANDOVER_AMOUNTS }
+  for (const key of HANDOVER_AMOUNT_METHOD_KEYS) {
+    gaps[key] = Math.max(0, (available[key] ?? 0) - (entered[key] ?? 0))
+  }
+  return gaps
+}
+
+/** A marked short cannot be more than the amount left in the till for that method. */
+export function handoverShortsExceedingTillGap(
+  shorts: HandoverMethodAmounts,
+  entered: HandoverMethodAmounts,
+  available: HandoverMethodAmounts
+): HandoverAmountOver[] {
+  const gaps = handoverTillGaps(entered, available)
+  const overs: HandoverAmountOver[] = []
+  for (const key of HANDOVER_AMOUNT_METHOD_KEYS) {
+    const enteredCents = shorts[key] ?? 0
+    const availableCents = gaps[key] ?? 0
+    if (enteredCents > availableCents) {
+      overs.push({
+        key,
+        label: HANDOVER_AMOUNT_METHOD_LABELS[key],
+        enteredCents,
+        availableCents,
+      })
+    }
+  }
+  return overs
+}
+
+export function formatHandoverShortExceedsGapError(overs: HandoverAmountOver[]): string {
+  if (overs.length === 0) return ""
+  const details = overs
+    .map(
+      (m) =>
+        `${m.label}: short ${formatCents(m.enteredCents)}, left in till ${formatCents(m.availableCents)}`
+    )
+    .join("; ")
+  return `A short cannot be more than the amount left in the till. ${details}.`
+}
+
 /** Entered handover total minus expected Total Collection. Positive = excess, negative = short. */
 export function handoverCollectionDiffCents(enteredTotalCents: number, expectedCents: number): number {
   return enteredTotalCents - expectedCents

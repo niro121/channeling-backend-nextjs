@@ -10,7 +10,12 @@ import { logActivityNonBlocking } from "@/lib/activity-log"
 import { getIO, shiftUpdateRoom } from "@/lib/socket-server"
 import { getTillBalanceBreakdown } from "@/services/accounting/balance.service"
 import { getCurrentShift } from "@/services/shift.service"
-import { createJournalEntry, resolveTillForUserAndLocation } from "@/services/accounting.service"
+import {
+  createJournalEntry,
+  ensureCashierShortAccount,
+  getCashierShortBalance,
+  resolveTillForUserAndLocation,
+} from "@/services/accounting.service"
 import {
   getOpenFloatsBlockingShiftEnd,
   getReceivedFloatsForHandover,
@@ -31,6 +36,8 @@ import {
   handoverNonCashHeldCents,
   handoverAmountsTotalCents,
   handoverDiscrepancyReasonRequiredMessage,
+  handoverShortsExceedingTillGap,
+  formatHandoverShortExceedsGapError,
   isHandoverCollectionExcess,
   normalizedIncludedIds,
   sumReceivedHandoverFloats,
@@ -290,7 +297,9 @@ export async function processShiftHandover(
   discrepancyReason?: string,
   enteredBreakdown?: ShiftHandoverEnteredBreakdown,
   includedHandoverIds?: string[],
-  attachmentIds?: string[]
+  attachmentIds?: string[],
+  shortAmounts?: ShiftHandoverAmounts,
+  settlementCents?: number
 ): Promise<
   | { success: true; handoverId: string }
   | { success: false; error: string }
@@ -433,6 +442,39 @@ export async function processShiftHandover(
     }
   }
 
+  const shorts: ShiftHandoverAmounts = {
+    cashCents: Math.max(0, Math.round(shortAmounts?.cashCents ?? 0)),
+    cardCents: Math.max(0, Math.round(shortAmounts?.cardCents ?? 0)),
+    slipCents: Math.max(0, Math.round(shortAmounts?.slipCents ?? 0)),
+    checkCents: Math.max(0, Math.round(shortAmounts?.checkCents ?? 0)),
+    creditCents: Math.max(0, Math.round(shortAmounts?.creditCents ?? 0)),
+    eWalletCents: Math.max(0, Math.round(shortAmounts?.eWalletCents ?? 0)),
+  }
+  const shortGapErrors = handoverShortsExceedingTillGap(shorts, amt, available)
+  if (shortGapErrors.length > 0) {
+    return { success: false, error: formatHandoverShortExceedsGapError(shortGapErrors) }
+  }
+  const settlement = Math.max(0, Math.round(settlementCents ?? 0))
+  const shortTotal = handoverAmountsTotalCents(shorts)
+  if (shortTotal > 0 || settlement > 0) {
+    const senderTill = await prisma.till.findFirst({
+      where: { accountId: breakdown.tillAccountId },
+      select: { locationId: true },
+    })
+    if (!senderTill?.locationId) {
+      return { success: false, error: "Could not determine the branch for this short." }
+    }
+    if (settlement > 0) {
+      const openShort = await getCashierShortBalance(validFrom, senderTill.locationId)
+      if (settlement > openShort.balanceCents) {
+        return {
+          success: false,
+          error: `Settlement ${formatCents(settlement)} is more than the open short of ${formatCents(openShort.balanceCents)}.`,
+        }
+      }
+    }
+  }
+
   const hasShort =
     amt.cashCents < available.cashCents ||
     amt.cardCents < available.cardCents ||
@@ -503,6 +545,13 @@ export async function processShiftHandover(
       creditCents: amt.creditCents,
       eWalletCents: amt.eWalletCents,
       totalCents,
+      shortCashCents: shorts.cashCents,
+      shortCardCents: shorts.cardCents,
+      shortSlipCents: shorts.slipCents,
+      shortCheckCents: shorts.checkCents,
+      shortCreditCents: shorts.creditCents,
+      shortEWalletCents: shorts.eWalletCents,
+      settlementCents: settlement,
       discrepancyReason: parsed.data.discrepancyReason?.trim() || null,
       enteredBreakdown: enteredBreakdown != null ? (enteredBreakdown as object) : undefined,
       includedHandoverIds: dataIncludedHandoverIds,
@@ -763,62 +812,158 @@ export async function approveHandover(
     }
   }
 
-  const totalCents =
-    handover.cashCents +
-    handover.cardCents +
-    handover.slipCents +
-    handover.checkCents +
-    handover.creditCents +
-    handover.eWalletCents
+  const handedOver: ShiftHandoverAmounts = {
+    cashCents: handover.cashCents,
+    cardCents: handover.cardCents,
+    slipCents: handover.slipCents,
+    checkCents: handover.checkCents,
+    creditCents: handover.creditCents,
+    eWalletCents: handover.eWalletCents,
+  }
+  const shorts: ShiftHandoverAmounts = {
+    cashCents: handover.shortCashCents ?? 0,
+    cardCents: handover.shortCardCents ?? 0,
+    slipCents: handover.shortSlipCents ?? 0,
+    checkCents: handover.shortCheckCents ?? 0,
+    creditCents: handover.shortCreditCents ?? 0,
+    eWalletCents: handover.shortEWalletCents ?? 0,
+  }
+  const shortGapErrors = handoverShortsExceedingTillGap(shorts, handedOver, available)
+  if (shortGapErrors.length > 0) {
+    return { success: false, error: formatHandoverShortExceedsGapError(shortGapErrors) }
+  }
+  const shortTotal = handoverAmountsTotalCents(shorts)
+  const settlementCents = Math.max(0, handover.settlementCents ?? 0)
+  const totalCents = handoverAmountsTotalCents(handedOver)
+
+  let shortAccountId: string | null = null
+  let shortLocationId: string | null = null
+  if (shortTotal > 0 || settlementCents > 0) {
+    const senderTill = await prisma.till.findFirst({
+      where: { accountId: breakdown.tillAccountId },
+      select: { locationId: true },
+    })
+    if (!senderTill?.locationId) {
+      return { success: false, error: "Could not determine the branch for this short." }
+    }
+    shortLocationId = senderTill.locationId
+    if (settlementCents > 0) {
+      const openShort = await getCashierShortBalance(handover.fromUserId, shortLocationId)
+      if (settlementCents > openShort.balanceCents) {
+        return {
+          success: false,
+          error: `Settlement ${formatCents(settlementCents)} is more than the open short of ${formatCents(openShort.balanceCents)}.`,
+        }
+      }
+    }
+    const shortAccount = await ensureCashierShortAccount(handover.fromUserId, shortLocationId)
+    if (!shortAccount.success) {
+      return { success: false, error: shortAccount.error }
+    }
+    shortAccountId = shortAccount.account.accountId
+  }
 
   let journalId: string | null = null
-  if (totalCents > 0) {
-    const recipientTillLocationId = approverShift.locationId ?? null
-    if (!recipientTillLocationId) {
-      return { success: false, error: "Your current shift has no location. Start a shift at a location to receive a handover." }
+  if (totalCents > 0 || shortTotal > 0 || settlementCents > 0) {
+    const needsRecipient = totalCents > 0 || settlementCents > 0
+    let toAccountId: string | null = null
+    if (needsRecipient) {
+      const recipientTillLocationId = approverShift.locationId ?? null
+      if (!recipientTillLocationId) {
+        return { success: false, error: "Your current shift has no location. Start a shift at a location to receive a handover." }
+      }
+      const toTill = await resolveTillForUserAndLocation(handover.toUserId, recipientTillLocationId)
+      toAccountId = toTill.accountId
     }
-    const toTill = await resolveTillForUserAndLocation(handover.toUserId, recipientTillLocationId)
-    const toAccountId = toTill.accountId
 
-    const methodAmounts: { method: number; amount: number }[] = [
-      { method: RECEIPT_PAYMENT_METHOD.CASH, amount: handover.cashCents },
-      { method: RECEIPT_PAYMENT_METHOD.CREDIT_CARD, amount: handover.cardCents },
-      { method: RECEIPT_PAYMENT_METHOD.SLIP, amount: handover.slipCents },
-      { method: RECEIPT_PAYMENT_METHOD.CHECK, amount: handover.checkCents },
-      { method: RECEIPT_PAYMENT_METHOD.CREDIT, amount: handover.creditCents },
-      { method: RECEIPT_PAYMENT_METHOD.E_WALLET, amount: handover.eWalletCents },
-    ].filter((m) => m.amount > 0)
+    const methodAmounts: { method: number; amount: number; shortAmount: number }[] = [
+      { method: RECEIPT_PAYMENT_METHOD.CASH, amount: handedOver.cashCents, shortAmount: shorts.cashCents },
+      { method: RECEIPT_PAYMENT_METHOD.CREDIT_CARD, amount: handedOver.cardCents, shortAmount: shorts.cardCents },
+      { method: RECEIPT_PAYMENT_METHOD.SLIP, amount: handedOver.slipCents, shortAmount: shorts.slipCents },
+      { method: RECEIPT_PAYMENT_METHOD.CHECK, amount: handedOver.checkCents, shortAmount: shorts.checkCents },
+      { method: RECEIPT_PAYMENT_METHOD.CREDIT, amount: handedOver.creditCents, shortAmount: shorts.creditCents },
+      { method: RECEIPT_PAYMENT_METHOD.E_WALLET, amount: handedOver.eWalletCents, shortAmount: shorts.eWalletCents },
+    ]
 
     const lines: Array<{
       accountId: string
       debitAmount: number
       creditAmount: number
-      paymentMethod: number
+      paymentMethod?: number
+      memo?: string
     }> = []
     for (const { method, amount } of methodAmounts) {
+      if (amount <= 0 || !toAccountId) continue
       lines.push({
         accountId: breakdown.tillAccountId,
         debitAmount: 0,
         creditAmount: amount,
         paymentMethod: method,
+        memo: "Handover",
       })
       lines.push({
         accountId: toAccountId,
         debitAmount: amount,
         creditAmount: 0,
         paymentMethod: method,
+        memo: "Handover",
+      })
+    }
+    if (shortTotal > 0 && shortAccountId) {
+      lines.push({
+        accountId: shortAccountId,
+        debitAmount: shortTotal,
+        creditAmount: 0,
+        memo: "Short",
+      })
+      for (const { method, shortAmount } of methodAmounts) {
+        if (shortAmount <= 0) continue
+        lines.push({
+          accountId: breakdown.tillAccountId,
+          debitAmount: 0,
+          creditAmount: shortAmount,
+          paymentMethod: method,
+          memo: "Short",
+        })
+      }
+    }
+    if (settlementCents > 0 && shortAccountId && toAccountId) {
+      lines.push({
+        accountId: toAccountId,
+        debitAmount: settlementCents,
+        creditAmount: 0,
+        paymentMethod: RECEIPT_PAYMENT_METHOD.CASH,
+        memo: "Short settlement",
+      })
+      lines.push({
+        accountId: shortAccountId,
+        debitAmount: 0,
+        creditAmount: settlementCents,
+        memo: "Short settlement",
       })
     }
 
     const fromName = handover.fromUser?.name ?? "Cashier"
     const toName = handover.toUser?.name ?? "Bulk cashier"
-    const methodParts = methodAmounts.map(
-      (m) => `${PAYMENT_METHOD_NAMES[m.method] ?? "Method " + m.method}: LKR ${(m.amount / 100).toFixed(2)}`
-    )
-    const totalLKR = (totalCents / 100).toFixed(2)
+    const methodParts = methodAmounts
+      .filter((m) => m.amount > 0)
+      .map((m) => `${PAYMENT_METHOD_NAMES[m.method] ?? "Method " + m.method}: LKR ${(m.amount / 100).toFixed(2)}`)
+    const shortParts = methodAmounts
+      .filter((m) => m.shortAmount > 0)
+      .map((m) => `${PAYMENT_METHOD_NAMES[m.method] ?? "Method " + m.method}: LKR ${(m.shortAmount / 100).toFixed(2)}`)
     const now = new Date()
     const approvedAtStr = now.toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" })
-    let description = `Shift handover received — Journal entry: Cashier "${fromName}" handed over to "${toName}". Amounts by method: ${methodParts.join("; ")}. Total LKR ${totalLKR}. Approved and received by ${toName} on ${approvedAtStr}.`
+    let description = `Shift handover received — Journal entry: Cashier "${fromName}" handed over to "${toName}".`
+    if (methodParts.length > 0) {
+      description += ` Amounts by method: ${methodParts.join("; ")}. Total LKR ${(totalCents / 100).toFixed(2)}.`
+    }
+    if (shortParts.length > 0) {
+      description += ` Short moved to the branch short account: ${shortParts.join("; ")}. Total LKR ${(shortTotal / 100).toFixed(2)}.`
+    }
+    if (settlementCents > 0) {
+      description += ` Cash settlement of previous short: LKR ${(settlementCents / 100).toFixed(2)}.`
+    }
+    description += ` Approved and received by ${toName} on ${approvedAtStr}.`
     if (approvalComments?.trim()) {
       description += ` Comments: ${approvalComments.trim()}`
     }
@@ -827,6 +972,7 @@ export async function approveHandover(
       description,
       referenceType: REFERENCE_TYPES.ShiftHandover,
       referenceId: handoverId,
+      locationId: shortLocationId ?? approverShift.locationId ?? null,
       createdBy: handover.fromUserId,
       lines,
     })
@@ -889,6 +1035,8 @@ export async function approveHandover(
       shiftId: handover.shiftId,
       fromUserId: handover.fromUserId,
       totalCents,
+      shortTotal,
+      settlementCents,
       leftoverEndedShiftIds: leftover.endedShiftIds,
       leftoverCancelledHandoverIds: leftover.cancelledHandoverIds,
     },

@@ -15,7 +15,7 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { SearchableUserSelect } from "@/components/common/user-select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { getMyTillBalance } from "@/app/actions/till.actions"
+import { getMyCashierShortBalance, getMyTillBalance } from "@/app/actions/till.actions"
 import { getBulkCashierUsersAction } from "@/app/actions/float-request.actions"
 import {
   submitShiftHandoverAction,
@@ -61,8 +61,13 @@ import { cn } from "@/lib/utils"
 import type { MyTillBalance } from "@/app/actions/till.actions"
 import {
   formatHandoverOverAmountError,
+  formatHandoverShortExceedsGapError,
   getHandoverAmountOvers,
   handoverAmountsTotalCents,
+  handoverShortsExceedingTillGap,
+  handoverTillGaps,
+  HANDOVER_AMOUNT_METHOD_KEYS,
+  HANDOVER_AMOUNT_METHOD_LABELS,
   handoverDiscrepancyReasonLabel,
   handoverDiscrepancyReasonPlaceholder,
   handoverDiscrepancyReasonRequiredMessage,
@@ -213,6 +218,9 @@ export function EndShiftHandoverDialog({
   const [handoverUsersLoading, setHandoverUsersLoading] = useState(false)
   const [toUserId, setToUserId] = useState("")
   const [discrepancyReason, setDiscrepancyReason] = useState("")
+  const [shortInputs, setShortInputs] = useState<Record<string, string>>({})
+  const [settlementInput, setSettlementInput] = useState("")
+  const [openShortCents, setOpenShortCents] = useState(0)
   const [submitLoading, setSubmitLoading] = useState(false)
   const [validationErrors, setValidationErrors] = useState<string[]>([])
   const [openFloatsBlocking, setOpenFloatsBlocking] = useState<OpenFloatsBlocking>(EMPTY_OPEN_FLOATS)
@@ -286,6 +294,9 @@ export function EndShiftHandoverDialog({
     if (open && step === 1) {
       setToUserId("")
       setDiscrepancyReason("")
+      setShortInputs({})
+      setSettlementInput("")
+      setOpenShortCents(0)
       setValidationErrors([])
       setPreviousHandoversNote([])
       setStep1DataReady(false)
@@ -325,8 +336,10 @@ export function EndShiftHandoverDialog({
         shiftId
           ? getExpectedHandoverCollectionAction(shiftId)
           : Promise.resolve({ success: false as const, error: "Shift is required." }),
+        getMyCashierShortBalance(),
       ])
-        .then(([balanceRes, handoversToMeRes, includableRes, linkedRes, heldRes, pendingCountRes, openFloatsRes, openApprovalsRes, endWithoutRes, expectedCollectionRes]) => {
+        .then(([balanceRes, handoversToMeRes, includableRes, linkedRes, heldRes, pendingCountRes, openFloatsRes, openApprovalsRes, endWithoutRes, expectedCollectionRes, shortBalanceRes]) => {
+          setOpenShortCents(shortBalanceRes.success && shortBalanceRes.data ? shortBalanceRes.data.balanceCents : 0)
           if (balanceRes.success && balanceRes.data) {
             setBalance(balanceRes.data)
             setCashDenoms(CASH_ALL_DENOMS.map((v) => ({ value: v, count: 0 })))
@@ -688,6 +701,16 @@ export function EndShiftHandoverDialog({
     creditCents,
     eWalletCents,
   }
+  const shortAmounts = {
+    cashCents: centsFromLkrString(shortInputs.cashCents ?? ""),
+    cardCents: centsFromLkrString(shortInputs.cardCents ?? ""),
+    slipCents: centsFromLkrString(shortInputs.slipCents ?? ""),
+    checkCents: centsFromLkrString(shortInputs.checkCents ?? ""),
+    creditCents: centsFromLkrString(shortInputs.creditCents ?? ""),
+    eWalletCents: centsFromLkrString(shortInputs.eWalletCents ?? ""),
+  }
+  const settlementCents = centsFromLkrString(settlementInput)
+  const tillGaps = expectedBalance ? handoverTillGaps(enteredAmounts, expectedBalance) : null
   const enteredTotalCents = handoverAmountsTotalCents(enteredAmounts)
   const amountOvers = expectedBalance ? getHandoverAmountOvers(enteredAmounts, expectedBalance) : []
   const hasOver = amountOvers.length > 0
@@ -719,6 +742,15 @@ export function EndShiftHandoverDialog({
     }
     if (hasOver) {
       errors.push(formatHandoverOverAmountError(amountOvers, "submit"))
+    }
+    if (expectedBalance) {
+      const shortGaps = handoverShortsExceedingTillGap(shortAmounts, enteredAmounts, expectedBalance)
+      if (shortGaps.length > 0) errors.push(formatHandoverShortExceedsGapError(shortGaps))
+    }
+    if (settlementCents > openShortCents) {
+      errors.push(
+        `Settlement ${formatCents(settlementCents)} is more than the open short of ${formatCents(openShortCents)}.`
+      )
     }
     if (needsDiscrepancyReason && !discrepancyReason.trim()) {
       errors.push(handoverDiscrepancyReasonRequiredMessage(discrepancyCopy))
@@ -796,6 +828,8 @@ export function EndShiftHandoverDialog({
           creditCents,
           eWalletCents,
         },
+        shortAmounts,
+        settlementCents,
         discrepancyReason: discrepancyReason.trim() || undefined,
         enteredBreakdown,
         includedHandoverIds: idsToInclude,
@@ -832,9 +866,9 @@ export function EndShiftHandoverDialog({
                 ? "Till is empty and there is nothing to hand over. You can end this shift without creating a handover."
                 : "Review your till balance by method. Then proceed to enter amounts and assign the handover.")}
             {step === 2 &&
-              "Entries from handovers not sent to reconciliation are pre-filled. You may hand over less than available (with a reason). You cannot hand over more than the till holds."}
+              "Entries from handovers not sent to reconciliation are pre-filled. You may hand over less than available. On the next step, mark any missing amount as a short. Anything you do not mark stays in the till. You cannot hand over more than the till holds."}
             {step === 3 &&
-              "Review the summary below, check any warnings, select the person receiving the handover, then confirm."}
+              "Review the summary below, mark any missing money as a short, select the person receiving the handover, then confirm."}
           </DialogDescription>
         </DialogHeader>
 
@@ -1411,7 +1445,7 @@ export function EndShiftHandoverDialog({
                       <p className="text-sm text-muted-foreground mb-2">
                         {hasOver
                           ? formatHandoverOverAmountError(amountOvers, "submit")
-                          : "You may hand over less than available. A reason is required. The transfer will use the amounts you entered; any shortfall remains in your till."}
+                          : "You may hand over less than available. Mark the missing amount as a short below. Anything you do not mark stays in your till. A reason is required."}
                       </p>
                       <table className="w-full text-sm border-collapse">
                         <thead>
@@ -1563,6 +1597,55 @@ export function EndShiftHandoverDialog({
                     .join("; ")}
                 </p>
               )}
+
+              {(tillGaps && HANDOVER_AMOUNT_METHOD_KEYS.some((key) => (tillGaps[key] ?? 0) > 0)) || openShortCents > 0 ? (
+                <div className="space-y-3 rounded-md border p-3">
+                  <div className="space-y-1">
+                    <p className="text-sm font-medium">Short account</p>
+                    <p className="text-xs text-muted-foreground">
+                      Mark money that is missing. On approval it leaves the till and is added to your branch short account. Anything you do not mark stays in the till.
+                    </p>
+                  </div>
+                  {tillGaps
+                    ? HANDOVER_AMOUNT_METHOD_KEYS.filter((key) => (tillGaps[key] ?? 0) > 0).map((key) => (
+                        <div key={key} className="grid grid-cols-[1fr_8rem] items-center gap-3">
+                          <Label htmlFor={`short-${key}`} className="text-sm font-normal">
+                            {HANDOVER_AMOUNT_METHOD_LABELS[key]} short
+                            <span className="ml-1 text-xs text-muted-foreground">
+                              (up to {formatCents(tillGaps[key] ?? 0)})
+                            </span>
+                          </Label>
+                          <Input
+                            id={`short-${key}`}
+                            inputMode="decimal"
+                            placeholder="0.00"
+                            value={shortInputs[key] ?? ""}
+                            onChange={(e) =>
+                              setShortInputs((prev) => ({ ...prev, [key]: e.target.value }))
+                            }
+                          />
+                        </div>
+                      ))
+                    : null}
+                  {openShortCents > 0 ? (
+                    <div className="grid grid-cols-[1fr_8rem] items-center gap-3 border-t pt-3">
+                      <Label htmlFor="short-settlement" className="text-sm font-normal">
+                        Settle previous short with cash
+                        <span className="ml-1 text-xs text-muted-foreground">
+                          (open {formatCents(openShortCents)})
+                        </span>
+                      </Label>
+                      <Input
+                        id="short-settlement"
+                        inputMode="decimal"
+                        placeholder="0.00"
+                        value={settlementInput}
+                        onChange={(e) => setSettlementInput(e.target.value)}
+                      />
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
 
               {needsDiscrepancyReason && (
                 <div className="space-y-1">
