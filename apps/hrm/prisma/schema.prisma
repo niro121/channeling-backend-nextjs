@@ -1098,27 +1098,6 @@ model PayrollRunLine {
 /* ---------------------------------
 ORGANIZATION
 --------------------------------- */
-
-model Department {
-  id              String  @id @default(auto()) @map("_id") @db.ObjectId
-  name            String
-  description     String  @default("")
-  institution     Int // 0=RH, 1=RHD, 2=RHT, 3=RPS
-  status          Int     @default(1) // 0 = unpublish, 1 = publish
-  migrateSourceId String? // Channeling Department.id
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  createdBy String?  @db.ObjectId
-  updatedBy String?  @db.ObjectId
-
-  @@unique([name, institution])
-  @@index([migrateSourceId])
-  @@index([status])
-  @@index([institution])
-  @@index([name])
-}
-
 model Location {
   id              String  @id @default(auto()) @map("_id") @db.ObjectId
   name            String
@@ -1145,6 +1124,26 @@ model Location {
   @@index([status])
   @@index([branchType])
   @@index([order])
+  @@index([name])
+}
+
+model Department {
+  id              String  @id @default(auto()) @map("_id") @db.ObjectId
+  name            String
+  description     String  @default("")
+  institution     Int // 0=RH, 1=RHD, 2=RHT, 3=RPS
+  status          Int     @default(1) // 0 = unpublish, 1 = publish
+  migrateSourceId String? // Channeling Department.id
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy String?  @db.ObjectId
+  updatedBy String?  @db.ObjectId
+
+  @@unique([name, institution])
+  @@index([migrateSourceId])
+  @@index([status])
+  @@index([institution])
   @@index([name])
 }
 

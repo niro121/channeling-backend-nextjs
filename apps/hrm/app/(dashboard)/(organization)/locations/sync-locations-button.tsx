@@ -57,7 +57,7 @@ export function SyncLocationsButton() {
         type="button"
         size="sm"
         variant="outline"
-        className="h-8 gap-1.5 px-3"
+        className="h-9 gap-1.5 px-3"
         onClick={() => setShowConfirmation(true)}
         disabled={loading}
       >

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Form, Formik, type FormikHelpers } from 'formik';
 import * as Yup from 'yup';
@@ -14,6 +14,7 @@ import {
   useToast
 } from '@archmage/ui';
 import { cn } from '@/lib/utils';
+import { CustomColorPicker } from '@/components/custom/custom-color-picker';
 import {
   BRANCH_TYPE_OPTIONS,
   LOCATION_STATUS_OPTIONS,
@@ -27,6 +28,9 @@ import {
 } from '@/app/actions/organization-actions/location.actions';
 import { formValuesToLocationPayload } from '@/lib/mappers/location-form.mapper';
 import { useLocationUi } from './location-ui-context';
+import { ChannelingSyncAlertDialog } from '@/components/common/channeling-sync-alert-dialog';
+import { buildChannelingSyncDialog } from '@/components/common/channeling-sync-dialog.helper';
+import { buttonStyles } from '@/lib/utils/common-styles';
 
 const fieldStyleClasses = {
   parentDiv: 'grid grid-cols-1 gap-1.5 items-start',
@@ -54,8 +58,8 @@ const validationSchema = Yup.object({
     .required('Order is required')
     .test('order-int', 'Order must be 0 or greater', (value) => {
       if (value == null || value === '') return false;
-      const num = Number.parseInt(value, 10);
-      return Number.isInteger(num) && num >= 0 && String(num) === value.trim();
+      const num = Number(value);
+      return Number.isInteger(num) && num >= 0;
     }),
   color: Yup.string().test(
     'hex-color',
@@ -92,12 +96,18 @@ export default function SectionLocationDetail() {
     records,
     selectedId,
     setSelectedId,
+    setRecords,
     isNew,
     setIsNew,
     detailFormHighlight
   } = useLocationUi();
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [showChannelingDialog, setShowChannelingDialog] = useState(false);
+  const pendingSubmitRef = useRef<{
+    values: LocationFormValues;
+    helpers: FormikHelpers<LocationFormValues>;
+  } | null>(null);
 
   const selectedRecord = useMemo(
     () => records.find((record) => record.id === selectedId) ?? null,
@@ -128,20 +138,21 @@ export default function SectionLocationDetail() {
   }, [detailFormHighlight, formKey]);
 
   const showEmptyState = !isNew && !selectedRecord;
+  const isCreating = isNew || !selectedRecord;
 
-  const handleSave = async (
+  const executeSave = async (
     values: LocationFormValues,
-    helpers: FormikHelpers<LocationFormValues>
+    helpers: FormikHelpers<LocationFormValues>,
+    syncToChanneling: boolean
   ) => {
     setSaving(true);
     try {
       const payload = formValuesToLocationPayload(values);
-      const result =
-        isNew || !selectedRecord
-          ? await createLocationAction(payload, { syncToChanneling: true })
-          : await updateLocationAction(selectedRecord.id, payload, {
-              syncToChanneling: true
-            });
+      const result = isCreating
+        ? await createLocationAction(payload, { syncToChanneling })
+        : await updateLocationAction(selectedRecord!.id, payload, {
+            syncToChanneling
+          });
 
       if (result.isError || !result.data) {
         const errors = result.errors as Record<string, unknown>;
@@ -160,29 +171,83 @@ export default function SectionLocationDetail() {
           variant: 'destructive',
           title: 'Save failed',
           description:
-            (typeof (errors as any)?.message === 'string' && (errors as any).message) ||
-            (typeof (errors as any)?.name?.[0] === 'string' && (errors as any).name[0]) ||
+            (typeof (errors as any)?.message === 'string' &&
+              (errors as any).message) ||
+            (typeof (errors as any)?.name?.[0] === 'string' &&
+              (errors as any).name[0]) ||
             'Unable to save location.'
         });
         return;
       }
 
-      const warning = (result as { channelingWarning?: string }).channelingWarning;
+      const warning = (result as { channelingWarning?: string })
+        .channelingWarning;
+      setRecords((prev) => {
+        const nextRecord = result.data!;
+        const index = prev.findIndex((record) => record.id === nextRecord.id);
+        if (index >= 0) {
+          const next = [...prev];
+          next[index] = nextRecord;
+          return next;
+        }
+        return [...prev, nextRecord].sort((a, b) => {
+          if (a.order !== b.order) return a.order - b.order;
+          return a.name.localeCompare(b.name);
+        });
+      });
       setIsNew(false);
       setSelectedId(result.data.id);
       toast({
-        title: 'Saved',
+        variant: warning ? 'default' : 'success',
+        title: warning ? 'Saved in HRM' : 'Saved',
         description: warning
           ? warning
-          : isNew || !selectedRecord
-            ? 'Location created.'
-            : 'Location updated.'
+          : isCreating
+            ? syncToChanneling
+              ? 'Location was created in HRM and Channeling.'
+              : 'Location was created in HRM only.'
+            : syncToChanneling
+              ? 'Location was updated in HRM and Channeling.'
+              : 'Location was updated in HRM only.'
       });
       router.refresh();
     } finally {
       setSaving(false);
+      setShowChannelingDialog(false);
+      pendingSubmitRef.current = null;
     }
   };
+
+  const handleSave = async (
+    values: LocationFormValues,
+    helpers: FormikHelpers<LocationFormValues>
+  ) => {
+    pendingSubmitRef.current = { values, helpers };
+    setShowChannelingDialog(true);
+  };
+
+  const handleChannelingCancel = () => {
+    pendingSubmitRef.current = null;
+    setShowChannelingDialog(false);
+  };
+
+  const handleChannelingSaveHrmOnly = async () => {
+    const pending = pendingSubmitRef.current;
+    if (!pending) return;
+    await executeSave(pending.values, pending.helpers, false);
+  };
+
+  const handleChannelingContinue = async () => {
+    const pending = pendingSubmitRef.current;
+    if (!pending) return;
+    await executeSave(pending.values, pending.helpers, true);
+  };
+
+  const channelingDialog = buildChannelingSyncDialog({
+    entityLabel: 'location',
+    mode: isCreating ? 'create' : 'update',
+    hasChannelingLink: Boolean(selectedRecord?.migrateSourceId)
+  });
 
   const handleDelete = async () => {
     if (!selectedRecord) return;
@@ -293,23 +358,28 @@ export default function SectionLocationDetail() {
                 <div className="grid gap-4 md:grid-cols-2">
                   <CustomFormField
                     id="order"
-                    type="text"
+                    type="number"
                     placeholder="Display Order"
                     value={formik.values.order}
                     onChange={formik.handleChange}
                     onBlur={formik.handleBlur}
                     required
+                    min={0}
                     styleClasses={fieldStyleClasses}
                   />
 
-                  <CustomFormField
+                  <CustomColorPicker
                     id="color"
-                    type="text"
-                    placeholder="Color (e.g. #22c55e)"
+                    label="Color"
                     value={formik.values.color}
-                    onChange={formik.handleChange}
-                    onBlur={formik.handleBlur}
-                    required={false}
+                    onChange={(value) => formik.setFieldValue('color', value)}
+                    onBlur={() => formik.setFieldTouched('color', true)}
+                    placeholder="#22c55e"
+                    error={
+                      formik.touched.color && formik.errors.color
+                        ? String(formik.errors.color)
+                        : undefined
+                    }
                     styleClasses={fieldStyleClasses}
                   />
                 </div>
@@ -380,7 +450,10 @@ export default function SectionLocationDetail() {
                   type="button"
                   variant="outline"
                   size="sm"
-                  className="w-full sm:w-24 gap-1 border-red-500 text-red-500 transition-colors ease-in-out duration-100 hover:bg-red-500 hover:text-white"
+                  className={cn(
+                    'w-full sm:w-24 gap-1.5',
+                    buttonStyles.cancel.normal
+                  )}
                   disabled={saving}
                   onClick={() => {
                     if (isNew) {
@@ -400,7 +473,7 @@ export default function SectionLocationDetail() {
                   size="sm"
                   onClick={() => setDeleteOpen(true)}
                   disabled={!selectedRecord || isNew || saving}
-                  className="h-9 gap-1.5 border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                  className={cn('gap-1.5', buttonStyles.delete.warning)}
                 >
                   <Trash2 className="h-4 w-4" />
                   Delete
@@ -409,17 +482,33 @@ export default function SectionLocationDetail() {
                   type="submit"
                   form="location-form"
                   size="sm"
-                  className="h-9 gap-1.5"
-                  disabled={saving}
+                  className={cn('gap-1.5', buttonStyles.save)}
+                  disabled={
+                    saving ||
+                    showChannelingDialog ||
+                    (!isCreating && !formik.dirty)
+                  }
                 >
                   <SaveIcon className="h-4 w-4" />
-                  Save
+                  {isCreating ? 'Save' : 'Update'}
                 </Button>
               </div>
             </Form>
           )}
         </Formik>
       )}
+
+      <ChannelingSyncAlertDialog
+        open={showChannelingDialog}
+        title={channelingDialog.title}
+        description={channelingDialog.description}
+        hrmOnlyLabel={channelingDialog.hrmOnlyLabel}
+        continueLabel={channelingDialog.continueLabel}
+        loading={saving}
+        onCancel={handleChannelingCancel}
+        onSaveHrmOnly={handleChannelingSaveHrmOnly}
+        onContinue={handleChannelingContinue}
+      />
 
       <CustomAlertDialog
         open={deleteOpen}
@@ -434,6 +523,9 @@ export default function SectionLocationDetail() {
         handleVisibilityChange={setDeleteOpen}
         handleContinue={handleDelete}
         loading={saving}
+        className={{
+          actionButton: buttonStyles.delete.danger
+        }}
       />
     </div>
   );
