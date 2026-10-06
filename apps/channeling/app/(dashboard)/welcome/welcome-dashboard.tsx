@@ -26,6 +26,7 @@ import { TodayRevenueKpi } from '@/app/(dashboard)/welcome/modules/today-revenue
 import { SessionsTodayKpi } from '@/app/(dashboard)/welcome/modules/sessions-today-kpi'
 import { ApprovalCenterStats } from '@/app/(dashboard)/welcome/modules/approval-center-stats'
 import { FloatRequestStats } from '@/app/(dashboard)/welcome/modules/float-request-stats'
+import { PendingHandoverStats } from '@/app/(dashboard)/welcome/modules/pending-handover-stats'
 import { RecentBookingsModule } from '@/app/(dashboard)/welcome/modules/recent-bookings'
 import { QueueSnapshotModule } from '@/app/(dashboard)/welcome/modules/queue-snapshot'
 
@@ -118,6 +119,8 @@ export function WelcomeDashboard() {
   const showApprovals = canAccess('/approvals')
   const showFloat = canAccess('/bulk-cashier') || canAccess('/float-transfers')
   const floatHref = canAccess('/bulk-cashier') ? '/bulk-cashier' : '/float-transfers'
+  const showHandovers = canAccess('/handovers') || has('shift', 'view')
+  const handoverHref = canAccess('/handovers') ? '/handovers' : '/channel-booking'
   const hasLiveModules =
     showShift ||
     showBookings ||
@@ -126,7 +129,8 @@ export function WelcomeDashboard() {
     showRecent ||
     showQueue ||
     showApprovals ||
-    showFloat
+    showFloat ||
+    showHandovers
 
   const links = QUICK_LINKS.filter((item) => canAccess(item.href))
   const kpiCount = [showBookings, showRevenue, showSessions].filter(Boolean).length
@@ -173,10 +177,17 @@ export function WelcomeDashboard() {
             </section>
           ) : null}
 
-          {showApprovals || showFloat ? (
-            <section className="grid gap-4 lg:grid-cols-2">
+          {showApprovals || showFloat || showHandovers ? (
+            <section
+              className={`grid gap-4 ${
+                [showApprovals, showFloat, showHandovers].filter(Boolean).length >= 3
+                  ? 'lg:grid-cols-3'
+                  : 'lg:grid-cols-2'
+              }`}
+            >
               {showApprovals ? <ApprovalCenterStats /> : null}
               {showFloat ? <FloatRequestStats href={floatHref} /> : null}
+              {showHandovers ? <PendingHandoverStats href={handoverHref} /> : null}
             </section>
           ) : null}
 

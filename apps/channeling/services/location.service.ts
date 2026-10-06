@@ -4,10 +4,23 @@ import prisma from '@/lib/prisma';
 import { getLocationQuery, Location, LocationFormValues } from '@/types/location';
 import { Prisma } from '@prisma/client';
 import { z } from 'zod';
-import { getOrCreateAccount } from '@/services/accounting/account.service';
+import { getOrCreateAccount, getOrCreateExpenseAdjustmentAccount } from '@/services/accounting/account.service';
+import { isExpenseAdjustmentAccount } from '@/services/accounting/account/expense-adjustment-account.constants';
 import { getAccountBalance } from '@/services/accounting/balance-calc.service';
 
 const HEX_COLOR_REGEX = /^#([0-9A-Fa-f]{6}|[0-9A-Fa-f]{3})$/;
+
+function branchExpenseFromAccounts<T extends { type: string; code: string | null; name: string }>(
+  accounts: T[] | undefined
+): T | null {
+  return accounts?.find((a) => a.type === 'EXPENSE' && !isExpenseAdjustmentAccount(a)) ?? null;
+}
+
+function expenseAdjustmentFromAccounts<T extends { type: string; code: string | null; name: string }>(
+  accounts: T[] | undefined
+): T | null {
+  return accounts?.find((a) => a.type === 'EXPENSE' && isExpenseAdjustmentAccount(a)) ?? null;
+}
 
 // ==== LOCATION: VALIDATION SCHEMA ==== //
 const locationSchema = z.object({
@@ -129,7 +142,8 @@ export const getAllLocationsService = async ({
     const records: Location[] = rawRecords.map((loc) => {
       const cashAccount = loc.accounts?.find((a) => a.type === 'CASH') ?? null;
       const incomeAccount = loc.accounts?.find((a) => a.type === 'INCOME') ?? null;
-      const expenseAccount = loc.accounts?.find((a) => a.type === 'EXPENSE') ?? null;
+      const expenseAccount = branchExpenseFromAccounts(loc.accounts);
+      const expenseAdjustmentAccount = expenseAdjustmentFromAccounts(loc.accounts);
       const { accounts: _acc, ...rest } = loc;
       return {
         ...rest,
@@ -142,6 +156,9 @@ export const getAllLocationsService = async ({
         expenseAccountId: expenseAccount?.id ?? null,
         expenseAccountName: expenseAccount?.name ?? null,
         expenseAccountCode: expenseAccount?.code ?? null,
+        expenseAdjustmentAccountId: expenseAdjustmentAccount?.id ?? null,
+        expenseAdjustmentAccountName: expenseAdjustmentAccount?.name ?? null,
+        expenseAdjustmentAccountCode: expenseAdjustmentAccount?.code ?? null,
       } as Location;
     });
 
@@ -229,6 +246,7 @@ export const createLocationService = async (
       getOrCreateAccount({ type: 'CASH', locationId: location.id }),
       getOrCreateAccount({ type: 'INCOME', locationId: location.id }),
       getOrCreateAccount({ type: 'EXPENSE', locationId: location.id }),
+      getOrCreateExpenseAdjustmentAccount(location.id),
     ]);
     const failed = accountResults.filter((r) => !r.success) as { success: false; error: string }[];
     if (failed.length > 0) {
@@ -420,7 +438,8 @@ export const getLocationByIdService = async (
 
     const cashAccount = loc.accounts?.find((a) => a.type === 'CASH') ?? null;
     const incomeAccount = loc.accounts?.find((a) => a.type === 'INCOME') ?? null;
-    const expenseAccount = loc.accounts?.find((a) => a.type === 'EXPENSE') ?? null;
+    const expenseAccount = branchExpenseFromAccounts(loc.accounts);
+    const expenseAdjustmentAccount = expenseAdjustmentFromAccounts(loc.accounts);
     const balanceCents = cashAccount ? await getAccountBalance(cashAccount.id) : 0;
     const { accounts: _acc, ...rest } = loc;
     const data: Location = {
@@ -435,6 +454,9 @@ export const getLocationByIdService = async (
       expenseAccountId: expenseAccount?.id ?? null,
       expenseAccountName: expenseAccount?.name ?? null,
       expenseAccountCode: expenseAccount?.code ?? null,
+      expenseAdjustmentAccountId: expenseAdjustmentAccount?.id ?? null,
+      expenseAdjustmentAccountName: expenseAdjustmentAccount?.name ?? null,
+      expenseAdjustmentAccountCode: expenseAdjustmentAccount?.code ?? null,
     } as Location;
 
     return {
