@@ -60,14 +60,12 @@ import { formatCents } from "@/lib/format-money"
 import { cn } from "@/lib/utils"
 import type { MyTillBalance } from "@/app/actions/till.actions"
 import {
+  formatHandoverCashAboveShortError,
   formatHandoverOverAmountError,
-  formatHandoverShortExceedsGapError,
-  getHandoverAmountOvers,
+  handoverCashOverTillCents,
+  handoverOversBeyondCashSettlement,
   handoverAmountsTotalCents,
-  handoverShortsExceedingTillGap,
   handoverTillGaps,
-  HANDOVER_AMOUNT_METHOD_KEYS,
-  HANDOVER_AMOUNT_METHOD_LABELS,
   handoverDiscrepancyReasonLabel,
   handoverDiscrepancyReasonPlaceholder,
   handoverDiscrepancyReasonRequiredMessage,
@@ -218,8 +216,6 @@ export function EndShiftHandoverDialog({
   const [handoverUsersLoading, setHandoverUsersLoading] = useState(false)
   const [toUserId, setToUserId] = useState("")
   const [discrepancyReason, setDiscrepancyReason] = useState("")
-  const [shortInputs, setShortInputs] = useState<Record<string, string>>({})
-  const [settlementInput, setSettlementInput] = useState("")
   const [openShortCents, setOpenShortCents] = useState(0)
   const [submitLoading, setSubmitLoading] = useState(false)
   const [validationErrors, setValidationErrors] = useState<string[]>([])
@@ -294,8 +290,6 @@ export function EndShiftHandoverDialog({
     if (open && step === 1) {
       setToUserId("")
       setDiscrepancyReason("")
-      setShortInputs({})
-      setSettlementInput("")
       setOpenShortCents(0)
       setValidationErrors([])
       setPreviousHandoversNote([])
@@ -701,19 +695,16 @@ export function EndShiftHandoverDialog({
     creditCents,
     eWalletCents,
   }
-  const shortAmounts = {
-    cashCents: centsFromLkrString(shortInputs.cashCents ?? ""),
-    cardCents: centsFromLkrString(shortInputs.cardCents ?? ""),
-    slipCents: centsFromLkrString(shortInputs.slipCents ?? ""),
-    checkCents: centsFromLkrString(shortInputs.checkCents ?? ""),
-    creditCents: centsFromLkrString(shortInputs.creditCents ?? ""),
-    eWalletCents: centsFromLkrString(shortInputs.eWalletCents ?? ""),
-  }
-  const settlementCents = centsFromLkrString(settlementInput)
   const tillGaps = expectedBalance ? handoverTillGaps(enteredAmounts, expectedBalance) : null
+  const shortAmounts = tillGaps ?? {
+    cashCents: 0,
+    cardCents: 0,
+    slipCents: 0,
+    checkCents: 0,
+    creditCents: 0,
+    eWalletCents: 0,
+  }
   const enteredTotalCents = handoverAmountsTotalCents(enteredAmounts)
-  const amountOvers = expectedBalance ? getHandoverAmountOvers(enteredAmounts, expectedBalance) : []
-  const hasOver = amountOvers.length > 0
   const hasShort = !!(
     expectedBalance &&
     (cashTotalCents < expectedBalance.cashCents ||
@@ -726,6 +717,23 @@ export function EndShiftHandoverDialog({
   const collectionDiffCents = expectedCollection
     ? enteredTotalCents - expectedCollection.expectedCents
     : 0
+  const excessCents = Math.max(0, collectionDiffCents)
+  const cashOverTillCents = expectedBalance
+    ? handoverCashOverTillCents(cashTotalCents, expectedBalance.cashCents)
+    : 0
+  // The short settlement is the excess cash above the till. It is not typed.
+  const settlementCents = cashOverTillCents
+  const maxCashCents = expectedBalance ? expectedBalance.cashCents + openShortCents : 0
+  const cashAboveShort = !!expectedBalance && cashOverTillCents > openShortCents
+  const cashAboveExcess = !!expectedCollection && cashOverTillCents > excessCents
+  const amountOvers = expectedBalance
+    ? handoverOversBeyondCashSettlement(enteredAmounts, expectedBalance, openShortCents).filter(
+        (over) => over.key !== "cashCents"
+      )
+    : []
+  const hasOver = amountOvers.length > 0 || cashAboveShort || cashAboveExcess
+  const cashOverCoveredBySettlement =
+    cashOverTillCents > 0 && !cashAboveShort && !cashAboveExcess
   const hasExcess = !!expectedCollection && isHandoverCollectionExcess(collectionDiffCents)
   const needsDiscrepancyReason = (hasShort || hasExcess) && !hasOver
   const discrepancyCopy = { hasShort, hasExcess }
@@ -740,16 +748,23 @@ export function EndShiftHandoverDialog({
           "Could not load the collection summary to check for excess. Please try again."
       )
     }
-    if (hasOver) {
+    if (cashAboveShort && expectedBalance) {
+      errors.push(
+        formatHandoverCashAboveShortError({
+          enteredCashCents: cashTotalCents,
+          availableCashCents: expectedBalance.cashCents,
+          openShortCents,
+        })
+      )
+    }
+    if (amountOvers.length > 0) {
       errors.push(formatHandoverOverAmountError(amountOvers, "submit"))
     }
-    if (expectedBalance) {
-      const shortGaps = handoverShortsExceedingTillGap(shortAmounts, enteredAmounts, expectedBalance)
-      if (shortGaps.length > 0) errors.push(formatHandoverShortExceedsGapError(shortGaps))
-    }
-    if (settlementCents > openShortCents) {
+    if (cashAboveExcess && !cashAboveShort) {
       errors.push(
-        `Settlement ${formatCents(settlementCents)} is more than the open short of ${formatCents(openShortCents)}.`
+        excessCents <= 0
+          ? "A short can be settled only when this handover has an excess."
+          : `Cash above the till (${formatCents(cashOverTillCents)}) is more than the excess of ${formatCents(excessCents)}.`
       )
     }
     if (needsDiscrepancyReason && !discrepancyReason.trim()) {
@@ -866,9 +881,9 @@ export function EndShiftHandoverDialog({
                 ? "Till is empty and there is nothing to hand over. You can end this shift without creating a handover."
                 : "Review your till balance by method. Then proceed to enter amounts and assign the handover.")}
             {step === 2 &&
-              "Entries from handovers not sent to reconciliation are pre-filled. You may hand over less than available. On the next step, mark any missing amount as a short. Anything you do not mark stays in the till. You cannot hand over more than the till holds."}
+              "Entries from handovers not sent to reconciliation are pre-filled. You may hand over less than available. The difference is the short and is taken in full. You cannot hand over more than the till holds."}
             {step === 3 &&
-              "Review the summary below, mark any missing money as a short, select the person receiving the handover, then confirm."}
+              "Review the summary below. Any amount under the till is the short and cannot be changed. Select the person receiving the handover, then confirm."}
           </DialogDescription>
         </DialogHeader>
 
@@ -1420,7 +1435,10 @@ export function EndShiftHandoverDialog({
               const isSignificantDiff = (entered: number, till: number) =>
                 Math.abs(till - entered) > TOLERANCE_CENTS
               const mismatches: { label: string; enteredCents: number; tillCents: number }[] = []
-              if (isSignificantDiff(cashTotalCents, expectedBalance.cashCents))
+              if (
+                isSignificantDiff(cashTotalCents, expectedBalance.cashCents) &&
+                !cashOverCoveredBySettlement
+              )
                 mismatches.push({ label: "Cash", enteredCents: cashTotalCents, tillCents: expectedBalance.cashCents })
               if (isSignificantDiff(cardCents, expectedBalance.cardCents))
                 mismatches.push({ label: "Credit card slips", enteredCents: cardCents, tillCents: expectedBalance.cardCents })
@@ -1436,16 +1454,28 @@ export function EndShiftHandoverDialog({
                 <Alert variant="destructive" className="mt-4">
                   <AlertTriangle className="h-4 w-4" />
                   <AlertTitle>
-                    {hasOver
-                      ? "Cannot hand over more than the till holds"
-                      : "Entered amounts are less than available"}
+                    {cashAboveShort
+                      ? "Cash is more than the till plus the open short"
+                      : hasOver
+                        ? "Cannot hand over more than the till holds"
+                        : "Entered amounts are less than available"}
                   </AlertTitle>
                   <AlertDescription>
                     <div>
                       <p className="text-sm text-muted-foreground mb-2">
-                        {hasOver
-                          ? formatHandoverOverAmountError(amountOvers, "submit")
-                          : "You may hand over less than available. Mark the missing amount as a short below. Anything you do not mark stays in your till. A reason is required."}
+                        {cashAboveShort && expectedBalance
+                          ? formatHandoverCashAboveShortError({
+                              enteredCashCents: cashTotalCents,
+                              availableCashCents: expectedBalance.cashCents,
+                              openShortCents,
+                            })
+                          : cashAboveExcess
+                            ? excessCents <= 0
+                              ? "A short can be settled only when this handover has an excess."
+                              : `Cash above the till (${formatCents(cashOverTillCents)}) is more than the excess of ${formatCents(excessCents)}.`
+                            : hasOver
+                              ? formatHandoverOverAmountError(amountOvers, "submit")
+                              : "The difference is the short. It is taken in full and cannot be changed. A reason is required."}
                       </p>
                       <table className="w-full text-sm border-collapse">
                         <thead>
@@ -1598,52 +1628,29 @@ export function EndShiftHandoverDialog({
                 </p>
               )}
 
-              {(tillGaps && HANDOVER_AMOUNT_METHOD_KEYS.some((key) => (tillGaps[key] ?? 0) > 0)) || openShortCents > 0 ? (
+              {openShortCents > 0 ? (
                 <div className="space-y-3 rounded-md border p-3">
-                  <div className="space-y-1">
-                    <p className="text-sm font-medium">Short account</p>
-                    <p className="text-xs text-muted-foreground">
-                      Mark money that is missing. On approval it leaves the till and is added to your branch short account. Anything you do not mark stays in the till.
-                    </p>
+                  <div className="grid grid-cols-[1fr_8rem] items-center gap-3">
+                    <Label htmlFor="short-settlement" className="text-sm font-normal">
+                      Settle previous short with cash
+                      <span className="ml-1 text-xs text-muted-foreground">(excess, cannot be changed)</span>
+                    </Label>
+                    <Input
+                      id="short-settlement"
+                      readOnly
+                      tabIndex={-1}
+                      value={(settlementCents / 100).toFixed(2)}
+                      className="h-9 w-full cursor-default bg-muted text-right tabular-nums"
+                    />
                   </div>
-                  {tillGaps
-                    ? HANDOVER_AMOUNT_METHOD_KEYS.filter((key) => (tillGaps[key] ?? 0) > 0).map((key) => (
-                        <div key={key} className="grid grid-cols-[1fr_8rem] items-center gap-3">
-                          <Label htmlFor={`short-${key}`} className="text-sm font-normal">
-                            {HANDOVER_AMOUNT_METHOD_LABELS[key]} short
-                            <span className="ml-1 text-xs text-muted-foreground">
-                              (up to {formatCents(tillGaps[key] ?? 0)})
-                            </span>
-                          </Label>
-                          <Input
-                            id={`short-${key}`}
-                            inputMode="decimal"
-                            placeholder="0.00"
-                            value={shortInputs[key] ?? ""}
-                            onChange={(e) =>
-                              setShortInputs((prev) => ({ ...prev, [key]: e.target.value }))
-                            }
-                          />
-                        </div>
-                      ))
-                    : null}
-                  {openShortCents > 0 ? (
-                    <div className="grid grid-cols-[1fr_8rem] items-center gap-3 border-t pt-3">
-                      <Label htmlFor="short-settlement" className="text-sm font-normal">
-                        Settle previous short with cash
-                        <span className="ml-1 text-xs text-muted-foreground">
-                          (open {formatCents(openShortCents)})
-                        </span>
-                      </Label>
-                      <Input
-                        id="short-settlement"
-                        inputMode="decimal"
-                        placeholder="0.00"
-                        value={settlementInput}
-                        onChange={(e) => setSettlementInput(e.target.value)}
-                      />
-                    </div>
-                  ) : null}
+                  <p className="text-xs text-muted-foreground">
+                    {expectedBalance
+                      ? `Maximum cash is ${formatCents(maxCashCents)} (till ${formatCents(expectedBalance.cashCents)} + short ${formatCents(openShortCents)}).`
+                      : null}
+                    {cashOverCoveredBySettlement && expectedBalance
+                      ? ` ${formatCents(settlementCents)} excess settles the short. Only ${formatCents(expectedBalance.cashCents)} leaves the till.`
+                      : null}
+                  </p>
                 </div>
               ) : null}
 

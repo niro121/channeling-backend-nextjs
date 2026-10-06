@@ -67,6 +67,37 @@ export function getHandoverAmountOvers(
   return overs
 }
 
+/** Cash counted above the till. This is the short settlement; the client cannot choose a different amount. */
+export function handoverCashOverTillCents(
+  enteredCashCents: number,
+  availableCashCents: number
+): number {
+  return Math.max(0, enteredCashCents - availableCashCents)
+}
+
+/** Cash may exceed the till by the open short. Other methods may not. */
+export function handoverOversBeyondCashSettlement(
+  entered: HandoverMethodAmounts,
+  available: HandoverMethodAmounts,
+  openShortCents: number
+): HandoverAmountOver[] {
+  const allowedCashOver = Math.max(0, openShortCents)
+  return getHandoverAmountOvers(entered, available).filter((over) => {
+    if (over.key !== "cashCents") return true
+    return over.enteredCents - over.availableCents > allowedCashOver
+  })
+}
+
+export function formatHandoverCashAboveShortError(opts: {
+  enteredCashCents: number
+  availableCashCents: number
+  openShortCents: number
+}): string {
+  const openShortCents = Math.max(0, opts.openShortCents)
+  const maxCents = opts.availableCashCents + openShortCents
+  return `Cash cannot be more than the till plus the open short. Till ${formatCents(opts.availableCashCents)} + short ${formatCents(openShortCents)} = ${formatCents(maxCents)}. Entered ${formatCents(opts.enteredCashCents)}.`
+}
+
 /** 1 LKR: ignore tiny rounding when deciding if collection excess needs a reason. */
 export const HANDOVER_EXCESS_THRESHOLD_CENTS = 100
 
