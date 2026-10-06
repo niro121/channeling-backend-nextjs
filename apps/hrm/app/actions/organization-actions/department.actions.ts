@@ -120,43 +120,29 @@ export async function createDepartmentAction(
     const shouldSyncToChanneling = options?.syncToChanneling ?? true;
 
     if (shouldSyncToChanneling && hrmId) {
-      const channelingResult = await pushDepartmentCreateToChanneling(
-        hrmId,
-        payload
-      );
+      try {
+        const channelingResult = await pushDepartmentCreateToChanneling(
+          hrmId,
+          payload
+        );
 
-      if (!channelingResult.success) {
-        await deleteDepartment(hrmId);
-        return {
-          isError: true,
-          errors: {
-            message:
-              channelingResult.error?.message ??
-              'Department could not be created in Channeling. No record was saved in HRM.'
-          },
-          data: null
-        };
-      }
-
-      const refreshed = await getDepartmentById(hrmId);
-      if (refreshed.success && refreshed.data) {
-        if (auditUser?.id) {
-          logActivityNonBlocking({
-            userId: auditUser.id,
-            action: 'organizations.departments.created',
-            entityType: 'Department',
-            entityId: hrmId,
-            importance: 'high'
-          });
+        if (!channelingResult.success) {
+          channelingWarning =
+            channelingResult.error?.message ??
+            'Department was saved in HRM, but Channeling sync failed.';
         }
-        revalidatePath('/departments');
-        return {
-          isError: false,
-          data: mapDepartmentToUiRecord(refreshed.data),
-          errors: {}
-        };
+      } catch (syncError: any) {
+        channelingWarning =
+          syncError?.message ??
+          'Department was saved in HRM, but Channeling sync failed.';
       }
     }
+
+    const refreshed = await getDepartmentById(hrmId);
+    const savedRecord =
+      refreshed.success && refreshed.data
+        ? mapDepartmentToUiRecord(refreshed.data)
+        : mapDepartmentToUiRecord(result.data);
 
     if (auditUser?.id) {
       logActivityNonBlocking({
@@ -171,7 +157,7 @@ export async function createDepartmentAction(
     revalidatePath('/departments');
     return {
       isError: false,
-      data: mapDepartmentToUiRecord(result.data),
+      data: savedRecord,
       errors: {},
       channelingWarning
     };

@@ -19,11 +19,22 @@ function mapFailure(result: {
   error: string;
   errorDescription?: string;
 }): { message: string } {
+  const description = result.errorDescription || result.error;
+  if (
+    result.status === 0 ||
+    result.error === 'network_error' ||
+    /fetch failed|network|ECONNREFUSED|ENOTFOUND/i.test(description)
+  ) {
+    return {
+      message:
+        'Channeling is unreachable right now. The record was saved in HRM; sync again when Channeling is available.'
+    };
+  }
+
   return {
     message:
       channelingAuthErrorMessage(result.status) ||
-      result.errorDescription ||
-      result.error ||
+      description ||
       'Channeling request failed'
   };
 }

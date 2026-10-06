@@ -10,6 +10,7 @@ import {
 } from '@/types/department';
 import { SyncDepartmentsButton } from './sync-departments-button';
 import { useDepartmentUi } from './department-ui-context';
+import { buttonStyles } from '@/lib/utils/common-styles';
 
 export default function SectionDepartmentList() {
   const { toast } = useToast();
@@ -64,7 +65,7 @@ export default function SectionDepartmentList() {
         </h2>
         <div className="flex items-center gap-2">
           <SyncDepartmentsButton />
-          <Button type="button" size="sm" className="h-8 gap-1.5 px-3" onClick={handleAdd}>
+          <Button type="button" size="sm" className={buttonStyles.save} onClick={handleAdd}>
             <Plus className="h-4 w-4" />
             Add
           </Button>
