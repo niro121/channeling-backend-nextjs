@@ -301,6 +301,7 @@ function buildSailsBookingReceiptHtml(placeholders: ReceiptPlaceholderMap): stri
   const showProfessional = (placeholders.show_professional_bill ?? "").trim() === "1"
   const companyName = placeholders.company_name || RUHUNU_HOSPITAL.name
   const locationAddress = placeholders.location_address || RUHUNU_HOSPITAL.address
+  const sessionLocationName = (placeholders.session_location_name ?? "").trim()
 
   const hospitalRows = [
     invoiceRow("Number", placeholders.appointment_no ?? "", { strongLabel: true, huge: true }),
@@ -346,11 +347,16 @@ function buildSailsBookingReceiptHtml(placeholders: ReceiptPlaceholderMap): stri
     ? `<div class="status-banner">${escapeHtml(statusBanner)}</div>`
     : ""
 
+  const sessionLocationHtml = sessionLocationName
+    ? `<p class="contact">Session Location : ${escapeHtml(sessionLocationName)}</p>`
+    : ""
+
   return `
   <div class="invoice-wrap">
     <div class="hospital-half">
       <div class="hospital-name">${escapeHtml(companyName)}</div>
       <div class="hospital-name">${escapeHtml(locationAddress)}</div>
+      ${sessionLocationHtml}
       <p class="contact">${escapeHtml(ruhunuPhoneFaxLine())}</p>
       <p class="contact">${escapeHtml(ruhunuEmailWebLine())}</p>
       <div class="bill-title">Invoice - Hospital Bill</div>

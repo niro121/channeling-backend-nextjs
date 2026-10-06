@@ -146,19 +146,21 @@ export async function printBookingReceiptService(
         professionalFee: true,
         hospitalFeeDiscount: true,
         professionsalFeeDiscount: true,
+        locationId: true,
         doctor: { select: { code: true } },
         staff: { select: { name: true, code: true } },
         agency: { select: { name: true, code: true } },
         location: {
-          select: { name: true, addressLine1: true, addressLine2: true, city: true },
+          select: { id: true, name: true, addressLine1: true, addressLine2: true, city: true },
         },
       },
     })
 
+    // Payment / cashier location (unchanged): prefer receipt.locationId for header print.
     const locationFromReceipt = receipt.locationId
       ? await prisma.location.findUnique({
           where: { id: receipt.locationId },
-          select: { name: true, addressLine1: true, addressLine2: true, city: true },
+          select: { id: true, name: true, addressLine1: true, addressLine2: true, city: true },
         })
       : null
     const location = locationFromReceipt ?? extra?.location ?? null
@@ -166,6 +168,9 @@ export async function printBookingReceiptService(
     const locationName = location?.name?.trim() || RUHUNU_HOSPITAL.name
     const locationAddress = location ? formatLocationAddress(location) : ""
     const addressLine = locationAddress || RUHUNU_HOSPITAL.address
+
+    // Session / booking location — always shown on print (even when same as payment location).
+    const sessionLocationName = extra?.location?.name?.trim() || ""
 
     const hospitalFee = extra?.hospitalFee ?? details.refundableBreakdown?.hospitalFee ?? 0
     const hospitalFeeDiscount =
@@ -270,6 +275,7 @@ export async function printBookingReceiptService(
       companyName: locationName,
       locationName,
       locationAddress: addressLine,
+      sessionLocationName,
       duplicateLabel: isDuplicate ? "DUPLICATE" : "",
       statusBanner: banner,
     }
