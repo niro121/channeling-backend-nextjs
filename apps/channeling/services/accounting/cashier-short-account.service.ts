@@ -1,6 +1,8 @@
 'use server';
 
 import prisma from '@/lib/prisma';
+import { netEffectForAccountType } from '@/lib/accounting/helpers';
+import { TILL_PAYMENT_METHOD } from '@/types/accounting';
 import { createAccount } from './account/write.service';
 import { getAccountBalance } from './balance-calc.service';
 
@@ -132,4 +134,53 @@ export async function ensureCashierShortAccount(
       balanceCents: 0,
     },
   };
+}
+
+export type CashierShortBreakdown = {
+  totalCents: number;
+  cashCents: number;
+  cardCents: number;
+  slipCents: number;
+  checkCents: number;
+  creditCents: number;
+  eWalletCents: number;
+};
+
+const EMPTY_SHORT_BREAKDOWN: CashierShortBreakdown = {
+  totalCents: 0,
+  cashCents: 0,
+  cardCents: 0,
+  slipCents: 0,
+  checkCents: 0,
+  creditCents: 0,
+  eWalletCents: 0,
+};
+
+/** Outstanding short by method. Lines posted before methods were stored count as cash. */
+export async function getCashierShortBreakdown(accountId: string | null): Promise<CashierShortBreakdown> {
+  if (!accountId) return { ...EMPTY_SHORT_BREAKDOWN };
+  const result = await prisma.journalLine.groupBy({
+    by: ['paymentMethod'],
+    where: { accountId },
+    _sum: { debitAmount: true, creditAmount: true },
+  });
+  const breakdown = { ...EMPTY_SHORT_BREAKDOWN };
+  for (const row of result) {
+    const net = netEffectForAccountType(row._sum?.debitAmount ?? 0, row._sum?.creditAmount ?? 0, 'RECEIVABLE');
+    const pm = row.paymentMethod;
+    if (pm === TILL_PAYMENT_METHOD.CREDIT_CARD) breakdown.cardCents += net;
+    else if (pm === TILL_PAYMENT_METHOD.SLIP) breakdown.slipCents += net;
+    else if (pm === TILL_PAYMENT_METHOD.CHECK) breakdown.checkCents += net;
+    else if (pm === TILL_PAYMENT_METHOD.CREDIT) breakdown.creditCents += net;
+    else if (pm === TILL_PAYMENT_METHOD.E_WALLET) breakdown.eWalletCents += net;
+    else breakdown.cashCents += net;
+  }
+  breakdown.totalCents =
+    breakdown.cashCents +
+    breakdown.cardCents +
+    breakdown.slipCents +
+    breakdown.checkCents +
+    breakdown.creditCents +
+    breakdown.eWalletCents;
+  return breakdown;
 }

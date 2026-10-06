@@ -44,6 +44,19 @@ const BALANCE_ITEMS: Array<{
   { key: 'totalCents', label: 'Total', icon: CircleDollarSign },
 ];
 
+const SHORT_ITEMS: Array<{
+  key: 'shortCashCents' | 'shortCardCents' | 'shortSlipCents' | 'shortCheckCents' | 'shortCreditCents' | 'shortEWalletCents';
+  label: string;
+  icon: React.ComponentType<{ className?: string }>;
+}> = [
+  { key: 'shortCashCents', label: 'Cash', icon: Banknote },
+  { key: 'shortCardCents', label: 'Card', icon: CreditCard },
+  { key: 'shortSlipCents', label: 'Slip', icon: FileText },
+  { key: 'shortCheckCents', label: 'Cheque', icon: Landmark },
+  { key: 'shortCreditCents', label: 'Credit', icon: Receipt },
+  { key: 'shortEWalletCents', label: 'E-Wallet', icon: Smartphone },
+];
+
 export async function TillBalanceSection({ tillId, from, to }: Props) {
   const res = await getMyTillBalance(tillId ?? null);
   if (!res.success || !res.data) {
@@ -167,32 +180,46 @@ export async function TillBalanceSection({ tillId, from, to }: Props) {
       </div>
 
       {hasTill && (
-        <Card className={balance.shortBalanceCents > 0 ? 'border-destructive/40 bg-destructive/5' : ''}>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-              <CircleDollarSign className="h-4 w-4" />
-              Short outstanding
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="flex flex-wrap items-end justify-between gap-3">
-            <div>
-              <p className={`text-2xl font-semibold tabular-nums ${balance.shortBalanceCents > 0 ? 'text-destructive' : ''}`}>
-                {formatCents(balance.shortBalanceCents)}
-              </p>
-              <p className="mt-0.5 text-xs text-muted-foreground">
-                LKR still owed at {balance.tillLocationName ?? 'this branch'}
-                {balance.shortAccountCode ? ` · ${balance.shortAccountCode}` : ''}
-              </p>
-            </div>
-            {balance.shortAccountId ? (
-              <Button variant="outline" size="sm" asChild>
-                <Link href={`/accounting/${balance.shortAccountId}/statement`}>
-                  View statement
-                </Link>
-              </Button>
-            ) : null}
-          </CardContent>
-        </Card>
+        <div className="space-y-3" id="short-outstanding">
+          <h3 className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+            <CircleDollarSign className="h-4 w-4" />
+            Short outstanding
+            <span className="font-normal">
+              at {balance.tillLocationName ?? 'this branch'}
+              {balance.shortAccountCode ? ` · ${balance.shortAccountCode}` : ''}
+            </span>
+          </h3>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {SHORT_ITEMS.filter(({ key }) => balance[key] !== 0).map(({ key, label, icon: Icon }) => (
+              <Card key={key} className="border-destructive/30 bg-destructive/5">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                    <Icon className="h-4 w-4" />
+                    {label}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-2xl font-semibold tabular-nums text-destructive">{formatCents(balance[key])}</p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">LKR</p>
+                </CardContent>
+              </Card>
+            ))}
+            <Card className={balance.shortBalanceCents > 0 ? 'border-destructive/40 bg-destructive/5' : ''}>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                  <CircleDollarSign className="h-4 w-4" />
+                  Total
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className={`text-2xl font-semibold tabular-nums ${balance.shortBalanceCents > 0 ? 'text-destructive' : ''}`}>
+                  {formatCents(balance.shortBalanceCents)}
+                </p>
+                <p className="mt-0.5 text-xs text-muted-foreground">LKR</p>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
       )}
     </>
   );

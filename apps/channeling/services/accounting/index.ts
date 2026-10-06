@@ -55,7 +55,9 @@ export {
 export {
   ensureCashierShortAccount,
   getCashierShortBalance,
+  getCashierShortBreakdown,
   type CashierShortBalance,
+  type CashierShortBreakdown,
 } from './cashier-short-account.service';
 
 // Journals

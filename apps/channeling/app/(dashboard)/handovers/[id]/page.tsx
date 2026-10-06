@@ -39,7 +39,7 @@ import {
   deriveHandoverCashierSummaryFilters,
   expectedHandoverCollectionCents,
   formatHandoverOverAmountError,
-  getHandoverAmountOvers,
+  handoverOversBeyondCashSettlement,
   handoverCollectionDiffCents,
   handoverNonCashHeldCents,
   isHandoverHeldForReconciliation,
@@ -404,7 +404,7 @@ export default function HandoverDetailPage() {
   const allTicked = allTickIds.length > 0 && allTickIds.every((tid) => ticked.has(tid))
   const amountOvers =
     handover && tillBreakdown
-      ? getHandoverAmountOvers(
+      ? handoverOversBeyondCashSettlement(
           {
             cashCents: handover.cashCents,
             cardCents: handover.cardCents,
@@ -420,7 +420,8 @@ export default function HandoverDetailPage() {
             checkCents: tillBreakdown.checkCents ?? 0,
             creditCents: tillBreakdown.creditCents ?? 0,
             eWalletCents: tillBreakdown.eWalletCents ?? 0,
-          }
+          },
+          handover.settlementCents ?? 0
         )
       : []
   const hasAmountOver = amountOvers.length > 0
