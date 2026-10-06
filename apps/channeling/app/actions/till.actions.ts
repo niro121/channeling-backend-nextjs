@@ -9,6 +9,7 @@ import {
   getAccountStatement,
   ensureTillForUserLocation,
   getCashierShortBalance,
+  getCashierShortBreakdown,
 } from '@/services/accounting.service';
 import {
   listTillsForUser,
@@ -35,6 +36,12 @@ export type MyTillBalance = {
   shortAccountName: string | null;
   shortAccountCode: string | null;
   shortBalanceCents: number;
+  shortCashCents: number;
+  shortCardCents: number;
+  shortSlipCents: number;
+  shortCheckCents: number;
+  shortCreditCents: number;
+  shortEWalletCents: number;
   availableTills: Array<{
     tillId: string;
     accountId: string;
@@ -183,6 +190,57 @@ export async function getMyTillStatement(
   }
 }
 
+/** Short-account statement for the signed-in cashier at the selected branch till. */
+export async function getMyShortStatement(
+  fromDate?: string | null,
+  toDate?: string | null,
+  selectedTillId?: string | null
+): Promise<{
+  success: boolean;
+  data?: MyTillStatement | null;
+  message?: string;
+}> {
+  const session = await getServerSession(authOptions);
+  const userId = session?.user?.id;
+  if (!userId) {
+    return { success: false, message: 'Not signed in.' };
+  }
+  const fromStr = typeof fromDate === 'string' ? fromDate : undefined;
+  const toStr = typeof toDate === 'string' ? toDate : undefined;
+  const { from, to } = parseStatementPeriod(fromStr, toStr);
+  try {
+    const till = await resolveSelectedTill(userId, selectedTillId);
+    if (!till) return { success: true, data: null };
+    const shortBalance = await getCashierShortBalance(userId, till.locationId);
+    if (!shortBalance.accountId) return { success: true, data: null };
+    const st = await getAccountStatement(shortBalance.accountId, from, to);
+    if (!st) return { success: true, data: null };
+    return {
+      success: true,
+      data: {
+        lines: st.lines.map((l) => ({
+          id: l.id,
+          date: l.date,
+          journalNumber: l.journalNumber,
+          description: l.description,
+          debitAmount: l.debitAmount,
+          creditAmount: l.creditAmount,
+          runningBalance: l.runningBalance,
+          paymentMethod: l.paymentMethod,
+        })),
+        openingBalance: st.openingBalance,
+        closingBalance: st.closingBalance,
+      },
+    };
+  } catch (error) {
+    console.error('getMyShortStatement error:', error);
+    return {
+      success: false,
+      message: error instanceof Error ? error.message : 'Failed to load short statement.',
+    };
+  }
+}
+
 export async function getMyTillBalance(selectedTillId?: string | null): Promise<{
   success: boolean;
   data?: MyTillBalance;
@@ -223,6 +281,12 @@ export async function getMyTillBalance(selectedTillId?: string | null): Promise<
           shortAccountName: null,
           shortAccountCode: null,
           shortBalanceCents: 0,
+          shortCashCents: 0,
+          shortCardCents: 0,
+          shortSlipCents: 0,
+          shortCheckCents: 0,
+          shortCreditCents: 0,
+          shortEWalletCents: 0,
           availableTills: [],
           otherTills: [],
         },
@@ -232,6 +296,7 @@ export async function getMyTillBalance(selectedTillId?: string | null): Promise<
       getTillBalanceBreakdownForActiveTill(userId, selectedTill.locationId),
       getCashierShortBalance(userId, selectedTill.locationId),
     ]);
+    const shortBreakdown = await getCashierShortBreakdown(shortBalance.accountId);
     const otherTills = allTills
       .filter((t) => t.tillId !== selectedTill.tillId)
       .map((t) => ({
@@ -263,7 +328,13 @@ export async function getMyTillBalance(selectedTillId?: string | null): Promise<
         shortAccountId: shortBalance.accountId,
         shortAccountName: shortBalance.accountName,
         shortAccountCode: shortBalance.accountCode,
-        shortBalanceCents: shortBalance.balanceCents,
+        shortBalanceCents: shortBreakdown.totalCents,
+        shortCashCents: shortBreakdown.cashCents,
+        shortCardCents: shortBreakdown.cardCents,
+        shortSlipCents: shortBreakdown.slipCents,
+        shortCheckCents: shortBreakdown.checkCents,
+        shortCreditCents: shortBreakdown.creditCents,
+        shortEWalletCents: shortBreakdown.eWalletCents,
         availableTills: allTills.map((t) => ({
           ...t,
           isCurrentAssigned: activeTill ? t.tillId === activeTill.tillId : false,
