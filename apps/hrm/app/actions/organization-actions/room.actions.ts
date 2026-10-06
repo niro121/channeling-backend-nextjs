@@ -179,48 +179,35 @@ export async function createRoomAction(
     }
 
     const hrmId = result.data.id;
+    let channelingWarning: string | undefined;
     const shouldSyncToChanneling = options?.syncToChanneling ?? true;
 
     if (shouldSyncToChanneling && hrmId) {
-      const channelingResult = await pushRoomCreateToChanneling(
-        hrmId,
-        payload,
-        result.data.locationMigrateSourceId,
-        result.data.zoneMigrateSourceId
-      );
+      try {
+        const channelingResult = await pushRoomCreateToChanneling(
+          hrmId,
+          payload,
+          result.data.locationMigrateSourceId,
+          result.data.zoneMigrateSourceId
+        );
 
-      if (!channelingResult.success) {
-        await deleteRoom(hrmId);
-        return {
-          isError: true,
-          errors: {
-            message:
-              channelingResult.error?.message ??
-              'Room could not be created in Channeling. No record was saved in HRM.'
-          },
-          data: null
-        };
-      }
-
-      const refreshed = await getRoomById(hrmId);
-      if (refreshed.success && refreshed.data) {
-        if (auditUser?.id) {
-          logActivityNonBlocking({
-            userId: auditUser.id,
-            action: 'organizations.rooms.created',
-            entityType: 'Room',
-            entityId: hrmId,
-            importance: 'high'
-          });
+        if (!channelingResult.success) {
+          channelingWarning =
+            channelingResult.error?.message ??
+            'Room was saved in HRM, but Channeling sync failed.';
         }
-        revalidatePath('/rooms');
-        return {
-          isError: false,
-          data: mapRoomToUiRecord(refreshed.data),
-          errors: {}
-        };
+      } catch (syncError: any) {
+        channelingWarning =
+          syncError?.message ??
+          'Room was saved in HRM, but Channeling sync failed.';
       }
     }
+
+    const refreshed = await getRoomById(hrmId);
+    const savedRecord =
+      refreshed.success && refreshed.data
+        ? mapRoomToUiRecord(refreshed.data)
+        : mapRoomToUiRecord(result.data);
 
     if (auditUser?.id) {
       logActivityNonBlocking({
@@ -235,8 +222,9 @@ export async function createRoomAction(
     revalidatePath('/rooms');
     return {
       isError: false,
-      data: mapRoomToUiRecord(result.data),
-      errors: {}
+      data: savedRecord,
+      errors: {},
+      channelingWarning
     };
   } catch (error: any) {
     console.error('createRoomAction error:', error);

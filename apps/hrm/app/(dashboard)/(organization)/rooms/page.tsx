@@ -8,11 +8,17 @@ import {
   getLinkedZoneOptionsForRoomsAction,
   getRoomListAction
 } from '@/app/actions/organization-actions/room.actions';
+import { ROOM_STATUS_OPTIONS } from '@/types/room';
 import RoomWorkspace from './room-workspace';
+import type { RoomListFilters } from './section-room-filters';
 
 type SearchParams = {
   searchParams?: Promise<{
     id?: string;
+    search?: string;
+    locationId?: string;
+    zoneId?: string;
+    status?: string;
   }>;
 };
 
@@ -44,6 +50,32 @@ export default async function RoomsPage({ searchParams }: SearchParams) {
   const zoneOptions = zonesRes.isError ? [] : (zonesRes.data ?? []);
 
   const params = await searchParams;
+  const locationIds = new Set(locationOptions.map((loc) => loc.id));
+  const zoneIds = new Set(zoneOptions.map((zone) => zone.id));
+  const statusIds = new Set(ROOM_STATUS_OPTIONS.map((opt) => opt.id as string));
+
+  const locationId =
+    params?.locationId && locationIds.has(params.locationId)
+      ? params.locationId
+      : undefined;
+  const zoneId =
+    params?.zoneId &&
+    zoneIds.has(params.zoneId) &&
+    (!locationId ||
+      zoneOptions.some(
+        (zone) => zone.id === params.zoneId && zone.locationId === locationId
+      ))
+      ? params.zoneId
+      : undefined;
+
+  const initialFilters: RoomListFilters = {
+    search: params?.search?.trim() || undefined,
+    locationId,
+    zoneId,
+    status:
+      params?.status && statusIds.has(params.status) ? params.status : undefined
+  };
+
   const defaultSelected =
     params?.id && records.some((r) => r.id === params.id)
       ? params.id
@@ -55,6 +87,7 @@ export default async function RoomsPage({ searchParams }: SearchParams) {
       locationOptions={locationOptions}
       zoneOptions={zoneOptions}
       initialSelectedId={defaultSelected}
+      initialFilters={initialFilters}
     />
   );
 }
