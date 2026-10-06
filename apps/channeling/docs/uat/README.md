@@ -2,6 +2,12 @@
 
 This folder contains the UAT test cases used to verify the application before sign-off. Please complete the tests in the provided spreadsheet and return it with your results.
 
+## Channeling (simple sign-off)
+
+For the channel booking desk, use **`channeling-uat.xlsx`**. It is a short walkthrough of the desk (shift, booking, settlement, refund, cancel, search, transfer, doctor arrival, float, handover, reconciliation, and doctor payment), then every print (receipts, float slip, handover, reconciliation, session lists) and every report. Fill the yellow cells and return the file. The Sign-off sheet totals the results.
+
+The CSV and markdown files below are the longer case list, including master data and edge cases.
+
 ## What is in scope
 
 The test cases cover these areas (Channeling and Dashboard are **not** included):

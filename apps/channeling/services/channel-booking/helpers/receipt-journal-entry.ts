@@ -33,6 +33,8 @@ export type ReceiptJournalAccounts = {
   branchIncomeAccountId?: string | null;
   /** Branch/location expense account (used for branch expense receipts). */
   branchExpenseAccountId?: string | null;
+  /** Branch expense adjustment account (contra for agency debit/credit notes). */
+  expenseAdjustmentAccountId?: string | null;
   /** Cashier CASH account (required for cash receipt/refund). */
   cashierAccountId?: string | null;
   /** Agent PAYABLE account (required for agent receipt/refund). */
@@ -541,8 +543,12 @@ export function buildReceiptJournalEntryInput(
     };
   }
 
-  // Ledger: Agency Debit Note (2) — Dr Agent PAYABLE, Cr branch cash (charge agent; credit branch)
-  if (receipt.method === RECEIPT_METHOD.DEBIT_NOTE && accounts.agentAccountId) {
+  // Ledger: Agency Debit Note (2) — Dr Agent PAYABLE, Cr Expense Adjustment (charge agent)
+  if (
+    receipt.method === RECEIPT_METHOD.DEBIT_NOTE &&
+    accounts.agentAccountId &&
+    accounts.expenseAdjustmentAccountId
+  ) {
     return {
       date: receipt.createdAt ?? new Date(),
       description: `Agency debit note${descSuffix}`,
@@ -552,13 +558,17 @@ export function buildReceiptJournalEntryInput(
       createdBy: receipt.createdBy ?? null,
       lines: [
         { accountId: accounts.agentAccountId, debitAmount: amountCents, creditAmount: 0 },
-        { accountId: branchAccountId, debitAmount: 0, creditAmount: amountCents },
+        { accountId: accounts.expenseAdjustmentAccountId, debitAmount: 0, creditAmount: amountCents },
       ],
     };
   }
 
-  // Ledger: Agency Credit Note (3) — Dr branch cash, Cr Agent PAYABLE (reverse of debit note)
-  if (receipt.method === RECEIPT_METHOD.CREDIT_NOTE && accounts.agentAccountId) {
+  // Ledger: Agency Credit Note (3) — Dr Expense Adjustment, Cr Agent PAYABLE (reverse of debit note)
+  if (
+    receipt.method === RECEIPT_METHOD.CREDIT_NOTE &&
+    accounts.agentAccountId &&
+    accounts.expenseAdjustmentAccountId
+  ) {
     return {
       date: receipt.createdAt ?? new Date(),
       description: `Agency credit note${descSuffix}`,
@@ -567,7 +577,7 @@ export function buildReceiptJournalEntryInput(
       locationId: receipt.locationId ?? receipt.userLocationId ?? null,
       createdBy: receipt.createdBy ?? null,
       lines: [
-        { accountId: branchAccountId, debitAmount: amountCents, creditAmount: 0 },
+        { accountId: accounts.expenseAdjustmentAccountId, debitAmount: amountCents, creditAmount: 0 },
         { accountId: accounts.agentAccountId, debitAmount: 0, creditAmount: amountCents },
       ],
     };
@@ -783,9 +793,12 @@ export async function resolveReceiptJournalAccounts(params: {
   /** Bank account id (BankAccount model) when receipt method requires bank ledger mapping. */
   bankAccountId?: string | null;
 }): Promise<ReceiptJournalAccounts | null | ResolveReceiptJournalAccountsError> {
-  const { getOrCreateAccount, getCashBookAccountForBranch, getMainCashBookAccount } = await import(
-    '@/services/accounting.service'
-  );
+  const {
+    getOrCreateAccount,
+    getOrCreateExpenseAdjustmentAccount,
+    getCashBookAccountForBranch,
+    getMainCashBookAccount,
+  } = await import('@/services/accounting.service');
 
   const branchAccount = params.locationId
     ? await getCashBookAccountForBranch(params.locationId)
@@ -806,6 +819,15 @@ export async function resolveReceiptJournalAccounts(params: {
   });
   if (!expenseRes.success) {
     return { error: expenseRes.error, errorCode: 'BRANCH_EXPENSE_ACCOUNT_NOT_FOUND' };
+  }
+
+  let expenseAdjustmentAccountId: string | null = null;
+  if (params.locationId) {
+    const adjustmentRes = await getOrCreateExpenseAdjustmentAccount(params.locationId);
+    if (!adjustmentRes.success) {
+      return { error: adjustmentRes.error, errorCode: 'EXPENSE_ADJUSTMENT_ACCOUNT_NOT_FOUND' };
+    }
+    expenseAdjustmentAccountId = adjustmentRes.account.id;
   }
 
   let cashierAccountId: string | null = null;
@@ -877,6 +899,7 @@ export async function resolveReceiptJournalAccounts(params: {
     branchAccountId: branchAccount.id,
     branchIncomeAccountId: incomeRes.account.id,
     branchExpenseAccountId: expenseRes.account.id,
+    expenseAdjustmentAccountId,
     cashierAccountId: cashierAccountId ?? undefined,
     agentAccountId: agentAccountId ?? undefined,
     creditCustomerAccountId: creditCustomerAccountId ?? undefined,

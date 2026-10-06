@@ -12,6 +12,10 @@ import type {
   AgentWiseAppointmentsReportResult,
   AgentWiseAppointmentsSummaryRow,
 } from '@/types/reports/agent-wise-appointments';
+import {
+  SAVE_BOOKING_METHOD_AGENT,
+  SAVE_BOOKING_METHOD_API,
+} from '@/types/save-booking';
 
 const MAX_RANGE_DAYS = getReportMaxRangeDays('agent_wise_appointments', 62);
 const MAX_RECORDS_SCAN = getReportMaxRecords('agent_wise_appointments', 30000);
@@ -191,7 +195,7 @@ export async function getAgentWiseAppointmentsReportService(
   }
 
   const bookingWhere: Prisma.BookingWhereInput = {
-    method: 2,
+    method: { in: [SAVE_BOOKING_METHOD_AGENT, SAVE_BOOKING_METHOD_API] },
     agencyId: { not: null },
     sessionId: { not: null },
     session: { is: sessionWhere },

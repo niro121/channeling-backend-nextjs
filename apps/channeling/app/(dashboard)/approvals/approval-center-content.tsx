@@ -49,6 +49,7 @@ import {
   Search,
 } from "lucide-react"
 import Link from "next/link"
+import { formatDateTimeSriLanka } from "@/lib/utils"
 
 function actionError(result: { success?: boolean; message?: string } | undefined | null): string {
   if (!result || result.success) return "Something went wrong."
@@ -468,6 +469,7 @@ export function ApprovalCenterContent({
               <tr className="border-b bg-muted/40 text-left">
                 <th className="p-2 font-medium">Requested</th>
                 <th className="p-2 font-medium">Type</th>
+                <th className="p-2 font-medium">Refund method</th>
                 <th className="p-2 font-medium">Payment type</th>
                 <th className="p-2 font-medium">Payment method</th>
                 <th className="p-2 font-medium">Doctor</th>
@@ -502,10 +504,11 @@ export function ApprovalCenterContent({
                     <td className="p-2">
                       <div>{row.requestedByName}</div>
                       <div className="text-xs text-muted-foreground whitespace-nowrap">
-                        {new Date(row.createdAt).toLocaleString()}
+                        {formatDateTimeSriLanka(row.createdAt)}
                       </div>
                     </td>
                     <td className="p-2">{typeLabel(row.type)}</td>
+                    <td className="p-2 whitespace-nowrap">{row.refundMethodName}</td>
                     <td className="p-2 whitespace-nowrap">{row.paymentTypeName}</td>
                     <td className="p-2 whitespace-nowrap">{row.paymentMethodName}</td>
                     <td className="p-2">
