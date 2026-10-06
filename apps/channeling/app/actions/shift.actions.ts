@@ -141,6 +141,17 @@ export type SubmitShiftHandoverPayload = {
     creditCents: number
     eWalletCents: number
   }
+  /** Missing money, per method. Cannot exceed the amount left in the till. */
+  shortAmounts?: {
+    cashCents: number
+    cardCents: number
+    slipCents: number
+    checkCents: number
+    creditCents: number
+    eWalletCents: number
+  }
+  /** Cash brought in to pay down the existing branch short. */
+  settlementCents?: number
   discrepancyReason?: string
   enteredBreakdown?: {
     cashDenominations?: { value: number; count: number }[]
@@ -181,7 +192,7 @@ export async function getExpectedHandoverCollectionAction(shiftId: string) {
 
 /** Submit shift handover: create PENDING handover, set shift to handover pending. Journal created only when recipient approves. */
 export async function submitShiftHandoverAction(payload: SubmitShiftHandoverPayload) {
-  const { shiftId, toUserId, amounts, discrepancyReason, enteredBreakdown, includedHandoverIds, attachmentIds } = payload
+  const { shiftId, toUserId, amounts, discrepancyReason, enteredBreakdown, includedHandoverIds, attachmentIds, shortAmounts, settlementCents } = payload
   console.log("[submitShiftHandoverAction] payload.includedHandoverIds:", includedHandoverIds, "length:", includedHandoverIds?.length)
   await requirePermission(SHIFT_RESOURCE, "view")
   const session = await getServerSession(authOptions)
@@ -194,12 +205,15 @@ export async function submitShiftHandoverAction(payload: SubmitShiftHandoverPayl
     discrepancyReason,
     enteredBreakdown,
     includedHandoverIds,
-    attachmentIds
+    attachmentIds,
+    shortAmounts,
+    settlementCents
   )
   if (!result.success) throw new Error(result.error)
   revalidatePath("/channel-booking")
   revalidatePath("/shifts")
   revalidatePath("/handovers")
+  revalidatePath("/my-till")
   return result
 }
 
@@ -214,6 +228,7 @@ export async function approveHandoverAction(handoverId: string, approvalComments
   revalidatePath("/shifts")
   revalidatePath("/handovers")
   revalidatePath("/reconciliation")
+  revalidatePath("/my-till")
   return result
 }
 

@@ -165,6 +165,35 @@ export async function TillBalanceSection({ tillId, from, to }: Props) {
           ))}
         </div>
       </div>
+
+      {hasTill && (
+        <Card className={balance.shortBalanceCents > 0 ? 'border-destructive/40 bg-destructive/5' : ''}>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+              <CircleDollarSign className="h-4 w-4" />
+              Short outstanding
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <p className={`text-2xl font-semibold tabular-nums ${balance.shortBalanceCents > 0 ? 'text-destructive' : ''}`}>
+                {formatCents(balance.shortBalanceCents)}
+              </p>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                LKR still owed at {balance.tillLocationName ?? 'this branch'}
+                {balance.shortAccountCode ? ` · ${balance.shortAccountCode}` : ''}
+              </p>
+            </div>
+            {balance.shortAccountId ? (
+              <Button variant="outline" size="sm" asChild>
+                <Link href={`/accounting/${balance.shortAccountId}/statement`}>
+                  View statement
+                </Link>
+              </Button>
+            ) : null}
+          </CardContent>
+        </Card>
+      )}
     </>
   );
 }
