@@ -305,6 +305,8 @@ export type BookingReceiptPrintInput = {
   companyName?: string
   locationName?: string
   locationAddress?: string
+  /** Session/branch location name for print (shown alongside payment location). */
+  sessionLocationName?: string
   email?: string
   web?: string
   duplicateLabel?: string
@@ -326,6 +328,7 @@ export function buildPlaceholdersForBookingReceipt(
     company_name: companyName,
     location_name: locationName,
     location_address: locationAddress,
+    session_location_name: input.sessionLocationName?.trim() || "",
     tel: RUHUNU_HOSPITAL.phone,
     email: input.email ?? RUHUNU_HOSPITAL.email,
     web: input.web ?? RUHUNU_HOSPITAL.web,
