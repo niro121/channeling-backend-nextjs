@@ -9,6 +9,7 @@ import {
   type AuthUserSummary
 } from '@/lib/helpers/resolve-auth-users.helper';
 import { generateRecordCode } from '@/lib/conventions/record-code-generator';
+import { LOCATION_STATUS } from '@/types/location';
 import {
   ZONE_CODE_PREFIX,
   type GetZoneParams,
@@ -154,7 +155,7 @@ const zoneSelect = {
   updatedBy: true
 } as const;
 
-/** Locations linked to Channeling (usable for zone sync). */
+/** Published locations for zone form/filter options. */
 export async function getLinkedLocationOptions(): Promise<{
   success: boolean;
   data?: ZoneLocationSummary[];
@@ -162,12 +163,7 @@ export async function getLinkedLocationOptions(): Promise<{
 }> {
   try {
     const locations = await prisma.location.findMany({
-      where: {
-        AND: [
-          { migrateSourceId: { not: null } },
-          { migrateSourceId: { not: '' } }
-        ]
-      },
+      where: { status: LOCATION_STATUS.PUBLISH },
       select: {
         id: true,
         name: true,

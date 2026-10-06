@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Form, Formik, type FormikHelpers } from 'formik';
 import * as Yup from 'yup';
@@ -26,6 +26,9 @@ import {
 } from '@/app/actions/organization-actions/zone.actions';
 import { formValuesToZonePayload } from '@/lib/mappers/zone-form.mapper';
 import { useZoneUi } from './zone-ui-context';
+import { ChannelingSyncAlertDialog } from '@/components/common/channeling-sync-alert-dialog';
+import { buildChannelingSyncDialog } from '@/components/common/channeling-sync-dialog.helper';
+import { buttonStyles } from '@/lib/utils/common-styles';
 
 const fieldStyleClasses = {
   parentDiv: 'grid grid-cols-1 gap-1.5 items-start',
@@ -66,12 +69,18 @@ export default function SectionZoneDetail() {
     locationOptions,
     selectedId,
     setSelectedId,
+    setRecords,
     isNew,
     setIsNew,
     detailFormHighlight
   } = useZoneUi();
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [showChannelingDialog, setShowChannelingDialog] = useState(false);
+  const pendingSubmitRef = useRef<{
+    values: ZoneFormValues;
+    helpers: FormikHelpers<ZoneFormValues>;
+  } | null>(null);
 
   const selectedRecord = useMemo(
     () => records.find((record) => record.id === selectedId) ?? null,
@@ -115,20 +124,21 @@ export default function SectionZoneDetail() {
   }, [detailFormHighlight, formKey]);
 
   const showEmptyState = !isNew && !selectedRecord;
+  const isCreating = isNew || !selectedRecord;
 
-  const handleSave = async (
+  const executeSave = async (
     values: ZoneFormValues,
-    helpers: FormikHelpers<ZoneFormValues>
+    helpers: FormikHelpers<ZoneFormValues>,
+    syncToChanneling: boolean
   ) => {
     setSaving(true);
     try {
       const payload = formValuesToZonePayload(values);
-      const result =
-        isNew || !selectedRecord
-          ? await createZoneAction(payload, { syncToChanneling: true })
-          : await updateZoneAction(selectedRecord.id, payload, {
-              syncToChanneling: true
-            });
+      const result = isCreating
+        ? await createZoneAction(payload, { syncToChanneling })
+        : await updateZoneAction(selectedRecord!.id, payload, {
+            syncToChanneling
+          });
 
       if (result.isError || !result.data) {
         const errors = result.errors as Record<string, unknown>;
@@ -147,29 +157,82 @@ export default function SectionZoneDetail() {
           variant: 'destructive',
           title: 'Save failed',
           description:
-            (typeof (errors as any)?.message === 'string' && (errors as any).message) ||
-            (typeof (errors as any)?.name?.[0] === 'string' && (errors as any).name[0]) ||
+            (typeof (errors as any)?.message === 'string' &&
+              (errors as any).message) ||
+            (typeof (errors as any)?.name?.[0] === 'string' &&
+              (errors as any).name[0]) ||
             'Unable to save zone.'
         });
         return;
       }
 
-      const warning = (result as { channelingWarning?: string }).channelingWarning;
+      const warning = (result as { channelingWarning?: string })
+        .channelingWarning;
+      setRecords((prev) => {
+        const nextRecord = result.data!;
+        const index = prev.findIndex((record) => record.id === nextRecord.id);
+        if (index >= 0) {
+          const next = [...prev];
+          next[index] = nextRecord;
+          return next;
+        }
+        return [...prev, nextRecord].sort((a, b) =>
+          a.name.localeCompare(b.name)
+        );
+      });
       setIsNew(false);
       setSelectedId(result.data.id);
       toast({
-        title: 'Saved',
+        variant: warning ? 'default' : 'success',
+        title: warning ? 'Saved in HRM' : 'Saved',
         description: warning
           ? warning
-          : isNew || !selectedRecord
-            ? 'Zone created.'
-            : 'Zone updated.'
+          : isCreating
+            ? syncToChanneling
+              ? 'Zone was created in HRM and Channeling.'
+              : 'Zone was created in HRM only.'
+            : syncToChanneling
+              ? 'Zone was updated in HRM and Channeling.'
+              : 'Zone was updated in HRM only.'
       });
       router.refresh();
     } finally {
       setSaving(false);
+      setShowChannelingDialog(false);
+      pendingSubmitRef.current = null;
     }
   };
+
+  const handleSave = async (
+    values: ZoneFormValues,
+    helpers: FormikHelpers<ZoneFormValues>
+  ) => {
+    pendingSubmitRef.current = { values, helpers };
+    setShowChannelingDialog(true);
+  };
+
+  const handleChannelingCancel = () => {
+    pendingSubmitRef.current = null;
+    setShowChannelingDialog(false);
+  };
+
+  const handleChannelingSaveHrmOnly = async () => {
+    const pending = pendingSubmitRef.current;
+    if (!pending) return;
+    await executeSave(pending.values, pending.helpers, false);
+  };
+
+  const handleChannelingContinue = async () => {
+    const pending = pendingSubmitRef.current;
+    if (!pending) return;
+    await executeSave(pending.values, pending.helpers, true);
+  };
+
+  const channelingDialog = buildChannelingSyncDialog({
+    entityLabel: 'zone',
+    mode: isCreating ? 'create' : 'update',
+    hasChannelingLink: Boolean(selectedRecord?.migrateSourceId)
+  });
 
   const handleDelete = async () => {
     if (!selectedRecord) return;
@@ -328,7 +391,10 @@ export default function SectionZoneDetail() {
                   type="button"
                   variant="outline"
                   size="sm"
-                  className="w-full sm:w-24 gap-1 border-red-500 text-red-500 transition-colors ease-in-out duration-100 hover:bg-red-500 hover:text-white"
+                  className={cn(
+                    'w-full sm:w-24 gap-1.5',
+                    buttonStyles.cancel.normal
+                  )}
                   disabled={saving}
                   onClick={() => {
                     if (isNew) {
@@ -348,7 +414,7 @@ export default function SectionZoneDetail() {
                   size="sm"
                   onClick={() => setDeleteOpen(true)}
                   disabled={!selectedRecord || isNew || saving}
-                  className="h-9 gap-1.5 border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                  className={cn('gap-1.5', buttonStyles.delete.warning)}
                 >
                   <Trash2 className="h-4 w-4" />
                   Delete
@@ -357,17 +423,34 @@ export default function SectionZoneDetail() {
                   type="submit"
                   form="zone-form"
                   size="sm"
-                  className="h-9 gap-1.5"
-                  disabled={saving || locationOptions.length === 0}
+                  className={cn('gap-1.5', buttonStyles.save)}
+                  disabled={
+                    saving ||
+                    showChannelingDialog ||
+                    locationOptions.length === 0 ||
+                    (!isCreating && !formik.dirty)
+                  }
                 >
                   <SaveIcon className="h-4 w-4" />
-                  Save
+                  {isCreating ? 'Save' : 'Update'}
                 </Button>
               </div>
             </Form>
           )}
         </Formik>
       )}
+
+      <ChannelingSyncAlertDialog
+        open={showChannelingDialog}
+        title={channelingDialog.title}
+        description={channelingDialog.description}
+        hrmOnlyLabel={channelingDialog.hrmOnlyLabel}
+        continueLabel={channelingDialog.continueLabel}
+        loading={saving}
+        onCancel={handleChannelingCancel}
+        onSaveHrmOnly={handleChannelingSaveHrmOnly}
+        onContinue={handleChannelingContinue}
+      />
 
       <CustomAlertDialog
         open={deleteOpen}
@@ -382,6 +465,9 @@ export default function SectionZoneDetail() {
         handleVisibilityChange={setDeleteOpen}
         handleContinue={handleDelete}
         loading={saving}
+        className={{
+          actionButton: buttonStyles.delete.danger
+        }}
       />
     </div>
   );

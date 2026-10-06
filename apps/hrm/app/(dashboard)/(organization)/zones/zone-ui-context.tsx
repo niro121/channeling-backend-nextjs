@@ -10,6 +10,7 @@ import {
   type ReactNode
 } from 'react';
 import type { ZoneLocationSummary, ZoneUiRecord } from '@/types/zone';
+import type { ZoneListFilters } from './section-zone-filters';
 
 type ZoneUiContextValue = {
   records: ZoneUiRecord[];
@@ -19,12 +20,7 @@ type ZoneUiContextValue = {
   setSelectedId: (id: string | null) => void;
   isNew: boolean;
   setIsNew: (value: boolean) => void;
-  search: string;
-  setSearch: (value: string) => void;
-  statusFilter: string;
-  setStatusFilter: (value: string) => void;
-  locationFilter: string;
-  setLocationFilter: (value: string) => void;
+  filters: ZoneListFilters;
   detailFormHighlight: boolean;
   startNewZone: () => void;
 };
@@ -35,6 +31,7 @@ type ProviderProps = {
   initialRecords: ZoneUiRecord[];
   locationOptions: ZoneLocationSummary[];
   initialSelectedId?: string | null;
+  initialFilters?: ZoneListFilters;
   children: ReactNode;
 };
 
@@ -42,6 +39,7 @@ export function ZoneUiProvider({
   initialRecords,
   locationOptions,
   initialSelectedId = null,
+  initialFilters = {},
   children
 }: ProviderProps) {
   const [records, setRecords] = useState(initialRecords);
@@ -50,13 +48,15 @@ export function ZoneUiProvider({
   );
   const [isNew, setIsNew] = useState(false);
   const [detailFormHighlight, setDetailFormHighlight] = useState(false);
-  const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState('');
-  const [locationFilter, setLocationFilter] = useState('');
+  const [filters, setFilters] = useState<ZoneListFilters>(initialFilters);
 
   useEffect(() => {
     setRecords(initialRecords);
   }, [initialRecords]);
+
+  useEffect(() => {
+    setFilters(initialFilters);
+  }, [initialFilters]);
 
   useEffect(() => {
     setSelectedIdState(initialSelectedId);
@@ -90,12 +90,7 @@ export function ZoneUiProvider({
       setSelectedId,
       isNew,
       setIsNew,
-      search,
-      setSearch,
-      statusFilter,
-      setStatusFilter,
-      locationFilter,
-      setLocationFilter,
+      filters,
       detailFormHighlight,
       startNewZone
     }),
@@ -105,9 +100,7 @@ export function ZoneUiProvider({
       selectedId,
       setSelectedId,
       isNew,
-      search,
-      statusFilter,
-      locationFilter,
+      filters,
       detailFormHighlight,
       startNewZone
     ]
