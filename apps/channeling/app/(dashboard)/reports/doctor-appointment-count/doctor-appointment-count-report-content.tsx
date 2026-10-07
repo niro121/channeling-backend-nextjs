@@ -285,17 +285,17 @@ export default function DoctorAppointmentCountReportContent({
       type ExcelRow = {
         consultant: string;
         speciality: string;
-        notPaid: string;
-        paid: string;
-        cancel: string;
-        hosRefund: string;
-        proRefund: string;
-        hosValid: string;
-        proValid: string;
-        nettValid: string;
-        hos: string;
-        pro: string;
-        total: string;
+        notPaid: number;
+        paid: number;
+        cancel: number;
+        hosRefund: number;
+        proRefund: number;
+        hosValid: number;
+        proValid: number;
+        nettValid: number;
+        hos: number;
+        pro: number;
+        total: number;
       };
       const toRow = (
         r: DoctorAppointmentCountReportRow | DoctorAppointmentCountReportTotals,
@@ -303,17 +303,17 @@ export default function DoctorAppointmentCountReportContent({
       ): ExcelRow => ({
         consultant: label ?? ('consultant' in r ? r.consultant : 'Total'),
         speciality: 'speciality' in r ? r.speciality : '',
-        notPaid: String(r.notPaid),
-        paid: String(r.paid),
-        cancel: String(r.cancel),
-        hosRefund: String(r.hosRefund),
-        proRefund: String(r.proRefund),
-        hosValid: String(r.hosValid),
-        proValid: String(r.proValid),
-        nettValid: String(r.nettValid),
-        hos: money(r.hos),
-        pro: money(r.pro),
-        total: money(r.total),
+        notPaid: r.notPaid,
+        paid: r.paid,
+        cancel: r.cancel,
+        hosRefund: r.hosRefund,
+        proRefund: r.proRefund,
+        hosValid: r.hosValid,
+        proValid: r.proValid,
+        nettValid: r.nettValid,
+        hos: r.hos,
+        pro: r.pro,
+        total: r.total,
       });
       const data: ExcelRow[] = [
         ...rows.map((r) => toRow(r)),
@@ -353,6 +353,21 @@ export default function DoctorAppointmentCountReportContent({
           'hos',
           'pro',
           'total',
+        ],
+        columnNumberFormats: [
+          undefined, // Consultant
+          undefined, // Speciality
+          '0', // Not Paid
+          '0', // Paid
+          '0', // Cancel
+          '0', // Hos Refund
+          '0', // Pro Refund
+          '0', // Hos Valid
+          '0', // Pro Valid
+          '0', // Nett Valid
+          '#,##0.00', // Hos
+          '#,##0.00', // Pro
+          '#,##0.00', // Total
         ],
         fileName: `${formatExportFileName('doctor-appointment-count')}.xlsx`,
         sheetName: 'Appointment Count',

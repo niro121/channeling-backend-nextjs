@@ -474,6 +474,25 @@ function ConsultantPaymentsReportContentInner({
       }
       exportTitle="Consultant Payments Report"
       exportFileName="consultant-payments-report"
+      excelColumnNumberFormats={[
+        undefined, // S.No
+        undefined, // Branch
+        undefined, // Consultant
+        undefined, // Consultant Code
+        undefined, // Payment Receipt
+        undefined, // Channel Receipt
+        undefined, // Consultation Date/Session Time
+        undefined, // Patient Name
+        undefined, // Mode of Pay
+        '#,##0.00', // Consultation Charge
+        '#,##0.00', // Discount Amount
+        '#,##0.00', // WHT
+        '#,##0.00', // Net Amount
+        undefined, // Payment Status
+        undefined, // Paid By
+        undefined, // Paid Date
+        undefined, // Handed By
+      ]}
       tableClassName="text-[11px] [&_th]:px-1.5 [&_td]:px-1.5 [&_th]:border-r [&_th:last-child]:border-r-0 [&_td]:border-r [&_td:last-child]:border-r-0"
       getRowId={(row) => row.id}
       showPrintButton={true}

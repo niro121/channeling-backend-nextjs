@@ -95,13 +95,6 @@ function parseAmount(value: string | null | undefined): number {
   return Number.isFinite(n) ? n : 0;
 }
 
-function formatAmount(n: number): string {
-  return n.toLocaleString('en-US', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
-}
-
 export type DownloadCashierDrawerBalanceExcelOptions = {
   reportName: string;
   summaryItems: BrandedPdfSummaryItem[];
@@ -332,8 +325,13 @@ export async function downloadCashierDrawerBalanceReportExcel({
 
     for (let c = 0; c < KEYS.length; c++) {
       const cell = sheet.getCell(row, c + 1);
-      cell.value = cellValue(dataRow[KEYS[c]!]);
-      cell.numFmt = '@';
+      const key = KEYS[c]!;
+      if (c >= 2) {
+        cell.value = parseAmount(dataRow[key]);
+        cell.numFmt = '#,##0.00';
+      } else {
+        cell.value = cellValue(dataRow[key]);
+      }
       cell.font = { size: 8, name: 'Arial' };
       cell.border = thinBorder;
       cell.alignment = {
@@ -347,22 +345,23 @@ export async function downloadCashierDrawerBalanceReportExcel({
   }
 
   if (rows.length > 0) {
-    const totalValues = [
+    const totalValues: Array<string | number | null> = [
       'Total',
-      '',
-      formatAmount(totals.cash),
-      formatAmount(totals.card),
-      formatAmount(totals.credit),
-      formatAmount(totals.slip),
-      formatAmount(totals.check),
-      formatAmount(totals.eWallet),
-      formatAmount(totals.total),
+      null,
+      totals.cash,
+      totals.card,
+      totals.credit,
+      totals.slip,
+      totals.check,
+      totals.eWallet,
+      totals.total,
     ];
     sheet.mergeCells(row, 1, row, 2);
     for (let c = 0; c < colCount; c++) {
       const cell = sheet.getCell(row, c + 1);
-      cell.value = c === 1 ? null : cellValue(totalValues[c]!);
-      cell.numFmt = '@';
+      const raw = totalValues[c]!;
+      cell.value = c === 1 ? null : raw;
+      if (typeof raw === 'number') cell.numFmt = '#,##0.00';
       cell.font = { size: 8, name: 'Arial', bold: true };
       cell.border = thinBorder;
       cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF3F3F3' } };

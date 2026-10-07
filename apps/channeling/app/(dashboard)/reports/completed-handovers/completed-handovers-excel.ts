@@ -360,9 +360,10 @@ export async function downloadCompletedHandoversReportExcel({
       horizontal?: 'left' | 'right' | 'center';
       bold?: boolean;
       fill?: boolean;
+      currency?: boolean;
     } = {}
   ) => {
-    cell.numFmt = '@';
+    if (opts.currency) cell.numFmt = '#,##0.00';
     cell.font = { size: 8, name: 'Arial', bold: opts.bold ?? false };
     cell.border = thinBorder;
     if (opts.fill) {
@@ -393,11 +394,11 @@ export async function downloadCompletedHandoversReportExcel({
     const r = rows[i]!;
     const parties = partiesLines(r);
     const status = statusLines(r);
-    const values: Array<string | ExcelJS.CellRichTextValue> = [
+    const values: Array<string | number | ExcelJS.CellRichTextValue> = [
       r.no || String(i + 1),
       labeledRichText(parties),
       methodsText(r),
-      r.total || '0.00',
+      parseAmount(r.total),
       labeledRichText(status),
     ];
     for (let c = 0; c < colCount; c++) {
@@ -406,6 +407,7 @@ export async function downloadCompletedHandoversReportExcel({
       applyCellBase(cell, {
         horizontal: c === 0 ? 'center' : c === 3 ? 'right' : 'left',
         bold: c === 3,
+        currency: c === 3,
       });
     }
     sheet.getRow(row).height = Math.max(56, Math.max(parties.length, status.length, 4) * 14);
@@ -421,11 +423,11 @@ export async function downloadCompletedHandoversReportExcel({
       credit: formatAmount(totals.credit),
       eWallet: formatAmount(totals.eWallet),
     };
-    const totalValues = [
+    const totalValues: Array<string | number> = [
       '',
       'Total',
       methodsText(totalMethods),
-      formatAmount(totals.total),
+      totals.total,
       '',
     ];
     for (let c = 0; c < colCount; c++) {
@@ -435,6 +437,7 @@ export async function downloadCompletedHandoversReportExcel({
         horizontal: c === 0 ? 'center' : c === 3 ? 'right' : 'left',
         bold: true,
         fill: true,
+        currency: c === 3,
       });
     }
     sheet.getRow(row).height = 56;

@@ -240,9 +240,15 @@ export async function downloadAgencyStatementReportExcel({
       const cell = sheet.getCell(row, c + 1);
       // Merged closing label lives in column A. Writing null into B–D clears it.
       if (!(compact.isClosing && c > 0 && c < 4)) {
-        cell.value = cellValues[c] ?? null;
+        const raw = cellValues[c] ?? null;
+        if (c === 4 && raw != null && raw !== '' && raw !== '—') {
+          const n = Number(String(raw).replace(/,/g, ''));
+          cell.value = Number.isFinite(n) ? n : raw;
+          if (typeof cell.value === 'number') cell.numFmt = '#,##0.00';
+        } else {
+          cell.value = raw;
+        }
       }
-      cell.numFmt = '@';
       cell.font = {
         size: 8,
         name: 'Arial',
@@ -254,7 +260,11 @@ export async function downloadAgencyStatementReportExcel({
         right: { style: 'thin', color: { argb: 'FFBBBBBB' } },
         bottom: { style: 'thin', color: { argb: 'FF999999' } },
       };
-      cell.alignment = { vertical: 'top', horizontal: 'left', wrapText: true };
+      cell.alignment = {
+        vertical: 'top',
+        horizontal: c === 4 ? 'right' : 'left',
+        wrapText: true,
+      };
       if (isBalanceRow) {
         cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF5F5F5' } };
       }

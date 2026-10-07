@@ -298,6 +298,16 @@ function DoctorBalanceReportContentInner({
       }
       exportTitle="Doctor Balance Report"
       exportFileName="doctor-balance"
+      excelColumnNumberFormats={[
+        undefined, // No.
+        undefined, // Status
+        undefined, // Doctor Code
+        undefined, // Doctor Name
+        undefined, // Speciality
+        undefined, // Phone
+        undefined, // Address
+        '#,##0.00', // Doctor Balance
+      ]}
       getRowId={(row) => row.id}
       totalColumnIds={['doctorBalance']}
       formatTotalValue={(_columnId, sum) => formatLKR(sum)}

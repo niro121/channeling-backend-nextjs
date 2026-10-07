@@ -338,9 +338,13 @@ function writeDataCells(
     const marks = opts.shiftMarks && c === opts.shiftsCol ? opts.shiftMarks : undefined;
     if (marks?.length) {
       cell.value = shiftMarksRichText(marks);
+    } else if (isAmount) {
+      const n = Number(String(cells[c] ?? '').replace(/,/g, ''));
+      cell.value = Number.isFinite(n) ? n : cellValue(cells[c]);
+      if (typeof cell.value === 'number') cell.numFmt = '#,##0.00';
+      cell.font = { size: 7, name: 'Arial', bold: Boolean(opts.bold) };
     } else {
       cell.value = cellValue(cells[c]);
-      cell.numFmt = '@';
       cell.font = { size: 7, name: 'Arial', bold: Boolean(opts.bold) };
     }
     cell.border = thinBorder;
@@ -542,8 +546,9 @@ export async function downloadAllCashierSummaryDetailReportExcel(
       }
       amountCells(opts.grandTotals).forEach((v, i) => {
         const cell = sheet.getCell(row, 5 + i);
-        cell.value = v;
-        cell.numFmt = '@';
+        const n = Number(String(v ?? '').replace(/,/g, ''));
+        cell.value = Number.isFinite(n) ? n : v;
+        if (typeof cell.value === 'number') cell.numFmt = '#,##0.00';
         cell.font = { bold: true, size: 7, name: 'Arial' };
         cell.border = thinBorder;
         cell.alignment = { horizontal: 'right', vertical: 'middle' };

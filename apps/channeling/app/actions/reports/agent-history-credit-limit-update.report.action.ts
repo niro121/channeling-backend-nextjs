@@ -58,9 +58,9 @@ export async function exportAgentHistoryCreditLimitUpdateReportData(
             : r.hardLimitField === 'maxBalanceAllowed'
               ? 'Maximum balance'
               : 'Hard limit',
-      beforeValue: r.oldValue == null ? '-' : String(r.oldValue.toFixed(2)),
-      updatedValue: r.newValue == null ? '-' : String(r.newValue.toFixed(2)),
-      delta: r.delta == null ? '-' : String(r.delta.toFixed(2)),
+      beforeValue: r.oldValue == null ? null : r.oldValue,
+      updatedValue: r.newValue == null ? null : r.newValue,
+      delta: r.delta == null ? null : r.delta,
       changedBy: r.changedByUserName ?? r.changedByUserId ?? '-',
       remark: creditLimitChangeRemark(r.metadata, '-'),
       dateTime: moment(r.createdAt).format('YYYY-MM-DD HH:mm:ss'),

@@ -261,6 +261,14 @@ function SmsReportsContentInner({ currentUserName, locationOptions }: SmsReports
       exportKeys={['dateTime', 'status', 'source', 'phone', 'message', 'count'] as (keyof SmsReportExportRow)[]}
       exportTitle="SMS Reports"
       exportFileName="sms-reports"
+      excelColumnNumberFormats={[
+        undefined, // Date / Time
+        undefined, // Status
+        undefined, // Source
+        undefined, // Phone
+        undefined, // Message
+        '0', // Count
+      ]}
       getRowId={(row) => row.id}
       showPrintButton={true}
       emptyMessage="No SMS records found for the selected filters."
