@@ -43,17 +43,17 @@ export type DoctorAppointmentCountReportTotals = {
 export type DoctorAppointmentCountReportExportRow = {
   consultant: string;
   speciality: string;
-  notPaid: string;
-  paid: string;
-  cancel: string;
-  hosRefund: string;
-  proRefund: string;
-  hosValid: string;
-  proValid: string;
-  nettValid: string;
-  hos: string;
-  pro: string;
-  total: string;
+  notPaid: number;
+  paid: number;
+  cancel: number;
+  hosRefund: number;
+  proRefund: number;
+  hosValid: number;
+  proValid: number;
+  nettValid: number;
+  hos: number;
+  pro: number;
+  total: number;
 };
 
 export type DoctorAppointmentCountReportContentProps = {

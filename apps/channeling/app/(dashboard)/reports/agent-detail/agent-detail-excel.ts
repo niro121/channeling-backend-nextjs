@@ -15,7 +15,6 @@ import type { ExportAgentDetailData } from '@/types/report';
 import {
   AGENT_DETAIL_PDF_HEADERS,
   agentDetailPdfCompactRow,
-  formatAgentDetailMoney,
   mapAgentDetailCompactFromExportRow,
   sumAgentDetailCreditTotals,
 } from './agent-detail-export-config';
@@ -259,15 +258,11 @@ export async function downloadAgentDetailReportExcel({
   row += 1;
 
   const totalItems = [
-    { label: 'ALLOWED CREDIT LIMIT', value: formatAgentDetailMoney(totals.allowed) },
-    { label: 'ALLOWED MAXIMUM CREDIT LIMIT', value: formatAgentDetailMoney(totals.max) },
-    { label: 'STANDARD CREDIT LIMIT', value: formatAgentDetailMoney(totals.standard) },
-    { label: 'BALANCE', value: formatAgentDetailMoney(totals.balance) },
+    { label: 'ALLOWED CREDIT LIMIT', value: totals.allowed },
+    { label: 'ALLOWED MAXIMUM CREDIT LIMIT', value: totals.max },
+    { label: 'STANDARD CREDIT LIMIT', value: totals.standard },
+    { label: 'BALANCE', value: totals.balance },
   ];
-  // 4 total items across 6 cols → first two span 2 cols each, last two span 1 each? Better: each item gets label row + value using 1.5 cols. Simpler: use 4 columns of width by merging pairs where needed.
-  // Use cols 1-2, 3-4, 5, 6 OR equal: merge into 4 equal spans of 1.5 - excel needs ints. So spans: 2, 2, 1, 1 or all use first 4 cols.
-  // Match print: 4 equal items — merge A-B, C-D for first two and use E, F? Or use 4 cells in a 4-col feel with merges A-A, B-B won't work.
-  // Clean approach: 4 items each spanning roughly equal: col spans 2,1,2,1 or just put each in columns 1,2,3,4 and leave 5-6 empty with outer border.
 
   const totalsLabelRow = row;
   const totalsValueRow = row + 1;
@@ -287,6 +282,7 @@ export async function downloadAgentDetailReportExcel({
 
     const valueCell = sheet.getCell(totalsValueRow, startCol);
     valueCell.value = totalItems[i]!.value;
+    valueCell.numFmt = '#,##0.00';
     valueCell.font = { bold: true, size: 9, name: 'Arial' };
     valueCell.alignment = { vertical: 'top', horizontal: 'left' };
 

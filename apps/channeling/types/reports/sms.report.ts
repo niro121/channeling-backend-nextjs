@@ -31,5 +31,5 @@ export type SmsReportExportRow = {
   source: string;
   phone: string;
   message: string;
-  count: string;
+  count: number;
 };

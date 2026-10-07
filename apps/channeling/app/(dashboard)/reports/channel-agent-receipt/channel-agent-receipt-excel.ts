@@ -11,7 +11,6 @@ import {
   RUHUNU_PRINT_BRAND_NAME,
   type BrandedPdfSummaryItem,
 } from '@/components/common/report-print';
-import { formatLKR } from '@/lib/format-money';
 import type { ChannelAgentReceiptReportExportRow } from '@/types/reports/channel-agent-receipt';
 import { CHANNEL_AGENT_RECEIPT_HEADERS } from './channel-agent-receipt-export-config';
 
@@ -78,7 +77,7 @@ export type DownloadChannelAgentReceiptExcelOptions = {
   sheetName?: string;
 };
 
-function rowValues(row: ChannelAgentReceiptReportExportRow): Array<string | null> {
+function rowValues(row: ChannelAgentReceiptReportExportRow): Array<string | number | null> {
   return [
     row.agentRef || '-',
     row.refNo || '-',
@@ -87,7 +86,7 @@ function rowValues(row: ChannelAgentReceiptReportExportRow): Array<string | null
     row.status || '-',
     row.creator || '-',
     row.createdDate || '-',
-    formatLKR(Number(row.billValue ?? 0)),
+    Number(row.billValue) || 0,
   ];
 }
 
@@ -262,7 +261,7 @@ export async function downloadChannelAgentReceiptReportExcel({
       const cell = sheet.getCell(row, c + 1);
       const raw = values[c];
       cell.value = raw === undefined || raw === null || raw === '' ? null : raw;
-      cell.numFmt = '@';
+      if (typeof raw === 'number') cell.numFmt = '#,##0.00';
       cell.font = { size: 8, name: 'Arial' };
       cell.border = dataBorder;
       cell.alignment = {
@@ -286,8 +285,8 @@ export async function downloadChannelAgentReceiptReportExcel({
     label.border = thinBorder;
     label.alignment = { vertical: 'middle', horizontal: 'left', wrapText: false };
     const amount = sheet.getCell(row, 8);
-    amount.value = formatLKR(billTotal);
-    amount.numFmt = '@';
+    amount.value = billTotal;
+    amount.numFmt = '#,##0.00';
     amount.font = { bold: true, size: 8, name: 'Arial' };
     amount.fill = totalFill;
     amount.border = thinBorder;

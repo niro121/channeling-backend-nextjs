@@ -13,7 +13,6 @@ import {
   RUHUNU_PRINT_BRAND_NAME,
   type BrandedPdfSummaryItem,
 } from '@/components/common/report-print';
-import { formatReceiptAmount } from '@/lib/format-money';
 import type {
   CashierSummaryPaymentAmounts,
   CashierSummaryReportLineItem,
@@ -127,12 +126,6 @@ const thinBorder: Partial<ExcelJS.Borders> = {
   bottom: { style: 'thin', color: { argb: 'FF000000' } },
 };
 
-function formatAmount(n: number | undefined | null): string {
-  const num = Number(n);
-  if (!Number.isFinite(num)) return '0.00';
-  return formatReceiptAmount(num);
-}
-
 function sumAmounts(
   t: CashierSummaryPaymentAmounts,
   keys: (keyof CashierSummaryPaymentAmounts)[]
@@ -148,8 +141,8 @@ function sectionShowRows(mode: 'summary' | 'detail', sectionKey: string): boolea
   return mode === 'detail' || sectionKey === 'channelRefund';
 }
 
-function amountCells(amounts: CashierSummaryPaymentAmounts): string[] {
-  return PAYMENT_COLUMNS.map((c) => formatAmount(amounts[c.key]));
+function amountCells(amounts: CashierSummaryPaymentAmounts): number[] {
+  return PAYMENT_COLUMNS.map((c) => Number(amounts[c.key]) || 0);
 }
 
 function txLabel(row: CashierSummaryReportLineItem): string {
@@ -365,15 +358,20 @@ function writeHeaderRow(
 function writeDataRow(
   sheet: ExcelJS.Worksheet,
   row: number,
-  values: Array<string | null>,
+  values: Array<string | number | null>,
   opts?: { bold?: boolean; fill?: string; rightFrom?: number; height?: number; shrinkFrom?: number }
 ): number {
   const rightFrom = opts?.rightFrom ?? 99;
   for (let c = 0; c < values.length; c++) {
     const shrink = opts?.shrinkFrom != null && c >= opts.shrinkFrom;
     const cell = sheet.getCell(row, c + 1);
-    cell.value = cellValue(values[c]);
-    cell.numFmt = '@';
+    const raw = values[c];
+    if (typeof raw === 'number') {
+      cell.value = raw;
+      cell.numFmt = '#,##0.00';
+    } else {
+      cell.value = cellValue(raw);
+    }
     cell.font = { size: 7, name: 'Arial', bold: Boolean(opts?.bold) };
     cell.border = thinBorder;
     cell.alignment = {
@@ -411,7 +409,9 @@ function writeSpannedRow(
     if (end > col) sheet.mergeCells(row, col, row, end);
     const cell = sheet.getCell(row, col);
     cell.value = spec.value ?? null;
-    if (typeof spec.value !== 'object' || spec.value === null) cell.numFmt = '@';
+    if (typeof spec.value === 'number') {
+      cell.numFmt = '#,##0.00';
+    }
     cell.font = { size: spec.fontSize ?? 7, name: 'Arial', bold: Boolean(spec.bold) };
     cell.alignment = {
       vertical: 'middle',
@@ -475,7 +475,7 @@ function writeCreditCashFooter(
 
   const writePair = (
     label: string,
-    value: string,
+    value: string | number,
     opts?: { bold?: boolean; fill?: string; header?: boolean }
   ) => {
     if (opts?.header) {
@@ -500,8 +500,7 @@ function writeCreditCashFooter(
       const right = sheet.getCell(row, valueCol);
       left.value = label;
       right.value = value;
-      left.numFmt = '@';
-      right.numFmt = '@';
+      if (typeof value === 'number') right.numFmt = '#,##0.00';
       left.font = { size: 8, name: 'Arial', bold: Boolean(opts?.bold) };
       right.font = { size: 8, name: 'Arial', bold: Boolean(opts?.bold) };
       left.alignment = { horizontal: 'left', vertical: 'middle', wrapText: false };
@@ -525,17 +524,17 @@ function writeCreditCashFooter(
   };
 
   writePair('Credit Summary', '', { header: true });
-  writePair('Slip Total', formatAmount(slip));
-  writePair('Credit Total', formatAmount(creditCustomer));
-  writePair('Total', formatAmount(creditSectionTotal), { bold: true, fill: 'FFF3F3F3' });
+  writePair('Slip Total', slip);
+  writePair('Credit Total', creditCustomer);
+  writePair('Total', creditSectionTotal, { bold: true, fill: 'FFF3F3F3' });
   writePair('Cash Summary', '', { header: true });
-  writePair('Cash Total', formatAmount(totals.cash));
-  writePair('Credit Card Total', formatAmount(totals.creditCard));
-  writePair('Cheque Total', formatAmount(totals.cheque));
-  writePair('E-wallet Total', formatAmount(totals.eWallet));
-  writePair('Total', formatAmount(cashSectionTotal), { bold: true, fill: 'FFF3F3F3' });
-  writePair('Grand Total', formatAmount(grandCombined), { bold: true, fill: 'FFF3F3F3' });
-  writePair('Agent Total', formatAmount(agentTotal), { bold: true });
+  writePair('Cash Total', Number(totals.cash) || 0);
+  writePair('Credit Card Total', Number(totals.creditCard) || 0);
+  writePair('Cheque Total', Number(totals.cheque) || 0);
+  writePair('E-wallet Total', Number(totals.eWallet) || 0);
+  writePair('Total', cashSectionTotal, { bold: true, fill: 'FFF3F3F3' });
+  writePair('Grand Total', grandCombined, { bold: true, fill: 'FFF3F3F3' });
+  writePair('Agent Total', agentTotal, { bold: true });
 
   return row;
 }
