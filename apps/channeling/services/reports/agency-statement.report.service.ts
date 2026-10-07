@@ -145,6 +145,7 @@ export async function getAgencyStatementReportService(
                 bookingid_string: true,
                 title: true,
                 name: true,
+                agencyRef: true,
                 session: { select: { date: true, startTime: true } },
                 professionalFee: true,
                 hospitalFee: true,
@@ -194,6 +195,11 @@ export async function getAgencyStatementReportService(
               .join(', ')
           : '';
 
+      // agencyRef = bookNumber + 2-digit leaf (e.g. R0001 + 01 → R000101)
+      const agencyRef = (booking?.agencyRef ?? '').trim();
+      const bookNo = agencyRef.length >= 2 ? agencyRef.slice(0, -2) : null;
+      const leafNo = agencyRef.length >= 2 ? agencyRef.slice(-2) : null;
+
       return {
         no: idx + 1,
         date: journal?.date ?? new Date(),
@@ -202,6 +208,8 @@ export async function getAgencyStatementReportService(
           ? formatSessionDateTime({ date: booking.session.date, startTime: booking.session.startTime })
           : null,
         receiptNo: receipt?.receiptNoString || '-',
+        bookNo,
+        leafNo,
         docFee: Number(booking?.professionalFee ?? 0),
         hosFee: Number(booking?.hospitalFee ?? 0),
         discount,
