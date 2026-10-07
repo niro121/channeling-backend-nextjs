@@ -7,10 +7,20 @@ import { requirePermission } from '@/lib/server-permissions';
 import { logActivityNonBlocking } from '@/lib/activity-log';
 import { formatCents } from '@/lib/format-money';
 import { getCompletedHandoversReportService } from '@/services/reports/completed-handovers.report.service';
-import type {
-  CompletedHandoversReportExportRow,
-  CompletedHandoversReportQuery,
+import {
+  formatHandoverReportVariance,
+  type CompletedHandoversReportExportRow,
+  type CompletedHandoversReportQuery,
+  type HandoverReportVarianceLine,
 } from '@/types/reports/completed-handovers';
+
+function varianceCents(
+  lines: HandoverReportVarianceLine[],
+  label: string,
+  kind: HandoverReportVarianceLine['kind']
+): number {
+  return lines.find((line) => line.label === label && line.kind === kind)?.cents ?? 0;
+}
 
 export async function getCompletedHandoversReportData(query: CompletedHandoversReportQuery) {
   await requirePermission('reports', 'view');
@@ -44,6 +54,14 @@ export async function exportCompletedHandoversReportData(
       credit: formatCents(r.creditCents),
       eWallet: formatCents(r.eWalletCents),
       total: formatCents(r.totalCents),
+      excessOrShort: formatHandoverReportVariance(r.variances, '-'),
+      shortCashCents: varianceCents(r.variances, 'Cash', 'short'),
+      shortCardCents: varianceCents(r.variances, 'Card', 'short'),
+      shortSlipCents: varianceCents(r.variances, 'Slip', 'short'),
+      shortCheckCents: varianceCents(r.variances, 'Cheque', 'short'),
+      shortCreditCents: varianceCents(r.variances, 'Credit', 'short'),
+      shortEWalletCents: varianceCents(r.variances, 'E-wallet', 'short'),
+      settlementCents: varianceCents(r.variances, 'Cash', 'excess'),
       status: r.statusLabel,
       reconciliationStatus: r.reconciliationStatusLabel,
       createdAt: r.createdAt ? moment(r.createdAt).format('YYYY-MM-DD HH:mm:ss') : '-',

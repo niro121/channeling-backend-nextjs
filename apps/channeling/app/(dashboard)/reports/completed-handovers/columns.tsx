@@ -8,10 +8,35 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { formatCents } from '@/lib/format-money';
 import { HANDOVER_STATUS, RECONCILIATION_STATUS } from '@/types/handover';
-import type { CompletedHandoversReportRow } from '@/types/reports/completed-handovers';
+import type {
+  CompletedHandoversReportRow,
+  HandoverReportVarianceLine,
+} from '@/types/reports/completed-handovers';
 
 function amountCell(cents: number) {
   return <span className="block text-right tabular-nums">{formatCents(cents)}</span>;
+}
+
+export function HandoverVarianceCell({ lines }: { lines: HandoverReportVarianceLine[] }) {
+  if (lines.length === 0) {
+    return <span className="block text-right text-muted-foreground">—</span>;
+  }
+  return (
+    <div className="space-y-0.5 text-right text-xs tabular-nums">
+      {lines.map((line) => (
+        <div
+          key={`${line.kind}-${line.label}`}
+          className={
+            line.kind === 'short'
+              ? 'text-destructive'
+              : 'text-amber-700 dark:text-amber-400'
+          }
+        >
+          {line.label} {line.kind} {formatCents(line.cents)}
+        </div>
+      ))}
+    </div>
+  );
 }
 
 function statusBadgeVariant(
@@ -94,6 +119,11 @@ export const CompletedHandoversColumns: ColumnDef<CompletedHandoversReportRow>[]
         {formatCents(row.getValue<number>('totalCents') ?? 0)}
       </span>
     ),
+  },
+  {
+    id: 'excessOrShort',
+    header: () => <span className="block text-right">Excess / Short</span>,
+    cell: ({ row }) => <HandoverVarianceCell lines={row.original.variances ?? []} />,
   },
   {
     accessorKey: 'statusLabel',
