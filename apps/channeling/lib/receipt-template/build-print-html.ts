@@ -313,6 +313,7 @@ function buildSailsBookingReceiptHtml(placeholders: ReceiptPlaceholderMap): stri
     invoiceRow("Appointment Type", placeholders.booking_method ?? ""),
     invoiceRow("App. Date", placeholders.appointment_date ?? "", { strongLabel: true, strongValue: true }),
     invoiceRow("App. Time", placeholders.appointment_time ?? "", { strongLabel: true, strongValue: true }),
+    sessionLocationName ? invoiceRow("Session Location", sessionLocationName) : "",
     invoiceRow("Hospital Fee", placeholders.hospital_fee ?? ""),
     hospitalDiscount ? invoiceRow("Discount", hospitalDiscount) : "",
     invoiceRow("Total Hospital Fee", placeholders.total_hospital_fee ?? "", {
@@ -347,16 +348,11 @@ function buildSailsBookingReceiptHtml(placeholders: ReceiptPlaceholderMap): stri
     ? `<div class="status-banner">${escapeHtml(statusBanner)}</div>`
     : ""
 
-  const sessionLocationHtml = sessionLocationName
-    ? `<p class="contact">Session Location : ${escapeHtml(sessionLocationName)}</p>`
-    : ""
-
   return `
   <div class="invoice-wrap">
     <div class="hospital-half">
       <div class="hospital-name">${escapeHtml(companyName)}</div>
       <div class="hospital-name">${escapeHtml(locationAddress)}</div>
-      ${sessionLocationHtml}
       <p class="contact">${escapeHtml(ruhunuPhoneFaxLine())}</p>
       <p class="contact">${escapeHtml(ruhunuEmailWebLine())}</p>
       <div class="bill-title">Invoice - Hospital Bill</div>
