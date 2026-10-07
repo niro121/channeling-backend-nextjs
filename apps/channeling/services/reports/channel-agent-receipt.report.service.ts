@@ -21,16 +21,24 @@ export async function getChannelAgentReceiptReportService(
 }> {
   try {
     const bookNo = query.bookNo?.trim();
-    if (!bookNo) {
+    const agencyId = query.agencyId?.trim();
+    const hasAgency = Boolean(agencyId && agencyId !== '__all__');
+
+    if (!bookNo && !hasAgency) {
       return { success: true, data: [], totalRecords: 0 };
     }
 
     const bookings = await prisma.booking.findMany({
       where: {
-        agencyRef: {
-          startsWith: bookNo,
-          mode: 'insensitive',
-        },
+        ...(bookNo
+          ? {
+              agencyRef: {
+                startsWith: bookNo,
+                mode: 'insensitive' as const,
+              },
+            }
+          : {}),
+        ...(hasAgency ? { agencyId } : {}),
       },
       select: {
         id: true,

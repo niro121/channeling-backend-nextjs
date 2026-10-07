@@ -81,6 +81,11 @@ export type ExportWrapperProps<T> = {
   exportOrientation?: 'portrait' | 'landscape';
   /** Smaller fonts/columns for wide portrait exports. */
   compactTable?: boolean;
+  /**
+   * Optional Excel number formats aligned with `columns` index
+   * (e.g. `'0'`, `'#,##0.00'`). Applied when the cell value is a number.
+   */
+  excelColumnNumberFormats?: (string | undefined)[];
 };
 
 function resolveSummaryItems(
@@ -113,6 +118,7 @@ export const ExportWrapper = <T,>({
   customDownloadExcel,
   exportOrientation = 'landscape',
   compactTable = false,
+  excelColumnNumberFormats,
 }: ExportWrapperProps<T>) => {
   const { toast } = useToast();
   const [loadingPdf, setLoadingPdf] = useState(false);
@@ -283,6 +289,7 @@ export const ExportWrapper = <T,>({
           sheetName: title.slice(0, 31),
           orientation: exportOrientation,
           compactTable: compactTable || exportOrientation === 'portrait',
+          columnNumberFormats: excelColumnNumberFormats,
         });
       }
     } catch (error: any) {

@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import { fetchServerSession } from '@/lib/session';
 import prisma from '@/lib/prisma';
 import { formatUserDisplayName } from '@/lib/helpers/user-display.helper';
+import { getReportFilterOptions } from '@/services/reference/report-filter-options.service';
 import ChannelAgentReceiptReportContent from './channel-agent-receipt-report-content';
 
 export const dynamic = 'force-dynamic';
@@ -13,7 +14,11 @@ export default async function ChannelAgentReceiptReportPage() {
     redirect('/unauthorized-access');
   }
 
-  const session = await fetchServerSession();
+  const [session, ref] = await Promise.all([
+    fetchServerSession(),
+    getReportFilterOptions({ agencies: true, allLabels: { agencies: 'All Agencies' } }),
+  ]);
+
   const currentUser =
     session?.user?.id
       ? await prisma.user.findUnique({
@@ -27,5 +32,15 @@ export default async function ChannelAgentReceiptReportPage() {
     currentUser?.staff?.code
   );
 
-  return <ChannelAgentReceiptReportContent currentUserName={currentUserName} />;
+  const agencyOptions: Array<{ id: string; name: string }> =
+    ref.success && ref.agencyOptions
+      ? ref.agencyOptions
+      : [{ id: '__all__', name: 'All Agencies' }];
+
+  return (
+    <ChannelAgentReceiptReportContent
+      currentUserName={currentUserName}
+      agencyOptions={agencyOptions}
+    />
+  );
 }
