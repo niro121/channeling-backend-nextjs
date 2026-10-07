@@ -37,7 +37,7 @@ export type ChannelReportReceiptWiseExportRow = {
   receiptDate: string;
   receiptMethod: string;
   transactionType: string;
-  receiptAmount: string;
+  receiptAmount: number;
   bookingNo: string;
   appointmentNo: string;
   sessionDate: string;
@@ -51,8 +51,8 @@ export type ChannelReportReceiptWiseExportRow = {
   handedToStaff: string;
   cancelReason: string;
   reversedReceiptNo: string;
-  whdAmount: string;
-  netAmount: string;
+  whdAmount: number;
+  netAmount: number;
 };
 
 export const RECEIPT_SCOPE_OPTIONS = [

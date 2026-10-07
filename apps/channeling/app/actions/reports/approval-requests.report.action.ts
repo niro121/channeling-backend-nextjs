@@ -5,7 +5,6 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { requirePermission } from '@/lib/server-permissions';
 import { logActivityNonBlocking } from '@/lib/activity-log';
-import { formatReceiptAmount } from '@/lib/format-money';
 import { getApprovalRequestsReportService } from '@/services/reports/approval-requests.report.service';
 import type {
   ApprovalRequestsReportExportRow,
@@ -44,7 +43,7 @@ export async function exportApprovalRequestsReportData(
       channelType: dash(r.channelType),
       paymentMode: dash(r.paymentMode),
       details: [r.details, r.detailsSub].filter(Boolean).join(' — '),
-      amount: formatReceiptAmount(r.amount ?? 0),
+      amount: Number(r.amount) || 0,
       requestedBy: dash(r.requestedByName),
       status: r.statusLabel,
       approvedBy: dash(r.approvedByName),
@@ -64,7 +63,7 @@ export async function exportApprovalRequestsReportData(
       channelType: '',
       paymentMode: '',
       details: '',
-      amount: formatReceiptAmount(totalAmount),
+      amount: totalAmount,
       requestedBy: '',
       status: '',
       approvedBy: '',

@@ -44,7 +44,7 @@ export type ApprovalRequestsReportExportRow = {
   channelType: string;
   paymentMode: string;
   details: string;
-  amount: string;
+  amount: number;
   requestedBy: string;
   status: string;
   approvedBy: string;
