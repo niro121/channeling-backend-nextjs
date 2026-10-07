@@ -313,7 +313,12 @@ function buildSailsBookingReceiptHtml(placeholders: ReceiptPlaceholderMap): stri
     invoiceRow("Appointment Type", placeholders.booking_method ?? ""),
     invoiceRow("App. Date", placeholders.appointment_date ?? "", { strongLabel: true, strongValue: true }),
     invoiceRow("App. Time", placeholders.appointment_time ?? "", { strongLabel: true, strongValue: true }),
-    sessionLocationName ? invoiceRow("Session Location", sessionLocationName) : "",
+    sessionLocationName
+      ? invoiceRow("Session Location", sessionLocationName, {
+          strongLabel: true,
+          strongValue: true,
+        })
+      : "",
     invoiceRow("Hospital Fee", placeholders.hospital_fee ?? ""),
     hospitalDiscount ? invoiceRow("Discount", hospitalDiscount) : "",
     invoiceRow("Total Hospital Fee", placeholders.total_hospital_fee ?? "", {
