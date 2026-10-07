@@ -49,7 +49,7 @@ export async function exportChannelReportReceiptWiseData(
       receiptDate: moment(row.receiptDate).format('YYYY-MM-DD hh:mm A'),
       receiptMethod: row.receiptMethod,
       transactionType: row.transactionType,
-      receiptAmount: row.receiptAmount.toFixed(2),
+      receiptAmount: Number(row.receiptAmount) || 0,
       bookingNo: row.bookingNo,
       appointmentNo: row.appointmentNo,
       sessionDate: row.sessionDate ? moment(row.sessionDate).format('YYYY-MM-DD') : '-',
@@ -63,8 +63,8 @@ export async function exportChannelReportReceiptWiseData(
       handedToStaff: row.handedToStaff,
       cancelReason: row.cancelReason,
       reversedReceiptNo: row.reversedReceiptNo,
-      whdAmount: row.whdAmount !== 0 ? row.whdAmount.toFixed(2) : '-',
-      netAmount: row.netAmount.toFixed(2),
+      whdAmount: Number(row.whdAmount) || 0,
+      netAmount: Number(row.netAmount) || 0,
     }));
 
     return { success: true, data: rows };

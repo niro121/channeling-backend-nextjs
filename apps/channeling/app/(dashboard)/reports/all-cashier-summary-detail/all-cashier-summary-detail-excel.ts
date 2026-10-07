@@ -331,8 +331,10 @@ function writeDataCells(
   }
 ): number {
   const colCount = cells.length;
+  const receiptsCol = opts.amountStart - 1;
   for (let c = 0; c < colCount; c++) {
     const isAmount = c >= opts.amountStart && c < opts.amountStart + ACS_PAYMENT_COLUMNS.length;
+    const isReceipts = c === receiptsCol;
     const shrink = Boolean(opts.shrinkAmounts && isAmount);
     const cell = sheet.getCell(row, c + 1);
     const marks = opts.shiftMarks && c === opts.shiftsCol ? opts.shiftMarks : undefined;
@@ -342,6 +344,11 @@ function writeDataCells(
       const n = Number(String(cells[c] ?? '').replace(/,/g, ''));
       cell.value = Number.isFinite(n) ? n : cellValue(cells[c]);
       if (typeof cell.value === 'number') cell.numFmt = '#,##0.00';
+      cell.font = { size: 7, name: 'Arial', bold: Boolean(opts.bold) };
+    } else if (isReceipts) {
+      const n = Number(String(cells[c] ?? '').replace(/,/g, ''));
+      cell.value = Number.isFinite(n) ? n : cellValue(cells[c]);
+      if (typeof cell.value === 'number') cell.numFmt = '0';
       cell.font = { size: 7, name: 'Arial', bold: Boolean(opts.bold) };
     } else {
       cell.value = cellValue(cells[c]);
@@ -353,11 +360,9 @@ function writeDataCells(
       horizontal:
         c === 0
           ? 'center'
-          : isAmount
+          : isAmount || isReceipts
             ? 'right'
-            : c === opts.amountStart - 1
-              ? 'right'
-              : 'left',
+            : 'left',
       wrapText: !shrink,
       shrinkToFit: shrink,
     };

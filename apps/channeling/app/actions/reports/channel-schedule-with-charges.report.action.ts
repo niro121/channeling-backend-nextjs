@@ -12,7 +12,6 @@ import {
 import {
   getChannelScheduleWithChargesReportService
 } from '@/services/reports/channel-schedule-with-charges.report.service';
-import { formatLKR } from '@/lib/format-money';
 import { DAY_TYPES } from '@/types/doctor.session';
 import { formatDoctorName } from '@/lib/helpers/doctor-name.helper';
 
@@ -31,11 +30,10 @@ function formatDateOnly(value?: Date | null): string {
   return moment(value).format('D/M/YY');
 }
 
-function formatMoney(value: unknown): string {
-  if (value == null || value === '') return '-';
+function toFeeNumber(value: unknown): number | null {
+  if (value == null || value === '') return null;
   const n = typeof value === 'number' ? value : Number(value);
-  if (Number.isNaN(n)) return '-';
-  return formatLKR(n);
+  return Number.isFinite(n) ? n : null;
 }
 
 function getFeeById(
@@ -113,27 +111,27 @@ export async function exportChannelScheduleWithChargesReportData(
           dateType: getDayTypeLabel(row.dayType),
           applyOnlyTo: formatDateOnly(row.applyTo),
 
-          doctorFeeLocal: formatMoney(doctorFee?.localFee),
-          hospitalFeeLocal: formatMoney(hospitalFee?.localFee),
-          agencyFeeLocal: formatMoney(agencyFee?.localFee),
-          scanFeeLocal: formatMoney(scanFee?.localFee),
-          onCallFeeLocal: formatMoney(onCallFee?.localFee),
-          creditCardCommissionLocal: formatMoney(
+          doctorFeeLocal: toFeeNumber(doctorFee?.localFee),
+          hospitalFeeLocal: toFeeNumber(hospitalFee?.localFee),
+          agencyFeeLocal: toFeeNumber(agencyFee?.localFee),
+          scanFeeLocal: toFeeNumber(scanFee?.localFee),
+          onCallFeeLocal: toFeeNumber(onCallFee?.localFee),
+          creditCardCommissionLocal: toFeeNumber(
             creditCardCommissionFee?.localFee
           ),
-          apiFeeLocal: formatMoney(apiFee?.localFee),
-          sessionValueLocal: formatMoney(row.amountLocal),
+          apiFeeLocal: toFeeNumber(apiFee?.localFee),
+          sessionValueLocal: toFeeNumber(row.amountLocal),
 
-          doctorFeeForeign: formatMoney(doctorFee?.foreignFee),
-          hospitalFeeForeign: formatMoney(hospitalFee?.foreignFee),
-          agencyFeeForeign: formatMoney(agencyFee?.foreignFee),
-          scanFeeForeign: formatMoney(scanFee?.foreignFee),
-          onCallFeeForeign: formatMoney(onCallFee?.foreignFee),
-          creditCardCommissionForeign: formatMoney(
+          doctorFeeForeign: toFeeNumber(doctorFee?.foreignFee),
+          hospitalFeeForeign: toFeeNumber(hospitalFee?.foreignFee),
+          agencyFeeForeign: toFeeNumber(agencyFee?.foreignFee),
+          scanFeeForeign: toFeeNumber(scanFee?.foreignFee),
+          onCallFeeForeign: toFeeNumber(onCallFee?.foreignFee),
+          creditCardCommissionForeign: toFeeNumber(
             creditCardCommissionFee?.foreignFee
           ),
-          apiFeeForeign: formatMoney(apiFee?.foreignFee),
-          sessionValueForeign: formatMoney(row.amountForeign),
+          apiFeeForeign: toFeeNumber(apiFee?.foreignFee),
+          sessionValueForeign: toFeeNumber(row.amountForeign),
 
           startingPatientNo: row.startingPatientNumber ?? '-',
           maximumPatientNo: row.maxPatientNumber ?? '-',
