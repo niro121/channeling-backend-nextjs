@@ -68,13 +68,6 @@ function parseAmount(value: string | null | undefined): number {
   return Number.isFinite(n) ? n : 0;
 }
 
-function formatAmount(n: number): string {
-  return n.toLocaleString('en-US', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
-}
-
 type DetailLine = { label: string; value: string };
 
 function displayTime(value: string | undefined | null): string {
@@ -328,9 +321,10 @@ export async function downloadBankDepositsReportExcel({
       horizontal?: 'left' | 'right' | 'center';
       bold?: boolean;
       fill?: boolean;
+      currency?: boolean;
     } = {}
   ) => {
-    cell.numFmt = '@';
+    if (opts.currency) cell.numFmt = '#,##0.00';
     cell.font = { size: 8, name: 'Arial', bold: opts.bold ?? false };
     cell.border = thinBorder;
     if (opts.fill) {
@@ -348,14 +342,14 @@ export async function downloadBankDepositsReportExcel({
   for (let i = 0; i < rows.length; i++) {
     const r = rows[i]!;
     const lines = getDetailLines(r);
-    const values: Array<string | ExcelJS.CellRichTextValue> = [
+    const values: Array<string | number | ExcelJS.CellRichTextValue> = [
       r.no || String(i + 1),
       r.transactionType || '—',
       r.receiptNo || '—',
       detailsRichText(lines),
       r.bankAccount || '—',
       r.attachment && r.attachment !== '-' ? r.attachment : '—',
-      r.total || '0.00',
+      parseAmount(r.total),
     ];
     for (let c = 0; c < colCount; c++) {
       const cell = sheet.getCell(row, c + 1);
@@ -375,6 +369,7 @@ export async function downloadBankDepositsReportExcel({
       applyCellBase(cell, {
         horizontal: c === 0 ? 'center' : c === 6 ? 'right' : 'left',
         bold: c === 6,
+        currency: c === 6,
       });
     }
     sheet.getRow(row).height = Math.max(48, lines.length * 14);
@@ -392,11 +387,12 @@ export async function downloadBankDepositsReportExcel({
     }
     sheet.getCell(row, 1).value = 'Total';
     const totalCell = sheet.getCell(row, 7);
-    totalCell.value = formatAmount(totalAmount);
+    totalCell.value = totalAmount;
     applyCellBase(totalCell, {
       horizontal: 'right',
       bold: true,
       fill: true,
+      currency: true,
     });
     sheet.getRow(row).height = 18;
     row += 1;

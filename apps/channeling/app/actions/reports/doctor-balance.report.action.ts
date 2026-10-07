@@ -5,7 +5,6 @@ import { authOptions } from '@/lib/auth';
 import { requirePermission } from '@/lib/server-permissions';
 import { logActivityNonBlocking } from '@/lib/activity-log';
 import moment from 'moment';
-import { formatLKR } from '@/lib/format-money';
 import { getDoctorBalanceReportService } from '@/services/reports/doctor-balance.report.service';
 import type {
   DoctorBalanceReportExportRow,
@@ -56,7 +55,7 @@ export async function exportDoctorBalanceReportData(
       speciality: r.speciality,
       doctorPhoneNo: r.doctorPhoneNo,
       doctorAddress: r.doctorAddress,
-      doctorBalance: formatLKR(r.doctorBalance),
+      doctorBalance: r.doctorBalance,
     }));
 
     const balanceTotal = result.data.reduce((sum, r) => sum + (Number(r.doctorBalance) || 0), 0);
@@ -68,7 +67,7 @@ export async function exportDoctorBalanceReportData(
       speciality: '',
       doctorPhoneNo: '',
       doctorAddress: '',
-      doctorBalance: formatLKR(balanceTotal),
+      doctorBalance: balanceTotal,
     });
 
     const session = await getServerSession(authOptions);

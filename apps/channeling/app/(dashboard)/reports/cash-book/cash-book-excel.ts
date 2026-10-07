@@ -85,9 +85,10 @@ function cellOrDash(value: string | undefined | null): string {
   return value;
 }
 
-function moneyOrDash(value: string | undefined | null): string {
+function moneyOrDash(value: string | undefined | null): string | number {
   if (value == null || value === '' || value === '-') return '-';
-  return value;
+  const n = Number(String(value).replace(/,/g, ''));
+  return Number.isFinite(n) ? n : value;
 }
 
 export type DownloadCashBookExcelOptions = {
@@ -304,9 +305,10 @@ export async function downloadCashBookReportExcel({
       horizontal?: 'left' | 'right' | 'center';
       bold?: boolean;
       fill?: boolean;
+      currency?: boolean;
     } = {}
   ) => {
-    cell.numFmt = '@';
+    if (opts.currency) cell.numFmt = '#,##0.00';
     cell.font = { size: 8, name: 'Arial', bold: opts.bold ?? false };
     cell.border = thinBorder;
     if (opts.fill) {
@@ -337,6 +339,7 @@ export async function downloadCashBookReportExcel({
         horizontal: 'right',
         bold: true,
         fill: true,
+        currency: typeof balanceCell.value === 'number',
       });
       sheet.getRow(row).height = 18;
       row += 1;
@@ -344,7 +347,7 @@ export async function downloadCashBookReportExcel({
     }
 
     const isOpening = isOpeningRow(dataRow);
-    const values = isOpening
+    const values: Array<string | number> = isOpening
       ? [
           cellOrDash(dataRow.date || openingDateLabel),
           '-',
@@ -373,6 +376,7 @@ export async function downloadCashBookReportExcel({
         horizontal: c >= 5 ? 'right' : 'left',
         bold: isOpening || c === 7,
         fill: isOpening,
+        currency: c >= 5 && typeof values[c] === 'number',
       });
     }
     sheet.getRow(row).height = isOpening ? 18 : 28;
@@ -398,6 +402,7 @@ export async function downloadCashBookReportExcel({
       horizontal: 'right',
       bold: true,
       fill: true,
+      currency: typeof balanceCell.value === 'number',
     });
     sheet.getRow(row).height = 18;
     row += 1;

@@ -36,9 +36,9 @@ export type AgentHistoryCreditLimitUpdateReportExportRow = {
   agentCode: string;
   limitType: string;
   hardLimitField: string;
-  beforeValue: string;
-  updatedValue: string;
-  delta: string;
+  beforeValue: number | null;
+  updatedValue: number | null;
+  delta: number | null;
   changedBy: string;
   remark: string;
   dateTime: string;

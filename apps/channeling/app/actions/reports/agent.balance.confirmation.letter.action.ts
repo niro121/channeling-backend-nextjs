@@ -44,7 +44,7 @@ export async function exportAgentBalanceConfirmationLetterData(
       agentName: row.agentName || '-',
       agentCode: row.agentCode || '-',
       address: row.address || '-',
-      balance: row.balance.toFixed(2),
+      balance: row.balance,
     }));
 
     return { success: true, data: mapped };

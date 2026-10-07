@@ -163,39 +163,44 @@ export default function ChannelPatientCountAccountingWiseReportContent({
 
   const handlePrint = () => window.print();
 
-  const buildBrandedExportSections = () => {
+  const buildBrandedExportSections = (mode: 'display' | 'excel' = 'display') => {
+    const forExcel = mode === 'excel';
+    const fmtCount = (n: number): string | number => (forExcel ? n : String(n));
+    const fmtMoney = (n: number): string | number => (forExcel ? n : money(n));
+    const fmtNo = (idx: number): string | number | null => (forExcel ? idx + 1 : String(idx + 1));
+
     const countRows = [
       ...rows.map((r, idx) => [
-        String(idx + 1),
+        fmtNo(idx),
         r.bookingType,
-        String(r.paidBillPaid),
-        String(r.paidBillPending),
-        String(r.paidBillNet),
-        String(r.cancelBillPaid),
-        String(r.cancelBillPending),
-        String(r.cancelBillNet),
-        String(r.refundBillHos),
-        String(r.refundBillPro),
-        String(r.totalCountPaid),
-        String(r.totalCountPending),
-        String(r.totalCountNet),
+        fmtCount(r.paidBillPaid),
+        fmtCount(r.paidBillPending),
+        fmtCount(r.paidBillNet),
+        fmtCount(r.cancelBillPaid),
+        fmtCount(r.cancelBillPending),
+        fmtCount(r.cancelBillNet),
+        fmtCount(r.refundBillHos),
+        fmtCount(r.refundBillPro),
+        fmtCount(r.totalCountPaid),
+        fmtCount(r.totalCountPending),
+        fmtCount(r.totalCountNet),
       ]),
       ...(totals
         ? [
             [
-              '',
+              forExcel ? null : '',
               totals.bookingType,
-              String(totals.paidBillPaid),
-              String(totals.paidBillPending),
-              String(totals.paidBillNet),
-              String(totals.cancelBillPaid),
-              String(totals.cancelBillPending),
-              String(totals.cancelBillNet),
-              String(totals.refundBillHos),
-              String(totals.refundBillPro),
-              String(totals.totalCountPaid),
-              String(totals.totalCountPending),
-              String(totals.totalCountNet),
+              fmtCount(totals.paidBillPaid),
+              fmtCount(totals.paidBillPending),
+              fmtCount(totals.paidBillNet),
+              fmtCount(totals.cancelBillPaid),
+              fmtCount(totals.cancelBillPending),
+              fmtCount(totals.cancelBillNet),
+              fmtCount(totals.refundBillHos),
+              fmtCount(totals.refundBillPro),
+              fmtCount(totals.totalCountPaid),
+              fmtCount(totals.totalCountPending),
+              fmtCount(totals.totalCountNet),
             ],
           ]
         : []),
@@ -203,56 +208,100 @@ export default function ChannelPatientCountAccountingWiseReportContent({
 
     const revenueRows = [
       ...rows.map((r, idx) => [
-        String(idx + 1),
+        fmtNo(idx),
         r.bookingType,
-        money(r.paidRevenueHosFee),
-        money(r.paidRevenueHosDis),
-        money(r.paidRevenueProFee),
-        money(r.paidRevenueProDis),
-        money(r.paidRevenueTotal),
-        money(r.cancelRevenueHosFee),
-        money(r.cancelRevenueHosDis),
-        money(r.cancelRevenueProFee),
-        money(r.cancelRevenueProDis),
-        money(r.cancelRevenueTotal),
-        money(r.refundRevenueHosRefund),
-        money(r.refundRevenueProRefund),
-        money(r.nettRevenueHosFee),
-        money(r.nettRevenueHosDis),
-        money(r.nettRevenueProFee),
-        money(r.nettRevenueProDis),
-        money(r.nettRevenueTotal),
-        money(r.pendingRevenueHosFee),
-        money(r.pendingRevenueProFee),
+        fmtMoney(r.paidRevenueHosFee),
+        fmtMoney(r.paidRevenueHosDis),
+        fmtMoney(r.paidRevenueProFee),
+        fmtMoney(r.paidRevenueProDis),
+        fmtMoney(r.paidRevenueTotal),
+        fmtMoney(r.cancelRevenueHosFee),
+        fmtMoney(r.cancelRevenueHosDis),
+        fmtMoney(r.cancelRevenueProFee),
+        fmtMoney(r.cancelRevenueProDis),
+        fmtMoney(r.cancelRevenueTotal),
+        fmtMoney(r.refundRevenueHosRefund),
+        fmtMoney(r.refundRevenueProRefund),
+        fmtMoney(r.nettRevenueHosFee),
+        fmtMoney(r.nettRevenueHosDis),
+        fmtMoney(r.nettRevenueProFee),
+        fmtMoney(r.nettRevenueProDis),
+        fmtMoney(r.nettRevenueTotal),
+        fmtMoney(r.pendingRevenueHosFee),
+        fmtMoney(r.pendingRevenueProFee),
       ]),
       ...(totals
         ? [
             [
-              '',
+              forExcel ? null : '',
               totals.bookingType,
-              money(totals.paidRevenueHosFee),
-              money(totals.paidRevenueHosDis),
-              money(totals.paidRevenueProFee),
-              money(totals.paidRevenueProDis),
-              money(totals.paidRevenueTotal),
-              money(totals.cancelRevenueHosFee),
-              money(totals.cancelRevenueHosDis),
-              money(totals.cancelRevenueProFee),
-              money(totals.cancelRevenueProDis),
-              money(totals.cancelRevenueTotal),
-              money(totals.refundRevenueHosRefund),
-              money(totals.refundRevenueProRefund),
-              money(totals.nettRevenueHosFee),
-              money(totals.nettRevenueHosDis),
-              money(totals.nettRevenueProFee),
-              money(totals.nettRevenueProDis),
-              money(totals.nettRevenueTotal),
-              money(totals.pendingRevenueHosFee),
-              money(totals.pendingRevenueProFee),
+              fmtMoney(totals.paidRevenueHosFee),
+              fmtMoney(totals.paidRevenueHosDis),
+              fmtMoney(totals.paidRevenueProFee),
+              fmtMoney(totals.paidRevenueProDis),
+              fmtMoney(totals.paidRevenueTotal),
+              fmtMoney(totals.cancelRevenueHosFee),
+              fmtMoney(totals.cancelRevenueHosDis),
+              fmtMoney(totals.cancelRevenueProFee),
+              fmtMoney(totals.cancelRevenueProDis),
+              fmtMoney(totals.cancelRevenueTotal),
+              fmtMoney(totals.refundRevenueHosRefund),
+              fmtMoney(totals.refundRevenueProRefund),
+              fmtMoney(totals.nettRevenueHosFee),
+              fmtMoney(totals.nettRevenueHosDis),
+              fmtMoney(totals.nettRevenueProFee),
+              fmtMoney(totals.nettRevenueProDis),
+              fmtMoney(totals.nettRevenueTotal),
+              fmtMoney(totals.pendingRevenueHosFee),
+              fmtMoney(totals.pendingRevenueProFee),
             ],
           ]
         : []),
     ];
+
+    const countNumberFormats = forExcel
+      ? [
+          '0',
+          undefined,
+          '0',
+          '0',
+          '0',
+          '0',
+          '0',
+          '0',
+          '0',
+          '0',
+          '0',
+          '0',
+          '0',
+        ]
+      : undefined;
+
+    const revenueNumberFormats = forExcel
+      ? [
+          '0',
+          undefined,
+          '#,##0.00',
+          '#,##0.00',
+          '#,##0.00',
+          '#,##0.00',
+          '#,##0.00',
+          '#,##0.00',
+          '#,##0.00',
+          '#,##0.00',
+          '#,##0.00',
+          '#,##0.00',
+          '#,##0.00',
+          '#,##0.00',
+          '#,##0.00',
+          '#,##0.00',
+          '#,##0.00',
+          '#,##0.00',
+          '#,##0.00',
+          '#,##0.00',
+          '#,##0.00',
+        ]
+      : undefined;
 
     return [
       {
@@ -273,6 +322,7 @@ export default function ChannelPatientCountAccountingWiseReportContent({
           'Total-Net',
         ],
         body: countRows,
+        ...(countNumberFormats ? { numberFormats: countNumberFormats } : {}),
       },
       {
         title: 'Revenue Breakdown',
@@ -300,6 +350,7 @@ export default function ChannelPatientCountAccountingWiseReportContent({
           'Pending Pro',
         ],
         body: revenueRows,
+        ...(revenueNumberFormats ? { numberFormats: revenueNumberFormats } : {}),
       },
     ];
   };
@@ -321,7 +372,13 @@ export default function ChannelPatientCountAccountingWiseReportContent({
       fileName: `${formatExportFileName('channel-patient-count-accounting-wise')}.pdf`,
       orientation: 'portrait',
       compactTable: true,
-      sections: buildBrandedExportSections(),
+      sections: buildBrandedExportSections('display').map(({ title, columns, body }) => ({
+        title,
+        columns,
+        body: body.map((row) =>
+          row.map((cell) => (cell == null ? '' : cell))
+        ),
+      })),
     });
   };
 
@@ -340,7 +397,7 @@ export default function ChannelPatientCountAccountingWiseReportContent({
         sheetName: 'Patient Count',
         orientation: 'portrait',
         compactTable: true,
-        sections: buildBrandedExportSections(),
+        sections: buildBrandedExportSections('excel'),
       });
     } catch (error: unknown) {
       toast({

@@ -402,6 +402,18 @@ function ContentInner({
       exportKeys={['sNo', 'docDate', 'docNo', 'consultant', 'speciality', 'remarks', 'totalAmt', 'taxPercent', 'holdingTax', 'netAmt']}
       exportTitle="Withholding Tax Report"
       exportFileName="withholding-tax-report"
+      excelColumnNumberFormats={[
+        undefined, // S.No
+        undefined, // Doc Date
+        undefined, // Doc No
+        undefined, // Consultant
+        undefined, // Speciality
+        undefined, // Remarks
+        '#,##0.00', // Total Amt
+        '0.00', // Tax %
+        '#,##0.00', // Holding Tax
+        '#,##0.00', // Net Amt
+      ]}
       tableClassName="text-[11px] [&_th]:px-1.5 [&_td]:px-1.5 [&_th]:border-r [&_th:last-child]:border-r-0 [&_td]:border-r [&_td:last-child]:border-r-0"
       getRowId={(row) => row.id}
       showPrintButton={true}

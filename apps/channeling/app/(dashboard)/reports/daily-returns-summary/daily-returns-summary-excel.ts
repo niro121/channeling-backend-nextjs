@@ -335,13 +335,15 @@ export async function downloadDailyReturnsSummaryReportExcel({
   );
 
   const writeDataRow = (
-    values: [string, string, string, string, string],
+    values: [string | number | null, string, string | number, string, string | number],
     opts?: { bold?: boolean; fill?: boolean }
   ) => {
     for (let c = 0; c < colCount; c++) {
       const cell = sheet.getCell(row, c + 1);
-      cell.value = values[c]!;
-      cell.numFmt = '@';
+      const raw = values[c]!;
+      cell.value = raw === '' ? null : raw;
+      if (c === 2 && typeof raw === 'number') cell.numFmt = '0';
+      if (c === 4 && typeof raw === 'number') cell.numFmt = '#,##0.00';
       cell.font = { size: 8, name: 'Arial', bold: opts?.bold ?? false };
       cell.border = thinBorder;
       if (opts?.fill) {
@@ -358,7 +360,13 @@ export async function downloadDailyReturnsSummaryReportExcel({
   };
 
   dataRows.forEach((r, i) => {
-    writeDataRow([String(i + 1), r.method || '—', r.count || '0', methodsText(r), r.floatTotal || '0.00']);
+    writeDataRow([
+      i + 1,
+      r.method || '—',
+      parseAmount(r.count) || Number(r.count) || 0,
+      methodsText(r),
+      parseAmount(r.floatTotal),
+    ]);
   });
 
   if (dataRows.length > 0 || totalFromExport) {
@@ -375,7 +383,13 @@ export async function downloadDailyReturnsSummaryReportExcel({
       floatTotal: formatAmount(totalsAcc.floatTotal),
     };
     writeDataRow(
-      ['', 'Sub Total', totalRow.count, methodsText(totalRow), totalRow.floatTotal],
+      [
+        null,
+        'Sub Total',
+        parseAmount(totalRow.count) || Number(totalRow.count) || totalsAcc.count,
+        methodsText(totalRow),
+        parseAmount(totalRow.floatTotal) || totalsAcc.floatTotal,
+      ],
       { bold: true, fill: true }
     );
   }

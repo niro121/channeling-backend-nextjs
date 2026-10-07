@@ -43,11 +43,11 @@ export async function exportChannelDiscountReportData(
       patientName: row.patientName ?? '-',
       doctor: row.doctor ?? '-',
       type: row.type ?? '-',
-      hospitalFee: String(row.hospitalFee ?? 0),
-      hospitalFeeDiscount: String(row.hospitalFeeDiscount ?? 0),
-      professionalFee: String(row.professionalFee ?? 0),
-      professionalFeeDiscount: String(row.professionalFeeDiscount ?? 0),
-      discount: String(row.discount ?? 0),
+      hospitalFee: row.hospitalFee ?? 0,
+      hospitalFeeDiscount: row.hospitalFeeDiscount ?? 0,
+      professionalFee: row.professionalFee ?? 0,
+      professionalFeeDiscount: row.professionalFeeDiscount ?? 0,
+      discount: row.discount ?? 0,
       autoDiscountScheme: row.autoDiscountScheme ?? '-',
       discountScheme: row.discountScheme ?? '-'
     }));

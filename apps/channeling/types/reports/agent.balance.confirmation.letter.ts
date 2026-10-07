@@ -21,7 +21,7 @@ export type AgentBalanceConfirmationLetterExportRow = {
   agentName: string;
   agentCode: string;
   address: string;
-  balance: string;
+  balance: number;
 };
 
 export type AgentBalanceConfirmationLetterContentProps = {

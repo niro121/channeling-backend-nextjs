@@ -32,10 +32,10 @@ export async function exportWithholdingTaxReportData(
       consultant: row.consultant ?? '-',
       speciality: row.speciality ?? '-',
       remarks: row.remarks ?? '-',
-      totalAmt: String(row.totalAmt ?? 0),
-      taxPercent: String(row.taxPercent ?? 0),
-      holdingTax: String(row.holdingTax ?? 0),
-      netAmt: String(row.netAmt ?? 0)
+      totalAmt: row.totalAmt ?? 0,
+      taxPercent: row.taxPercent ?? 0,
+      holdingTax: row.holdingTax ?? 0,
+      netAmt: row.netAmt ?? 0,
     }));
 
     const totalAmt = result.data.reduce((sum, row) => sum + (Number(row.totalAmt) || 0), 0);
@@ -48,10 +48,10 @@ export async function exportWithholdingTaxReportData(
       consultant: '',
       speciality: '',
       remarks: '',
-      totalAmt: String(totalAmt),
-      taxPercent: '',
-      holdingTax: String(holdingTax),
-      netAmt: String(netAmt),
+      totalAmt,
+      taxPercent: null,
+      holdingTax,
+      netAmt,
     });
 
     return { success: true, data };

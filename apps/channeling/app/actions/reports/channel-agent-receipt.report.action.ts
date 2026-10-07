@@ -55,7 +55,7 @@ export async function exportChannelAgentReceiptReportData(
       status: row.status,
       creator: row.creator,
       createdDate: moment(row.createdDate).format('YYYY-MM-DD hh:mm A'),
-      billValue: row.billValue.toFixed(2),
+      billValue: row.billValue,
     }));
 
     return { success: true, data };

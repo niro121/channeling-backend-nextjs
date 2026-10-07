@@ -23,7 +23,7 @@ export type ChannelAgentReceiptReportExportRow = {
   status: string;
   creator: string;
   createdDate: string;
-  billValue: string;
+  billValue: number;
 };
 
 export type ChannelAgentReceiptReportContentProps = {

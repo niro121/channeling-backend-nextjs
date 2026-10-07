@@ -46,17 +46,17 @@ export async function exportDoctorAppointmentCountReportData(
     const data: DoctorAppointmentCountReportExportRow[] = res.data.map((r) => ({
       consultant: r.consultant,
       speciality: r.speciality,
-      notPaid: String(r.notPaid),
-      paid: String(r.paid),
-      cancel: String(r.cancel),
-      hosRefund: String(r.hosRefund),
-      proRefund: String(r.proRefund),
-      hosValid: String(r.hosValid),
-      proValid: String(r.proValid),
-      nettValid: String(r.nettValid),
-      hos: r.hos.toFixed(2),
-      pro: r.pro.toFixed(2),
-      total: r.total.toFixed(2),
+      notPaid: r.notPaid,
+      paid: r.paid,
+      cancel: r.cancel,
+      hosRefund: r.hosRefund,
+      proRefund: r.proRefund,
+      hosValid: r.hosValid,
+      proValid: r.proValid,
+      nettValid: r.nettValid,
+      hos: r.hos,
+      pro: r.pro,
+      total: r.total,
     }));
     return { success: true, data };
   } catch (error: unknown) {
