@@ -274,6 +274,24 @@ function ContentInner({ currentUserName, userOptions }: Props) {
         'remarks',
         'rejectReason',
       ]}
+      excelColumnNumberFormats={[
+        undefined, // No.
+        undefined, // Requested Time
+        undefined, // Type
+        undefined, // Channel Type
+        undefined, // Payment mode
+        undefined, // Details
+        '#,##0.00', // Amount
+        undefined, // Requested by
+        undefined, // Status
+        undefined, // Approved by
+        undefined, // Approved at
+        undefined, // Rejected by
+        undefined, // Rejected at
+        undefined, // Withdraw Time
+        undefined, // Remarks
+        undefined, // Reject reason
+      ]}
       exportTitle="Approval Requests Report"
       exportFileName="approval-requests-report"
       getRowId={(row) => row.id}

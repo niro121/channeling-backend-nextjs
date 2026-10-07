@@ -12,16 +12,17 @@ import { toBrandedPdfSummaryItems } from '@/components/common/report-print';
 import type { ReportPrintSummaryItem } from '@/components/common/report-print';
 import { formatCents } from '@/lib/format-money';
 import { formatReportRangeLabel } from '@/lib/format-report-range-label';
-import type {
-  CompletedHandoversReportExportRow,
-  CompletedHandoversReportQuery,
-  CompletedHandoversReportRow,
+import {
+  sumHandoverReportVariances,
+  type CompletedHandoversReportExportRow,
+  type CompletedHandoversReportQuery,
+  type CompletedHandoversReportRow,
 } from '@/types/reports/completed-handovers';
 import {
   exportCompletedHandoversReportData,
   getCompletedHandoversReportData,
 } from '@/app/actions/reports/completed-handovers.report.action';
-import { CompletedHandoversColumns } from './columns';
+import { CompletedHandoversColumns, HandoverVarianceCell } from './columns';
 import { CompletedHandoversPrintLayout } from './completed-handovers-print-layout';
 import { downloadCompletedHandoversReportPdf } from './completed-handovers-pdf';
 import { downloadCompletedHandoversReportExcel } from './completed-handovers-excel';
@@ -280,6 +281,7 @@ function ContentInner({ currentUserName, userOptions }: Props) {
         'Credit',
         'E-wallet',
         'Total',
+        'Excess / Short',
         'Status',
         'Reconciliation status',
         'Handover date',
@@ -298,6 +300,7 @@ function ContentInner({ currentUserName, userOptions }: Props) {
         'credit',
         'eWallet',
         'total',
+        'excessOrShort',
         'status',
         'reconciliationStatus',
         'createdAt',
@@ -327,6 +330,9 @@ function ContentInner({ currentUserName, userOptions }: Props) {
             <TableCell className="text-right tabular-nums">{formatCents(credit)}</TableCell>
             <TableCell className="text-right tabular-nums">{formatCents(eWallet)}</TableCell>
             <TableCell className="text-right tabular-nums">{formatCents(totalCents)}</TableCell>
+            <TableCell className="text-right">
+              <HandoverVarianceCell lines={sumHandoverReportVariances(rows)} />
+            </TableCell>
             <TableCell colSpan={6} />
           </TableRow>
         );

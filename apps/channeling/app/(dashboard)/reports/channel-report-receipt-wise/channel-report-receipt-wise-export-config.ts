@@ -100,6 +100,9 @@ export const RECEIPT_REPORT_PDF_HEADERS = [
 function s(row: ChannelReportReceiptWiseExportRow, key: keyof ChannelReportReceiptWiseExportRow): string {
   const v = row[key];
   if (v === undefined || v === null || v === '') return '-';
+  if (typeof v === 'number' && Number.isFinite(v)) {
+    return v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
   return String(v);
 }
 
