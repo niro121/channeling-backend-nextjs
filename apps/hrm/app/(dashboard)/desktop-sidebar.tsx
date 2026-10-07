@@ -50,6 +50,8 @@ import {
   FileText,
   Landmark,
   History,
+  BriefcaseBusiness,
+  ClipboardPenLine,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { canAccessRoute } from "@/lib/permissions";
@@ -506,6 +508,22 @@ export function DesktopSidebar({ session, className }: { session: Session | null
                   icon={<History className="h-5 w-5" />}
                 />
               )}
+            </SidebarCollapsible>
+          </SidebarGroup>
+        )}
+        {hasAccess('/vacancy-requests') && (
+          <SidebarGroup label="Recruitment">
+            <SidebarCollapsible
+              label="Recruitment"
+              icon={<BriefcaseBusiness className="h-5 w-5" />}
+              paths={['/vacancy-requests']}
+              defaultOpen
+            >
+              <NavLink
+                href="/vacancy-requests"
+                label="Vacancy Requests"
+                icon={<ClipboardPenLine className="h-5 w-5" />}
+              />
             </SidebarCollapsible>
           </SidebarGroup>
         )}
