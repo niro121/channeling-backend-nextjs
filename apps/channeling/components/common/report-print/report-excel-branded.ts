@@ -26,6 +26,11 @@ export type BrandedExcelTableSection = {
   /** Horizontal alignment for columns after Speciality and Doctor Name. */
   valueAlign?: "left" | "center" | "right"
   body: (string | number | boolean | null)[][]
+  /**
+   * Optional Excel number formats for this section's columns (overrides
+   * top-level `columnNumberFormats` when set). Applied only to number cells.
+   */
+  numberFormats?: (string | undefined)[]
 }
 
 export type DownloadBrandedReportExcelOptions<T> = {
@@ -441,7 +446,7 @@ export async function downloadBrandedReportExcel<T>({
         } else {
           cell.value = String(value)
         }
-        const numFmt = columnNumberFormats?.[i]
+        const numFmt = section.numberFormats?.[i] ?? columnNumberFormats?.[i]
         if (typeof value === "number" && numFmt) {
           cell.numFmt = numFmt
         }

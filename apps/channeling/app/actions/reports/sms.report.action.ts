@@ -45,7 +45,7 @@ export async function exportSmsReportData(
       source: row.name ?? '-',
       phone: row.phone ?? '-',
       message: row.template ?? '-',
-      count: String(row.count ?? 0),
+      count: row.count ?? 0,
     }));
 
     const countTotal = result.data.reduce((sum, row) => sum + (Number(row.count) || 0), 0);
@@ -55,7 +55,7 @@ export async function exportSmsReportData(
       source: '',
       phone: '',
       message: '',
-      count: countTotal.toLocaleString(),
+      count: countTotal,
     });
 
     const session = await getServerSession(authOptions);

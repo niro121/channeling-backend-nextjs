@@ -89,17 +89,10 @@ export function mapAhcluCompactFromExportRow(
   const time = stamp.isValid() ? stamp.format('HH:mm:ss') : '';
 
   const before =
-    row.beforeValue === '-' || row.beforeValue === ''
-      ? '—'
-      : formatLKR(Number(row.beforeValue));
+    row.beforeValue == null ? '—' : formatLKR(Number(row.beforeValue));
   const updated =
-    row.updatedValue === '-' || row.updatedValue === ''
-      ? '—'
-      : formatLKR(Number(row.updatedValue));
-  const delta =
-    row.delta === '-' || row.delta === ''
-      ? '—'
-      : formatLKR(Number(row.delta));
+    row.updatedValue == null ? '—' : formatLKR(Number(row.updatedValue));
+  const delta = row.delta == null ? '—' : formatLKR(Number(row.delta));
 
   return {
     no: row.no || '—',

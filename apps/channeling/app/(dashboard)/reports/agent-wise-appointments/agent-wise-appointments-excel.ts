@@ -309,8 +309,14 @@ export async function downloadAgentWiseAppointmentsReportExcel(
       const isTotal = i === body.length - 1;
       for (let c = 0; c < colCount; c++) {
         const cell = sheet.getCell(row, c + 1);
-        cell.value = cellValue(values[c]);
-        cell.numFmt = '@';
+        const raw = cellValue(values[c]);
+        if (c >= 2 && raw != null && raw !== '') {
+          const n = Number(String(raw).replace(/,/g, ''));
+          cell.value = Number.isFinite(n) ? n : raw;
+          if (typeof cell.value === 'number') cell.numFmt = '0';
+        } else {
+          cell.value = raw;
+        }
         cell.font = { size: 8, name: 'Arial', bold: isTotal };
         cell.border = thinBorder;
         cell.alignment = {

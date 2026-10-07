@@ -196,6 +196,11 @@ export interface ReportTemplateProps<T, E = T> {
   /** Extra Excel columns (0-based) that wrap so long text stays visible. */
   excelExtraWrapColumnIndexes?: number[];
   /**
+   * Optional Excel number formats aligned with `exportColumns` index
+   * (e.g. `'0'`, `'#,##0.00'`). Applied when the cell value is a number.
+   */
+  excelColumnNumberFormats?: (string | undefined)[];
+  /**
    * PDF/Excel page orientation. When omitted, follows `printPageSize`
    * (portrait if that string includes "portrait", otherwise landscape).
    */
@@ -247,6 +252,7 @@ function ReportTemplateContent<T, E = T>({
   pdfPageMarginMm,
   excelColumnWidths,
   excelExtraWrapColumnIndexes,
+  excelColumnNumberFormats,
   exportOrientation,
   renderPrintContent,
 }: ReportTemplateProps<T, E>) {
@@ -505,9 +511,18 @@ function ReportTemplateContent<T, E = T>({
         compactTable: isPortrait,
         columnWidths: excelColumnWidths,
         extraWrapColumnIndexes: excelExtraWrapColumnIndexes,
+        columnNumberFormats: excelColumnNumberFormats,
       });
     },
-    [printSummaryItems, lastRun?.generatedAt, printPageSize, exportOrientation, excelColumnWidths, excelExtraWrapColumnIndexes]
+    [
+      printSummaryItems,
+      lastRun?.generatedAt,
+      printPageSize,
+      exportOrientation,
+      excelColumnWidths,
+      excelExtraWrapColumnIndexes,
+      excelColumnNumberFormats,
+    ]
   );
 
   return (
@@ -554,6 +569,7 @@ function ReportTemplateContent<T, E = T>({
               customPrintPdf={customPrintPdf}
               customDownloadPdf={customDownloadPdf ?? handleBrandedPdfDownload}
               customDownloadExcel={customDownloadExcel ?? handleBrandedExcelDownload}
+              excelColumnNumberFormats={excelColumnNumberFormats}
             />
           </div>
         </CardHeader>

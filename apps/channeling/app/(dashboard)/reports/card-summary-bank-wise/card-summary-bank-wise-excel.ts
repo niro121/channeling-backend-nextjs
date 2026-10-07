@@ -337,9 +337,12 @@ export async function downloadCardSummaryBankWiseReportExcel({
       horizontal?: 'left' | 'right' | 'center';
       bold?: boolean;
       fill?: boolean;
+      currency?: boolean;
+      integer?: boolean;
     } = {}
   ) => {
-    cell.numFmt = '@';
+    if (opts.currency) cell.numFmt = '#,##0.00';
+    if (opts.integer) cell.numFmt = '0';
     cell.font = { size: 8, name: 'Arial', bold: opts.bold ?? false };
     cell.border = thinBorder;
     if (opts.fill) {
@@ -356,13 +359,13 @@ export async function downloadCardSummaryBankWiseReportExcel({
     for (let i = 0; i < rows.length; i++) {
       const r = rows[i]!;
       const lines = getDetailLines(r);
-      const values: Array<string | ExcelJS.CellRichTextValue> = [
-        String(i + 1),
+      const values: Array<string | number | ExcelJS.CellRichTextValue> = [
+        i + 1,
         r.receiptNo || '—',
         detailsRichText(lines),
         r.bank || '—',
         r.cardReference || '—',
-        r.total || '0.00',
+        parseAmount(r.total),
       ];
       for (let c = 0; c < colCount; c++) {
         const cell = sheet.getCell(row, c + 1);
@@ -370,6 +373,8 @@ export async function downloadCardSummaryBankWiseReportExcel({
         applyCellBase(cell, {
           horizontal: c === 0 ? 'center' : c === 5 ? 'right' : 'left',
           bold: c === 5,
+          currency: c === 5,
+          integer: c === 0,
         });
       }
       sheet.getRow(row).height = Math.max(48, lines.length * 14);
@@ -380,11 +385,12 @@ export async function downloadCardSummaryBankWiseReportExcel({
       sheet.mergeCells(row, 1, row, 5);
       for (let c = 1; c <= colCount; c++) {
         const cell = sheet.getCell(row, c);
-        cell.value = c === 1 ? 'Total' : c === 6 ? formatAmount(totalAmount) : null;
+        cell.value = c === 1 ? 'Total' : c === 6 ? totalAmount : null;
         applyCellBase(cell, {
           horizontal: c === 6 ? 'right' : 'left',
           bold: true,
           fill: true,
+          currency: c === 6,
         });
       }
       sheet.getRow(row).height = 18;
@@ -393,13 +399,20 @@ export async function downloadCardSummaryBankWiseReportExcel({
   } else {
     for (let i = 0; i < rows.length; i++) {
       const r = rows[i]!;
-      const values = [String(i + 1), r.bank || '—', r.count || '0', r.total || '0.00'];
+      const values: Array<string | number> = [
+        i + 1,
+        r.bank || '—',
+        parseAmount(r.count) || Number(r.count) || 0,
+        parseAmount(r.total),
+      ];
       for (let c = 0; c < colCount; c++) {
         const cell = sheet.getCell(row, c + 1);
         cell.value = values[c]!;
         applyCellBase(cell, {
           horizontal: c === 0 ? 'center' : c >= 2 ? 'right' : 'left',
           bold: c === 3,
+          integer: c === 0 || c === 2,
+          currency: c === 3,
         });
       }
       sheet.getRow(row).height = 18;
@@ -407,7 +420,7 @@ export async function downloadCardSummaryBankWiseReportExcel({
     }
 
     if (rows.length > 0) {
-      const totalValues = ['', 'Total', String(totalCount), formatAmount(totalAmount)];
+      const totalValues: Array<string | number> = ['', 'Total', totalCount, totalAmount];
       for (let c = 0; c < colCount; c++) {
         const cell = sheet.getCell(row, c + 1);
         cell.value = totalValues[c]!;
@@ -415,6 +428,8 @@ export async function downloadCardSummaryBankWiseReportExcel({
           horizontal: c === 0 ? 'center' : c >= 2 ? 'right' : 'left',
           bold: true,
           fill: true,
+          integer: c === 2,
+          currency: c === 3,
         });
       }
       sheet.getRow(row).height = 18;

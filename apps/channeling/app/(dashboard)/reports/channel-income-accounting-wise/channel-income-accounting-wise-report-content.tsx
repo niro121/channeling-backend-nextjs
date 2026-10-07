@@ -215,34 +215,34 @@ export default function ChannelIncomeAccountingWiseReportContent({
     setLoadingExcel(true);
     try {
       type ExcelRow = {
-        no: string;
+        no: number | null;
         bookingType: string;
-        totalChannel: string;
-        discount: string;
-        cancel: string;
-        refund: string;
-        nettAmount: string;
+        totalChannel: number;
+        discount: number;
+        cancel: number;
+        refund: number;
+        nettAmount: number;
       };
       const data: ExcelRow[] = [
         ...rows.map((r, idx) => ({
-          no: String(idx + 1),
+          no: idx + 1,
           bookingType: r.bookingType,
-          totalChannel: money(r.totalChannel),
-          discount: money(r.discount),
-          cancel: money(r.cancel),
-          refund: money(r.refund),
-          nettAmount: money(r.nettAmount),
+          totalChannel: r.totalChannel,
+          discount: r.discount,
+          cancel: r.cancel,
+          refund: r.refund,
+          nettAmount: r.nettAmount,
         })),
         ...(totals
           ? [
               {
-                no: '',
+                no: null,
                 bookingType: totals.bookingType,
-                totalChannel: money(totals.totalChannel),
-                discount: money(totals.discount),
-                cancel: money(totals.cancel),
-                refund: money(totals.refund),
-                nettAmount: money(totals.nettAmount),
+                totalChannel: totals.totalChannel,
+                discount: totals.discount,
+                cancel: totals.cancel,
+                refund: totals.refund,
+                nettAmount: totals.nettAmount,
               },
             ]
           : []),
@@ -254,6 +254,15 @@ export default function ChannelIncomeAccountingWiseReportContent({
         data,
         columns: ['#', 'Booking Type', 'Total Channel', 'Discount', 'Cancel', 'Refund', 'Nett Amount'],
         keys: ['no', 'bookingType', 'totalChannel', 'discount', 'cancel', 'refund', 'nettAmount'],
+        columnNumberFormats: [
+          '0', // #
+          undefined, // Booking Type
+          '#,##0.00', // Total Channel
+          '#,##0.00', // Discount
+          '#,##0.00', // Cancel
+          '#,##0.00', // Refund
+          '#,##0.00', // Nett Amount
+        ],
         fileName: `${formatExportFileName('channel-income-accounting-wise')}.xlsx`,
         sheetName: 'Channel Income',
         orientation: 'portrait',

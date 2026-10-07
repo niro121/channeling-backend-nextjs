@@ -87,10 +87,10 @@ export type ExportAgentDetailData = {
   contactPerson: string;
   contactPhone: string;
   contactPersonEmail: string;
-  allowedCreditLimit: string;
-  maxCreditLimit: string;
-  standardCreditLimit: string;
-  balance: string;
+  allowedCreditLimit: number;
+  maxCreditLimit: number;
+  standardCreditLimit: number;
+  balance: number;
 };
 
 // User Activity Report Types
@@ -571,8 +571,8 @@ export type WithholdingTaxReportExportRow = {
   consultant: string;
   speciality: string;
   remarks: string;
-  totalAmt: string;
-  taxPercent: string;
-  holdingTax: string;
-  netAmt: string;
+  totalAmt: number;
+  taxPercent: number | null;
+  holdingTax: number;
+  netAmt: number;
 };

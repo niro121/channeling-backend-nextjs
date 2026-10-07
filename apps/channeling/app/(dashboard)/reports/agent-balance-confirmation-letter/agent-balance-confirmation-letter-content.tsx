@@ -879,9 +879,13 @@ function AgentBalanceConfirmationLetterContentInner({
         sheet.addRow([
           row.agentName || '-',
           row.agentCode || '-',
-          formatAmount(row.balance ?? 0),
+          Number(row.balance) || 0,
         ]);
         styleLast({ align2: 'center', align3: 'right' });
+        {
+          const balanceCell = sheet.lastRow?.getCell(3);
+          if (balanceCell) balanceCell.numFmt = '#,##0.00';
+        }
 
         sheet.addRow([]);
         sheet.addRow([t.footer1]);

@@ -318,6 +318,21 @@ function ContentInner({
       ]}
       exportTitle="Channel Discount Report"
       exportFileName="channel-discount-report"
+      excelColumnNumberFormats={[
+        undefined, // Booking Date
+        undefined, // Session
+        undefined, // Bill No
+        undefined, // Patient Name
+        undefined, // Doctor
+        undefined, // Type
+        '#,##0.00', // Hospital Fee
+        '#,##0.00', // Hospital Fee Discount
+        '#,##0.00', // Professional Fee
+        '#,##0.00', // Professional Fee Discount
+        '#,##0.00', // Discount
+        undefined, // Auto Discount Scheme
+        undefined, // Discount Scheme
+      ]}
       tableClassName="text-[11px] [&_th]:px-1.5 [&_td]:px-1.5 [&_th]:border-r [&_th:last-child]:border-r-0 [&_td]:border-r [&_td:last-child]:border-r-0"
       getRowId={(row) => row.id}
       showPrintButton={true}
