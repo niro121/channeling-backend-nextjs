@@ -354,17 +354,18 @@ export type AllDoctorViewReportResponse = {
 };
 
 export type ExportAllDoctorViewData = {
-  no: string;
+  no: number;
   consultant: string;
-  notPaid: string;
-  paid: string;
-  cancel: string;
-  hosRefund: string;
-  proRefund: string;
-  hosValid: string;
-  proValid: string;
-  nettValid: string;
-  total: string;
+  notPaid: number | null;
+  paid: number | null;
+  cancel: number | null;
+  hosRefund: number | null;
+  proRefund: number | null;
+  hosValid: number | null;
+  proValid: number | null;
+  nettValid: number | null;
+  /** Raw amount — Excel stores as number (currency format applied on export). */
+  total: number;
   doctorSessionTime: string;
 };
 

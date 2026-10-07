@@ -39,7 +39,7 @@ import {
   deriveHandoverCashierSummaryFilters,
   expectedHandoverCollectionCents,
   formatHandoverOverAmountError,
-  getHandoverAmountOvers,
+  handoverOversBeyondCashSettlement,
   handoverCollectionDiffCents,
   handoverNonCashHeldCents,
   isHandoverHeldForReconciliation,
@@ -78,6 +78,14 @@ import { HandoverBillGallery } from "@/components/shift-bills/handover-bill-gall
 import { HandoverCollectionCalcInfo } from "@/components/handover-collection-calc-info"
 
 const METHOD_KEYS = ["cashCents", "cardCents", "slipCents", "checkCents", "creditCents", "eWalletCents"] as const
+const SHORT_FIELDS = {
+  cashCents: "shortCashCents",
+  cardCents: "shortCardCents",
+  slipCents: "shortSlipCents",
+  checkCents: "shortCheckCents",
+  creditCents: "shortCreditCents",
+  eWalletCents: "shortEWalletCents",
+} as const
 const METHOD_LABELS: Record<(typeof METHOD_KEYS)[number], string> = {
   cashCents: "Cash",
   cardCents: "Card",
@@ -396,7 +404,7 @@ export default function HandoverDetailPage() {
   const allTicked = allTickIds.length > 0 && allTickIds.every((tid) => ticked.has(tid))
   const amountOvers =
     handover && tillBreakdown
-      ? getHandoverAmountOvers(
+      ? handoverOversBeyondCashSettlement(
           {
             cashCents: handover.cashCents,
             cardCents: handover.cardCents,
@@ -412,7 +420,8 @@ export default function HandoverDetailPage() {
             checkCents: tillBreakdown.checkCents ?? 0,
             creditCents: tillBreakdown.creditCents ?? 0,
             eWalletCents: tillBreakdown.eWalletCents ?? 0,
-          }
+          },
+          handover.settlementCents ?? 0
         )
       : []
   const hasAmountOver = amountOvers.length > 0
@@ -762,6 +771,25 @@ export default function HandoverDetailPage() {
 
           <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 border-t pt-2 text-sm">
             <span className="font-bold tabular-nums">LKR {formatCents(totalCents)}</span>
+            {(() => {
+              const shortRows = METHOD_KEYS.filter((key) => (handover[SHORT_FIELDS[key]] ?? 0) > 0)
+              const settlement = handover.settlementCents ?? 0
+              if (shortRows.length === 0 && settlement <= 0) return null
+              return (
+                <span className="basis-full text-destructive">
+                  {shortRows.length > 0 ? (
+                    <>
+                      Short{" "}
+                      {shortRows
+                        .map((key) => `${METHOD_LABELS[key]} ${formatCents(handover[SHORT_FIELDS[key]] ?? 0)}`)
+                        .join(", ")}
+                    </>
+                  ) : null}
+                  {shortRows.length > 0 && settlement > 0 ? " · " : null}
+                  {settlement > 0 ? <>Settlement {formatCents(settlement)}</> : null}
+                </span>
+              )
+            })()}
             {METHOD_KEYS.filter((k) => (handover[k] ?? 0) > 0).map((key) => {
               const Icon = METHOD_ICONS[key]
               return (

@@ -157,6 +157,7 @@ export const ACTIVITY_ACTIONS_AUDIT: Array<{ action: string; importance: string;
   { action: 'reports.doctor-arrivals.exported', importance: 'Medium', when: 'User exports Doctor Arrivals report' },
   { action: 'reports.user-activity.exported', importance: 'Medium', when: 'User exports User Activity report (capped at 10k; note if more exist)' },
   { action: 'reports.approval-requests.exported', importance: 'Medium', when: 'User exports Approval Requests report' },
+  { action: 'reports.cashier-short-balance.exported', importance: 'Medium', when: 'User exports Cashier Short Balance report' },
   { action: 'admin.receipt-templates.visited', importance: 'Low', when: 'User opens Receipt templates page' },
   { action: 'shift.handover.sent_to_reconciliation', importance: 'High', when: 'Bulk cashier sends approved handover to a specific reconciler' },
   { action: 'shift.handover.reconciliation_assignee_changed', importance: 'High', when: 'Reconciler assignment is changed before completion' },

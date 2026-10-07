@@ -10,7 +10,12 @@ import { logActivityNonBlocking } from "@/lib/activity-log"
 import { getIO, shiftUpdateRoom } from "@/lib/socket-server"
 import { getTillBalanceBreakdown } from "@/services/accounting/balance.service"
 import { getCurrentShift } from "@/services/shift.service"
-import { createJournalEntry, resolveTillForUserAndLocation } from "@/services/accounting.service"
+import {
+  createJournalEntry,
+  ensureCashierShortAccount,
+  getCashierShortBalance,
+  resolveTillForUserAndLocation,
+} from "@/services/accounting.service"
 import {
   getOpenFloatsBlockingShiftEnd,
   getReceivedFloatsForHandover,
@@ -26,11 +31,16 @@ import {
   deriveHandoverCashierSummaryFilters,
   expectedHandoverAvailableFromTill,
   expectedHandoverCollectionCents,
+  formatHandoverCashAboveShortError,
   formatHandoverOverAmountError,
-  getHandoverAmountOvers,
+  handoverCashOverTillCents,
+  handoverOversBeyondCashSettlement,
   handoverNonCashHeldCents,
   handoverAmountsTotalCents,
   handoverDiscrepancyReasonRequiredMessage,
+  handoverShortsExceedingTillGap,
+  handoverTillGaps,
+  formatHandoverShortExceedsGapError,
   isHandoverCollectionExcess,
   normalizedIncludedIds,
   sumReceivedHandoverFloats,
@@ -290,7 +300,9 @@ export async function processShiftHandover(
   discrepancyReason?: string,
   enteredBreakdown?: ShiftHandoverEnteredBreakdown,
   includedHandoverIds?: string[],
-  attachmentIds?: string[]
+  attachmentIds?: string[],
+  _shortAmounts?: ShiftHandoverAmounts,
+  _settlementCents?: number
 ): Promise<
   | { success: true; handoverId: string }
   | { success: false; error: string }
@@ -425,13 +437,45 @@ export async function processShiftHandover(
   // Non-cash still on till but held in open reconciliation must stay with this bulk cashier.
   const held = await getNonCashHeldInReconciliation(validFrom)
   const available = expectedHandoverAvailableFromTill(breakdown, held)
-  const overs = getHandoverAmountOvers(amt, available)
-  if (overs.length > 0) {
-    return {
-      success: false,
-      error: formatHandoverOverAmountError(overs, "submit"),
+  // Settlement is the cash counted above the till. The client cannot choose a different amount.
+  const cashOverTill = handoverCashOverTillCents(amt.cashCents, available.cashCents)
+  const shorts = handoverTillGaps(amt, available)
+  const shortTotal = handoverAmountsTotalCents(shorts)
+
+  let openShortCents = 0
+  if (shortTotal > 0 || cashOverTill > 0) {
+    const senderTill = await prisma.till.findFirst({
+      where: { accountId: breakdown.tillAccountId },
+      select: { locationId: true },
+    })
+    if (!senderTill?.locationId) {
+      return { success: false, error: "Could not determine the branch for this short." }
+    }
+    if (cashOverTill > 0) {
+      const openShort = await getCashierShortBalance(validFrom, senderTill.locationId)
+      openShortCents = openShort.balanceCents
     }
   }
+  if (cashOverTill > openShortCents) {
+    return {
+      success: false,
+      error: formatHandoverCashAboveShortError({
+        enteredCashCents: amt.cashCents,
+        availableCashCents: available.cashCents,
+        openShortCents,
+      }),
+    }
+  }
+  const nonCashOvers = handoverOversBeyondCashSettlement(amt, available, openShortCents).filter(
+    (over) => over.key !== "cashCents"
+  )
+  if (nonCashOvers.length > 0) {
+    return {
+      success: false,
+      error: formatHandoverOverAmountError(nonCashOvers, "submit"),
+    }
+  }
+  const settlement = cashOverTill
 
   const hasShort =
     amt.cashCents < available.cashCents ||
@@ -450,6 +494,26 @@ export async function processShiftHandover(
     return { success: false, error: expectedCollection.error }
   }
   const enteredTotalCents = handoverAmountsTotalCents(amt)
+  const excessCents = Math.max(0, enteredTotalCents - expectedCollection.data.expectedCents)
+  if (settlement > excessCents) {
+    return {
+      success: false,
+      error:
+        excessCents <= 0
+          ? "A short can be settled only when this handover has an excess."
+          : `Cash above the till (${formatCents(settlement)}) is more than the excess of ${formatCents(excessCents)}.`,
+    }
+  }
+  if (settlement > openShortCents) {
+    return {
+      success: false,
+      error: formatHandoverCashAboveShortError({
+        enteredCashCents: amt.cashCents,
+        availableCashCents: available.cashCents,
+        openShortCents,
+      }),
+    }
+  }
   const hasExcess = isHandoverCollectionExcess(
     enteredTotalCents - expectedCollection.data.expectedCents
   )
@@ -503,6 +567,13 @@ export async function processShiftHandover(
       creditCents: amt.creditCents,
       eWalletCents: amt.eWalletCents,
       totalCents,
+      shortCashCents: shorts.cashCents,
+      shortCardCents: shorts.cardCents,
+      shortSlipCents: shorts.slipCents,
+      shortCheckCents: shorts.checkCents,
+      shortCreditCents: shorts.creditCents,
+      shortEWalletCents: shorts.eWalletCents,
+      settlementCents: settlement,
       discrepancyReason: parsed.data.discrepancyReason?.trim() || null,
       enteredBreakdown: enteredBreakdown != null ? (enteredBreakdown as object) : undefined,
       includedHandoverIds: dataIncludedHandoverIds,
@@ -745,7 +816,16 @@ export async function approveHandover(
 
   const held = await getNonCashHeldInReconciliation(handover.fromUserId)
   const available = expectedHandoverAvailableFromTill(breakdown, held)
-  const overs = getHandoverAmountOvers(
+  const cashOverTill = handoverCashOverTillCents(handover.cashCents, available.cashCents)
+  const storedSettlementCents = Math.max(0, handover.settlementCents ?? 0)
+  if (cashOverTill !== storedSettlementCents) {
+    return {
+      success: false,
+      error:
+        "Till cash changed since this handover was submitted, so the excess no longer matches the short settlement. Reject it so the cashier can submit again.",
+    }
+  }
+  const overs = handoverOversBeyondCashSettlement(
     {
       cashCents: handover.cashCents,
       cardCents: handover.cardCents,
@@ -754,7 +834,8 @@ export async function approveHandover(
       creditCents: handover.creditCents,
       eWalletCents: handover.eWalletCents,
     },
-    available
+    available,
+    handover.settlementCents ?? 0
   )
   if (overs.length > 0) {
     return {
@@ -763,62 +844,191 @@ export async function approveHandover(
     }
   }
 
-  const totalCents =
-    handover.cashCents +
-    handover.cardCents +
-    handover.slipCents +
-    handover.checkCents +
-    handover.creditCents +
-    handover.eWalletCents
+  const handedOver: ShiftHandoverAmounts = {
+    cashCents: handover.cashCents,
+    cardCents: handover.cardCents,
+    slipCents: handover.slipCents,
+    checkCents: handover.checkCents,
+    creditCents: handover.creditCents,
+    eWalletCents: handover.eWalletCents,
+  }
+  const shorts: ShiftHandoverAmounts = {
+    cashCents: handover.shortCashCents ?? 0,
+    cardCents: handover.shortCardCents ?? 0,
+    slipCents: handover.shortSlipCents ?? 0,
+    checkCents: handover.shortCheckCents ?? 0,
+    creditCents: handover.shortCreditCents ?? 0,
+    eWalletCents: handover.shortEWalletCents ?? 0,
+  }
+  const shortGapErrors = handoverShortsExceedingTillGap(shorts, handedOver, available)
+  if (shortGapErrors.length > 0) {
+    return { success: false, error: formatHandoverShortExceedsGapError(shortGapErrors) }
+  }
+  const shortTotal = handoverAmountsTotalCents(shorts)
+  const settlementCents = Math.max(0, handover.settlementCents ?? 0)
+  const totalCents = handoverAmountsTotalCents(handedOver)
+
+  let shortAccountId: string | null = null
+  let shortLocationId: string | null = null
+  if (shortTotal > 0 || settlementCents > 0) {
+    const senderTill = await prisma.till.findFirst({
+      where: { accountId: breakdown.tillAccountId },
+      select: { locationId: true },
+    })
+    if (!senderTill?.locationId) {
+      return { success: false, error: "Could not determine the branch for this short." }
+    }
+    shortLocationId = senderTill.locationId
+    if (settlementCents > 0) {
+      const openShort = await getCashierShortBalance(handover.fromUserId, shortLocationId)
+      if (settlementCents > openShort.balanceCents) {
+        return {
+          success: false,
+          error: `Settlement ${formatCents(settlementCents)} is more than the open short of ${formatCents(openShort.balanceCents)}.`,
+        }
+      }
+      const expectedCollection = await getExpectedHandoverCollection({
+        cashierUserId: handover.fromUserId,
+        shiftId: handover.shiftId,
+        shiftStartedAt: handover.shift.startedAt,
+        windowEnd: handover.createdAt,
+      })
+      if (!expectedCollection.success) {
+        return { success: false, error: expectedCollection.error }
+      }
+      const excessCents = Math.max(
+        0,
+        handoverAmountsTotalCents(handedOver) - expectedCollection.data.expectedCents
+      )
+      if (settlementCents > excessCents) {
+        return {
+          success: false,
+          error:
+            excessCents <= 0
+              ? "A short can be settled only when this handover has an excess."
+              : `Settlement cannot be more than the excess of ${formatCents(excessCents)}.`,
+        }
+      }
+    }
+    const shortAccount = await ensureCashierShortAccount(handover.fromUserId, shortLocationId)
+    if (!shortAccount.success) {
+      return { success: false, error: shortAccount.error }
+    }
+    shortAccountId = shortAccount.account.accountId
+  }
 
   let journalId: string | null = null
-  if (totalCents > 0) {
-    const recipientTillLocationId = approverShift.locationId ?? null
-    if (!recipientTillLocationId) {
-      return { success: false, error: "Your current shift has no location. Start a shift at a location to receive a handover." }
+  if (totalCents > 0 || shortTotal > 0 || settlementCents > 0) {
+    const needsRecipient = totalCents > 0 || settlementCents > 0
+    let toAccountId: string | null = null
+    if (needsRecipient) {
+      const recipientTillLocationId = approverShift.locationId ?? null
+      if (!recipientTillLocationId) {
+        return { success: false, error: "Your current shift has no location. Start a shift at a location to receive a handover." }
+      }
+      const toTill = await resolveTillForUserAndLocation(handover.toUserId, recipientTillLocationId)
+      toAccountId = toTill.accountId
     }
-    const toTill = await resolveTillForUserAndLocation(handover.toUserId, recipientTillLocationId)
-    const toAccountId = toTill.accountId
 
-    const methodAmounts: { method: number; amount: number }[] = [
-      { method: RECEIPT_PAYMENT_METHOD.CASH, amount: handover.cashCents },
-      { method: RECEIPT_PAYMENT_METHOD.CREDIT_CARD, amount: handover.cardCents },
-      { method: RECEIPT_PAYMENT_METHOD.SLIP, amount: handover.slipCents },
-      { method: RECEIPT_PAYMENT_METHOD.CHECK, amount: handover.checkCents },
-      { method: RECEIPT_PAYMENT_METHOD.CREDIT, amount: handover.creditCents },
-      { method: RECEIPT_PAYMENT_METHOD.E_WALLET, amount: handover.eWalletCents },
-    ].filter((m) => m.amount > 0)
+    const methodAmounts: { method: number; amount: number; shortAmount: number }[] = [
+      { method: RECEIPT_PAYMENT_METHOD.CASH, amount: handedOver.cashCents, shortAmount: shorts.cashCents },
+      { method: RECEIPT_PAYMENT_METHOD.CREDIT_CARD, amount: handedOver.cardCents, shortAmount: shorts.cardCents },
+      { method: RECEIPT_PAYMENT_METHOD.SLIP, amount: handedOver.slipCents, shortAmount: shorts.slipCents },
+      { method: RECEIPT_PAYMENT_METHOD.CHECK, amount: handedOver.checkCents, shortAmount: shorts.checkCents },
+      { method: RECEIPT_PAYMENT_METHOD.CREDIT, amount: handedOver.creditCents, shortAmount: shorts.creditCents },
+      { method: RECEIPT_PAYMENT_METHOD.E_WALLET, amount: handedOver.eWalletCents, shortAmount: shorts.eWalletCents },
+    ]
 
     const lines: Array<{
       accountId: string
       debitAmount: number
       creditAmount: number
-      paymentMethod: number
+      paymentMethod?: number
+      memo?: string
     }> = []
     for (const { method, amount } of methodAmounts) {
+      if (amount <= 0 || !toAccountId) continue
+      const tillAmount =
+        method === RECEIPT_PAYMENT_METHOD.CASH ? Math.min(amount, available.cashCents) : amount
+      if (tillAmount <= 0) continue
       lines.push({
         accountId: breakdown.tillAccountId,
         debitAmount: 0,
-        creditAmount: amount,
+        creditAmount: tillAmount,
         paymentMethod: method,
+        memo: "Handover",
       })
       lines.push({
         accountId: toAccountId,
-        debitAmount: amount,
+        debitAmount: tillAmount,
         creditAmount: 0,
         paymentMethod: method,
+        memo: "Handover",
+      })
+    }
+    if (shortTotal > 0 && shortAccountId) {
+      for (const { method, shortAmount } of methodAmounts) {
+        if (shortAmount <= 0) continue
+        lines.push({
+          accountId: shortAccountId,
+          debitAmount: shortAmount,
+          creditAmount: 0,
+          paymentMethod: method,
+          memo: "Short",
+        })
+        lines.push({
+          accountId: breakdown.tillAccountId,
+          debitAmount: 0,
+          creditAmount: shortAmount,
+          paymentMethod: method,
+          memo: "Short",
+        })
+      }
+    }
+    if (settlementCents > 0 && shortAccountId && toAccountId) {
+      lines.push({
+        accountId: toAccountId,
+        debitAmount: settlementCents,
+        creditAmount: 0,
+        paymentMethod: RECEIPT_PAYMENT_METHOD.CASH,
+        memo: "Short settlement",
+      })
+      lines.push({
+        accountId: shortAccountId,
+        debitAmount: 0,
+        creditAmount: settlementCents,
+        paymentMethod: RECEIPT_PAYMENT_METHOD.CASH,
+        memo: "Short settlement",
       })
     }
 
     const fromName = handover.fromUser?.name ?? "Cashier"
     const toName = handover.toUser?.name ?? "Bulk cashier"
-    const methodParts = methodAmounts.map(
-      (m) => `${PAYMENT_METHOD_NAMES[m.method] ?? "Method " + m.method}: LKR ${(m.amount / 100).toFixed(2)}`
-    )
-    const totalLKR = (totalCents / 100).toFixed(2)
+    const postedByMethod = methodAmounts.map((m) => ({
+      ...m,
+      posted:
+        m.method === RECEIPT_PAYMENT_METHOD.CASH ? Math.min(m.amount, available.cashCents) : m.amount,
+    }))
+    const postedTotalCents = postedByMethod.reduce((sum, m) => sum + Math.max(0, m.posted), 0)
+    const methodParts = postedByMethod
+      .filter((m) => m.posted > 0)
+      .map((m) => `${PAYMENT_METHOD_NAMES[m.method] ?? "Method " + m.method}: LKR ${(m.posted / 100).toFixed(2)}`)
+    const shortParts = methodAmounts
+      .filter((m) => m.shortAmount > 0)
+      .map((m) => `${PAYMENT_METHOD_NAMES[m.method] ?? "Method " + m.method}: LKR ${(m.shortAmount / 100).toFixed(2)}`)
     const now = new Date()
     const approvedAtStr = now.toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" })
-    let description = `Shift handover received — Journal entry: Cashier "${fromName}" handed over to "${toName}". Amounts by method: ${methodParts.join("; ")}. Total LKR ${totalLKR}. Approved and received by ${toName} on ${approvedAtStr}.`
+    let description = `Shift handover received — Journal entry: Cashier "${fromName}" handed over to "${toName}".`
+    if (methodParts.length > 0) {
+      description += ` Amounts by method: ${methodParts.join("; ")}. Total LKR ${(postedTotalCents / 100).toFixed(2)}.`
+    }
+    if (shortParts.length > 0) {
+      description += ` Short moved to the branch short account: ${shortParts.join("; ")}. Total LKR ${(shortTotal / 100).toFixed(2)}.`
+    }
+    if (settlementCents > 0) {
+      description += ` Cash settlement of previous short: LKR ${(settlementCents / 100).toFixed(2)}.`
+    }
+    description += ` Approved and received by ${toName} on ${approvedAtStr}.`
     if (approvalComments?.trim()) {
       description += ` Comments: ${approvalComments.trim()}`
     }
@@ -827,6 +1037,7 @@ export async function approveHandover(
       description,
       referenceType: REFERENCE_TYPES.ShiftHandover,
       referenceId: handoverId,
+      locationId: shortLocationId ?? approverShift.locationId ?? null,
       createdBy: handover.fromUserId,
       lines,
     })
@@ -889,6 +1100,8 @@ export async function approveHandover(
       shiftId: handover.shiftId,
       fromUserId: handover.fromUserId,
       totalCents,
+      shortTotal,
+      settlementCents,
       leftoverEndedShiftIds: leftover.endedShiftIds,
       leftoverCancelledHandoverIds: leftover.cancelledHandoverIds,
     },

@@ -1,5 +1,6 @@
 export type ChannelAgentReceiptReportQuery = {
   bookNo?: string;
+  agencyId?: string;
 };
 
 export type ChannelAgentReceiptReportRow = {
@@ -27,4 +28,5 @@ export type ChannelAgentReceiptReportExportRow = {
 
 export type ChannelAgentReceiptReportContentProps = {
   currentUserName: string;
+  agencyOptions: Array<{ id: string; name: string }>;
 };

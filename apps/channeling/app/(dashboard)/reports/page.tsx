@@ -98,7 +98,7 @@ const reportsData: Omit<ReportListItem, 'category'>[] = [
     id: '16',
     rank: 20,
     masterData: 'Channel Agent Receipt',
-    description: 'Search all receipts linked to bookings by Book No prefix (BookNo%).',
+    description: 'Search all receipts linked to bookings by Book No prefix and/or Agency.',
     route: '/reports/channel-agent-receipt'
   },
   {
@@ -146,7 +146,7 @@ const reportsData: Omit<ReportListItem, 'category'>[] = [
   },
   {
     id: '29',
-    rank: 35,
+    rank: 36,
     masterData: 'SMS Reports',
     description: 'View SMS log entries with date & time range and status filters, with print/PDF/Excel export.',
     route: '/reports/sms-reports'
@@ -161,7 +161,7 @@ const reportsData: Omit<ReportListItem, 'category'>[] = [
   },
   {
     id: '31',
-    rank: 36,
+    rank: 37,
     masterData: 'API LOG REPORT',
     description: 'View API request logs with date & time range and filter by UUID',
     route: '/reports/api-log'
@@ -195,8 +195,15 @@ const reportsData: Omit<ReportListItem, 'category'>[] = [
     route: '/reports/cashier-drawer-balance'
   },
   {
-    id: '34a',
+    id: '44',
     rank: 29,
+    masterData: 'Cashier Short Balance',
+    description: 'Shows each cashier short account balance by payment method as of the selected date and time.',
+    route: '/reports/cashier-short-balance'
+  },
+  {
+    id: '34a',
+    rank: 30,
     masterData: 'Daily Returns Summary',
     description:
       'Receipt-based daily float summary by receipt type (Settlement, Refund, Doctor Payment, Agency Deposit, Branch Income, Bank Deposit, etc.) for a selected date.',
@@ -204,7 +211,7 @@ const reportsData: Omit<ReportListItem, 'category'>[] = [
   },
   {
     id: '35',
-    rank: 30,
+    rank: 31,
     masterData: 'Card Summary - Bank Wise',
     description: 'Lists card transactions by bank with Summary and Detail views.',
     route: '/reports/card-summary-bank-wise'
@@ -225,7 +232,7 @@ const reportsData: Omit<ReportListItem, 'category'>[] = [
   },
   {
     id: '37',
-    rank: 31,
+    rank: 32,
     masterData: 'Cash Book',
     description: 'Statement-style report for a selected cash book within a date range.',
     route: '/reports/cash-book'
@@ -239,21 +246,21 @@ const reportsData: Omit<ReportListItem, 'category'>[] = [
   },
   {
     id: '39',
-    rank: 32,
+    rank: 33,
     masterData: 'Bank Deposits',
     description: 'Lists bank deposit receipts with date/time range and bank account filters.',
     route: '/reports/bank-deposits'
   },
   {
     id: '40',
-    rank: 33,
+    rank: 34,
     masterData: 'Handovers Report',
     description: 'View pending, approved, and rejected shift handovers for any user, with sender, recipient, handover status, and reconciliation status filters.',
     route: '/reports/completed-handovers'
   },
   {
     id: '41',
-    rank: 34,
+    rank: 35,
     masterData: 'Approval Requests Report',
     description:
       'View Approval Center cancellations, refunds, and bank deposits for a period, including who requested, approved, and rejected each item.',
@@ -268,7 +275,7 @@ const reportsData: Omit<ReportListItem, 'category'>[] = [
   },
   {
     id: '43',
-    rank: 37,
+    rank: 38,
     masterData: 'User Activity Report',
     description: 'View user activity logs with filters for date/time, user, action, and entity details.',
     route: '/reports/user-activity'
@@ -315,6 +322,7 @@ export default async function ReportsPage() {
     '/reports/all-cashier-summary-detail': 'Cashier',
     '/reports/cashier-summary': 'Cashier',
     '/reports/cashier-drawer-balance': 'Cashier',
+    '/reports/cashier-short-balance': 'Cashier',
     '/reports/daily-returns-summary': 'Cashier',
     '/reports/card-summary-bank-wise': 'Cashier',
     '/reports/cash-book': 'Cashier',

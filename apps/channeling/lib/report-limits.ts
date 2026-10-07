@@ -27,7 +27,8 @@ type ReportLimitKey =
   | 'room_occupancy'
   | 'no_show_patient'
   | 'daily_returns_summary'
-  | 'doctor_balance';
+  | 'doctor_balance'
+  | 'cashier_short_balance';
 
 const DEFAULT_REPORT_MAX = 10000
 

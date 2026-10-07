@@ -52,6 +52,12 @@ export type DownloadBrandedReportExcelOptions<T> = {
   /** When set, these widths replace the default column widths (1-based order). */
   columnWidths?: number[]
   /**
+   * Optional Excel number formats aligned with `columns` / body column index
+   * (e.g. `'0'` for integers, `'#,##0.00'` for currency). Applied only when the
+   * cell value is a number.
+   */
+  columnNumberFormats?: (string | undefined)[]
+  /**
    * Extra 0-based columns that wrap, left-align, and grow the row so the
    * full text is visible. Columns 0 and 1 already wrap. Omit to leave other
    * reports unchanged.
@@ -188,6 +194,7 @@ export async function downloadBrandedReportExcel<T>({
   orientation = "landscape",
   compactTable = false,
   columnWidths,
+  columnNumberFormats,
   extraWrapColumnIndexes,
 }: DownloadBrandedReportExcelOptions<T>): Promise<void> {
   const tableSections: BrandedExcelTableSection[] =
@@ -433,6 +440,10 @@ export async function downloadBrandedReportExcel<T>({
           cell.value = value
         } else {
           cell.value = String(value)
+        }
+        const numFmt = columnNumberFormats?.[i]
+        if (typeof value === "number" && numFmt) {
+          cell.numFmt = numFmt
         }
         cell.font = {
           bold: totalLike,
