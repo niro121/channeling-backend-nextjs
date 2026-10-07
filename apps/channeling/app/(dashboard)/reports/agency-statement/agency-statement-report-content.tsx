@@ -249,6 +249,8 @@ export default function AgencyStatementReportContent({ agentOptions, currentUser
                           <TableHead>Particulars</TableHead>
                           <TableHead>Appointment Date/Time</TableHead>
                           <TableHead>Receipt No</TableHead>
+                          <TableHead>Book No</TableHead>
+                          <TableHead>Leaf No</TableHead>
                           <TableHead className="text-right">Doc Fee</TableHead>
                           <TableHead className="text-right">Hos Fee</TableHead>
                           <TableHead className="text-right">Discount</TableHead>
@@ -263,6 +265,8 @@ export default function AgencyStatementReportContent({ agentOptions, currentUser
                           <TableCell />
                           <TableCell>{new Date(meta.from).toLocaleString()}</TableCell>
                           <TableCell>Balance as of period start</TableCell>
+                          <TableCell />
+                          <TableCell />
                           <TableCell />
                           <TableCell />
                           <TableCell className="text-right">-</TableCell>
@@ -280,6 +284,8 @@ export default function AgencyStatementReportContent({ agentOptions, currentUser
                             <TableCell>{r.particulars}</TableCell>
                             <TableCell>{r.appointmentDateTime ?? '-'}</TableCell>
                             <TableCell>{r.receiptNo}</TableCell>
+                            <TableCell>{r.bookNo || '-'}</TableCell>
+                            <TableCell>{r.leafNo || '-'}</TableCell>
                             <TableCell className="text-right tabular-nums">{formatLKR(r.docFee)}</TableCell>
                             <TableCell className="text-right tabular-nums">{formatLKR(r.hosFee)}</TableCell>
                             <TableCell className="text-right tabular-nums">{formatLKR(r.discount)}</TableCell>
@@ -290,7 +296,7 @@ export default function AgencyStatementReportContent({ agentOptions, currentUser
                           </TableRow>
                         ))}
                         <TableRow className="rpt-print-total font-medium bg-muted/50">
-                          <TableCell colSpan={9}>Closing Balance</TableCell>
+                          <TableCell colSpan={11}>Closing Balance</TableCell>
                           <TableCell className="text-right tabular-nums">{formatLKR(data.closingBalance)}</TableCell>
                           <TableCell colSpan={2} />
                         </TableRow>
