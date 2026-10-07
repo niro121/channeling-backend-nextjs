@@ -150,7 +150,7 @@ export function AgencyStatementPrintLayout({ data, periodFrom }: Props) {
             <th>Detail</th>
             <th>Fees</th>
             <th>Balance</th>
-            <th>Meta</th>
+            <th>Comments & Create By</th>
           </tr>
         </thead>
         <tbody>
@@ -209,20 +209,32 @@ export function AgencyStatementPrintLayout({ data, periodFrom }: Props) {
                     <span className="as-print-k">Appt</span>
                     {r.appointment}
                   </span>
+                  <span className="as-print-line as-print-muted">
+                    <span className="as-print-k">Book</span>
+                    {r.bookNo}
+                  </span>
+                  <span className="as-print-line as-print-muted">
+                    <span className="as-print-k">Leaf</span>
+                    {r.leafNo}
+                  </span>
                 </td>
                 <td>
-                  <span className="as-print-line as-print-nums">
-                    <span className="as-print-k">Doc</span>
-                    {r.docFee}
-                  </span>
-                  <span className="as-print-line as-print-nums as-print-muted">
-                    <span className="as-print-k">Hos</span>
-                    {r.hosFee}
-                  </span>
-                  <span className="as-print-line as-print-nums as-print-muted">
-                    <span className="as-print-k">Disc</span>
-                    {r.discount}
-                  </span>
+                  {r.particulars !== 'Agency Deposit' && (
+                    <>
+                      <span className="as-print-line as-print-nums">
+                        <span className="as-print-k">Doc</span>
+                        {r.docFee}
+                      </span>
+                      <span className="as-print-line as-print-nums as-print-muted">
+                        <span className="as-print-k">Hos</span>
+                        {r.hosFee}
+                      </span>
+                      <span className="as-print-line as-print-nums as-print-muted">
+                        <span className="as-print-k">Disc</span>
+                        {r.discount}
+                      </span>
+                    </>
+                  )}
                   <span className="as-print-line as-print-nums as-print-strong">
                     <span className="as-print-k">Amt</span>
                     {r.amount}
