@@ -50,6 +50,7 @@ import {
   CheckCircle2,
   Camera,
   ZoomIn,
+  ExternalLink,
 } from "lucide-react"
 import { Checkbox } from "@/components/ui/checkbox"
 import { listMyShiftBillAttachmentsAction } from "@/app/actions/shift-bill-attachment.actions"
@@ -1054,6 +1055,17 @@ export function EndShiftHandoverDialog({
             )}
 
             <DialogFooter>
+              <Button variant="outline" asChild className="sm:mr-auto">
+                <Link
+                  href={`/reports/cashier-summary?shiftId=${encodeURIComponent(shiftId)}&format=summary`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <FileText className="h-4 w-4 mr-2" />
+                  Summary
+                  <ExternalLink className="h-3.5 w-3.5 ml-1.5" />
+                </Link>
+              </Button>
               <Button variant="outline" onClick={() => onOpenChange(false)} disabled={endWithoutLoading}>
                 Cancel
               </Button>

@@ -2,7 +2,7 @@
 
 /**
  * Handovers Report — Excel ONLY (A4 portrait, matches Print / PDF).
- * Columns: No. | Parties | Methods (2-part) | Total | Status
+ * Columns: No. | Parties | Methods (2-part) | Total | Excess / Short | Status
  */
 
 import ExcelJS from 'exceljs';
@@ -12,12 +12,16 @@ import {
   RUHUNU_PRINT_BRAND_NAME,
   type BrandedPdfSummaryItem,
 } from '@/components/common/report-print';
-import type { CompletedHandoversReportExportRow } from '@/types/reports/completed-handovers';
+import {
+  formatHandoverReportVariance,
+  handoverReportVarianceLines,
+  type CompletedHandoversReportExportRow,
+} from '@/types/reports/completed-handovers';
 
-const HEADERS = ['No.', 'Parties', 'Methods', 'Total', 'Status'] as const;
+const HEADERS = ['No.', 'Parties', 'Methods', 'Total', 'Excess / Short', 'Status'] as const;
 
-/** ~ PDF COL_PERCENTS [5, 20, 30, 12, 33] */
-const COLUMN_WIDTHS = [5, 22, 32, 12, 28];
+/** ~ PDF COL_PERCENTS [5, 18, 24, 11, 20, 22] */
+const COLUMN_WIDTHS = [5, 18, 26, 12, 22, 24];
 
 let cachedLogoBase64: string | null | undefined;
 
@@ -385,20 +389,44 @@ export async function downloadCompletedHandoversReportExcel({
       acc.credit += parseAmount(r.credit);
       acc.eWallet += parseAmount(r.eWallet);
       acc.total += parseAmount(r.total);
+      acc.shortCash += r.shortCashCents || 0;
+      acc.shortCard += r.shortCardCents || 0;
+      acc.shortSlip += r.shortSlipCents || 0;
+      acc.shortCheque += r.shortCheckCents || 0;
+      acc.shortCredit += r.shortCreditCents || 0;
+      acc.shortEWallet += r.shortEWalletCents || 0;
+      acc.excessCash += r.settlementCents || 0;
       return acc;
     },
-    { cash: 0, card: 0, slip: 0, cheque: 0, credit: 0, eWallet: 0, total: 0 }
+    {
+      cash: 0,
+      card: 0,
+      slip: 0,
+      cheque: 0,
+      credit: 0,
+      eWallet: 0,
+      total: 0,
+      shortCash: 0,
+      shortCard: 0,
+      shortSlip: 0,
+      shortCheque: 0,
+      shortCredit: 0,
+      shortEWallet: 0,
+      excessCash: 0,
+    }
   );
 
   for (let i = 0; i < rows.length; i++) {
     const r = rows[i]!;
     const parties = partiesLines(r);
     const status = statusLines(r);
+    const variance = r.excessOrShort && r.excessOrShort !== '-' ? r.excessOrShort : '—';
     const values: Array<string | number | ExcelJS.CellRichTextValue> = [
       r.no || String(i + 1),
       labeledRichText(parties),
       methodsText(r),
       parseAmount(r.total),
+      variance,
       labeledRichText(status),
     ];
     for (let c = 0; c < colCount; c++) {
@@ -410,7 +438,8 @@ export async function downloadCompletedHandoversReportExcel({
         currency: c === 3,
       });
     }
-    sheet.getRow(row).height = Math.max(56, Math.max(parties.length, status.length, 4) * 14);
+    const varianceLines = variance === '—' ? 1 : variance.split('\n').length;
+    sheet.getRow(row).height = Math.max(56, Math.max(parties.length, status.length, varianceLines, 4) * 14);
     row += 1;
   }
 
@@ -423,11 +452,23 @@ export async function downloadCompletedHandoversReportExcel({
       credit: formatAmount(totals.credit),
       eWallet: formatAmount(totals.eWallet),
     };
+    const totalVariance = formatHandoverReportVariance(
+      handoverReportVarianceLines({
+        shortCashCents: totals.shortCash,
+        shortCardCents: totals.shortCard,
+        shortSlipCents: totals.shortSlip,
+        shortCheckCents: totals.shortCheque,
+        shortCreditCents: totals.shortCredit,
+        shortEWalletCents: totals.shortEWallet,
+        settlementCents: totals.excessCash,
+      })
+    );
     const totalValues: Array<string | number> = [
       '',
       'Total',
       methodsText(totalMethods),
       totals.total,
+      totalVariance,
       '',
     ];
     for (let c = 0; c < colCount; c++) {
@@ -440,7 +481,8 @@ export async function downloadCompletedHandoversReportExcel({
         currency: c === 3,
       });
     }
-    sheet.getRow(row).height = 56;
+    const totalVarianceLines = totalVariance === '—' ? 1 : totalVariance.split('\n').length;
+    sheet.getRow(row).height = Math.max(56, totalVarianceLines * 14);
     row += 1;
   }
 
