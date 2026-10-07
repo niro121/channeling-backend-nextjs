@@ -2,7 +2,7 @@
 
 /**
  * Handovers Report — PDF ONLY (A4 portrait, matches Print).
- * Columns: No. | Parties | Methods (2-part) | Total | Status
+ * Columns: No. | Parties | Methods (2-part) | Total | Excess / Short | Status
  */
 
 import jsPDF from 'jspdf';
@@ -12,9 +12,13 @@ import {
   RUHUNU_PRINT_BRAND_NAME,
   type BrandedPdfSummaryItem,
 } from '@/components/common/report-print';
-import type { CompletedHandoversReportExportRow } from '@/types/reports/completed-handovers';
+import {
+  formatHandoverReportVariance,
+  handoverReportVarianceLines,
+  type CompletedHandoversReportExportRow,
+} from '@/types/reports/completed-handovers';
 
-const COL_PERCENTS = [5, 20, 30, 12, 33] as const;
+const COL_PERCENTS = [5, 18, 24, 11, 20, 22] as const;
 
 function pageSize(doc: jsPDF): { width: number; height: number } {
   return {
@@ -274,9 +278,31 @@ export async function downloadCompletedHandoversReportPdf({
       acc.credit += parseAmount(r.credit);
       acc.eWallet += parseAmount(r.eWallet);
       acc.total += parseAmount(r.total);
+      acc.shortCash += r.shortCashCents || 0;
+      acc.shortCard += r.shortCardCents || 0;
+      acc.shortSlip += r.shortSlipCents || 0;
+      acc.shortCheque += r.shortCheckCents || 0;
+      acc.shortCredit += r.shortCreditCents || 0;
+      acc.shortEWallet += r.shortEWalletCents || 0;
+      acc.excessCash += r.settlementCents || 0;
       return acc;
     },
-    { cash: 0, card: 0, slip: 0, cheque: 0, credit: 0, eWallet: 0, total: 0 }
+    {
+      cash: 0,
+      card: 0,
+      slip: 0,
+      cheque: 0,
+      credit: 0,
+      eWallet: 0,
+      total: 0,
+      shortCash: 0,
+      shortCard: 0,
+      shortSlip: 0,
+      shortCheque: 0,
+      shortCredit: 0,
+      shortEWallet: 0,
+      excessCash: 0,
+    }
   );
 
   const totalMethods = {
@@ -305,13 +331,31 @@ export async function downloadCompletedHandoversReportPdf({
       labeledHeightText(partiesLines(r)),
       methodsText(r),
       r.total || '0.00',
+      r.excessOrShort && r.excessOrShort !== '-' ? r.excessOrShort : '—',
       labeledHeightText(statusLines(r)),
     ]),
-    ['', 'Total', methodsText(totalMethods), formatAmount(totals.total), ''],
+    [
+      '',
+      'Total',
+      methodsText(totalMethods),
+      formatAmount(totals.total),
+      formatHandoverReportVariance(
+        handoverReportVarianceLines({
+          shortCashCents: totals.shortCash,
+          shortCardCents: totals.shortCard,
+          shortSlipCents: totals.shortSlip,
+          shortCheckCents: totals.shortCheque,
+          shortCreditCents: totals.shortCredit,
+          shortEWalletCents: totals.shortEWallet,
+          settlementCents: totals.excessCash,
+        })
+      ),
+      '',
+    ],
   ];
 
   autoTable(doc, {
-    head: [['No.', 'Parties', 'Methods', 'Total', 'Status']],
+    head: [['No.', 'Parties', 'Methods', 'Total', 'Excess / Short', 'Status']],
     body,
     startY,
     margin: { left: margin, right: margin, bottom: 12 },
@@ -349,7 +393,7 @@ export async function downloadCompletedHandoversReportPdf({
       if (hook.column.index === 1) {
         (hook.cell as typeof hook.cell & CellMeta).chrParties = partiesLines(row);
       }
-      if (hook.column.index === 4) {
+      if (hook.column.index === 5) {
         (hook.cell as typeof hook.cell & CellMeta).chrStatus = statusLines(row);
       }
     },

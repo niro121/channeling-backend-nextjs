@@ -2,7 +2,11 @@
 
 import moment from 'moment';
 import { formatCents } from '@/lib/format-money';
-import type { CompletedHandoversReportRow } from '@/types/reports/completed-handovers';
+import {
+  sumHandoverReportVariances,
+  type CompletedHandoversReportRow,
+  type HandoverReportVarianceLine,
+} from '@/types/reports/completed-handovers';
 
 type Props = {
   rows: CompletedHandoversReportRow[];
@@ -11,6 +15,22 @@ type Props = {
 function fmtDate(d: Date | null | undefined): string {
   if (!d) return '—';
   return moment(d).format('YYYY-MM-DD HH:mm');
+}
+
+function VarianceBlock({ lines }: { lines: HandoverReportVarianceLine[] }) {
+  if (lines.length === 0) return <span className="chr-muted">—</span>;
+  return (
+    <div>
+      {lines.map((line) => (
+        <span key={`${line.kind}-${line.label}`} className="chr-line">
+          <span className="chr-k">
+            {line.label} {line.kind}
+          </span>
+          {formatCents(line.cents)}
+        </span>
+      ))}
+    </div>
+  );
 }
 
 function MethodsBlock({
@@ -63,8 +83,8 @@ function MethodsBlock({
 }
 
 /**
- * Print-only A4 portrait for Handovers Report (16 data columns → compact).
- * No. | Parties | Methods (2-part) | Total | Status
+ * Print-only A4 portrait for Handovers Report.
+ * No. | Parties | Methods (2-part) | Total | Excess / Short | Status
  * Branded header via ReportPrintLayout (ReportTemplate). Actions omitted.
  */
 export function CompletedHandoversPrintLayout({ rows }: Props) {
@@ -222,10 +242,11 @@ export function CompletedHandoversPrintLayout({ rows }: Props) {
           }
 
           .completed-handovers-report-root .chr-c0 { width: 5% !important; }
-          .completed-handovers-report-root .chr-c1 { width: 20% !important; }
-          .completed-handovers-report-root .chr-c2 { width: 30% !important; }
-          .completed-handovers-report-root .chr-c3 { width: 12% !important; }
-          .completed-handovers-report-root .chr-c4 { width: 33% !important; }
+          .completed-handovers-report-root .chr-c1 { width: 18% !important; }
+          .completed-handovers-report-root .chr-c2 { width: 24% !important; }
+          .completed-handovers-report-root .chr-c3 { width: 11% !important; }
+          .completed-handovers-report-root .chr-c4 { width: 20% !important; }
+          .completed-handovers-report-root .chr-c5 { width: 22% !important; }
         }
       `}</style>
 
@@ -236,6 +257,7 @@ export function CompletedHandoversPrintLayout({ rows }: Props) {
           <col className="chr-c2" />
           <col className="chr-c3" />
           <col className="chr-c4" />
+          <col className="chr-c5" />
         </colgroup>
         <thead>
           <tr>
@@ -243,13 +265,14 @@ export function CompletedHandoversPrintLayout({ rows }: Props) {
             <th className="chr-c1">Parties</th>
             <th className="chr-c2">Methods</th>
             <th className="chr-c3 chr-right">Total</th>
-            <th className="chr-c4">Status</th>
+            <th className="chr-c4">Excess / Short</th>
+            <th className="chr-c5">Status</th>
           </tr>
         </thead>
         <tbody>
           {rows.length === 0 ? (
             <tr>
-              <td colSpan={5} className="chr-center">
+              <td colSpan={6} className="chr-center">
                 No records found.
               </td>
             </tr>
@@ -285,7 +308,10 @@ export function CompletedHandoversPrintLayout({ rows }: Props) {
                   <td className="chr-c3 chr-right chr-nums chr-strong">
                     {formatCents(r.totalCents)}
                   </td>
-                  <td className="chr-c4">
+                  <td className="chr-c4 chr-nums">
+                    <VarianceBlock lines={r.variances ?? []} />
+                  </td>
+                  <td className="chr-c5">
                     <span className="chr-line chr-clamp2">
                       <span className="chr-k">Status</span>
                       {r.statusLabel || '—'}
@@ -325,7 +351,10 @@ export function CompletedHandoversPrintLayout({ rows }: Props) {
                   />
                 </td>
                 <td className="chr-c3 chr-right chr-nums">{formatCents(totals.total)}</td>
-                <td className="chr-c4" />
+                <td className="chr-c4 chr-nums">
+                  <VarianceBlock lines={sumHandoverReportVariances(rows)} />
+                </td>
+                <td className="chr-c5" />
               </tr>
             </>
           )}
