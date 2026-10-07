@@ -98,7 +98,7 @@ const reportsData: Omit<ReportListItem, 'category'>[] = [
     id: '16',
     rank: 20,
     masterData: 'Channel Agent Receipt',
-    description: 'Search all receipts linked to bookings by Book No prefix (BookNo%).',
+    description: 'Search all receipts linked to bookings by Book No prefix and/or Agency.',
     route: '/reports/channel-agent-receipt'
   },
   {

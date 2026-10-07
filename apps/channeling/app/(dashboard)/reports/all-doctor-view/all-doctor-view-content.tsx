@@ -405,7 +405,35 @@ export default function AllDoctorViewReportContent({
               showPrintButton
               exportOrientation="portrait"
               compactTable
+              excelColumnNumberFormats={[
+                '0', // No
+                undefined, // Consultant
+                '0', // Not Paid
+                '0', // Paid
+                '0', // Cancel
+                '0', // Hos Refund
+                '0', // Pro Refund
+                '0', // Hos Valid
+                '0', // Pro Valid
+                '0', // Nett Valid
+                '#,##0.00', // Total (Rs.)
+                undefined, // Doctor Session Time
+              ]}
               customDownloadPdf={async (args) => {
+                // Keep PDF display friendly: blank null cells, 2-decimal totals.
+                const pdfData = args.data.map((row) => ({
+                  ...row,
+                  notPaid: row.notPaid ?? '',
+                  paid: row.paid ?? '',
+                  cancel: row.cancel ?? '',
+                  hosRefund: row.hosRefund ?? '',
+                  proRefund: row.proRefund ?? '',
+                  hosValid: row.hosValid ?? '',
+                  proValid: row.proValid ?? '',
+                  nettValid: row.nettValid ?? '',
+                  total:
+                    typeof row.total === 'number' ? row.total.toFixed(2) : row.total,
+                }));
                 await downloadBrandedReportPdf({
                   reportName: args.title,
                   summaryItems: toBrandedPdfSummaryItems([
@@ -433,7 +461,7 @@ export default function AllDoctorViewReportContent({
                     },
                   ]),
                   generatedAt: new Date().toLocaleString(),
-                  data: args.data,
+                  data: pdfData,
                   columns: args.columns,
                   keys: args.keys,
                   fileName: args.fileName,
