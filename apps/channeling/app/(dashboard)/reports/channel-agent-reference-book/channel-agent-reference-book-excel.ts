@@ -252,7 +252,14 @@ export async function downloadChannelAgentReferenceBookReportExcel({
 
       for (let c = 0; c < values.length; c++) {
         const cell = sheet.getCell(row, c + 1);
-        cell.value = values[c];
+        const isPages = c === 3;
+        if (isPages) {
+          const n = Number(String(values[c] ?? '').replace(/,/g, ''));
+          cell.value = Number.isFinite(n) ? n : values[c];
+          if (typeof cell.value === 'number') cell.numFmt = '0';
+        } else {
+          cell.value = values[c];
+        }
         cell.font = {
           size: 8,
           name: 'Arial',
@@ -264,7 +271,11 @@ export async function downloadChannelAgentReferenceBookReportExcel({
           right: { style: 'thin', color: { argb: 'FFBBBBBB' } },
           bottom: { style: 'thin', color: { argb: 'FF999999' } },
         };
-        cell.alignment = { vertical: 'top', horizontal: 'left', wrapText: true };
+        cell.alignment = {
+          vertical: 'top',
+          horizontal: isPages ? 'right' : 'left',
+          wrapText: true,
+        };
       }
       sheet.getRow(row).height = 28;
       row += 1;
