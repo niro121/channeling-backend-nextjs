@@ -225,6 +225,11 @@ export async function downloadAgencyStatementReportExcel({
 
   for (const compact of compactRows) {
     const values = agencyStatementPdfCompactRow(compact);
+    // Print-aligned Detail: include Book / Leaf on body rows (Excel only; PDF unchanged).
+    if (!compact.isOpening && !compact.isClosing) {
+      values[2] =
+        `${compact.particulars}\nRcpt ${compact.receiptNo}\nAppt ${compact.appointment}\nBook ${compact.bookNo}\nLeaf ${compact.leafNo}`;
+    }
     const isBalanceRow = Boolean(compact.isOpening || compact.isClosing);
 
     // Closing: label spans No–Fees (print colspan); balance only in Balance col.
@@ -241,7 +246,15 @@ export async function downloadAgencyStatementReportExcel({
       // Merged closing label lives in column A. Writing null into B–D clears it.
       if (!(compact.isClosing && c > 0 && c < 4)) {
         const raw = cellValues[c] ?? null;
-        if (c === 4 && raw != null && raw !== '' && raw !== '—') {
+        if (c === 0 && raw != null && raw !== '') {
+          const n = Number(String(raw).trim());
+          if (Number.isFinite(n) && String(n) === String(raw).trim()) {
+            cell.value = n;
+            cell.numFmt = '0';
+          } else {
+            cell.value = raw;
+          }
+        } else if (c === 4 && raw != null && raw !== '' && raw !== '—') {
           const n = Number(String(raw).replace(/,/g, ''));
           cell.value = Number.isFinite(n) ? n : raw;
           if (typeof cell.value === 'number') cell.numFmt = '#,##0.00';
@@ -262,14 +275,14 @@ export async function downloadAgencyStatementReportExcel({
       };
       cell.alignment = {
         vertical: 'top',
-        horizontal: c === 4 ? 'right' : 'left',
+        horizontal: c === 0 || c === 4 ? 'right' : 'left',
         wrapText: true,
       };
       if (isBalanceRow) {
         cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF5F5F5' } };
       }
     }
-    sheet.getRow(row).height = isBalanceRow ? 28 : 48;
+    sheet.getRow(row).height = isBalanceRow ? 28 : 56;
     row += 1;
   }
 
