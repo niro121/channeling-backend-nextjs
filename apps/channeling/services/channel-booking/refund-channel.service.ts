@@ -507,7 +507,7 @@ export async function refundChannelService(
           }
         }
         return r
-      })
+      }, { timeout: 15000 })
       if (!result.success) {
         return { success: false, errorCode: result.errorCode, message: result.message }
       }
@@ -716,7 +716,7 @@ export async function refundChannelService(
           }
         }
         return r
-      })
+      }, { timeout: 15000 })
     if (!result.success) {
       return { success: false, errorCode: result.errorCode, message: result.message }
     }
