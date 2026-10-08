@@ -55,6 +55,7 @@ import {
   Megaphone,
   Inbox,
   FolderOpen,
+  UserCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { canAccessRoute } from "@/lib/permissions";
@@ -517,7 +518,8 @@ export function DesktopSidebar({ session, className }: { session: Session | null
         {(hasAccess('/vacancy-requests') ||
           hasAccess('/job-posts') ||
           hasAccess('/applications') ||
-          hasAccess('/resume-bank')) && (
+          hasAccess('/resume-bank') ||
+          hasAccess('/shortlisting')) && (
           <SidebarGroup label="Recruitment">
             <SidebarCollapsible
               label="Recruitment"
@@ -526,7 +528,8 @@ export function DesktopSidebar({ session, className }: { session: Session | null
                 '/vacancy-requests',
                 '/job-posts',
                 '/applications',
-                '/resume-bank'
+                '/resume-bank',
+                '/shortlisting'
               ]}
               defaultOpen
             >
@@ -556,6 +559,13 @@ export function DesktopSidebar({ session, className }: { session: Session | null
                   href="/resume-bank"
                   label="Resume Bank"
                   icon={<FolderOpen className="h-5 w-5" />}
+                />
+              )}
+              {hasAccess('/shortlisting') && (
+                <NavLink
+                  href="/shortlisting"
+                  label="Shortlisting"
+                  icon={<UserCheck className="h-5 w-5" />}
                 />
               )}
             </SidebarCollapsible>

@@ -520,3 +520,74 @@ export const EMPTY_ADD_TO_JOB_FORM: AddToJobApplicationFormValues = {
   candidateName: '',
   jobPostId: ''
 };
+
+// ─── Shortlisting ────────────────────────────────────────────────────────────
+
+export const SHORTLISTING_STATUSES = [
+  'to_review',
+  'shortlisted',
+  'on_hold',
+  'rejected'
+] as const;
+
+export type ShortlistingStatus = (typeof SHORTLISTING_STATUSES)[number];
+
+export const SHORTLISTING_STATUS_LABELS: Record<ShortlistingStatus, string> = {
+  to_review: 'To Review',
+  shortlisted: 'Shortlisted',
+  on_hold: 'On Hold',
+  rejected: 'Rejected'
+};
+
+/** Application mid-pipeline row enriched for the Shortlisting register. */
+export type ShortlistingRecord = ApplicationRecord & {
+  qualifications: string;
+  skills: string[];
+  screeningScore: number;
+  shortlistStatus: ShortlistingStatus;
+  designation: string;
+};
+
+export type ShortlistingSummary = {
+  toReview: number;
+  shortlisted: number;
+  onHold: number;
+  avgScreeningScore: number;
+};
+
+export type ShortlistingFilters = {
+  jobPostId?: string;
+  department?: string;
+  designation?: string;
+  candidateName?: string;
+  applicationDate?: string;
+  experience?: string;
+  status?: string;
+  search?: string;
+};
+
+export function canShortlistFromRegister(record: ShortlistingRecord): boolean {
+  return (
+    record.status === 'active' && record.shortlistStatus === 'to_review'
+  );
+}
+
+export function canHoldFromRegister(record: ShortlistingRecord): boolean {
+  return (
+    record.status === 'active' &&
+    (record.shortlistStatus === 'to_review' ||
+      record.shortlistStatus === 'shortlisted')
+  );
+}
+
+export function screeningScoreBarClass(score: number): string {
+  if (score >= 80) return 'bg-emerald-600';
+  if (score >= 50) return 'bg-amber-500';
+  return 'bg-red-500';
+}
+
+export function screeningScoreTextClass(score: number): string {
+  if (score >= 80) return 'text-emerald-700';
+  if (score >= 50) return 'text-amber-700';
+  return 'text-red-600';
+}
