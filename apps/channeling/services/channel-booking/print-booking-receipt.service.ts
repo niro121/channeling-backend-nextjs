@@ -52,7 +52,8 @@ async function resolveUserPrintCode(userId: string | null | undefined): Promise<
 
 /**
  * Normal prints: booking.createdBy → staff code (unchanged).
- * Refund prints: prefer payment-receipt cashier, then booking staff code, then booking creator.
+ * Refund receipt (method 0): cashier who created that refund receipt.
+ * Reprint of a paid bill after refund: payment-receipt cashier, then booking staff code, then booking creator.
  */
 async function resolveCashierCodeForPrint(opts: {
   bookingId: string
@@ -63,7 +64,10 @@ async function resolveCashierCodeForPrint(opts: {
   isRefunded: boolean
 }): Promise<string> {
   const isRefundReceipt = opts.receiptMethod === 0
-  if (!opts.isRefunded && !isRefundReceipt) {
+  if (isRefundReceipt) {
+    return resolveUserPrintCode(opts.receiptCreatedBy)
+  }
+  if (!opts.isRefunded) {
     return resolveUserPrintCode(opts.bookingCreatedBy)
   }
 
