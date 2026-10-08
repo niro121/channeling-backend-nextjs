@@ -47,6 +47,7 @@ export const ROUTE_TO_RESOURCE: Record<string, string> = {
   '/salary-history': 'payroll',
   // Recruitment
   '/vacancy-requests': 'recruitment',
+  '/job-posts': 'recruitment',
   '/leave-types': 'leave-types',
   '/leave-entitlement': 'leave-entitlement',
   '/leave-management': 'leave-management',

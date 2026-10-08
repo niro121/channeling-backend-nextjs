@@ -52,6 +52,7 @@ import {
   History,
   BriefcaseBusiness,
   ClipboardPenLine,
+  Megaphone,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { canAccessRoute } from "@/lib/permissions";
@@ -511,19 +512,28 @@ export function DesktopSidebar({ session, className }: { session: Session | null
             </SidebarCollapsible>
           </SidebarGroup>
         )}
-        {hasAccess('/vacancy-requests') && (
+        {(hasAccess('/vacancy-requests') || hasAccess('/job-posts')) && (
           <SidebarGroup label="Recruitment">
             <SidebarCollapsible
               label="Recruitment"
               icon={<BriefcaseBusiness className="h-5 w-5" />}
-              paths={['/vacancy-requests']}
+              paths={['/vacancy-requests', '/job-posts']}
               defaultOpen
             >
-              <NavLink
-                href="/vacancy-requests"
-                label="Vacancy Requests"
-                icon={<ClipboardPenLine className="h-5 w-5" />}
-              />
+              {hasAccess('/vacancy-requests') && (
+                <NavLink
+                  href="/vacancy-requests"
+                  label="Vacancy Requests"
+                  icon={<ClipboardPenLine className="h-5 w-5" />}
+                />
+              )}
+              {hasAccess('/job-posts') && (
+                <NavLink
+                  href="/job-posts"
+                  label="Job Posts"
+                  icon={<Megaphone className="h-5 w-5" />}
+                />
+              )}
             </SidebarCollapsible>
           </SidebarGroup>
         )}

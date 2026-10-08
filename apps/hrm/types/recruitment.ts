@@ -166,3 +166,106 @@ export function canLinkVacancyToJobPost(
 ): boolean {
   return status === 'approved';
 }
+
+// ─── Job Posts ───────────────────────────────────────────────────────────────
+
+export const JOB_POST_STATUSES = [
+  'draft',
+  'published',
+  'unpublished',
+  'closed'
+] as const;
+
+export type JobPostStatus = (typeof JOB_POST_STATUSES)[number];
+
+export const JOB_POST_STATUS_LABELS: Record<JobPostStatus, string> = {
+  draft: 'Draft',
+  published: 'Published',
+  unpublished: 'Unpublished',
+  closed: 'Closed'
+};
+
+export type JobPostRecord = {
+  id: string;
+  jobPostId: string;
+  jobTitle: string;
+  department: string;
+  designation: string;
+  employmentType: VacancyEmploymentType;
+  openings: number;
+  postedDate: string | null;
+  closingDate: string;
+  applicationsCount: number;
+  status: JobPostStatus;
+  linkedVacancyRequestId: string;
+  linkedVacancyRequestLabel: string;
+  jobDescription: string;
+  responsibilities: string;
+  qualifications: string;
+  experience: string;
+  skills: string[];
+  salaryInformation: string;
+  applicationInstructions: string;
+  createdAt: string;
+  createdBy: string;
+  updatedAt: string;
+  updatedBy: string;
+};
+
+export type JobPostSummary = {
+  published: number;
+  unpublished: number;
+  applications: number;
+  closingThisWeek: number;
+};
+
+export type JobPostFilters = {
+  jobTitle?: string;
+  department?: string;
+  designation?: string;
+  employmentType?: string;
+  status?: string;
+  postedDate?: string;
+  closingDate?: string;
+  search?: string;
+};
+
+export type JobPostFormValues = {
+  linkedVacancyRequestId: string;
+  jobTitle: string;
+  department: string;
+  designation: string;
+  jobDescription: string;
+  responsibilities: string;
+  qualifications: string;
+  experience: string;
+  skills: string[];
+  employmentType: string;
+  salaryInformation: string;
+  openings: string;
+  closingDate: Date | null;
+  applicationInstructions: string;
+  status: string;
+};
+
+export const EMPTY_JOB_POST_FORM: JobPostFormValues = {
+  linkedVacancyRequestId: '',
+  jobTitle: '',
+  department: '',
+  designation: '',
+  jobDescription: '',
+  responsibilities: '',
+  qualifications: '',
+  experience: '',
+  skills: [],
+  employmentType: '',
+  salaryInformation: '',
+  openings: '1',
+  closingDate: null,
+  applicationInstructions: '',
+  status: 'draft'
+};
+
+export function isJobPostEditable(status: JobPostStatus): boolean {
+  return status === 'draft' || status === 'unpublished' || status === 'published';
+}

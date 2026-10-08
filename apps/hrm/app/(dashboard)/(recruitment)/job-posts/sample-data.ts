@@ -1,0 +1,152 @@
+import type { JobPostRecord, JobPostSummary } from '@/types/recruitment';
+
+/** Phase 0 mock totals — replace when API is wired. */
+export const SAMPLE_JOB_POST_SUMMARY: JobPostSummary = {
+  published: 3,
+  unpublished: 1,
+  applications: 98,
+  closingThisWeek: 2
+};
+
+/** Approved vacancy options for the linked-vacancy select (UI phase). */
+export const SAMPLE_APPROVED_VACANCY_OPTIONS = [
+  { id: 'VR-2026-041', name: 'VR-2026-041 — Nursing Officer (Nursing - Ward 3)' },
+  { id: 'VR-2026-045', name: 'VR-2026-045 — Radiographer (Radiology)' }
+] as const;
+
+/** Phase 0 mock rows — match the Job Post Register design. */
+export const SAMPLE_JOB_POSTS: JobPostRecord[] = [
+  {
+    id: 'jp-1',
+    jobPostId: 'JP-2026-018',
+    jobTitle: 'Nursing Officer – Ward 3',
+    department: 'Nursing - Ward 3',
+    designation: 'Nursing Officer',
+    employmentType: 'permanent',
+    openings: 4,
+    postedDate: '2026-09-08',
+    closingDate: '2026-10-15',
+    applicationsCount: 12,
+    status: 'published',
+    linkedVacancyRequestId: 'VR-2026-041',
+    linkedVacancyRequestLabel: 'VR-2026-041 — Nursing Officer (Nursing - Ward 3)',
+    jobDescription:
+      'Provide nursing care for Ward 3 inpatients and support ward operations.',
+    responsibilities:
+      'Patient care, medication administration, handover documentation.',
+    qualifications: 'BSc Nursing, SLNC registration',
+    experience: '2+ years ward nursing',
+    skills: ['Patient care', 'Ward management', 'IV therapy'],
+    salaryInformation: 'LKR 85,000 – 120,000',
+    applicationInstructions:
+      'Submit CV and certificates via HR portal before closing date.',
+    createdAt: '2026-09-06T10:00:00',
+    createdBy: 'K. Fernando',
+    updatedAt: '2026-09-08T09:30:00',
+    updatedBy: 'K. Fernando'
+  },
+  {
+    id: 'jp-2',
+    jobPostId: 'JP-2026-019',
+    jobTitle: 'Medical Officer – Emergency',
+    department: 'Emergency',
+    designation: 'Medical Officer',
+    employmentType: 'permanent',
+    openings: 2,
+    postedDate: '2026-09-10',
+    closingDate: '2026-10-01',
+    applicationsCount: 38,
+    status: 'published',
+    linkedVacancyRequestId: '',
+    linkedVacancyRequestLabel: '',
+    jobDescription: 'Cover emergency department clinical shifts.',
+    responsibilities: 'Triage support, acute care, documentation.',
+    qualifications: 'MBBS, full registration',
+    experience: '1+ years emergency',
+    skills: ['Triage', 'ACLS', 'Trauma'],
+    salaryInformation: 'LKR 150,000 – 220,000',
+    applicationInstructions: 'Email HR with CV and registration proof.',
+    createdAt: '2026-09-09T11:20:00',
+    createdBy: 'Dr. S. Wickrama',
+    updatedAt: '2026-09-10T08:15:00',
+    updatedBy: 'K. Fernando'
+  },
+  {
+    id: 'jp-3',
+    jobPostId: 'JP-2026-020',
+    jobTitle: 'Lab Technician',
+    department: 'Laboratory',
+    designation: 'Lab Technician',
+    employmentType: 'contract',
+    openings: 1,
+    postedDate: null,
+    closingDate: '2026-10-20',
+    applicationsCount: 0,
+    status: 'draft',
+    linkedVacancyRequestId: '',
+    linkedVacancyRequestLabel: '',
+    jobDescription: 'Support routine laboratory testing.',
+    responsibilities: 'Sample processing, equipment checks.',
+    qualifications: 'Diploma in Medical Laboratory Technology',
+    experience: '1+ years',
+    skills: ['Phlebotomy', 'Sample processing'],
+    salaryInformation: 'LKR 60,000 – 85,000',
+    applicationInstructions: '',
+    createdAt: '2026-09-12T14:00:00',
+    createdBy: 'M. Gunawardena',
+    updatedAt: '2026-09-12T14:00:00',
+    updatedBy: 'M. Gunawardena'
+  },
+  {
+    id: 'jp-4',
+    jobPostId: 'JP-2026-021',
+    jobTitle: 'Radiographer',
+    department: 'Radiology',
+    designation: 'Radiographer',
+    employmentType: 'temporary',
+    openings: 2,
+    postedDate: '2026-08-25',
+    closingDate: '2026-09-30',
+    applicationsCount: 21,
+    status: 'unpublished',
+    linkedVacancyRequestId: 'VR-2026-045',
+    linkedVacancyRequestLabel: 'VR-2026-045 — Radiographer (Radiology)',
+    jobDescription: 'Support imaging services on temporary cover.',
+    responsibilities: 'X-Ray and CT imaging support.',
+    qualifications: 'Diploma in Radiography',
+    experience: '2+ years',
+    skills: ['X-Ray', 'CT'],
+    salaryInformation: 'LKR 70,000 – 95,000',
+    applicationInstructions: 'Apply via HR with portfolio if available.',
+    createdAt: '2026-08-22T09:00:00',
+    createdBy: 'N. Perera',
+    updatedAt: '2026-09-05T16:40:00',
+    updatedBy: 'K. Fernando'
+  },
+  {
+    id: 'jp-5',
+    jobPostId: 'JP-2026-022',
+    jobTitle: 'Pharmacist',
+    department: 'Pharmacy',
+    designation: 'Pharmacist',
+    employmentType: 'casual',
+    openings: 1,
+    postedDate: '2026-08-01',
+    closingDate: '2026-08-31',
+    applicationsCount: 27,
+    status: 'closed',
+    linkedVacancyRequestId: '',
+    linkedVacancyRequestLabel: '',
+    jobDescription: 'Casual pharmacy dispensing cover.',
+    responsibilities: 'Dispensing and inventory support.',
+    qualifications: 'BPharm, SLMC registration',
+    experience: '1+ years',
+    skills: ['Dispensing', 'Inventory'],
+    salaryInformation: 'LKR 55,000 – 75,000',
+    applicationInstructions: 'Closed — no further applications.',
+    createdAt: '2026-07-28T10:30:00',
+    createdBy: 'A. Fernando',
+    updatedAt: '2026-09-01T09:00:00',
+    updatedBy: 'K. Fernando'
+  }
+];

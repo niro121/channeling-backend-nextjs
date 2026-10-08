@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { ArrowLeft, ArrowRight } from 'lucide-react';
 import { Button, useToast } from '@archmage/ui';
 import { CommonManagerHeader } from '@/components/common/common-manager-header';
@@ -77,15 +78,12 @@ function VacancyRequestsWorkspaceInner({
         <Button
           type="button"
           className={`${buttonStyles.save} gap-1.5`}
-          onClick={() =>
-            toast({
-              title: 'Job Posts',
-              description: 'Job Posts UI will be built next in this group.'
-            })
-          }
+          asChild
         >
-          Job Posts
-          <ArrowRight className="h-4 w-4" />
+          <Link href="/job-posts">
+            Job Posts
+            <ArrowRight className="h-4 w-4" />
+          </Link>
         </Button>
       </div>
 
