@@ -409,6 +409,11 @@ export function HandoverSummaryPrint({
           }
           body.print-handover-summary .handover-summary-print .print-signatures {
             gap: 1rem !important;
+            margin-top: 0.75rem !important;
+          }
+          body.print-handover-summary .handover-summary-print .print-sign-space {
+            height: 2.75rem !important;
+            min-height: 2.75rem !important;
           }
         }
       `}</style>
@@ -584,11 +589,13 @@ export function HandoverSummaryPrint({
           </div>
         ) : null}
 
-        <div className="mt-4 grid grid-cols-2 print-signatures gap-8">
+        <div className="mt-3 grid grid-cols-2 print-signatures gap-8">
           <div className="text-center">
+            <div className="print-sign-space h-11" />
             <div className="border-t border-black pt-0.5">{toLabel}</div>
           </div>
           <div className="text-center">
+            <div className="print-sign-space h-11" />
             <div className="border-t border-black pt-0.5">{fromLabel}</div>
           </div>
         </div>
