@@ -271,6 +271,10 @@ export function BookingTab() {
   const isRefunded =
     details.status === 3 || (details.refund != null && details.refund !== 0)
   const isCanceledOrRefunded = isCanceled || isRefunded
+  // Banner print on a refund/cancel should be the refund slip, not the original booking invoice.
+  const refundReceiptId = details.cancelOrRefundDetails?.refundReceipts[0]?.id ?? null
+  const bannerPrintReceiptId =
+    isCanceledOrRefunded && refundReceiptId ? refundReceiptId : paymentReceiptId
   const printBannerLabel = isCanceled
     ? "Canceled."
     : isRefunded
@@ -284,7 +288,7 @@ export function BookingTab() {
           Pending payment
         </div>
       )}
-      {!pendingPayment && paymentReceiptId && (
+      {!pendingPayment && bannerPrintReceiptId && (
         <div
           className={cn(
             "rounded-md px-2 py-1.5 flex items-center justify-between gap-2",
@@ -304,7 +308,7 @@ export function BookingTab() {
             {printBannerLabel}
           </span>
           <PrintReceiptButton
-            receiptId={paymentReceiptId}
+            receiptId={bannerPrintReceiptId}
             className={cn(
               "h-7 text-white",
               isCanceledOrRefunded
