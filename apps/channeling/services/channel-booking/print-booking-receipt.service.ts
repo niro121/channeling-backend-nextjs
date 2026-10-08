@@ -11,6 +11,10 @@ import {
   RUHUNU_HOSPITAL,
 } from "@/lib/receipt-template/ruhunu-hospital"
 import { getActiveReceiptTemplate } from "@/services/receipt-template/receipt-template.service"
+import {
+  APPROVAL_REQUEST_STATUS,
+  APPROVAL_REQUEST_TYPE,
+} from "@/types/approval-request"
 import { getBookingDetailsService } from "./get-booking-details.service"
 import type { ReceiptPlaceholderMap } from "@/types/receipt-template-db"
 import type { ReceiptTemplateRecord } from "@/types/receipt-template-db"
@@ -31,6 +35,58 @@ function invoiceStatus(status: number): string {
   if (status === 1) return "Paid"
   if (status === 2) return "Canceled"
   return "Unknown"
+}
+
+/** booking.refund: 1 professional fee, 2 hospital fee, 3 full cancel. */
+function refundTypeLabel(refund: number): string {
+  if (refund === 1) return "Professional Fee"
+  if (refund === 2) return "Hospital Fee"
+  if (refund === 3) return "Full"
+  return ""
+}
+
+/** Login username of a user. */
+async function resolveUsername(userId: string | null | undefined): Promise<string> {
+  if (!userId) return ""
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { username: true },
+  })
+  return user?.username?.trim() || ""
+}
+
+/** Username of the user who approved this cancel or refund. */
+async function resolveAuthorizedByUsername(
+  bookingId: string,
+  bookingStatus: number
+): Promise<string> {
+  const preferredType =
+    bookingStatus === 2
+      ? APPROVAL_REQUEST_TYPE.CHANNEL_CANCEL
+      : APPROVAL_REQUEST_TYPE.CHANNEL_REFUND
+  const matching = await prisma.approvalRequest.findFirst({
+    where: {
+      bookingId,
+      status: APPROVAL_REQUEST_STATUS.COMPLETED,
+      type: preferredType,
+    },
+    orderBy: { approvedAt: "desc" },
+    select: { approvedById: true },
+  })
+  if (matching?.approvedById) return resolveUsername(matching.approvedById)
+
+  const latest = await prisma.approvalRequest.findFirst({
+    where: {
+      bookingId,
+      status: APPROVAL_REQUEST_STATUS.COMPLETED,
+      type: {
+        in: [APPROVAL_REQUEST_TYPE.CHANNEL_CANCEL, APPROVAL_REQUEST_TYPE.CHANNEL_REFUND],
+      },
+    },
+    orderBy: { approvedAt: "desc" },
+    select: { approvedById: true },
+  })
+  return resolveUsername(latest?.approvedById)
 }
 
 function statusBanner(opts: { status: number; refund: number; isDuplicate: boolean }): string {
@@ -247,11 +303,15 @@ export async function printBookingReceiptService(
 
     // Refund / cancel receipt (method 0): Sails-style slip for this receipt only.
     if (receipt.method === 0) {
-      const paidReceipt = await prisma.receipt.findFirst({
-        where: { bookingId: receipt.bookingId, method: 1 },
-        orderBy: { createdAt: "asc" },
-        select: { receiptNoString: true },
-      })
+      const [paidReceipt, authorizedBy, refundBy] = await Promise.all([
+        prisma.receipt.findFirst({
+          where: { bookingId: receipt.bookingId, method: 1 },
+          orderBy: { createdAt: "asc" },
+          select: { receiptNoString: true },
+        }),
+        resolveAuthorizedByUsername(receipt.bookingId, details.status),
+        resolveUsername(receipt.createdBy),
+      ])
       return {
         success: true,
         data: {
@@ -270,6 +330,9 @@ export async function printBookingReceiptService(
             phone: details.phone,
             channel_no: paidReceipt?.receiptNoString?.trim() || details.billNo,
             refund_amount: money(Math.abs(receipt.amount ?? 0)),
+            refund_type: refundTypeLabel(details.refund ?? 0),
+            refund_by: refundBy,
+            authorized_by: authorizedBy,
             refund_reason: receipt.remarks?.trim() || refundReason,
             generated_by: printedBy,
             generated_at: format(new Date(), "dd/MM/yyyy HH.mm"),
