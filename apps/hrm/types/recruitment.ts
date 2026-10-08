@@ -591,3 +591,89 @@ export function screeningScoreTextClass(score: number): string {
   if (score >= 50) return 'text-amber-700';
   return 'text-red-600';
 }
+
+// ─── Interview Schedule ──────────────────────────────────────────────────────
+
+export const INTERVIEW_STATUSES = [
+  'scheduled',
+  'confirmed',
+  'rescheduled',
+  'completed',
+  'no_show',
+  'cancelled'
+] as const;
+
+export type InterviewStatus = (typeof INTERVIEW_STATUSES)[number];
+
+export const INTERVIEW_STATUS_LABELS: Record<InterviewStatus, string> = {
+  scheduled: 'Scheduled',
+  confirmed: 'Confirmed',
+  rescheduled: 'Rescheduled',
+  completed: 'Completed',
+  no_show: 'No Show',
+  cancelled: 'Cancelled'
+};
+
+export type InterviewRecord = {
+  id: string;
+  interviewCode: string;
+  candidateName: string;
+  applicationId: string;
+  jobPostId: string;
+  jobTitle: string;
+  department: string;
+  interviewDate: string;
+  startTime: string;
+  endTime: string;
+  interviewerPanel: string;
+  interviewType: InterviewType;
+  location: string;
+  notesToCandidate: string;
+  status: InterviewStatus;
+  createdAt: string;
+  createdBy: string;
+  updatedAt: string;
+  updatedBy: string;
+};
+
+export type InterviewSummary = {
+  thisWeek: number;
+  confirmed: number;
+  rescheduled: number;
+  noShow: number;
+};
+
+export type InterviewFilters = {
+  interviewDate?: string;
+  interviewer?: string;
+  department?: string;
+  jobPostId?: string;
+  interviewType?: string;
+  status?: string;
+  search?: string;
+};
+
+export function canRescheduleInterview(record: InterviewRecord): boolean {
+  return (
+    record.status === 'scheduled' ||
+    record.status === 'confirmed' ||
+    record.status === 'rescheduled'
+  );
+}
+
+export function canCancelInterview(record: InterviewRecord): boolean {
+  return (
+    record.status === 'scheduled' ||
+    record.status === 'confirmed' ||
+    record.status === 'rescheduled'
+  );
+}
+
+export function canEvaluateInterview(record: InterviewRecord): boolean {
+  return (
+    record.status === 'completed' ||
+    record.status === 'confirmed' ||
+    record.status === 'rescheduled' ||
+    record.status === 'scheduled'
+  );
+}

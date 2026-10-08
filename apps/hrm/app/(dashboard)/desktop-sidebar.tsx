@@ -519,7 +519,8 @@ export function DesktopSidebar({ session, className }: { session: Session | null
           hasAccess('/job-posts') ||
           hasAccess('/applications') ||
           hasAccess('/resume-bank') ||
-          hasAccess('/shortlisting')) && (
+          hasAccess('/shortlisting') ||
+          hasAccess('/interview-schedule')) && (
           <SidebarGroup label="Recruitment">
             <SidebarCollapsible
               label="Recruitment"
@@ -529,7 +530,8 @@ export function DesktopSidebar({ session, className }: { session: Session | null
                 '/job-posts',
                 '/applications',
                 '/resume-bank',
-                '/shortlisting'
+                '/shortlisting',
+                '/interview-schedule'
               ]}
               defaultOpen
             >
@@ -566,6 +568,13 @@ export function DesktopSidebar({ session, className }: { session: Session | null
                   href="/shortlisting"
                   label="Shortlisting"
                   icon={<UserCheck className="h-5 w-5" />}
+                />
+              )}
+              {hasAccess('/interview-schedule') && (
+                <NavLink
+                  href="/interview-schedule"
+                  label="Interview Schedule"
+                  icon={<CalendarClock className="h-5 w-5" />}
                 />
               )}
             </SidebarCollapsible>

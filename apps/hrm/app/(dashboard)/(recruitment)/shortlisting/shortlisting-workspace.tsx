@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { ArrowLeft, ArrowRight } from 'lucide-react';
-import { Button, useToast } from '@archmage/ui';
+import { Button } from '@archmage/ui';
 import { CommonManagerHeader } from '@/components/common/common-manager-header';
 import { buttonStyles } from '@/lib/utils/common-styles';
 import type {
@@ -37,7 +37,6 @@ function ShortlistingWorkspaceInner({
   page,
   initialFilters
 }: ShortlistingWorkspaceProps) {
-  const { toast } = useToast();
   const {
     viewRecord,
     resumeRecord,
@@ -83,16 +82,12 @@ function ShortlistingWorkspaceInner({
         <Button
           type="button"
           className={`${buttonStyles.save} gap-1.5`}
-          onClick={() =>
-            toast({
-              title: 'Interview Schedule',
-              description:
-                'Interview Schedule UI will be built next in this group.'
-            })
-          }
+          asChild
         >
-          Interview Schedule
-          <ArrowRight className="h-4 w-4" />
+          <Link href="/interview-schedule">
+            Interview Schedule
+            <ArrowRight className="h-4 w-4" />
+          </Link>
         </Button>
       </div>
 
