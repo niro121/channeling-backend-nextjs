@@ -401,6 +401,9 @@ function buildSailsRefundReceiptHtml(placeholders: ReceiptPlaceholderMap): strin
     .filter(Boolean)
     .join(" ")
 
+  const isCancelReceipt = (placeholders.refund_title ?? "") === "Cancel Receipt"
+  const actorLabel = isCancelReceipt ? "Canceled by" : "Refund by"
+
   const rows = [
     invoiceRow("Refund No", placeholders.refund_receipt_no ?? ""),
     invoiceRow("Appointment No", placeholders.appointment_no ?? ""),
@@ -410,6 +413,8 @@ function buildSailsRefundReceiptHtml(placeholders: ReceiptPlaceholderMap): strin
     invoiceRow("Phone No", placeholders.phone ?? ""),
     invoiceRow("Channel No", placeholders.channel_no ?? ""),
     invoiceRow("Refund Amount", placeholders.refund_amount ?? "", { strongValue: true }),
+    invoiceRow("Refund type", placeholders.refund_type ?? ""),
+    invoiceRow(actorLabel, placeholders.refund_by ?? ""),
     invoiceRow("Refund remarks", placeholders.refund_reason ?? ""),
   ].join("")
 
@@ -424,7 +429,7 @@ function buildSailsRefundReceiptHtml(placeholders: ReceiptPlaceholderMap): strin
       ${duplicateLabel ? `<div class="status-banner">${escapeHtml(duplicateLabel)}</div>` : ""}
       <table class="invoice-fields"><tbody>${rows}</tbody></table>
       <table class="refund-sign"><tbody><tr>
-        <td>Authorized signature</td>
+        <td>Authorized by<br/>${escapeHtml(placeholders.authorized_by ?? "")}</td>
         <td>Refund Received By<br/><br/>Name<br/><br/>Signature<br/><br/>Phone No</td>
       </tr></tbody></table>
       <table class="refund-sign"><tbody><tr>
