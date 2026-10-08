@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { ArrowLeft, ArrowRight } from 'lucide-react';
-import { Button, useToast } from '@archmage/ui';
+import { Button } from '@archmage/ui';
 import { CommonManagerHeader } from '@/components/common/common-manager-header';
 import { buttonStyles } from '@/lib/utils/common-styles';
 import type {
@@ -35,7 +35,6 @@ function JobPostsWorkspaceInner({
   page,
   initialFilters
 }: JobPostsWorkspaceProps) {
-  const { toast } = useToast();
   const {
     formSheet,
     viewRecord,
@@ -75,15 +74,12 @@ function JobPostsWorkspaceInner({
         <Button
           type="button"
           className={`${buttonStyles.save} gap-1.5`}
-          onClick={() =>
-            toast({
-              title: 'Applications',
-              description: 'Applications UI will be built next in this group.'
-            })
-          }
+          asChild
         >
-          Applications
-          <ArrowRight className="h-4 w-4" />
+          <Link href="/applications">
+            Applications
+            <ArrowRight className="h-4 w-4" />
+          </Link>
         </Button>
       </div>
 

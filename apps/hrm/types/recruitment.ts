@@ -269,3 +269,187 @@ export const EMPTY_JOB_POST_FORM: JobPostFormValues = {
 export function isJobPostEditable(status: JobPostStatus): boolean {
   return status === 'draft' || status === 'unpublished' || status === 'published';
 }
+
+// ─── Applications ────────────────────────────────────────────────────────────
+
+/** Pipeline position in recruitment. */
+export const APPLICATION_STAGES = [
+  'applied',
+  'screening',
+  'shortlisted',
+  'interview',
+  'selected',
+  'offer',
+  'hired',
+  'rejected'
+] as const;
+
+export type ApplicationStage = (typeof APPLICATION_STAGES)[number];
+
+export const APPLICATION_STAGE_LABELS: Record<ApplicationStage, string> = {
+  applied: 'Applied',
+  screening: 'Screening',
+  shortlisted: 'Shortlisted',
+  interview: 'Interview',
+  selected: 'Selected',
+  offer: 'Offer',
+  hired: 'Hired',
+  rejected: 'Rejected'
+};
+
+/**
+ * Application outcome / lifecycle status (distinct from pipeline stage).
+ * In-progress applications stay `active`.
+ */
+export const APPLICATION_STATUSES = [
+  'active',
+  'rejected',
+  'withdrawn',
+  'hired'
+] as const;
+
+export type ApplicationStatus = (typeof APPLICATION_STATUSES)[number];
+
+export const APPLICATION_STATUS_LABELS: Record<ApplicationStatus, string> = {
+  active: 'Active',
+  rejected: 'Rejected',
+  withdrawn: 'Withdrawn',
+  hired: 'Hired'
+};
+
+export const APPLICATION_SOURCES = [
+  'hospital_website',
+  'newspaper',
+  'resume_bank',
+  'referral',
+  'job_portal'
+] as const;
+
+export type ApplicationSource = (typeof APPLICATION_SOURCES)[number];
+
+export const APPLICATION_SOURCE_LABELS: Record<ApplicationSource, string> = {
+  hospital_website: 'Hospital Website',
+  newspaper: 'Newspaper',
+  resume_bank: 'Resume Bank',
+  referral: 'Referral',
+  job_portal: 'Job Portal'
+};
+
+export const INTERVIEW_TYPES = [
+  'phone',
+  'video',
+  'in_person',
+  'panel'
+] as const;
+
+export type InterviewType = (typeof INTERVIEW_TYPES)[number];
+
+export const INTERVIEW_TYPE_LABELS: Record<InterviewType, string> = {
+  phone: 'Phone',
+  video: 'Video',
+  in_person: 'In Person',
+  panel: 'Panel'
+};
+
+export type ApplicationHistoryEntry = {
+  id: string;
+  title: string;
+  detail: string;
+  userLabel: string;
+  at: string;
+};
+
+export type ApplicationRecord = {
+  id: string;
+  applicationId: string;
+  candidateName: string;
+  candidateEmail: string;
+  candidatePhone: string;
+  jobPostId: string;
+  jobTitle: string;
+  department: string;
+  appliedDate: string;
+  experienceYears: number;
+  source: ApplicationSource;
+  currentStage: ApplicationStage;
+  status: ApplicationStatus;
+  resumeFileName: string;
+  notes: string;
+  history: ApplicationHistoryEntry[];
+  createdAt: string;
+  createdBy: string;
+  updatedAt: string;
+  updatedBy: string;
+};
+
+export type ApplicationSummary = {
+  applied: number;
+  screening: number;
+  shortlisted: number;
+  interview: number;
+  selected: number;
+  offer: number;
+  hired: number;
+  rejected: number;
+};
+
+export type ApplicationFilters = {
+  jobPostId?: string;
+  jobTitle?: string;
+  candidateName?: string;
+  applicationId?: string;
+  applicationDate?: string;
+  department?: string;
+  status?: string;
+  source?: string;
+  search?: string;
+};
+
+export type ScheduleInterviewFormValues = {
+  candidateName: string;
+  jobPostId: string;
+  interviewType: string;
+  interviewDate: Date | null;
+  startTime: string;
+  endTime: string;
+  interviewerPanel: string;
+  location: string;
+  notesToCandidate: string;
+};
+
+export const EMPTY_SCHEDULE_INTERVIEW_FORM: ScheduleInterviewFormValues = {
+  candidateName: '',
+  jobPostId: '',
+  interviewType: '',
+  interviewDate: null,
+  startTime: '',
+  endTime: '',
+  interviewerPanel: '',
+  location: '',
+  notesToCandidate: ''
+};
+
+export function canShortlistApplication(record: ApplicationRecord): boolean {
+  return (
+    record.status === 'active' &&
+    (record.currentStage === 'applied' ||
+      record.currentStage === 'screening')
+  );
+}
+
+export function canRejectApplication(record: ApplicationRecord): boolean {
+  return (
+    record.status === 'active' &&
+    record.currentStage !== 'hired' &&
+    record.currentStage !== 'rejected'
+  );
+}
+
+export function canScheduleInterview(record: ApplicationRecord): boolean {
+  return (
+    record.status === 'active' &&
+    (record.currentStage === 'shortlisted' ||
+      record.currentStage === 'interview' ||
+      record.currentStage === 'screening')
+  );
+}
