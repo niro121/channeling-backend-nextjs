@@ -5,6 +5,7 @@ import Link from "next/link";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { DECLARATION, SHEET_COUNT, sheetByNo, type Sheet } from "./scenarios";
+import { downloadTrainingExcel } from "../training-excel";
 
 const SHEET_KEY = "uat-call-center-sheet-no";
 const DONE_KEY = "uat-call-center-done";
@@ -207,6 +208,24 @@ export default function CallCenterUatPage() {
             className="rounded-md border border-border px-4 py-2 text-sm font-medium hover:bg-muted"
           >
             Export PDF
+          </button>
+          <button
+            type="button"
+            onClick={() =>
+              void downloadTrainingExcel({
+                fileName: `call-center-sheet-${String(sheet.no).padStart(2, "0")}.xlsx`,
+                sheetLabel: `Call center sheet ${sheet.no} of ${SHEET_COUNT}`,
+                note: sheet.note,
+                doctors: sheet.doctors,
+                scenarios: sheet.scenarios,
+                done: doneSet,
+                sheetNo: no,
+                declaration: DECLARATION,
+              })
+            }
+            className="rounded-md border border-border px-4 py-2 text-sm font-medium hover:bg-muted"
+          >
+            Export Excel
           </button>
           <button
             type="button"
