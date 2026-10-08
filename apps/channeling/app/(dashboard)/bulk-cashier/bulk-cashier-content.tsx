@@ -802,7 +802,43 @@ export function FloatPrintSlipDialog({ data, onClose }: { data: FloatRequestPrin
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="sm:max-w-md">
-        <style>{`@media print { body * { visibility: hidden; } .float-slip-print-area, .float-slip-print-area * { visibility: visible; } .float-slip-print-area { position: absolute; left: 0; top: 0; width: 100%; background: white; padding: 1rem; } .no-print { display: none !important; } }`}</style>
+        <style>{`@media print {
+  @page { size: A5 portrait; margin: 10mm; }
+  html, body { margin: 0 !important; padding: 0 !important; background: #fff !important; }
+  body * { visibility: hidden; }
+  .float-slip-print-area, .float-slip-print-area * { visibility: visible; }
+  [role="dialog"] {
+    position: static !important;
+    inset: auto !important;
+    transform: none !important;
+    translate: none !important;
+    max-width: none !important;
+    width: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
+    background: transparent !important;
+    overflow: visible !important;
+  }
+  .float-slip-print-area {
+    position: relative !important;
+    left: auto !important;
+    top: auto !important;
+    width: 128mm !important;
+    margin: 8mm auto 0 !important;
+    padding: 8mm 7mm !important;
+    box-sizing: border-box !important;
+    border: 1px solid #000 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    background: #fff !important;
+    color: #000 !important;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+  .no-print { display: none !important; }
+}`}</style>
         <DialogHeader className="no-print">
           <DialogTitle>Float handover slip</DialogTitle>
           <DialogDescription>Print this slip and give it to the cashier. They will enter the code to confirm receipt.</DialogDescription>

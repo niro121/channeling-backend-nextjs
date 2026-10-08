@@ -52,7 +52,8 @@ async function resolveUserPrintCode(userId: string | null | undefined): Promise<
 
 /**
  * Normal prints: booking.createdBy → staff code (unchanged).
- * Refund prints: prefer payment-receipt cashier, then booking staff code, then booking creator.
+ * Refund receipt (method 0): cashier who created that refund receipt.
+ * Reprint of a paid bill after refund: payment-receipt cashier, then booking staff code, then booking creator.
  */
 async function resolveCashierCodeForPrint(opts: {
   bookingId: string
@@ -63,7 +64,10 @@ async function resolveCashierCodeForPrint(opts: {
   isRefunded: boolean
 }): Promise<string> {
   const isRefundReceipt = opts.receiptMethod === 0
-  if (!opts.isRefunded && !isRefundReceipt) {
+  if (isRefundReceipt) {
+    return resolveUserPrintCode(opts.receiptCreatedBy)
+  }
+  if (!opts.isRefunded) {
     return resolveUserPrintCode(opts.bookingCreatedBy)
   }
 
@@ -113,6 +117,8 @@ export async function printBookingReceiptService(
         locationId: true,
         method: true,
         createdBy: true,
+        amount: true,
+        remarks: true,
       },
     })
     if (!receipt) {
@@ -238,6 +244,42 @@ export async function printBookingReceiptService(
       refund: details.refund ?? 0,
       isDuplicate,
     })
+
+    // Refund / cancel receipt (method 0): Sails-style slip for this receipt only.
+    if (receipt.method === 0) {
+      const paidReceipt = await prisma.receipt.findFirst({
+        where: { bookingId: receipt.bookingId, method: 1 },
+        orderBy: { createdAt: "asc" },
+        select: { receiptNoString: true },
+      })
+      return {
+        success: true,
+        data: {
+          placeholders: {
+            receipt_kind: "refund",
+            company_name: locationName,
+            location_address: addressLine,
+            refund_title: details.status === 2 ? "Cancel Receipt" : "Refund Receipt",
+            duplicate_label: isDuplicate ? "**Duplicate Copy**" : "",
+            refund_receipt_no: receipt.receiptNoString,
+            appointment_no: formatAppointmentNo(details.appointmentNo),
+            consultant: details.consultant,
+            appointment_date: details.appointmentDate,
+            appointment_time: details.appointmentTime,
+            patient_name: details.name,
+            phone: details.phone,
+            channel_no: paidReceipt?.receiptNoString?.trim() || details.billNo,
+            refund_amount: money(Math.abs(receipt.amount ?? 0)),
+            refund_reason: receipt.remarks?.trim() || refundReason,
+            generated_by: printedBy,
+            generated_at: format(new Date(), "dd/MM/yyyy HH.mm"),
+          },
+          template: null,
+          receiptNoString: receipt.receiptNoString,
+          isDuplicate,
+        },
+      }
+    }
 
     const input: BookingReceiptPrintInput = {
       patientName: details.name.toUpperCase(),
