@@ -453,3 +453,70 @@ export function canScheduleInterview(record: ApplicationRecord): boolean {
       record.currentStage === 'screening')
   );
 }
+
+// ─── Resume Bank ─────────────────────────────────────────────────────────────
+
+export const RESUME_BANK_STATUSES = [
+  'in_bank',
+  'linked',
+  'shortlisted'
+] as const;
+
+export type ResumeBankStatus = (typeof RESUME_BANK_STATUSES)[number];
+
+export const RESUME_BANK_STATUS_LABELS: Record<ResumeBankStatus, string> = {
+  in_bank: 'In Bank',
+  linked: 'Linked',
+  shortlisted: 'Shortlisted'
+};
+
+export type ResumeBankRecord = {
+  id: string;
+  candidateName: string;
+  resumeFileName: string;
+  email: string;
+  phone: string;
+  qualifications: string;
+  experienceYears: number;
+  skills: string[];
+  preferredPosition: string;
+  preferredDepartment: string;
+  location: string;
+  source: ApplicationSource;
+  dateAdded: string;
+  status: ResumeBankStatus;
+  notes: string;
+  createdAt: string;
+  createdBy: string;
+  updatedAt: string;
+  updatedBy: string;
+};
+
+export type ResumeBankSummary = {
+  profilesInBank: number;
+  addedThisMonth: number;
+  linkedToApplications: number;
+  clinicalProfilesPercent: number;
+};
+
+export type ResumeBankFilters = {
+  skills?: string;
+  qualification?: string;
+  location?: string;
+  candidateName?: string;
+  experience?: string;
+  designation?: string;
+  department?: string;
+  source?: string;
+  search?: string;
+};
+
+export type AddToJobApplicationFormValues = {
+  candidateName: string;
+  jobPostId: string;
+};
+
+export const EMPTY_ADD_TO_JOB_FORM: AddToJobApplicationFormValues = {
+  candidateName: '',
+  jobPostId: ''
+};

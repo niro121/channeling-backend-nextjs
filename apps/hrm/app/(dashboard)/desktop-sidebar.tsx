@@ -54,6 +54,7 @@ import {
   ClipboardPenLine,
   Megaphone,
   Inbox,
+  FolderOpen,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { canAccessRoute } from "@/lib/permissions";
@@ -515,12 +516,18 @@ export function DesktopSidebar({ session, className }: { session: Session | null
         )}
         {(hasAccess('/vacancy-requests') ||
           hasAccess('/job-posts') ||
-          hasAccess('/applications')) && (
+          hasAccess('/applications') ||
+          hasAccess('/resume-bank')) && (
           <SidebarGroup label="Recruitment">
             <SidebarCollapsible
               label="Recruitment"
               icon={<BriefcaseBusiness className="h-5 w-5" />}
-              paths={['/vacancy-requests', '/job-posts', '/applications']}
+              paths={[
+                '/vacancy-requests',
+                '/job-posts',
+                '/applications',
+                '/resume-bank'
+              ]}
               defaultOpen
             >
               {hasAccess('/vacancy-requests') && (
@@ -542,6 +549,13 @@ export function DesktopSidebar({ session, className }: { session: Session | null
                   href="/applications"
                   label="Applications"
                   icon={<Inbox className="h-5 w-5" />}
+                />
+              )}
+              {hasAccess('/resume-bank') && (
+                <NavLink
+                  href="/resume-bank"
+                  label="Resume Bank"
+                  icon={<FolderOpen className="h-5 w-5" />}
                 />
               )}
             </SidebarCollapsible>
