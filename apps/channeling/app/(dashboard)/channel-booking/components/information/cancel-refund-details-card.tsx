@@ -39,6 +39,8 @@ export function CancelRefundDetailsCard({
   paymentReceiptId?: string | null
 }) {
   const hasRefund = details.refundAmount !== 0 || details.refundReceipts.length > 0
+  const refundReceiptId = details.refundReceipts[0]?.id ?? null
+  const printReceiptId = refundReceiptId ?? paymentReceiptId ?? null
   return (
     <div className="flex flex-1 flex-col min-h-0 rounded-lg border border-red-200/80 bg-red-50 dark:bg-red-950/30 dark:border-red-800/50">
       <div className="flex items-center gap-2 p-3 border-b border-red-200/70 dark:border-red-800/50">
@@ -46,10 +48,10 @@ export function CancelRefundDetailsCard({
         <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
           Cancel / refund details
         </span>
-        {paymentReceiptId ? (
+        {printReceiptId ? (
           <div className="ml-auto">
             <PrintReceiptButton
-              receiptId={paymentReceiptId}
+              receiptId={printReceiptId}
               className="bg-red-700 hover:bg-red-800 text-white"
             />
           </div>
