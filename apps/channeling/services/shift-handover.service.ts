@@ -32,8 +32,10 @@ import {
   expectedHandoverAvailableFromTill,
   expectedHandoverCollectionCents,
   formatHandoverCashAboveShortError,
+  formatHandoverNonCashShortError,
   formatHandoverOverAmountError,
   handoverCashOverTillCents,
+  handoverNonCashShorts,
   handoverOversBeyondCashSettlement,
   handoverNonCashHeldCents,
   handoverAmountsTotalCents,
@@ -440,6 +442,10 @@ export async function processShiftHandover(
   // Settlement is the cash counted above the till. The client cannot choose a different amount.
   const cashOverTill = handoverCashOverTillCents(amt.cashCents, available.cashCents)
   const shorts = handoverTillGaps(amt, available)
+  const nonCashShorts = handoverNonCashShorts(amt, available)
+  if (nonCashShorts.length > 0) {
+    return { success: false, error: formatHandoverNonCashShortError(nonCashShorts) }
+  }
   const shortTotal = handoverAmountsTotalCents(shorts)
 
   let openShortCents = 0
@@ -477,13 +483,7 @@ export async function processShiftHandover(
   }
   const settlement = cashOverTill
 
-  const hasShort =
-    amt.cashCents < available.cashCents ||
-    amt.cardCents < available.cardCents ||
-    amt.slipCents < available.slipCents ||
-    amt.checkCents < available.checkCents ||
-    amt.creditCents < available.creditCents ||
-    amt.eWalletCents < available.eWalletCents
+  const hasShort = amt.cashCents < available.cashCents
 
   const expectedCollection = await getExpectedHandoverCollection({
     cashierUserId: validFrom,
@@ -863,6 +863,20 @@ export async function approveHandover(
   const shortGapErrors = handoverShortsExceedingTillGap(shorts, handedOver, available)
   if (shortGapErrors.length > 0) {
     return { success: false, error: formatHandoverShortExceedsGapError(shortGapErrors) }
+  }
+  const storedNonCashShorts = handoverNonCashShorts(handedOver, {
+    cashCents: handedOver.cashCents,
+    cardCents: handedOver.cardCents + shorts.cardCents,
+    slipCents: handedOver.slipCents + shorts.slipCents,
+    checkCents: handedOver.checkCents + shorts.checkCents,
+    creditCents: handedOver.creditCents + shorts.creditCents,
+    eWalletCents: handedOver.eWalletCents + shorts.eWalletCents,
+  })
+  if (storedNonCashShorts.length > 0) {
+    return {
+      success: false,
+      error: `${formatHandoverNonCashShortError(storedNonCashShorts)} Reject this handover so the cashier can submit again.`,
+    }
   }
   const shortTotal = handoverAmountsTotalCents(shorts)
   const settlementCents = Math.max(0, handover.settlementCents ?? 0)

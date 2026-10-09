@@ -13,6 +13,11 @@ export const HANDOVER_AMOUNT_METHOD_KEYS = [
 
 export type HandoverMethodAmountKey = (typeof HANDOVER_AMOUNT_METHOD_KEYS)[number]
 
+/** Shorts are allowed on cash only. Every other method must be handed over in full. */
+export const HANDOVER_NON_CASH_METHOD_KEYS = HANDOVER_AMOUNT_METHOD_KEYS.filter(
+  (key): key is Exclude<HandoverMethodAmountKey, "cashCents"> => key !== "cashCents"
+)
+
 export type HandoverMethodAmounts = Record<HandoverMethodAmountKey, number>
 
 export const HANDOVER_AMOUNT_METHOD_LABELS: Record<HandoverMethodAmountKey, string> = {
@@ -188,6 +193,37 @@ export function handoverTillGaps(
   return gaps
 }
 
+/** Non-cash methods left in the till. Cash short is allowed; these are not. */
+export function handoverNonCashShorts(
+  entered: HandoverMethodAmounts,
+  available: HandoverMethodAmounts
+): HandoverAmountOver[] {
+  const gaps = handoverTillGaps(entered, available)
+  const shorts: HandoverAmountOver[] = []
+  for (const key of HANDOVER_NON_CASH_METHOD_KEYS) {
+    const shortCents = gaps[key] ?? 0
+    if (shortCents <= 0) continue
+    shorts.push({
+      key,
+      label: HANDOVER_AMOUNT_METHOD_LABELS[key],
+      enteredCents: entered[key] ?? 0,
+      availableCents: available[key] ?? 0,
+    })
+  }
+  return shorts
+}
+
+export function formatHandoverNonCashShortError(shorts: HandoverAmountOver[]): string {
+  if (shorts.length === 0) return ""
+  const details = shorts
+    .map(
+      (m) =>
+        `${m.label}: entered ${formatCents(m.enteredCents)}, available ${formatCents(m.availableCents)}`
+    )
+    .join("; ")
+  return `Only cash can be short. Card, slips, cheques, credit, and e-wallet must be handed over in full. ${details}.`
+}
+
 /** A marked short cannot be more than the amount left in the till for that method. */
 export function handoverShortsExceedingTillGap(
   shorts: HandoverMethodAmounts,
@@ -282,7 +318,7 @@ export function formatHandoverOverAmountError(
     )
     .join("; ")
   if (context === "submit") {
-    return `Cannot hand over more than the till holds. ${details}. You may hand over less than available, but not more.`
+    return `Cannot hand over more than the till holds. ${details}. You may hand over less cash than available, but not more.`
   }
   return `Cannot approve this handover: amounts exceed the sender's available till. ${details}. Reject the handover so the sender can resubmit with amounts that do not exceed the till.`
 }
