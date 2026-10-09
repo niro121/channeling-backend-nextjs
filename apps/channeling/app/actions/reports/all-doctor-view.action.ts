@@ -6,13 +6,13 @@ import {
   AllDoctorViewReportResponse,
   ExportAllDoctorViewData
 } from '@/types/report';
-import { requirePermission } from '@/lib/server-permissions';
+import { requireReport } from '@/lib/server-permissions';
 
 // ==== GET ALL DOCTOR VIEW REPORT DATA ==== //
 export const getAllDoctorViewReportData = async (
   query: AllDoctorViewReportQuery
 ): Promise<AllDoctorViewReportResponse> => {
-  await requirePermission('reports', 'view');
+  await requireReport('all-doctor-view');
   try {
     const result = await getAllDoctorViewReportDataService(query);
     return {
@@ -38,7 +38,7 @@ export const getAllDoctorViewReportData = async (
 export const exportAllDoctorViewReportData = async (
   query: AllDoctorViewReportQuery
 ): Promise<{ success: boolean; data?: ExportAllDoctorViewData[]; message?: string }> => {
-  await requirePermission('reports', 'view');
+  await requireReport('all-doctor-view');
   try {
     const result = await getAllDoctorViewReportDataService(query);
 

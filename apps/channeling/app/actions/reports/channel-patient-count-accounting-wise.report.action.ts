@@ -1,6 +1,6 @@
 'use server';
 
-import { requirePermission } from '@/lib/server-permissions';
+import { requireReport } from '@/lib/server-permissions';
 import { getChannelPatientCountAccountingWiseService } from '@/services/reports/channel-patient-count-accounting-wise.report.service';
 import type {
   ChannelPatientCountAccountingWiseQuery,
@@ -10,7 +10,7 @@ import type {
 export async function getChannelPatientCountAccountingWiseData(
   query: ChannelPatientCountAccountingWiseQuery
 ): Promise<ChannelPatientCountAccountingWiseResult> {
-  await requirePermission('reports', 'view');
+  await requireReport('channel-patient-count-accounting-wise');
   try {
     return await getChannelPatientCountAccountingWiseService(query);
   } catch (error: unknown) {

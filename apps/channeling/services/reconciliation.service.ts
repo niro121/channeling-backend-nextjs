@@ -23,6 +23,7 @@ import { createNotification } from "@/services/notification.service"
 import { NOTIFICATION_TYPES, REFERENCE_TYPES as NOTIF_REF_TYPES } from "@/types/notification"
 import type { Permissions } from "@/types/user-group"
 import { z } from "zod"
+import { allocateReconciliationDocumentNumber } from "@/services/shift-handover-sequence"
 
 const NON_CASH_METHODS = [
   RECEIPT_PAYMENT_METHOD.CREDIT_CARD,
@@ -523,6 +524,7 @@ export async function getReconciliationDocument(
       reconciliationStatus: number
       reconciliationRejectReason: string | null
       handoverNoString: string | null
+      reconciliationNoString: string | null
       hasReconciliationIssues: boolean
     }
   | { success: false; error: string }
@@ -550,6 +552,7 @@ export async function getReconciliationDocument(
       includedHandoverIds: true,
       enteredBreakdown: true,
       handoverNoString: true,
+      reconciliationNoString: true,
       hasReconciliationIssues: true,
     },
   })
@@ -633,6 +636,7 @@ export async function getReconciliationDocument(
     reconciliationStatus: reconStatus,
     reconciliationRejectReason: top.reconciliationRejectReason ?? null,
     handoverNoString: top.handoverNoString ?? null,
+    reconciliationNoString: top.reconciliationNoString ?? null,
     hasReconciliationIssues: Boolean(top.hasReconciliationIssues),
     chain,
   }
@@ -1051,7 +1055,7 @@ export async function sendHandoverToReconciliation(
   handoverId: string,
   requestedByUserId: string,
   assignedToUserId: string
-): Promise<{ success: true } | { success: false; error: string }> {
+): Promise<{ success: true; reconciliationNoString: string } | { success: false; error: string }> {
   if (!assignedToUserId?.trim()) {
     return { success: false, error: "Please select a user to reconcile." }
   }
@@ -1065,8 +1069,11 @@ export async function sendHandoverToReconciliation(
       nonCashReconciledAt: true,
       reconciliationStatus: true,
       reconciliationAssignedToUserId: true,
+      reconciliationNo: true,
+      reconciliationNoString: true,
       forwardedToHandoverId: true,
       includedHandoverIds: true,
+      shift: { select: { locationId: true } },
     },
   })
   if (!handover) return { success: false, error: "Handover not found." }
@@ -1091,6 +1098,17 @@ export async function sendHandoverToReconciliation(
     return { success: false, error: "Selected user does not have permission to approve reconciliation." }
   }
 
+  let reconciliationNo = handover.reconciliationNo
+  let reconciliationNoString = handover.reconciliationNoString
+  if (!reconciliationNoString) {
+    const allocated = await allocateReconciliationDocumentNumber(handover.shift?.locationId ?? null)
+    if (!allocated) {
+      return { success: false, error: "Could not assign a reconciliation number." }
+    }
+    reconciliationNo = allocated.reconciliationNo
+    reconciliationNoString = allocated.reconciliationNoString
+  }
+
   const now = new Date()
   await prisma.shiftHandover.update({
     where: { id: handoverId },
@@ -1099,6 +1117,8 @@ export async function sendHandoverToReconciliation(
       reconciliationRequestedAt: now,
       reconciliationRequestedBy: requestedByUserId,
       reconciliationAssignedToUserId: assignedToUserId,
+      reconciliationNo,
+      reconciliationNoString,
     },
   })
 
@@ -1116,7 +1136,7 @@ export async function sendHandoverToReconciliation(
     action: "shift.handover.sent_to_reconciliation",
     entityType: "ShiftHandover",
     entityId: handoverId,
-    metadata: { assignedToUserId },
+    metadata: { assignedToUserId, reconciliationNoString },
   })
 
   await createNotification({
@@ -1128,7 +1148,7 @@ export async function sendHandoverToReconciliation(
     referenceId: handoverId,
   })
 
-  return { success: true }
+  return { success: true, reconciliationNoString }
 }
 
 /** Change reconciler while IN_RECONCILIATION and not yet reconciled. Recipient or current assignee can change. */

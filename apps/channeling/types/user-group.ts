@@ -1,4 +1,5 @@
 import type { ResourceWithOptionalActions } from "@archmage/shared";
+import { REPORT_PERMISSION_ACTIONS } from "@/lib/report-privileges";
 
 export {
   type PermissionAction,
@@ -79,7 +80,11 @@ export const RESOURCES: ResourceWithOptionalActions[] = [
   { id: "discounts", name: "Discounts" },
   { id: "doctor-leaves", name: "Doctor Leave" },
   { id: "sms-playground", name: "SMS Playground" },
-  { id: "reports", name: "Reports" },
+  {
+    id: "reports",
+    name: "Reports",
+    customActions: REPORT_PERMISSION_ACTIONS,
+  },
   { id: "api-clients", name: "API Clients" },
   {
     id: "bulk-cashier",

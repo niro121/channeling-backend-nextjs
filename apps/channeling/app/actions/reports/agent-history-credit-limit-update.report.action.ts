@@ -2,7 +2,7 @@
 
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { requirePermission } from '@/lib/server-permissions';
+import { requireReport } from '@/lib/server-permissions';
 import { logActivityNonBlocking } from '@/lib/activity-log';
 import moment from 'moment';
 import type {
@@ -21,7 +21,7 @@ export async function getAgentHistoryCreditLimitUpdateReportData(
   totalRecords: number;
   message?: string;
 }> {
-  await requirePermission('reports', 'view');
+  await requireReport('agent-history-credit-limit-update');
   try {
     return await getAgentHistoryCreditLimitUpdateReportService(query);
   } catch (error: unknown) {
@@ -33,7 +33,7 @@ export async function getAgentHistoryCreditLimitUpdateReportData(
 export async function exportAgentHistoryCreditLimitUpdateReportData(
   query: AgentHistoryCreditLimitUpdateReportQuery
 ): Promise<{ success: boolean; data?: AgentHistoryCreditLimitUpdateReportExportRow[]; message?: string }> {
-  await requirePermission('reports', 'view');
+  await requireReport('agent-history-credit-limit-update');
   try {
     const result = await getAgentHistoryCreditLimitUpdateReportService(query);
     if (!result.success || !result.data?.length) {

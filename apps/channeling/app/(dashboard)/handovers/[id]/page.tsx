@@ -297,6 +297,7 @@ export default function HandoverDetailPage() {
   const [sendToReconLoading, setSendToReconLoading] = useState(false)
   const [ticked, setTicked] = useState<Set<string>>(new Set())
   const [autoPrintToken, setAutoPrintToken] = useState(0)
+  const [reconPrintToken, setReconPrintToken] = useState(0)
   const { toast } = useToast()
 
   const fetchDetail = useCallback(async (opts?: { silent?: boolean }) => {
@@ -330,6 +331,17 @@ export default function HandoverDetailPage() {
     }, 300)
     return () => window.clearTimeout(timer)
   }, [autoPrintToken, data])
+
+  useEffect(() => {
+    if (!reconPrintToken) return
+    if (!data?.handover?.reconciliationNoString) return
+    const token = reconPrintToken
+    const timer = window.setTimeout(() => {
+      printHandoverDocument("summary")
+      setReconPrintToken((current) => (current === token ? 0 : current))
+    }, 300)
+    return () => window.clearTimeout(timer)
+  }, [reconPrintToken, data])
 
   useEffect(() => {
     if (!(sendReconOpen || changeAssigneeOpen) || !canSendToReconciliation) return
@@ -497,10 +509,17 @@ export default function HandoverDetailPage() {
     try {
       const result = await sendHandoverToReconciliationAction(id, reconcilerUserId)
       if (result.success) {
-        toast({ title: "Sent to reconciliation for the selected user." })
+        const reconNo = result.reconciliationNoString
+        toast({
+          title: reconNo
+            ? `Sent to reconciliation. Recon no ${reconNo}.`
+            : "Sent to reconciliation for the selected user.",
+          description: "A summary is printing for your records.",
+        })
         setSendReconOpen(false)
         setReconcilerUserId("")
-        await fetchDetail()
+        await fetchDetail({ silent: true })
+        setReconPrintToken((n) => n + 1)
         router.refresh()
       } else {
         toast({ title: result.error ?? "Failed", variant: "destructive" })
@@ -731,8 +750,14 @@ export default function HandoverDetailPage() {
               <>
                 <Fact label="Approved" value={formatDateTime(handover.approvedAt)} />
                 <Fact label="By" value={fromUserLabel(data.approvedByUser)} />
-                {isInReconciliation ? (
-                  <Fact label="Reconciler" value={assignedUserLabel ?? "—"} />
+                {handover.reconciliationNoString ? (
+                  <Fact label="Recon No" value={handover.reconciliationNoString} />
+                ) : null}
+                {handover.reconciliationNoString || isInReconciliation ? (
+                  <Fact label="Sent to" value={assignedUserLabel ?? "—"} />
+                ) : null}
+                {handover.reconciliationRequestedAt ? (
+                  <Fact label="Sent" value={formatDateTime(handover.reconciliationRequestedAt)} />
                 ) : null}
               </>
             ) : null}
@@ -1486,6 +1511,7 @@ export default function HandoverDetailPage() {
               <CardDescription>
                 Choose who should reconcile this handover. Only users with the{" "}
                 <strong>Approve Reconciliation</strong> permission are listed. Only that user can submit or reject.
+                A summary slip prints afterwards, with the reconciliation number and who it was sent to, for your records.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -1633,6 +1659,15 @@ export default function HandoverDetailPage() {
         includedHandovers={includedHandovers}
         cashierSummary={data.cashierSummary}
         tillBreakdown={tillBreakdown}
+        reconciliation={
+          handover.reconciliationNoString
+            ? {
+                reconciliationNoString: handover.reconciliationNoString,
+                sentAt: handover.reconciliationRequestedAt,
+                sentTo: data.reconciliationAssignedToUser,
+              }
+            : null
+        }
       />
     </>
   )

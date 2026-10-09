@@ -15,7 +15,7 @@ export default async function PhoneViewReportPage({
   searchParams: Promise<SearchParams>;
 }) {
   // Check if user can access reports
-  const canView = await checkRouteAccess('/reports');
+  const canView = await checkRouteAccess('/reports/phone-view');
   if (!canView) {
     redirect('/unauthorized-access');
   }

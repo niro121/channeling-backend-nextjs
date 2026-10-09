@@ -10,7 +10,7 @@ import { getReportFilterOptions } from '@/services/reference/report-filter-optio
 export const dynamic = 'force-dynamic';
 
 export default async function AllCashierSummaryDetailReportPage() {
-  const canView = await checkRouteAccess('/reports');
+  const canView = await checkRouteAccess('/reports/all-cashier-summary-detail');
   if (!canView) redirect('/unauthorized-access');
 
   const [userOptionsRes, locationOptionsRes, session] = await Promise.all([

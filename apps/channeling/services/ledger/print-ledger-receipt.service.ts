@@ -22,6 +22,7 @@ import {
   PAYMENT_METHOD_NAMES,
   RECEIPT_METHOD,
   RECEIPT_METHOD_NAMES,
+  RECEIPT_PAYMENT_METHOD,
 } from "@/types/receipt"
 
 const LEDGER_METHODS: number[] = [
@@ -73,17 +74,37 @@ function transactionNoFromSlipDate(slipDate: string | null): string {
 }
 
 function paymentDetailsText(opts: {
+  paymentMethod: number
   bank: string
   slipDate: string | null
   cardReference: string
   slipReference: string
 }): string {
   const bank = opts.bank.trim()
-  if (bank && opts.slipDate) return `${bank} ( ${opts.slipDate} )`
-  if (bank) return bank
-  if (opts.cardReference.trim()) return opts.cardReference.trim()
-  if (opts.slipReference.trim()) return opts.slipReference.trim()
-  return ""
+  const date = opts.slipDate?.trim() ?? ""
+  const cardReference = opts.cardReference.trim()
+  const slipReference = opts.slipReference.trim()
+
+  const parts: string[] = []
+  if (bank) parts.push(bank)
+  if (date && opts.paymentMethod === RECEIPT_PAYMENT_METHOD.CHECK) {
+    parts.push(`cheque dated ${date}`)
+  } else if (date && opts.paymentMethod === RECEIPT_PAYMENT_METHOD.SLIP) {
+    parts.push(`slip date ${date}`)
+  } else if (date) {
+    parts.push(date)
+  }
+
+  const reference =
+    opts.paymentMethod === RECEIPT_PAYMENT_METHOD.CREDIT_CARD ||
+    opts.paymentMethod === RECEIPT_PAYMENT_METHOD.E_WALLET
+      ? cardReference
+      : slipReference || cardReference
+
+  const detail = parts.join(" ")
+  if (reference && detail) return `${detail} (${reference})`
+  if (reference) return `(${reference})`
+  return detail
 }
 
 function agencyContact(agency: {
@@ -194,6 +215,7 @@ export async function printLedgerReceiptService(
       return {
         mode: paymentModeLabel(line.paymentMethod),
         paymentDetails: paymentDetailsText({
+          paymentMethod: line.paymentMethod,
           bank: line.bank ?? "",
           slipDate: lineSlipDate,
           cardReference: line.cardReference ?? "",

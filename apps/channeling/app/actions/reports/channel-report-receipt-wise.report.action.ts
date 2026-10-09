@@ -1,7 +1,7 @@
 'use server';
 
 import moment from 'moment';
-import { requirePermission } from '@/lib/server-permissions';
+import { requireReport } from '@/lib/server-permissions';
 import { getChannelReportReceiptWiseService } from '@/services/reports/channel-report-receipt-wise.report.service';
 import type {
   ChannelReportReceiptWiseExportRow,
@@ -17,7 +17,7 @@ export async function getChannelReportReceiptWiseData(
   totalRecords: number;
   message?: string;
 }> {
-  await requirePermission('reports', 'view');
+  await requireReport('channel-report-receipt-wise');
   try {
     const result = await getChannelReportReceiptWiseService(query);
     return {
@@ -36,7 +36,7 @@ export async function getChannelReportReceiptWiseData(
 export async function exportChannelReportReceiptWiseData(
   query: ChannelReportReceiptWiseQuery
 ): Promise<{ success: boolean; data?: ChannelReportReceiptWiseExportRow[]; message?: string }> {
-  await requirePermission('reports', 'view');
+  await requireReport('channel-report-receipt-wise');
   try {
     const result = await getChannelReportReceiptWiseService(query);
     if (!result.success || !result.data?.length) {

@@ -2,6 +2,7 @@
 
 import { fetchServerSession } from "./session"
 import { canAccessRoute, hasPermission, canPerformAction } from "./permissions"
+import { canViewReport } from "./report-privileges"
 import { userTypes } from "./roles"
 import prisma from "@/lib/prisma"
 import type { Permissions } from "@/types/user-group"
@@ -93,6 +94,30 @@ export async function requirePermission(
   if (!hasAccess) {
     throw new Error(`Access denied: You don't have permission to ${action} ${resource}`)
   }
+}
+
+/** Require the privilege for one catalog report. Admins may run every report. */
+export async function requireReport(routeOrAction: string): Promise<void> {
+  const allowed = await reportAccess([routeOrAction])
+  if (!allowed) {
+    throw new Error("Access denied: You don't have permission to view this report")
+  }
+}
+
+/** Allow the call when the group may run any one of these reports. */
+export async function requireAnyReport(routeOrActions: string[]): Promise<void> {
+  const allowed = await reportAccess(routeOrActions)
+  if (!allowed) {
+    throw new Error("Access denied: You don't have permission to view this report")
+  }
+}
+
+async function reportAccess(routeOrActions: string[]): Promise<boolean> {
+  const session = await fetchServerSession()
+  if (session?.user?.userType === userTypes.admin) return true
+  return routeOrActions.some((routeOrAction) =>
+    canViewReport(session?.user?.permissions, routeOrAction)
+  )
 }
 
 /** Transaction types the signed-in user may record. Admins may record every type. */
