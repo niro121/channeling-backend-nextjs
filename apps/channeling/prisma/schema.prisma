@@ -601,6 +601,8 @@ model ApprovalRequest {
   professionalFee Float    @default(0)
   hospitalFee     Float    @default(0)
   paymentLines    Json?
+  /// Channel cancel/refund checklist ticked by the requester before approval.
+  confirmations   Json?
   bankAccountId   String?  @db.ObjectId
   bankAccount     BankAccount? @relation("ApprovalRequestBankAccount", fields: [bankAccountId], references: [id], onDelete: SetNull)
   locationId      String?  @db.ObjectId

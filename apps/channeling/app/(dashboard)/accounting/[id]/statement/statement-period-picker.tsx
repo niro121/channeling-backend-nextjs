@@ -1,8 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, useTransition } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
-import { Calendar } from 'lucide-react';
+import { Calendar, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { DateRangePicker } from '@/components/common/date-range-picker';
 
@@ -17,11 +17,38 @@ export function StatementPeriodPicker({ fromDate, toDate }: Props) {
   const [from, setFrom] = useState(fromDate);
   const [to, setTo] = useState(toDate);
   const [error, setError] = useState<string | null>(null);
+  const [isPending, startTransition] = useTransition();
+  const [isApplying, setIsApplying] = useState(false);
+  const expectedKeyRef = useRef<string | null>(null);
+  const timeoutRef = useRef<number | null>(null);
+
+  const clearApplying = useCallback(() => {
+    setIsApplying(false);
+    expectedKeyRef.current = null;
+    if (timeoutRef.current != null) {
+      window.clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
+    }
+  }, []);
 
   useEffect(() => {
     setFrom(fromDate);
     setTo(toDate);
   }, [fromDate, toDate]);
+
+  useEffect(() => {
+    if (!isApplying || expectedKeyRef.current == null) return;
+    if (`${fromDate}|${toDate}` !== expectedKeyRef.current) return;
+    clearApplying();
+  }, [isApplying, fromDate, toDate, clearApplying]);
+
+  useEffect(() => {
+    return () => {
+      if (timeoutRef.current != null) window.clearTimeout(timeoutRef.current);
+    };
+  }, []);
+
+  const showLoading = isPending || isApplying;
 
   const apply = () => {
     const nextFrom = from || to;
@@ -38,8 +65,24 @@ export function StatementPeriodPicker({ fromDate, toDate }: Props) {
     const params = new URLSearchParams();
     params.set('fromDate', nextFrom);
     params.set('toDate', nextTo);
-    router.push(`${pathname}?${params.toString()}`);
-    router.refresh();
+    const unchanged = nextFrom === fromDate && nextTo === toDate;
+    if (unchanged) {
+      startTransition(() => {
+        router.refresh();
+      });
+      return;
+    }
+
+    expectedKeyRef.current = `${nextFrom}|${nextTo}`;
+    setIsApplying(true);
+    if (timeoutRef.current != null) window.clearTimeout(timeoutRef.current);
+    timeoutRef.current = window.setTimeout(() => {
+      clearApplying();
+    }, 15000);
+
+    startTransition(() => {
+      router.push(`${pathname}?${params.toString()}`);
+    });
   };
 
   return (
@@ -53,8 +96,20 @@ export function StatementPeriodPicker({ fromDate, toDate }: Props) {
           setError(null);
         }}
       />
-      <Button type="button" variant="secondary" size="sm" onClick={apply} className="gap-1.5 h-10">
-        <Calendar className="h-3.5 w-3.5" />
+      <Button
+        type="button"
+        variant="secondary"
+        size="sm"
+        onClick={apply}
+        disabled={showLoading}
+        aria-busy={showLoading}
+        className="gap-1.5 h-10"
+      >
+        {showLoading ? (
+          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+        ) : (
+          <Calendar className="h-3.5 w-3.5" />
+        )}
         Apply
       </Button>
       {error && <p className="text-sm text-destructive">{error}</p>}

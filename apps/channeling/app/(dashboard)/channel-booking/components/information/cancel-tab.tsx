@@ -37,6 +37,13 @@ import {
 import { Ban, Banknote, CreditCard, Receipt, Wallet } from "lucide-react"
 import { CancelRefundDetailsCard } from "./cancel-refund-details-card"
 import {
+  RefundCancelConfirmations,
+  requiredRefundCancelConfirmationChecked,
+  type RefundCancelConfirmationId,
+  type RefundCancelConfirmationsState,
+} from "./refund-cancel-confirmations"
+import { emptyChannelApprovalConfirmations } from "@/types/approval-request"
+import {
   SAVE_PAYMENT_TYPE_CASH,
   SAVE_PAYMENT_TYPE_CREDIT_CARD,
   SAVE_PAYMENT_TYPE_E_WALLET,
@@ -111,6 +118,7 @@ export function CancelTab({ onCancelSuccess }: { onCancelSuccess?: () => void })
   const [mixedDialogOpen, setMixedDialogOpen] = useState(false)
   const [mixedLines, setMixedLines] = useState<MixedLine[]>(DEFAULT_MIXED_LINES)
   const [voidConfirmed, setVoidConfirmed] = useState(false)
+  const [confirmations, setConfirmations] = useState<RefundCancelConfirmationsState>(emptyChannelApprovalConfirmations)
   const [submitting, setSubmitting] = useState(false)
 
   function resetMixedDialog() {
@@ -135,6 +143,7 @@ export function CancelTab({ onCancelSuccess }: { onCancelSuccess?: () => void })
           setError(null)
           setRefundTo(0)
           setRemarks("")
+          setConfirmations(emptyChannelApprovalConfirmations())
         } else {
           setDetails(null)
           setError(res.message ?? "Failed to load")
@@ -292,6 +301,14 @@ export function CancelTab({ onCancelSuccess }: { onCancelSuccess?: () => void })
       toast({ title: "Remarks required", description: "Please enter a reason for cancellation.", variant: "destructive" })
       return
     }
+    if (isPaid && !requiredRefundCancelConfirmationChecked(confirmations)) {
+      toast({
+        title: "Confirmation required",
+        description: "Confirm that the original bill and copy are available.",
+        variant: "destructive",
+      })
+      return
+    }
     setSubmitting(true)
     try {
       if (!isPaid) {
@@ -321,12 +338,14 @@ export function CancelTab({ onCancelSuccess }: { onCancelSuccess?: () => void })
           hospital_fee: 0,
           payment_lines: mixedPaymentLines,
           remarks: remarks.trim(),
+          confirmations,
         })
         if (result?.success) {
           toast({
             title: "Cancellation requested",
             description: "A manager must approve this before you can cancel and refund.",
           })
+          setConfirmations(emptyChannelApprovalConfirmations())
           await refreshBooking()
         } else {
           toast({ title: "Error", description: actionError(result), variant: "destructive" })
@@ -484,6 +503,15 @@ export function CancelTab({ onCancelSuccess }: { onCancelSuccess?: () => void })
           </Select>
         </div>
       )}
+      {isPaid && (
+        <RefundCancelConfirmations
+          idPrefix="cancel"
+          value={confirmations}
+          onChange={(id: RefundCancelConfirmationId, checked) =>
+            setConfirmations((current) => ({ ...current, [id]: checked }))
+          }
+        />
+      )}
       <Button
         className="w-full bg-red-600 hover:bg-red-700 text-white"
         onClick={() => {
@@ -515,7 +543,11 @@ export function CancelTab({ onCancelSuccess }: { onCancelSuccess?: () => void })
           }
           void handleCancel()
         }}
-        disabled={submitting || !remarks.trim()}
+        disabled={
+          submitting ||
+          !remarks.trim() ||
+          (isPaid && !requiredRefundCancelConfirmationChecked(confirmations))
+        }
       >
         {submitting ? "Requesting…" : isPaid ? `Request cancellation - ${formatRs(refundAmount)}` : "Cancel Booking"}
       </Button>
