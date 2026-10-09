@@ -1210,6 +1210,8 @@ model Receipt {
   printedAt  DateTime?
   /// Number of times Print Receipt was invoked. 0 = never printed (next print is original).
   printCount Int      @default(0)
+  /// printCount at cancel. Prints at or below this are the live slip, not reprints of the canceled slip.
+  printCountAtCancel Int?
 
   // Index for reconciliation receipt lookup: by shift (primary) and by creator+time (legacy)
   @@index([createdBy, createdAt])

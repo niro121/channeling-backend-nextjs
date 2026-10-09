@@ -282,6 +282,8 @@ export async function cancelLedgerReceiptService(
           canceledBy: input.canceledBy,
           cancelReason: reason,
           reverseReceiptId: r.receipt.id,
+          // The live deposit may already have been printed. That copy is not a reprint of this canceled slip.
+          printCountAtCancel: original.printCount ?? 0,
         },
       })
 
