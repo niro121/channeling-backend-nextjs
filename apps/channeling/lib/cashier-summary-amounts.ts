@@ -120,9 +120,11 @@ export function cashierSummaryGrandTotalCents(t: CashierSummaryPaymentAmounts): 
  */
 export const CASHIER_SUMMARY_DETAIL_IN_SUMMARY_KEYS = new Set([
   'channelRefund',
+  'channelCancel',
   'agentRefunded',
   'agentCanceled',
   'agentDeposit',
+  'agentDepositCanceled',
   'doctorPayment',
 ]);
 
