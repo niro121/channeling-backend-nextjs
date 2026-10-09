@@ -28,6 +28,13 @@ import {
 import { Checkbox } from "@/components/ui/checkbox"
 import { Ban } from "lucide-react"
 import { CancelRefundDetailsCard } from "./cancel-refund-details-card"
+import {
+  RefundCancelConfirmations,
+  requiredRefundCancelConfirmationChecked,
+  type RefundCancelConfirmationId,
+  type RefundCancelConfirmationsState,
+} from "./refund-cancel-confirmations"
+import { emptyChannelApprovalConfirmations } from "@/types/approval-request"
 import { SAVE_PAYMENT_TYPE_SLIP } from "@/types/save-booking"
 
 /** refund_to: 0 Cash, 1 Card, 2 Slip, 4 Agent, 5 Credit Customer, 6 E-wallet. Options depend on how booking was paid. */
@@ -63,6 +70,7 @@ export function RefundTab({ onRefundSuccess }: { onRefundSuccess?: () => void })
   const [refundTo, setRefundTo] = useState(0)
   const [professionalChecked, setProfessionalChecked] = useState(false)
   const [hospitalChecked, setHospitalChecked] = useState(false)
+  const [confirmations, setConfirmations] = useState<RefundCancelConfirmationsState>(emptyChannelApprovalConfirmations)
   const [submitting, setSubmitting] = useState(false)
 
   useEffect(() => {
@@ -82,6 +90,7 @@ export function RefundTab({ onRefundSuccess }: { onRefundSuccess?: () => void })
           setHospitalChecked(false)
           setRefundTo(0)
           setRemarks("")
+          setConfirmations(emptyChannelApprovalConfirmations())
         } else {
           setDetails(null)
           setError(res.message ?? "Failed to load")
@@ -251,6 +260,14 @@ export function RefundTab({ onRefundSuccess }: { onRefundSuccess?: () => void })
       toast({ title: "Remarks required", description: "Please enter a reason for refund.", variant: "destructive" })
       return
     }
+    if (!requiredRefundCancelConfirmationChecked(confirmations)) {
+      toast({
+        title: "Confirmation required",
+        description: "Confirm that the original bill and copy are available.",
+        variant: "destructive",
+      })
+      return
+    }
     setSubmitting(true)
     try {
       const result = await requestChannelApprovalAction({
@@ -260,12 +277,14 @@ export function RefundTab({ onRefundSuccess }: { onRefundSuccess?: () => void })
         hospital_fee: hospitalChecked ? hospitalRefundable : 0,
         refund_to: refundTo,
         remarks: remarks.trim(),
+        confirmations,
       })
       if (result?.success) {
         toast({
           title: "Refund requested",
           description: "A manager must approve this before you can refund.",
         })
+        setConfirmations(emptyChannelApprovalConfirmations())
         await refreshBooking()
       } else {
         toast({ title: "Error", description: actionError(result), variant: "destructive" })
@@ -412,10 +431,23 @@ export function RefundTab({ onRefundSuccess }: { onRefundSuccess?: () => void })
         </Select>
       </div>
 
+      <RefundCancelConfirmations
+        idPrefix="refund"
+        value={confirmations}
+        onChange={(id: RefundCancelConfirmationId, checked) =>
+          setConfirmations((current) => ({ ...current, [id]: checked }))
+        }
+      />
+
       <Button
         className="w-full bg-red-600 hover:bg-red-700 text-white"
         onClick={handleRefund}
-        disabled={submitting || totalRefund <= 0 || !remarks.trim()}
+        disabled={
+          submitting ||
+          totalRefund <= 0 ||
+          !remarks.trim() ||
+          !requiredRefundCancelConfirmationChecked(confirmations)
+        }
       >
         {submitting ? "Requesting…" : `Request refund ${formatRs(totalRefund)}`}
       </Button>

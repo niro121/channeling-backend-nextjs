@@ -72,6 +72,38 @@ export type BankDepositSnapshot = {
   slip_image_name?: string
 }
 
+export const CHANNEL_APPROVAL_CONFIRMATIONS = [
+  { id: "bill", label: "Original bill and copy are available.", required: true },
+  { id: "session", label: "Session or appointment time has not lapsed.", required: false },
+  { id: "requirements", label: "All other refund or cancellation requirements have been satisfied.", required: false },
+] as const
+
+export type ChannelApprovalConfirmationId = (typeof CHANNEL_APPROVAL_CONFIRMATIONS)[number]["id"]
+
+export type ChannelApprovalConfirmations = Record<ChannelApprovalConfirmationId, boolean>
+
+export function emptyChannelApprovalConfirmations(): ChannelApprovalConfirmations {
+  return { bill: false, session: false, requirements: false }
+}
+
+export function parseChannelApprovalConfirmations(raw: unknown): ChannelApprovalConfirmations | null {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null
+  const obj = raw as Record<string, unknown>
+  const parsed = emptyChannelApprovalConfirmations()
+  for (const item of CHANNEL_APPROVAL_CONFIRMATIONS) {
+    const value = obj[item.id]
+    if (typeof value !== "boolean") return null
+    parsed[item.id] = value
+  }
+  return parsed
+}
+
+export function checkedChannelApprovalLabels(raw: unknown): string[] {
+  const parsed = parseChannelApprovalConfirmations(raw)
+  if (!parsed) return []
+  return CHANNEL_APPROVAL_CONFIRMATIONS.filter((item) => parsed[item.id]).map((item) => item.label)
+}
+
 export type BookingApprovalSummary = {
   id: string
   type: ApprovalRequestType
@@ -102,6 +134,8 @@ export type ApprovalRequestListItem = BookingApprovalSummary & {
   paymentTypeName: string
   /** Requested refund method for cancel/refund (Cash, Credit Card, and so on). */
   refundMethodName: string
+  /** Labels of checklist items the requester ticked. */
+  checkedConfirmations: string[]
   receiptId: string | null
   receiptNoString: string | null
   slipImageUrl: string | null

@@ -1,4 +1,5 @@
 import type { ResourceWithOptionalActions } from "@archmage/shared";
+import { BOOKING_PAYMENT_METHOD_ACTIONS, BOOKING_PAYMENT_RESOURCE } from "@/lib/booking-payment-permissions";
 import { REPORT_PERMISSION_ACTIONS } from "@/lib/report-privileges";
 
 export {
@@ -30,6 +31,14 @@ export const RESOURCES: ResourceWithOptionalActions[] = [
     ],
   },
   { id: "channel-booking", name: "Channel Booking" },
+  {
+    id: BOOKING_PAYMENT_RESOURCE,
+    name: "Channel Booking – Payment methods",
+    customActions: BOOKING_PAYMENT_METHOD_ACTIONS.map((action) => ({
+      id: action.id,
+      name: action.name,
+    })),
+  },
   { id: "channel-booking-date", name: "Channel Booking – Change Date", actions: ["view"], actionLabels: { view: "Change Date" } },
   {
     id: "channel-booking-block",
