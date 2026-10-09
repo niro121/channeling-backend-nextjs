@@ -18,7 +18,7 @@ export function ReconciliationListTabs() {
   const validTab = TABS.some((t) => t.value === tab) ? tab : "reconciliation"
 
   const onTabChange = (value: string) => {
-    const params = new URLSearchParams()
+    const params = new URLSearchParams(searchParams.toString())
     params.set("tab", value)
     params.set("page", "1")
     params.set("limit", limit)

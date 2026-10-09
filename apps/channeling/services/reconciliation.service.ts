@@ -1,6 +1,8 @@
 "use server"
 
+import type { Prisma } from "@prisma/client"
 import prisma from "@/lib/prisma"
+import { parseReportDateTimeSl } from "@/lib/parse-report-datetime"
 import { HANDOVER_STATUS, RECONCILIATION_STATUS } from "@/types/handover"
 import { RECEIPT_PAYMENT_METHOD } from "@/types/receipt"
 import { REFERENCE_TYPES } from "@/types/accounting"
@@ -295,6 +297,34 @@ function buildWhereForTab(tab: ReconciliationListTab) {
   }
 }
 
+/**
+ * Inclusive Sri Lanka calendar-day range.
+ * Matches a row when any date shown on the reconciliation list falls in the range:
+ * handover date, requested, reconciled, or rejected.
+ */
+function reconciliationListDateFilter(
+  dateFrom?: string | null,
+  dateTo?: string | null
+): Prisma.ShiftHandoverWhereInput | null {
+  const from = dateFrom?.trim() ? parseReportDateTimeSl(dateFrom.trim(), false) : null
+  const to = dateTo?.trim() ? parseReportDateTimeSl(dateTo.trim(), true) : null
+  if (!from && !to) return null
+  const range = (): Prisma.DateTimeFilter => {
+    const filter: Prisma.DateTimeFilter = {}
+    if (from) filter.gte = from
+    if (to) filter.lte = to
+    return filter
+  }
+  return {
+    OR: [
+      { createdAt: range() },
+      { reconciliationRequestedAt: range() },
+      { nonCashReconciledAt: range() },
+      { reconciliationRejectedAt: range() },
+    ],
+  }
+}
+
 /** List handovers by tab with DB-level pagination. Optional filters: date range, fromUserId, toUserId, assignedToUserId (restrict to assignee). */
 export async function listHandoversForReconciliation(params: {
   page?: number
@@ -305,10 +335,8 @@ export async function listHandoversForReconciliation(params: {
   dateTo?: string | null
   fromUserId?: string | null
   toUserId?: string | null
-  /** When set, only handovers assigned to this user (or legacy unassigned) are returned for the open tab. */
+  /** When set, only handovers assigned to this user are returned. */
   assignedToUserId?: string | null
-  /** Admin bypass: do not filter by assignee. */
-  viewAllAssigned?: boolean
 }): Promise<{ data: HandoverForReconciliationList[]; totalRecords: number }> {
   const page = Math.max(1, params.page ?? 1)
   const limit = Math.min(100, Math.max(1, params.limit ?? 20))
@@ -316,18 +344,13 @@ export async function listHandoversForReconciliation(params: {
   const tab = params.tab ?? "reconciliation"
   const where = buildWhereForTab(tab)
 
-  const and: Record<string, unknown>[] = []
+  const and: Prisma.ShiftHandoverWhereInput[] = []
 
-  if (params.dateFrom || params.dateTo) {
-    const from = params.dateFrom ? new Date(params.dateFrom + "T00:00:00.000Z") : undefined
-    const to = params.dateTo ? new Date(params.dateTo + "T23:59:59.999Z") : undefined
-    if (from && to) and.push({ createdAt: { gte: from, lte: to } })
-    else if (from) and.push({ createdAt: { gte: from } })
-    else if (to) and.push({ createdAt: { lte: to } })
-  }
+  const dateFilter = reconciliationListDateFilter(params.dateFrom, params.dateTo)
+  if (dateFilter) and.push(dateFilter)
   if (params.fromUserId && params.fromUserId !== "__all__") and.push({ fromUserId: params.fromUserId })
   if (params.toUserId && params.toUserId !== "__all__") and.push({ toUserId: params.toUserId })
-  if (!params.viewAllAssigned && params.assignedToUserId) {
+  if (params.assignedToUserId) {
     and.push({ reconciliationAssignedToUserId: params.assignedToUserId })
   }
 
@@ -371,8 +394,7 @@ export async function listHandoversForReconciliation(params: {
     select: reconciliationListSelect,
   })
   let topLevel = all.filter((h) => h.forwardedToHandoverId == null)
-  // Legacy rows without assignee: include for assignee filter only if assignedToUserId matches requestedBy fallback is not applied — exclude unassigned from personal queue
-  if (!params.viewAllAssigned && params.assignedToUserId) {
+  if (params.assignedToUserId) {
     topLevel = topLevel.filter((h) => h.reconciliationAssignedToUserId === params.assignedToUserId)
   }
   totalRecords = topLevel.length
@@ -514,7 +536,7 @@ export async function getReconcilerUserOptions(): Promise<
 /** Get full reconciliation document: top-level handover + chain + receipts per handover. Does not auto-send to reconciliation. */
 export async function getReconciliationDocument(
   topLevelHandoverId: string,
-  _requestedByUserId?: string | null
+  requestedByUserId?: string | null
 ): Promise<
   | {
       success: true
@@ -568,6 +590,9 @@ export async function getReconciliationDocument(
     return { success: false, error: "Handover has not been sent to reconciliation yet." }
   }
   if (top.forwardedToHandoverId) return { success: false, error: "Use the top-level handover document, not an included one." }
+  if (requestedByUserId && top.reconciliationAssignedToUserId !== requestedByUserId) {
+    return { success: false, error: "This reconciliation is not assigned to you." }
+  }
 
   let chainHandovers = await getPreviousHandoversForHandoverDetail({
     handoverId: topLevelHandoverId,
