@@ -2,7 +2,7 @@
 
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { requirePermission } from '@/lib/server-permissions';
+import { requireReport } from '@/lib/server-permissions';
 import { logActivityNonBlocking } from '@/lib/activity-log';
 import moment from 'moment';
 import { formatReceiptAmount } from '@/lib/format-money';
@@ -13,7 +13,7 @@ import type {
 } from '@/types/reports/agent-collection-receipt';
 
 export async function getAgentCollectionReceiptReportData(query: AgentCollectionReceiptReportQuery) {
-  await requirePermission('reports', 'view');
+  await requireReport('agent-collection-receipt');
   try {
     return await getAgentCollectionReceiptReportService(query);
   } catch (error: unknown) {
@@ -25,7 +25,7 @@ export async function getAgentCollectionReceiptReportData(query: AgentCollection
 export async function exportAgentCollectionReceiptReportData(
   query: AgentCollectionReceiptReportQuery
 ): Promise<{ success: boolean; data?: AgentCollectionReceiptReportExportRow[]; message?: string }> {
-  await requirePermission('reports', 'view');
+  await requireReport('agent-collection-receipt');
   try {
     const result = await getAgentCollectionReceiptReportService(query);
     if (!result.success || !result.data?.length) {

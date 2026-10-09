@@ -595,7 +595,7 @@ const LEDGER_RECEIPT_PAGE_STYLES = `
   }
   .lines th { font-weight: 700; }
   .lines .si { white-space: nowrap; width: 1%; }
-  .lines .mode { white-space: nowrap; width: 1%; }
+  .lines .mode { white-space: normal; }
   .lines .details { overflow-wrap: anywhere; word-break: break-word; white-space: normal; }
   .lines .txn { white-space: nowrap; width: 1%; }
   .lines .amt,
@@ -677,6 +677,12 @@ function buildSailsLedgerReceiptHtml(placeholders: ReceiptPlaceholderMap): strin
   const remarks = (placeholders.remarks ?? "").trim()
   const generatedBy = (placeholders.generated_by ?? "").trim()
   const generatedAt = (placeholders.generated_at ?? "").trim()
+  const approvedBy = (placeholders.approved_by ?? "").trim()
+  const approvedAt = (placeholders.approved_at ?? "").trim()
+  const approvalRows = [
+    approvedBy ? infoRow("Approved by", approvedBy) : "",
+    approvedAt ? infoRow("Approved at", approvedAt) : "",
+  ].join("")
 
   const infoRows = showAgent
     ? [
@@ -686,20 +692,25 @@ function buildSailsLedgerReceiptHtml(placeholders: ReceiptPlaceholderMap): strin
         infoRow("Agent Code", placeholders.agency_code ?? ""),
         infoRow("Agent City", placeholders.agent_city ?? ""),
         infoRow("Contact No", placeholders.agent_contact ?? ""),
+        approvalRows,
       ].join("")
     : [
         infoRow("Receipt No", placeholders.receipt_no ?? ""),
         infoRow("Date/Time", placeholders.date_time ?? ""),
         infoRow("Branch", placeholders.branch_name ?? ""),
         infoRow("Transaction Type", placeholders.transaction_type ?? ""),
+        approvalRows,
       ].join("")
 
   const lineRows = lines
     .map(
-      (line) => `<tr>
-        <td class="mode">${escapeHtml(line.mode)}</td>
+      (line) => {
+        const details = line.paymentDetails.trim()
+        return `<tr>
+        <td class="mode">${escapeHtml(line.mode)}${details ? ` ${escapeHtml(details)}` : ""}</td>
         <td class="amt">${escapeHtml(line.amount)}</td>
       </tr>`
+      }
     )
     .join("")
 

@@ -3,7 +3,7 @@
 import moment from 'moment';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { requirePermission } from '@/lib/server-permissions';
+import { requireReport } from '@/lib/server-permissions';
 import { logActivityNonBlocking } from '@/lib/activity-log';
 import { getApprovalRequestsReportService } from '@/services/reports/approval-requests.report.service';
 import type {
@@ -12,7 +12,7 @@ import type {
 } from '@/types/reports/approval-requests';
 
 export async function getApprovalRequestsReportData(query: ApprovalRequestsReportQuery) {
-  await requirePermission('reports', 'view');
+  await requireReport('approval-requests');
   try {
     return await getApprovalRequestsReportService(query);
   } catch (error: unknown) {
@@ -29,7 +29,7 @@ function dash(value: string | null | undefined): string {
 export async function exportApprovalRequestsReportData(
   query: ApprovalRequestsReportQuery
 ): Promise<{ success: boolean; data?: ApprovalRequestsReportExportRow[]; message?: string }> {
-  await requirePermission('reports', 'view');
+  await requireReport('approval-requests');
   try {
     const result = await getApprovalRequestsReportService(query);
     if (!result.success || !result.data?.length) {

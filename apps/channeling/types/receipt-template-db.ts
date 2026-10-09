@@ -127,6 +127,8 @@ export const LEDGER_RECEIPT_PLACEHOLDERS = [
   "remarks",
   "generated_by",
   "generated_at",
+  "approved_by",
+  "approved_at",
   "status_banner",
   "duplicate_label",
 ] as const

@@ -1,6 +1,6 @@
 'use server';
 
-import { requirePermission } from '@/lib/server-permissions';
+import { requireReport } from '@/lib/server-permissions';
 import { getNoShowPatientReportService } from '@/services/reports/no-show-patient.report.service';
 import type {
   NoShowPatientReportExportRow,
@@ -11,7 +11,7 @@ import type {
 export async function getNoShowPatientReportData(
   query: NoShowPatientReportQuery
 ): Promise<NoShowPatientReportResult> {
-  await requirePermission('reports', 'view');
+  await requireReport('no-show-patient');
   try {
     return await getNoShowPatientReportService(query);
   } catch (error: unknown) {
@@ -27,7 +27,7 @@ export async function exportNoShowPatientReportData(
   data?: NoShowPatientReportExportRow[];
   message?: string;
 }> {
-  await requirePermission('reports', 'view');
+  await requireReport('no-show-patient');
   try {
     const result = await getNoShowPatientReportService(query);
     if (!result.success || !result.data || !result.periodKeys || !result.columnTotals) {

@@ -1,13 +1,13 @@
 'use server';
 
-import { requirePermission } from '@/lib/server-permissions';
+import { requireReport } from '@/lib/server-permissions';
 import { getChannelIncomeAccountingWiseService } from '@/services/reports/channel-income-accounting-wise.report.service';
 import type { ChannelIncomeAccountingWiseQuery, ChannelIncomeAccountingWiseResult } from '@/types/reports/channel-income-accounting-wise';
 
 export async function getChannelIncomeAccountingWiseData(
   query: ChannelIncomeAccountingWiseQuery
 ): Promise<ChannelIncomeAccountingWiseResult> {
-  await requirePermission('reports', 'view');
+  await requireReport('channel-income-accounting-wise');
   try {
     return await getChannelIncomeAccountingWiseService({
       dateType: query.dateType,

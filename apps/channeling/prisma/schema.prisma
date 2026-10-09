@@ -672,6 +672,9 @@ model ShiftHandover {
   createdAt              DateTime       @default(now())
   handoverNo             Int?
   handoverNoString       String?
+  /// Assigned when the handover is sent to reconciliation. Kept for the sender's printed record.
+  reconciliationNo       Int?
+  reconciliationNoString String?
   billAttachments        ShiftBillAttachment[]
 
   // Back-office reconciliation lifecycle: status + approved/rejected details
@@ -695,6 +698,7 @@ model ShiftHandover {
   @@index([forwardedToHandoverId])
   @@index([nonCashReconciledAt])
   @@index([handoverNoString])
+  @@index([reconciliationNoString])
   @@index([reconciliationStatus])
   @@index([reconciliationRejectedAt])
   @@index([reconciliationAssignedToUserId])

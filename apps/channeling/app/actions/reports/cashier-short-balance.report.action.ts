@@ -2,7 +2,7 @@
 
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { requirePermission } from '@/lib/server-permissions';
+import { requireReport } from '@/lib/server-permissions';
 import { logActivityNonBlocking } from '@/lib/activity-log';
 import moment from 'moment';
 import { formatCents } from '@/lib/format-money';
@@ -26,7 +26,7 @@ function formatBranch(name: string | null, code: string | null): string {
 }
 
 export async function getCashierShortBalanceReportData(query: CashierShortBalanceReportQuery) {
-  await requirePermission('reports', 'view');
+  await requireReport('cashier-short-balance');
   try {
     return await getCashierShortBalanceReportService(query);
   } catch (error: unknown) {
@@ -38,7 +38,7 @@ export async function getCashierShortBalanceReportData(query: CashierShortBalanc
 export async function exportCashierShortBalanceReportData(
   query: CashierShortBalanceReportQuery
 ): Promise<{ success: boolean; data?: CashierShortBalanceReportExportRow[]; message?: string }> {
-  await requirePermission('reports', 'view');
+  await requireReport('cashier-short-balance');
   try {
     const result = await getCashierShortBalanceReportService(query);
     if (!result.success || !result.data?.length) {

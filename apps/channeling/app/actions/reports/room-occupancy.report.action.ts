@@ -3,7 +3,7 @@
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import moment from 'moment';
-import { requirePermission } from '@/lib/server-permissions';
+import { requireReport } from '@/lib/server-permissions';
 import { logActivityNonBlocking } from '@/lib/activity-log';
 import { getRoomOccupancyReportService } from '@/services/reports/room-occupancy.report.service';
 import type { RoomOccupancyReportExportRow, RoomOccupancyReportQuery } from '@/types/reports/room-occupancy';
@@ -14,7 +14,7 @@ function dateKey(d: Date): string {
 }
 
 export async function getRoomOccupancyReportData(query: RoomOccupancyReportQuery) {
-  await requirePermission('reports', 'view');
+  await requireReport('room-occupancy');
   try {
     const result = await getRoomOccupancyReportService(query);
     return {
@@ -32,7 +32,7 @@ export async function getRoomOccupancyReportData(query: RoomOccupancyReportQuery
 export async function exportRoomOccupancyReportData(
   query: RoomOccupancyReportQuery
 ): Promise<{ success: boolean; data?: RoomOccupancyReportExportRow[]; message?: string }> {
-  await requirePermission('reports', 'view');
+  await requireReport('room-occupancy');
   try {
     const result = await getRoomOccupancyReportService(query);
     if (!result.success || !result.data?.length) {

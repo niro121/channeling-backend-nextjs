@@ -3,7 +3,7 @@
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { getChannelBookingsReportService } from '@/services/reports/channel-bookings.report.service';
-import { requirePermission } from '@/lib/server-permissions';
+import { requireReport } from '@/lib/server-permissions';
 import { logActivityNonBlocking } from '@/lib/activity-log';
 import {
   ChannelBookingsReportQuery,
@@ -11,7 +11,7 @@ import {
 } from '@/types/reports/channel-bookings';
 
 export async function getChannelBookingsReportData(query: ChannelBookingsReportQuery) {
-  await requirePermission('reports', 'view');
+  await requireReport('channel-bookings');
   try {
     const result = await getChannelBookingsReportService(query);
     return {
@@ -39,7 +39,7 @@ export async function exportChannelBookingsReportData(
   data?: ChannelBookingsReportExportRow[];
   message?: string;
 }> {
-  await requirePermission('reports', 'view');
+  await requireReport('channel-bookings');
   try {
     const result = await getChannelBookingsReportService(query);
     if (!result.success || !result.data?.length) {

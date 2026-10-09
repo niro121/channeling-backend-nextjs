@@ -98,6 +98,10 @@ export type LedgerReceiptPrintInput = {
   totalAmount: string
   remarks: string
   generatedBy: string
+  /** Approver display name. Set for bank deposits that went through approval. */
+  approvedBy?: string
+  /** Approval date and time, already formatted for the slip. */
+  approvedAt?: string
   statusBanner?: string
   duplicateLabel?: string
 }
@@ -132,14 +136,19 @@ function formatLedgerInfoBlock(input: LedgerReceiptPrintInput): string {
         row("Branch", escapePlaceholder(input.branchName)),
         row("Transaction Type", escapePlaceholder(input.transactionType)),
       ]
+  const approvedBy = input.approvedBy?.trim() ?? ""
+  const approvedAt = input.approvedAt?.trim() ?? ""
+  if (approvedBy) rows.push(row("Approved by", escapePlaceholder(approvedBy)))
+  if (approvedAt) rows.push(row("Approved at", escapePlaceholder(approvedAt)))
   return `<table class="info-grid"><tbody>${rows.join("")}</tbody></table>`
 }
 
 function formatLedgerPaymentTable(lines: LedgerReceiptPrintLineInput[], totalAmount: string): string {
   const rows = lines
     .map((line) => {
+      const details = line.paymentDetails.trim()
       return `<tr>
-        <td class="mode">${escapePlaceholder(line.mode)}</td>
+        <td class="mode">${escapePlaceholder(line.mode)}${details ? ` ${escapePlaceholder(details)}` : ""}</td>
         <td class="amt">${escapePlaceholder(line.amount)}</td>
       </tr>`
     })
@@ -212,6 +221,8 @@ export function buildPlaceholdersForLedgerReceipt(
     remarks: escapePlaceholder(input.remarks),
     generated_by: escapePlaceholder(input.generatedBy),
     generated_at: escapePlaceholder(generatedAt),
+    approved_by: escapePlaceholder(input.approvedBy?.trim() ?? ""),
+    approved_at: escapePlaceholder(input.approvedAt?.trim() ?? ""),
     status_banner: statusBanner
       ? `<div class="status-banner">${escapePlaceholder(statusBanner)}</div>`
       : "",

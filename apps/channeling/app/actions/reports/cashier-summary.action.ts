@@ -1,6 +1,6 @@
 'use server';
 
-import { requirePermission } from '@/lib/server-permissions';
+import { requireReport } from '@/lib/server-permissions';
 import { getCashierSummaryReportService } from '@/services/reports/cashier-summary.service';
 import type { CashierSummaryReportQuery, CashierSummaryReportResponse } from '@/types/report';
 
@@ -13,7 +13,7 @@ function normalizeUserIds(userIds: CashierSummaryReportQuery['userIds']): string
 export async function getCashierSummaryReportData(
   query: CashierSummaryReportQuery
 ): Promise<CashierSummaryReportResponse> {
-  await requirePermission('reports', 'view');
+  await requireReport('cashier-summary');
   try {
     const userIds = normalizeUserIds(query.userIds);
     return await getCashierSummaryReportService({
