@@ -9,7 +9,7 @@ import ApprovalRequestsReportContent from './approval-requests-report-content';
 export const dynamic = 'force-dynamic';
 
 export default async function ApprovalRequestsReportPage() {
-  const canView = await checkRouteAccess('/reports');
+  const canView = await checkRouteAccess('/reports/approval-requests');
   if (!canView) redirect('/unauthorized-access');
 
   const session = await fetchServerSession();

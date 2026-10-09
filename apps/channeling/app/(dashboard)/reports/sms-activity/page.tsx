@@ -5,7 +5,7 @@ import SmsActivityContent from "./sms-activity-content"
 export const dynamic = "force-dynamic"
 
 export default async function SmsActivityReportPage() {
-  const canView = await checkRouteAccess("/reports")
+  const canView = await checkRouteAccess('/reports/sms-activity')
   if (!canView) redirect("/unauthorized-access")
 
   return (

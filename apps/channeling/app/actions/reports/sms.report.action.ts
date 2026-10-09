@@ -2,14 +2,14 @@
 
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { requirePermission } from '@/lib/server-permissions';
+import { requireReport } from '@/lib/server-permissions';
 import { logActivityNonBlocking } from '@/lib/activity-log';
 import moment from 'moment';
 import { getSmsReportService } from '@/services/reports/sms.report.service';
 import { SmsReportExportRow, SmsReportQuery } from '@/types/reports/sms.report';
 
 export async function getSmsReportData(query: SmsReportQuery) {
-  await requirePermission('reports', 'view');
+  await requireReport('sms-reports');
   try {
     const result = await getSmsReportService(query);
     return {
@@ -32,7 +32,7 @@ export async function getSmsReportData(query: SmsReportQuery) {
 export async function exportSmsReportData(
   query: SmsReportQuery
 ): Promise<{ success: boolean; data?: SmsReportExportRow[]; message?: string }> {
-  await requirePermission('reports', 'view');
+  await requireReport('sms-reports');
   try {
     const result = await getSmsReportService(query);
     if (!result.success || !result.data?.length) {

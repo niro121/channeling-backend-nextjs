@@ -3,13 +3,13 @@
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { getApiLogReportService } from '@/services/reports/api.log.report.service';
-import { requirePermission } from '@/lib/server-permissions';
+import { requireReport } from '@/lib/server-permissions';
 import { logActivityNonBlocking } from '@/lib/activity-log';
 import moment from 'moment';
 import { ApiLogReportQuery, ApiLogReportExportRow } from '@/types/reports/api.log';
 
 export async function getApiLogReportData(query: ApiLogReportQuery) {
-  await requirePermission('reports', 'view');
+  await requireReport('api-log');
   try {
     const result = await getApiLogReportService(query);
     return {
@@ -32,7 +32,7 @@ export async function getApiLogReportData(query: ApiLogReportQuery) {
 export async function exportApiLogReportData(
   query: ApiLogReportQuery
 ): Promise<{ success: boolean; data?: ApiLogReportExportRow[]; message?: string }> {
-  await requirePermission('reports', 'view');
+  await requireReport('api-log');
   try {
     const result = await getApiLogReportService(query);
     if (!result.success || !result.data?.length) {

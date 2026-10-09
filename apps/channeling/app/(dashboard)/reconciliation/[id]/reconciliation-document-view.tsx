@@ -121,6 +121,7 @@ type Props = {
   reconciliationStatus?: number
   reconciliationRejectReason?: string | null
   handoverNoString?: string | null
+  reconciliationNoString?: string | null
   hasReconciliationIssues?: boolean
 }
 
@@ -217,6 +218,7 @@ export function ReconciliationDocumentView({
   reconciliationStatus = RECONCILIATION_STATUS.IN_RECONCILIATION,
   reconciliationRejectReason = null,
   handoverNoString = null,
+  reconciliationNoString = null,
   hasReconciliationIssues = false,
 }: Props) {
   const router = useRouter()
@@ -457,6 +459,11 @@ export function ReconciliationDocumentView({
       <div className="flex items-center justify-between">
         <h2 className="text-3xl font-bold tracking-tight flex items-center gap-2 flex-wrap">
           Reconcile handover{handoverNoString ? <span className="font-mono"> {handoverNoString}</span> : null}
+          {reconciliationNoString ? (
+            <span className="text-base font-normal text-muted-foreground">
+              Recon <span className="font-mono font-medium text-foreground">{reconciliationNoString}</span>
+            </span>
+          ) : null}
           {hasReconciliationIssues ? <Badge variant="destructive">Issues</Badge> : null}
         </h2>
         <div className="flex items-center gap-2">
@@ -997,6 +1004,7 @@ export function ReconciliationDocumentView({
     <ReconciliationPrint
       topLevelHandoverId={topLevelHandoverId}
       handoverNoString={handoverNoString}
+      reconciliationNoString={reconciliationNoString}
       reconciliationStatus={reconciliationStatus}
       hasReconciliationIssues={hasReconciliationIssues}
       chain={chain}

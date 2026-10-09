@@ -138,8 +138,9 @@ function formatLedgerInfoBlock(input: LedgerReceiptPrintInput): string {
 function formatLedgerPaymentTable(lines: LedgerReceiptPrintLineInput[], totalAmount: string): string {
   const rows = lines
     .map((line) => {
+      const details = line.paymentDetails.trim()
       return `<tr>
-        <td class="mode">${escapePlaceholder(line.mode)}</td>
+        <td class="mode">${escapePlaceholder(line.mode)}${details ? ` ${escapePlaceholder(details)}` : ""}</td>
         <td class="amt">${escapePlaceholder(line.amount)}</td>
       </tr>`
     })

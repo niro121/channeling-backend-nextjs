@@ -10,7 +10,7 @@ import { getReportFilterOptions } from '@/services/reference/report-filter-optio
 export const dynamic = 'force-dynamic';
 
 export default async function ChannelPatientCountAccountingWiseReportPage() {
-  const canView = await checkRouteAccess('/reports');
+  const canView = await checkRouteAccess('/reports/channel-patient-count-accounting-wise');
   if (!canView) redirect('/unauthorized-access');
 
   const [ref, session] = await Promise.all([

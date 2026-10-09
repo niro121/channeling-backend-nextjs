@@ -36,7 +36,7 @@ function parseUserIdsParam(raw: string | undefined): string[] {
 }
 
 export default async function CashierSummaryReportPage({ searchParams }: SearchParams) {
-  const canView = await checkRouteAccess('/reports');
+  const canView = await checkRouteAccess('/reports/cashier-summary');
   if (!canView) {
     redirect('/unauthorized-access');
   }
