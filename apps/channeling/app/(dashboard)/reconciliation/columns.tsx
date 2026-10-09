@@ -35,7 +35,11 @@ function formatListDateTime(d: Date | string | null | undefined): string {
   if (!d) return "—"
   const date = d instanceof Date ? d : new Date(d)
   if (Number.isNaN(date.getTime())) return "—"
-  return date.toLocaleString("en-GB", { dateStyle: "short", timeStyle: "short" })
+  return date.toLocaleString("en-GB", {
+    dateStyle: "short",
+    timeStyle: "short",
+    timeZone: "Asia/Colombo",
+  })
 }
 
 export const ReconciliationColumns: ColumnDef<ReconciliationListRow>[] = [

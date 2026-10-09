@@ -15,7 +15,6 @@ import {
   type ReconciliationListTab,
 } from "@/services/reconciliation.service"
 import { revalidatePath } from "next/cache"
-import { userTypes } from "@/lib/roles"
 
 export async function getReconciliationListAction(params: {
   page?: number
@@ -31,7 +30,8 @@ export async function getReconciliationListAction(params: {
   const { getServerSession } = await import("next-auth")
   const { authOptions } = await import("@/lib/auth")
   const session = await getServerSession(authOptions)
-  const isAdmin = session?.user?.userType === userTypes.admin
+  const userId = session?.user?.id
+  if (!userId) return { data: [], totalRecords: 0 }
   return listHandoversForReconciliation({
     page: params.page,
     limit: params.limit,
@@ -41,8 +41,7 @@ export async function getReconciliationListAction(params: {
     dateTo: params.dateTo,
     fromUserId: params.fromUserId,
     toUserId: params.toUserId,
-    assignedToUserId: isAdmin ? null : session?.user?.id ?? null,
-    viewAllAssigned: isAdmin,
+    assignedToUserId: userId,
   })
 }
 
