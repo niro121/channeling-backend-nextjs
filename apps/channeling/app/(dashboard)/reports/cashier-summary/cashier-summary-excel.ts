@@ -13,6 +13,7 @@ import {
   RUHUNU_PRINT_BRAND_NAME,
   type BrandedPdfSummaryItem,
 } from '@/components/common/report-print';
+import { cashierSummarySectionShowsDetailRows } from '@/lib/cashier-summary-amounts';
 import type {
   CashierSummaryPaymentAmounts,
   CashierSummaryReportLineItem,
@@ -138,7 +139,7 @@ function sectionHasAnyTotal(section: CashierSummaryReportSection): boolean {
 }
 
 function sectionShowRows(mode: 'summary' | 'detail', sectionKey: string): boolean {
-  return mode === 'detail' || sectionKey === 'channelRefund';
+  return cashierSummarySectionShowsDetailRows(mode, sectionKey);
 }
 
 function amountCells(amounts: CashierSummaryPaymentAmounts): number[] {

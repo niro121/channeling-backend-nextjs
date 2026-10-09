@@ -29,6 +29,7 @@ import {
 import { useToast } from '@/components/hooks/use-toast';
 import { SearchIcon, Printer, FileText, FileSpreadsheet, Loader2, X } from 'lucide-react';
 import { getCashierSummaryReportData } from '@/app/actions/reports/cashier-summary.action';
+import { cashierSummarySectionShowsDetailRows } from '@/lib/cashier-summary-amounts';
 import { formatReceiptAmount } from '@/lib/format-money';
 import { formatReportRangeLabel } from '@/lib/format-report-range-label';
 import { formatExportFileName } from '@/lib/utils';
@@ -112,7 +113,7 @@ function cashierSectionShowDetailRows(
   reportFormat: 'summary' | 'detail',
   sectionKey: string
 ): boolean {
-  return reportFormat === 'detail' || sectionKey === 'channelRefund';
+  return cashierSummarySectionShowsDetailRows(reportFormat, sectionKey);
 }
 
 function cashierSectionHasAnyTotal(section: CashierSummaryReportSection): boolean {
@@ -506,7 +507,7 @@ export default function CashierSummaryContent({
             <div>
               <CardTitle className="text-xl font-bold">Userwise Cashier Detail - Channel</CardTitle>
               <CardDescription className="text-xs mt-0.5">
-                User-wise cashier summary by date range with optional branch filter. Summary shows only refunds in detail; Detail shows all transactions.
+                User-wise cashier summary by date range with optional branch filter. Summary lists Channel Refund, Agent Refunded, Agent Canceled, Agent Deposit & Withdraw, and Doctor Payment / Canceled line by line; other sections show totals only. Detail shows all transactions.
               </CardDescription>
             </div>
             <div className="flex gap-2">

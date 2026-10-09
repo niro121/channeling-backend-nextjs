@@ -65,6 +65,30 @@ async function resolveDotMatrixTemplate(type: string): Promise<ReceiptTemplateRe
   return null
 }
 
+/**
+ * A reprint of the slip as it stands now.
+ * Prints made before cancel belong to the live deposit, so the first canceled copy is not a duplicate.
+ */
+function isDuplicatePrint(receipt: {
+  printCount: number | null
+  canceledAt: Date | null
+  printedAt: Date | null
+  printCountAtCancel: number | null
+}): boolean {
+  const previousCount = Number(receipt.printCount ?? 0)
+  if (!receipt.canceledAt) return previousCount >= 1
+
+  const printsBeforeCancel =
+    receipt.printCountAtCancel != null
+      ? receipt.printCountAtCancel
+      : receipt.printedAt != null &&
+          receipt.printedAt.getTime() <= receipt.canceledAt.getTime()
+        ? 1
+        : 0
+
+  return previousCount - printsBeforeCancel >= 1
+}
+
 function paymentModeLabel(paymentMethod: number): string {
   return (PAYMENT_METHOD_NAMES[paymentMethod] ?? "—").toUpperCase()
 }
@@ -211,7 +235,7 @@ export async function printLedgerReceiptService(
     }
 
     const previousCount = Number(receipt.printCount ?? 0)
-    const isDuplicate = previousCount >= 1
+    const isDuplicate = isDuplicatePrint(receipt)
     await prisma.receipt.update({
       where: { id: receipt.id },
       data: {
@@ -262,7 +286,7 @@ export async function printLedgerReceiptService(
         : { approvedBy: "", approvedAt: "" }
     const statusParts: string[] = []
     if (receipt.canceledAt) statusParts.push("CANCELED")
-    // Any print after the first is a duplicate, including from the ledger table.
+    // Reprint of this slip only. The original deposit print does not count once the receipt is canceled.
     if (isDuplicate) statusParts.push("DUPLICATE")
 
     const input: LedgerReceiptPrintInput = {
