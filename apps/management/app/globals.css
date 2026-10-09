@@ -246,3 +246,34 @@ input[type='search']::-ms-clear {
 }
 
 
+
+/* Installed-app (PWA) feel on phones and iPads */
+@layer base {
+  html {
+    -webkit-tap-highlight-color: transparent;
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    overscroll-behavior-y: none;
+  }
+  /* iOS zooms into inputs under 16px — keep form fields at 16px on touch screens */
+  @media (pointer: coarse) {
+    input,
+    select,
+    textarea {
+      font-size: 16px !important;
+    }
+  }
+}
+
+@utility pt-safe {
+  padding-top: env(safe-area-inset-top);
+}
+@utility pb-safe {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* Soft brand wash behind intro, login and install screens (send12-style) */
+@utility app-gradient {
+  background: linear-gradient(165deg, hsl(152 45% 86%) 0%, hsl(152 40% 95%) 30%, hsl(0 0% 100%) 65%, hsl(102 30% 96%) 100%);
+}

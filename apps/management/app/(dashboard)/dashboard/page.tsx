@@ -2,6 +2,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@arch
 import { Building2, CalendarCheck, Fingerprint, ShieldCheck, Stethoscope, Users, Wallet } from 'lucide-react';
 import { getAuthStats } from '@/lib/sources/auth-stats';
 import { getChannelingOverview, isChannelingApiConfigured } from '@/lib/sources/channeling';
+import { InstallBanner } from '@/components/pwa/install-banner';
 import { UsersByAppChart } from './users-by-app-chart';
 
 export const dynamic = 'force-dynamic';
@@ -47,8 +48,10 @@ export default async function DashboardPage() {
   const auth = authResult.status === 'fulfilled' ? authResult.value : null;
   const channeling = channelingResult.status === 'fulfilled' ? channelingResult.value : null;
   if (authResult.status === 'rejected') console.error('[management dashboard] auth stats', authResult.reason);
+  // A source being unreachable is expected (e.g. bad API credentials) — warn, the card shows it.
   if (channelingConfigured && channelingResult.status === 'rejected') {
-    console.error('[management dashboard] channeling', channelingResult.reason);
+    const reason = channelingResult.reason;
+    console.warn('[management dashboard] channeling unavailable:', reason instanceof Error ? reason.message : reason);
   }
 
   const channelingHint = channelingConfigured ? 'Channeling unavailable' : 'Channeling not connected';
@@ -56,9 +59,12 @@ export default async function DashboardPage() {
     auth && auth.activeUsers > 0 ? Math.round((auth.twoFactorEnabled / auth.activeUsers) * 100) : null;
 
   return (
-    <div className="mx-auto flex w-full max-w-6xl flex-col gap-6">
+    <div className="mx-auto flex w-full min-w-0 max-w-6xl flex-col gap-6">
+      <InstallBanner />
+
       <div>
-        <h1 className="text-xl font-semibold">Overview</h1>
+        {/* Phones show the title in the app header */}
+        <h1 className="hidden text-xl font-semibold lg:block">Overview</h1>
         <p className="text-sm text-muted-foreground">
           As of {new Date().toLocaleString('en-LK', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Colombo' })}
         </p>
@@ -91,8 +97,8 @@ export default async function DashboardPage() {
         />
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-3">
-        <Card className="lg:col-span-2">
+      <div className="grid min-w-0 gap-4 lg:grid-cols-3">
+        <Card className="min-w-0 lg:col-span-2">
           <CardHeader>
             <CardTitle className="text-base">Users by system</CardTitle>
             <CardDescription>Active users in each app&apos;s user groups</CardDescription>
