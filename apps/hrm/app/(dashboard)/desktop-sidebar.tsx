@@ -57,6 +57,7 @@ import {
   FolderOpen,
   UserCheck,
   Star,
+  Mail,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { canAccessRoute } from "@/lib/permissions";
@@ -522,7 +523,8 @@ export function DesktopSidebar({ session, className }: { session: Session | null
           hasAccess('/resume-bank') ||
           hasAccess('/shortlisting') ||
           hasAccess('/interview-schedule') ||
-          hasAccess('/evaluation')) && (
+          hasAccess('/evaluation') ||
+          hasAccess('/appointment-letters')) && (
           <SidebarGroup label="Recruitment">
             <SidebarCollapsible
               label="Recruitment"
@@ -534,7 +536,8 @@ export function DesktopSidebar({ session, className }: { session: Session | null
                 '/resume-bank',
                 '/shortlisting',
                 '/interview-schedule',
-                '/evaluation'
+                '/evaluation',
+                '/appointment-letters'
               ]}
               defaultOpen
             >
@@ -585,6 +588,13 @@ export function DesktopSidebar({ session, className }: { session: Session | null
                   href="/evaluation"
                   label="Evaluation"
                   icon={<Star className="h-5 w-5" />}
+                />
+              )}
+              {hasAccess('/appointment-letters') && (
+                <NavLink
+                  href="/appointment-letters"
+                  label="Appointment Letters"
+                  icon={<Mail className="h-5 w-5" />}
                 />
               )}
             </SidebarCollapsible>

@@ -53,6 +53,7 @@ export const ROUTE_TO_RESOURCE: Record<string, string> = {
   '/shortlisting': 'recruitment',
   '/interview-schedule': 'recruitment',
   '/evaluation': 'recruitment',
+  '/appointment-letters': 'recruitment',
   '/leave-types': 'leave-types',
   '/leave-entitlement': 'leave-entitlement',
   '/leave-management': 'leave-management',

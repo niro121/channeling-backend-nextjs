@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { ArrowLeft, ArrowRight } from 'lucide-react';
-import { Button, useToast } from '@archmage/ui';
+import { Button } from '@archmage/ui';
 import { CommonManagerHeader } from '@/components/common/common-manager-header';
 import { buttonStyles } from '@/lib/utils/common-styles';
 import {
@@ -29,7 +29,6 @@ function EvaluationWorkspaceInner({
   totalRecords,
   page
 }: EvaluationWorkspaceProps) {
-  const { toast } = useToast();
   const {
     activeRecord,
     viewRecord,
@@ -74,16 +73,12 @@ function EvaluationWorkspaceInner({
         <Button
           type="button"
           className={`${buttonStyles.save} gap-1.5`}
-          onClick={() =>
-            toast({
-              title: 'Appointment Letters',
-              description:
-                'Appointment Letters UI will be built next in this group.'
-            })
-          }
+          asChild
         >
-          Appointment Letters
-          <ArrowRight className="h-4 w-4" />
+          <Link href="/appointment-letters">
+            Appointment Letters
+            <ArrowRight className="h-4 w-4" />
+          </Link>
         </Button>
       </div>
 

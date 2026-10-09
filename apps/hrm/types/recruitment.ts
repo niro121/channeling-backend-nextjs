@@ -829,3 +829,155 @@ export function computeEvaluationScore(
     ratedCount === 0 ? 0 : Math.round(sum / ratedCount);
   return { score, ratedCount, totalCriteria };
 }
+
+// ─── Appointment Letters ─────────────────────────────────────────────────────
+
+export const APPOINTMENT_LETTER_STATUSES = [
+  'draft',
+  'pending_approval',
+  'issued',
+  'accepted',
+  'declined'
+] as const;
+
+export type AppointmentLetterStatus =
+  (typeof APPOINTMENT_LETTER_STATUSES)[number];
+
+export const APPOINTMENT_LETTER_STATUS_LABELS: Record<
+  AppointmentLetterStatus,
+  string
+> = {
+  draft: 'Draft',
+  pending_approval: 'Pending Approval',
+  issued: 'Issued',
+  accepted: 'Accepted',
+  declined: 'Declined'
+};
+
+export const PROBATION_PERIOD_OPTIONS = [
+  { id: '3_months', name: '3 months' },
+  { id: '6_months', name: '6 months' },
+  { id: '12_months', name: '12 months' },
+  { id: 'none', name: 'None' }
+] as const;
+
+export type AppointmentLetterRecord = {
+  id: string;
+  letterNumber: string;
+  evaluationId: string;
+  candidateName: string;
+  position: string;
+  department: string;
+  employmentType: VacancyEmploymentType;
+  appointmentDate: string;
+  salary: string;
+  letterDate: string;
+  reportingLocation: string;
+  reportingManager: string;
+  probationPeriod: string;
+  benefits: string;
+  termsAndConditions: string;
+  status: AppointmentLetterStatus;
+  letterGenerated: boolean;
+  createdAt: string;
+  createdBy: string;
+  updatedAt: string;
+  updatedBy: string;
+};
+
+export type AppointmentLetterSummary = {
+  offersExtended: number;
+  pendingApproval: number;
+  accepted: number;
+  declined: number;
+};
+
+export type AppointmentLetterFilters = {
+  letterNumber?: string;
+  candidateName?: string;
+  position?: string;
+  department?: string;
+  letterDate?: string;
+  status?: string;
+  search?: string;
+};
+
+export type AppointmentLetterFormValues = {
+  candidateName: string;
+  position: string;
+  department: string;
+  employmentType: string;
+  salary: string;
+  reportingDate: Date | null;
+  reportingLocation: string;
+  reportingManager: string;
+  probationPeriod: string;
+  letterDate: Date | null;
+  benefits: string;
+  termsAndConditions: string;
+};
+
+export const EMPTY_APPOINTMENT_LETTER_FORM: AppointmentLetterFormValues = {
+  candidateName: '',
+  position: '',
+  department: '',
+  employmentType: '',
+  salary: '',
+  reportingDate: null,
+  reportingLocation: '',
+  reportingManager: '',
+  probationPeriod: '',
+  letterDate: null,
+  benefits: '',
+  termsAndConditions: ''
+};
+
+export function canEditAppointmentLetter(
+  record: AppointmentLetterRecord
+): boolean {
+  return (
+    record.status === 'draft' ||
+    record.status === 'pending_approval' ||
+    record.status === 'issued' ||
+    record.status === 'accepted'
+  );
+}
+
+export function canGenerateAppointmentLetter(
+  record: AppointmentLetterRecord
+): boolean {
+  return record.status !== 'declined';
+}
+
+export function canDownloadAppointmentLetter(
+  record: AppointmentLetterRecord
+): boolean {
+  return record.letterGenerated;
+}
+
+export function canSendAppointmentLetter(
+  record: AppointmentLetterRecord
+): boolean {
+  return (
+    record.letterGenerated &&
+    (record.status === 'pending_approval' || record.status === 'issued')
+  );
+}
+
+export function canAcceptAppointmentLetter(
+  record: AppointmentLetterRecord
+): boolean {
+  return record.status === 'issued' || record.status === 'pending_approval';
+}
+
+export function canDeclineAppointmentLetter(
+  record: AppointmentLetterRecord
+): boolean {
+  return record.status === 'issued' || record.status === 'pending_approval';
+}
+
+export function canOnboardFromAppointmentLetter(
+  record: AppointmentLetterRecord
+): boolean {
+  return record.status === 'accepted';
+}
