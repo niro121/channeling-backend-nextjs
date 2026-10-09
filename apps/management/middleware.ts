@@ -52,5 +52,5 @@ export default withAuth(
 );
 
 export const config = {
-  matcher: ['/((?!login|api/|favicon|manifest.webmanifest|sw.js|_next/static|_next/image|.*\\.(?:ico|png|jpg|jpeg|gif|svg|woff2?)$).*)'],
+  matcher: ['/((?!$|login|welcome|install|offline.html|api/|favicon|manifest.webmanifest|sw.js|_next/static|_next/image|.*\\.(?:ico|png|jpg|jpeg|gif|svg|woff2?)$).*)'],
 };
