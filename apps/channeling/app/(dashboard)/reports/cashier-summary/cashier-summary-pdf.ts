@@ -12,6 +12,7 @@ import {
   drawBrandedPdfHeader,
   type BrandedPdfSummaryItem,
 } from '@/components/common/report-print';
+import { cashierSummarySectionShowsDetailRows } from '@/lib/cashier-summary-amounts';
 import { formatReceiptAmount } from '@/lib/format-money';
 import type {
   CashierSummaryPaymentAmounts,
@@ -73,7 +74,7 @@ function sectionHasAnyTotal(section: CashierSummaryReportSection): boolean {
 
 /** Matches on-screen `cashierSectionShowDetailRows`. */
 function sectionShowRows(mode: 'summary' | 'detail', sectionKey: string): boolean {
-  return mode === 'detail' || sectionKey === 'channelRefund';
+  return cashierSummarySectionShowsDetailRows(mode, sectionKey);
 }
 
 function amountCells(amounts: CashierSummaryPaymentAmounts): string[] {

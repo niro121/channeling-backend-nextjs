@@ -114,6 +114,25 @@ export function cashierSummaryGrandTotalCents(t: CashierSummaryPaymentAmounts): 
   return Math.round(cashierSummaryGrandTotalRupees(t) * 100)
 }
 
+/**
+ * Sections that stay line-by-line in Summary, the same way Channel Refund Bills does.
+ * Other sections collapse to totals only until the user switches to Detail.
+ */
+export const CASHIER_SUMMARY_DETAIL_IN_SUMMARY_KEYS = new Set([
+  'channelRefund',
+  'agentRefunded',
+  'agentCanceled',
+  'agentDeposit',
+  'doctorPayment',
+]);
+
+export function cashierSummarySectionShowsDetailRows(
+  format: 'summary' | 'detail',
+  sectionKey: string
+): boolean {
+  return format === 'detail' || CASHIER_SUMMARY_DETAIL_IN_SUMMARY_KEYS.has(sectionKey);
+}
+
 export function addCashierSummaryAmounts(
   a: CashierSummaryPaymentAmounts,
   b: CashierSummaryPaymentAmounts

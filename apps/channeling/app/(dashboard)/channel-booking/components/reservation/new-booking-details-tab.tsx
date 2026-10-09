@@ -127,6 +127,9 @@ const DEFAULT_MIXED_LINES: MixedLine[] = [
   { payment_method: 1, amount: "", bank_id: "", card: "", slip_ref: "", slip_date: "", ewallet_ref: "" },
 ]
 
+/** Temporary: hide Credit Customer (PAYMENT_METHODS id 6) on new channel only. */
+const NEW_CHANNEL_PAYMENT_METHODS = PAYMENT_METHODS.filter((method) => method.id !== 6)
+
 /**
  * New Booking Details tab: payment, discount, patient fields, remarks, Book Now.
  */
@@ -888,7 +891,7 @@ export function NewBookingDetailsTab() {
             </span>
           </SelectTrigger>
           <SelectContent>
-            {PAYMENT_METHODS.map((m) => {
+            {NEW_CHANNEL_PAYMENT_METHODS.map((m) => {
               const Icon = PAYMENT_ICON_MAP[m.icon]
               return (
                 <SelectItem key={m.id} value={String(m.id)} className="text-xs">
