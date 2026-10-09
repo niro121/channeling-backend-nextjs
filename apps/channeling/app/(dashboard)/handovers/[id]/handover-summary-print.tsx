@@ -254,6 +254,8 @@ export function HandoverSummaryPrint({
   const toLabel = personLabel(handover.toUser)
   const billNo = handover.handoverNoString || shortRef("HO", handover.id)
   const reconNo = reconciliation?.reconciliationNoString?.trim() || ""
+  /** Record slip after send-to-reconciliation: identity plus non-cash instruments only. */
+  const reconciliationSlip = Boolean(reconNo)
   const sentToLabel = reconNo ? personLabel(reconciliation?.sentTo) : ""
   const generatedBy = (session?.user?.name ?? "—").toUpperCase()
 
@@ -325,6 +327,8 @@ export function HandoverSummaryPrint({
     label: METHOD_PRINT_LABELS[key],
     cents: handover[key] ?? 0,
   }))
+  const nonCashMethodLines = methodLines.filter((line) => line.label !== METHOD_PRINT_LABELS.cashCents)
+  const nonCashDeclaredCents = nonCashMethodLines.reduce((sum, line) => sum + line.cents, 0)
 
   const breakdown = parseBreakdown(handover.enteredBreakdown)
   const denoms = (breakdown?.cashDenominations ?? []).filter((d) => d.count > 0)
@@ -469,7 +473,7 @@ export function HandoverSummaryPrint({
           </p>
         </div>
 
-        {cashInRows.length > 0 ? (
+        {!reconciliationSlip && cashInRows.length > 0 ? (
           <div className="mb-1.5">
             <p className="print-section-title text-center font-bold mb-0.5">CASH IN</p>
             <MiniGrid
@@ -490,7 +494,7 @@ export function HandoverSummaryPrint({
           </div>
         ) : null}
 
-        {cashOutRows.length > 0 ? (
+        {!reconciliationSlip && cashOutRows.length > 0 ? (
           <div className="mb-1.5">
             <p className="print-section-title text-center font-bold mb-0.5">CASH OUT</p>
             <MiniGrid
@@ -511,6 +515,7 @@ export function HandoverSummaryPrint({
           </div>
         ) : null}
 
+        {!reconciliationSlip ? (
         <div className="mb-1.5">
           <p className="print-section-title text-center font-bold mb-0.5">SUMMARY</p>
           <MiniGrid
@@ -535,7 +540,10 @@ export function HandoverSummaryPrint({
             ])}
           />
         </div>
+        ) : null}
 
+        {!reconciliationSlip ? (
+        <>
         <div className="ml-auto print-totals w-[14rem] max-w-full mb-1.5">
           {sentToReconciliationCents > 0 ? (
             <div className="flex justify-between gap-2">
@@ -577,8 +585,26 @@ export function HandoverSummaryPrint({
           </div>
           <div className="border-b-2 border-double border-black" />
         </div>
+        </>
+        ) : nonCashDeclaredCents > 0 ? (
+          <div className="print-totals w-[12rem] max-w-full mb-1.5 space-y-0">
+            {nonCashMethodLines.map((line) => (
+              <div key={line.label} className="flex justify-between gap-2">
+                <span>{line.label} =</span>
+                <span className="tabular-nums">{formatCents(line.cents)}</span>
+              </div>
+            ))}
+            <div className="flex justify-between gap-2 font-bold border-t border-black pt-0.5">
+              <span>NON-CASH TOTAL</span>
+              <span className="tabular-nums">{formatCents(nonCashDeclaredCents)}</span>
+            </div>
+            <div className="border-b-2 border-double border-black" />
+          </div>
+        ) : nonCash.length === 0 ? (
+          <p className="mb-1.5">No card, slip, cheque, credit, or e-wallet on this handover.</p>
+        ) : null}
 
-        {denoms.length > 0 ? (
+        {!reconciliationSlip && denoms.length > 0 ? (
           <div className="mb-1.5">
             <p className="font-bold mb-0.5">NOTE</p>
             <div className="grid grid-cols-2 gap-x-4">
