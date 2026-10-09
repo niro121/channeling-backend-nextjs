@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import {
   CalendarClock,
   ClipboardCheck,
@@ -106,15 +107,13 @@ export default function InterviewRecordActions({
             variant="ghost"
             className="h-8 w-8 text-amber-600 hover:bg-amber-50 hover:text-amber-700"
             aria-label={`Evaluate ${record.candidateName}`}
-            onClick={() =>
-              toast({
-                title: 'Evaluation',
-                description:
-                  'Evaluation UI will be built next in this group.'
-              })
-            }
+            asChild
           >
-            {evaluateIcon}
+            <Link
+              href={`/evaluation?interviewId=${encodeURIComponent(record.id)}`}
+            >
+              {evaluateIcon}
+            </Link>
           </Button>
         ) : null}
       </div>

@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { parseISO } from 'date-fns';
 import { ArrowLeft, ArrowRight } from 'lucide-react';
-import { Button, useToast } from '@archmage/ui';
+import { Button } from '@archmage/ui';
 import { CommonManagerHeader } from '@/components/common/common-manager-header';
 import { buttonStyles } from '@/lib/utils/common-styles';
 import type {
@@ -38,7 +38,6 @@ function InterviewScheduleWorkspaceInner({
   page,
   initialFilters
 }: InterviewScheduleWorkspaceProps) {
-  const { toast } = useToast();
   const { formSheet, viewRecord, closeFormSheet, closeView } =
     useInterviewScheduleUi();
 
@@ -74,15 +73,12 @@ function InterviewScheduleWorkspaceInner({
         <Button
           type="button"
           className={`${buttonStyles.save} gap-1.5`}
-          onClick={() =>
-            toast({
-              title: 'Evaluation',
-              description: 'Evaluation UI will be built next in this group.'
-            })
-          }
+          asChild
         >
-          Evaluation
-          <ArrowRight className="h-4 w-4" />
+          <Link href="/evaluation">
+            Evaluation
+            <ArrowRight className="h-4 w-4" />
+          </Link>
         </Button>
       </div>
 

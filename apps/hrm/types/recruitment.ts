@@ -677,3 +677,155 @@ export function canEvaluateInterview(record: InterviewRecord): boolean {
     record.status === 'scheduled'
   );
 }
+
+// ─── Evaluation ──────────────────────────────────────────────────────────────
+
+/** Phase 0 static criteria — store as JSON / master later. */
+export const EVALUATION_CRITERIA = [
+  'technical_knowledge',
+  'communication',
+  'experience',
+  'problem_solving',
+  'leadership',
+  'teamwork',
+  'job_knowledge',
+  'overall_performance'
+] as const;
+
+export type EvaluationCriterionId = (typeof EVALUATION_CRITERIA)[number];
+
+export const EVALUATION_CRITERION_LABELS: Record<
+  EvaluationCriterionId,
+  string
+> = {
+  technical_knowledge: 'Technical Knowledge',
+  communication: 'Communication',
+  experience: 'Experience',
+  problem_solving: 'Problem Solving',
+  leadership: 'Leadership',
+  teamwork: 'Teamwork',
+  job_knowledge: 'Job Knowledge',
+  overall_performance: 'Overall Performance'
+};
+
+export const EVALUATION_RATINGS = [
+  'excellent',
+  'good',
+  'average',
+  'poor'
+] as const;
+
+export type EvaluationRating = (typeof EVALUATION_RATINGS)[number];
+
+export const EVALUATION_RATING_LABELS: Record<EvaluationRating, string> = {
+  excellent: 'Excellent',
+  good: 'Good',
+  average: 'Average',
+  poor: 'Poor'
+};
+
+/** Score contribution toward /100 (equal-weight average of rated criteria). */
+export const EVALUATION_RATING_SCORES: Record<EvaluationRating, number> = {
+  excellent: 100,
+  good: 75,
+  average: 50,
+  poor: 25
+};
+
+export const EVALUATION_DECISIONS = [
+  'recommended',
+  'recommended_with_conditions',
+  'hold',
+  'not_recommended'
+] as const;
+
+export type EvaluationDecision = (typeof EVALUATION_DECISIONS)[number];
+
+export const EVALUATION_DECISION_LABELS: Record<EvaluationDecision, string> = {
+  recommended: 'Recommended',
+  recommended_with_conditions: 'Recommended with Conditions',
+  hold: 'Hold',
+  not_recommended: 'Not Recommended'
+};
+
+export const EVALUATION_STATUSES = ['draft', 'submitted'] as const;
+
+export type EvaluationStatus = (typeof EVALUATION_STATUSES)[number];
+
+export const EVALUATION_STATUS_LABELS: Record<EvaluationStatus, string> = {
+  draft: 'Draft',
+  submitted: 'Submitted'
+};
+
+export type EvaluationRatingsMap = Partial<
+  Record<EvaluationCriterionId, EvaluationRating>
+>;
+
+export type EvaluationPreviousEntry = {
+  id: string;
+  title: string;
+  score: number;
+  by: string;
+  at: string;
+};
+
+export type EvaluationRecord = {
+  id: string;
+  interviewId: string;
+  interviewCode: string;
+  candidateName: string;
+  jobTitle: string;
+  interviewDate: string;
+  interviewer: string;
+  interviewType: InterviewType;
+  interviewStage: string;
+  ratings: EvaluationRatingsMap;
+  strengths: string;
+  weaknesses: string;
+  interviewComments: string;
+  recommendation: EvaluationDecision | '';
+  finalDecision: EvaluationDecision | '';
+  overallScore: number;
+  status: EvaluationStatus;
+  previousEvaluations: EvaluationPreviousEntry[];
+  createdAt: string;
+  createdBy: string;
+  updatedAt: string;
+  updatedBy: string;
+};
+
+export type EvaluationFormValues = {
+  ratings: EvaluationRatingsMap;
+  strengths: string;
+  weaknesses: string;
+  interviewComments: string;
+  recommendation: string;
+  finalDecision: string;
+};
+
+export const EMPTY_EVALUATION_FORM: EvaluationFormValues = {
+  ratings: {},
+  strengths: '',
+  weaknesses: '',
+  interviewComments: '',
+  recommendation: '',
+  finalDecision: ''
+};
+
+export function computeEvaluationScore(
+  ratings: EvaluationRatingsMap
+): { score: number; ratedCount: number; totalCriteria: number } {
+  const totalCriteria = EVALUATION_CRITERIA.length;
+  let sum = 0;
+  let ratedCount = 0;
+  for (const id of EVALUATION_CRITERIA) {
+    const rating = ratings[id];
+    if (rating) {
+      sum += EVALUATION_RATING_SCORES[rating];
+      ratedCount += 1;
+    }
+  }
+  const score =
+    ratedCount === 0 ? 0 : Math.round(sum / ratedCount);
+  return { score, ratedCount, totalCriteria };
+}
