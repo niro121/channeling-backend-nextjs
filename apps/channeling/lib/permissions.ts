@@ -76,27 +76,50 @@ export function hasPermission(
   return resourcePermissions[action] === true
 }
 
+function normalizeRoute(route: string): string {
+  const path = route.split("?")[0].replace(/\/$/, "")
+  return path || "/"
+}
+
 /**
- * Check if user can access a route
- * Uses ROUTE_REQUIRED_ACTION when set (e.g. /bulk-cashier requires "edit"), otherwise "view"
+ * Longest mapped path for this URL.
+ * `/agencies/allowed-credit-limits` stays on its own rule, not the `/agencies` view rule.
+ * Child pages such as `/doctors/123/edit` inherit the parent route.
+ */
+export function resolveMappedRoute(route: string): string | null {
+  const path = normalizeRoute(route)
+  if (ROUTE_TO_RESOURCE[path]) return path
+
+  let best: string | null = null
+  for (const mappedRoute of Object.keys(ROUTE_TO_RESOURCE)) {
+    if (!path.startsWith(`${mappedRoute}/`)) continue
+    if (!best || mappedRoute.length > best.length) best = mappedRoute
+  }
+  return best
+}
+
+/**
+ * Check if user can access a route.
+ * Uses ROUTE_REQUIRED_ACTION when set (e.g. /bulk-cashier requires "bulk-cashier-dashboard"), otherwise "view".
+ * Unmapped routes (welcome, profile) stay open. Mapped routes, including child pages, require the mapped permission.
  */
 export function canAccessRoute(
   permissions: Permissions | null | undefined,
   route: string
 ): boolean {
-  if (route === "/reports" || route.startsWith("/reports/")) {
-    return canAccessReportPath(permissions, route)
+  const path = normalizeRoute(route)
+  if (path === "/reports" || path.startsWith("/reports/")) {
+    return canAccessReportPath(permissions, path)
   }
 
-  // Find the resource for this route
-  const resource = ROUTE_TO_RESOURCE[route]
-  if (!resource) {
-    // If route is not mapped, allow access (for routes like /welcome, /profile, etc.)
+  const mappedRoute = resolveMappedRoute(path)
+  if (!mappedRoute) {
     return true
   }
 
-  const action = ROUTE_REQUIRED_ACTION[route] ?? "view"
-  if (route === "/approvals") {
+  const resource = ROUTE_TO_RESOURCE[mappedRoute]
+  const action = ROUTE_REQUIRED_ACTION[mappedRoute] ?? "view"
+  if (mappedRoute === "/approvals") {
     return (
       hasPermission(permissions, resource, "view") ||
       hasPermission(permissions, resource, "approve-channel-cancel") ||
@@ -113,19 +136,8 @@ export function canAccessRoute(
  * Get the resource from a route path
  */
 export function getResourceFromRoute(route: string): string | null {
-  // Check exact matches first
-  if (ROUTE_TO_RESOURCE[route]) {
-    return ROUTE_TO_RESOURCE[route]
-  }
-
-  // Check if route starts with any mapped route
-  for (const [mappedRoute, resource] of Object.entries(ROUTE_TO_RESOURCE)) {
-    if (route.startsWith(mappedRoute)) {
-      return resource
-    }
-  }
-
-  return null
+  const mappedRoute = resolveMappedRoute(route)
+  return mappedRoute ? ROUTE_TO_RESOURCE[mappedRoute] : null
 }
 
 /**

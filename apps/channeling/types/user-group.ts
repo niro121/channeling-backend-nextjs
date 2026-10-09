@@ -58,6 +58,7 @@ export const RESOURCES: ResourceWithOptionalActions[] = [
   { id: "doctor-sessions", name: "Doctor Sessions" },
   { id: "departments", name: "Departments" },
   { id: "patients", name: "Patients" },
+  { id: "staff", name: "Staff" },
   { id: "tags", name: "Tags" },
   { id: "zones", name: "Zones" },
   { id: "rooms", name: "Rooms" },
@@ -80,6 +81,7 @@ export const RESOURCES: ResourceWithOptionalActions[] = [
   { id: "discounts", name: "Discounts" },
   { id: "doctor-leaves", name: "Doctor Leave" },
   { id: "sms-playground", name: "SMS Playground" },
+  { id: "sms-templates", name: "SMS Templates" },
   {
     id: "reports",
     name: "Reports",
