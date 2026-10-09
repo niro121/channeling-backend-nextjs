@@ -40,6 +40,10 @@ interface Pending2FA {
   secret?: string;
 }
 
+/** Touch-sized fields and a pill button, like the installed send12 app. */
+const FIELD = 'h-12 rounded-xl bg-white/80 text-base';
+const SUBMIT = 'h-14 w-full rounded-full text-base font-semibold shadow-lg shadow-primary/20';
+
 const METHOD_ICONS: Record<string, React.ReactNode> = {
   '1': <Smartphone className="h-5 w-5" />,
   '2': <MessageSquare className="h-5 w-5" />,
@@ -154,17 +158,14 @@ const LoginForm = () => {
           router.replace('/dashboard');
         }}
       />
-      <div className="lg:hidden mb-6 text-center">
-        <span className="text-xl font-semibold text-foreground">{process.env.NEXT_PUBLIC_BRAND_NAME || 'Ruhunu'} Management</span>
-      </div>
-      <Card className="w-full border-0 shadow-none bg-transparent p-0">
+      <Card className="flex w-full flex-1 flex-col border-0 bg-transparent p-0 shadow-none">
         <CardHeader className="space-y-1 px-0 pt-0">
-          <CardTitle className="text-2xl">
+          <CardTitle className="text-[1.875rem] font-medium leading-tight tracking-tight">
             {pending2FA
               ? pending2FA.selectedMethod
                 ? pending2FA.needsSetup ? 'Set up authenticator app' : 'Enter verification code'
                 : 'Choose verification method'
-              : 'Login'}
+              : 'Welcome back'}
           </CardTitle>
           <CardDescription>
             {pending2FA?.selectedMethod
@@ -173,26 +174,26 @@ const LoginForm = () => {
                 : (pending2FA.message ?? 'Enter the code you received below.')
               : pending2FA
                 ? 'Select how you want to receive your verification code.'
-                : 'Enter your credentials to sign in'}
+                : 'Sign in with your Archmage account'}
           </CardDescription>
         </CardHeader>
 
         <Formik initialValues={initialValues} onSubmit={handleSubmit} enableReinitialize>
           {(formik) => (
-            <Form method="post" action="/login" className="w-full">
-              <CardContent className="space-y-4 px-0 pb-0">
+            <Form method="post" action="/login" className="flex w-full flex-1 flex-col">
+              <CardContent className="space-y-4 px-0 pb-0 pt-4">
                 {!pending2FA ? (
                   <>
                     <div className="space-y-2">
                       <Label htmlFor="email">Email or username</Label>
-                      <Input id="email" name="email" type="text" autoComplete="username" placeholder="Email or username" value={formik.values.email} onChange={formik.handleChange} onBlur={formik.handleBlur} className="h-10" />
+                      <Input id="email" name="email" type="text" autoComplete="username" autoCapitalize="none" autoCorrect="off" spellCheck={false} enterKeyHint="next" placeholder="Email or username" value={formik.values.email} onChange={formik.handleChange} onBlur={formik.handleBlur} className={FIELD} />
                       <ErrorMessage name="email" component="div" className="text-sm text-destructive" />
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="password">Password</Label>
                       <div className="relative">
-                        <Input id="password" name="password" type={showPassword ? 'text' : 'password'} autoComplete="current-password" placeholder="••••••••" value={formik.values.password} onChange={formik.handleChange} onBlur={formik.handleBlur} className="h-10 pr-10" />
-                        <button type="button" tabIndex={-1} onClick={() => setShowPassword((p) => !p)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground focus:outline-none">
+                        <Input id="password" name="password" type={showPassword ? 'text' : 'password'} autoComplete="current-password" enterKeyHint="go" placeholder="••••••••" value={formik.values.password} onChange={formik.handleChange} onBlur={formik.handleBlur} className={`${FIELD} pr-12`} />
+                        <button type="button" tabIndex={-1} onClick={() => setShowPassword((p) => !p)} className="absolute right-1 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center text-muted-foreground hover:text-foreground focus:outline-none" aria-label={showPassword ? 'Hide password' : 'Show password'}>
                           {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                         </button>
                       </div>
@@ -221,7 +222,7 @@ const LoginForm = () => {
                     )}
                     <div className="space-y-2">
                       <Label htmlFor="twoFactorCode">Verification code</Label>
-                      <Input id="twoFactorCode" name="twoFactorCode" type="text" inputMode="numeric" autoComplete="one-time-code" placeholder="000000" maxLength={6} value={formik.values.twoFactorCode} onChange={formik.handleChange} onBlur={formik.handleBlur} className="h-10 font-mono text-lg tracking-widest" />
+                      <Input id="twoFactorCode" name="twoFactorCode" type="text" inputMode="numeric" autoComplete="one-time-code" placeholder="000000" maxLength={6} value={formik.values.twoFactorCode} onChange={formik.handleChange} onBlur={formik.handleBlur} className={`${FIELD} font-mono text-lg tracking-widest`} />
                       <ErrorMessage name="invalidCredentials" component="div" className="text-sm text-destructive" />
                     </div>
                   </div>
@@ -230,7 +231,7 @@ const LoginForm = () => {
                     <p className="text-sm text-muted-foreground">Select one of the options below to receive your code.</p>
                     <div className="grid gap-2">
                       {allowedMethodOptions.map((method) => (
-                        <Button key={method.id} type="button" variant="outline" className="h-auto justify-start gap-3 py-3 px-4 text-left" onClick={() => handleSelectMethod(method.id, () => { formik.setFieldValue('twoFactorCode', ''); formik.setFieldError('invalidCredentials', undefined); })} disabled={requestingCode}>
+                        <Button key={method.id} type="button" variant="outline" className="h-auto justify-start gap-3 rounded-xl bg-white/80 py-3.5 px-4 text-left" onClick={() => handleSelectMethod(method.id, () => { formik.setFieldValue('twoFactorCode', ''); formik.setFieldError('invalidCredentials', undefined); })} disabled={requestingCode}>
                           <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border bg-muted">
                             {METHOD_ICONS[method.id] ?? <Smartphone className="h-5 w-5" />}
                           </span>
@@ -243,19 +244,19 @@ const LoginForm = () => {
                 )}
               </CardContent>
 
-              <CardFooter className="flex flex-col gap-4 px-0 pb-0 pt-6">
+              <CardFooter className="mt-auto flex flex-col gap-3 px-0 pb-0 pt-8 lg:mt-0">
                 {pending2FA && (
-                  <Button type="button" variant="ghost" className="w-full" onClick={() => handleBackFrom2FA(() => { formik.setFieldValue('twoFactorCode', ''); formik.setFieldError('invalidCredentials', undefined); })} disabled={formik.isSubmitting || requestingCode || isRedirecting}>
+                  <Button type="button" variant="ghost" className="h-12 w-full rounded-full" onClick={() => handleBackFrom2FA(() => { formik.setFieldValue('twoFactorCode', ''); formik.setFieldError('invalidCredentials', undefined); })} disabled={formik.isSubmitting || requestingCode || isRedirecting}>
                     {pending2FA.selectedMethod ? 'Choose another method' : 'Back to login'}
                   </Button>
                 )}
                 {pending2FA?.selectedMethod && (
-                  <Button className="w-full" type="submit" disabled={formik.isSubmitting || isRedirecting || !formik.values.twoFactorCode.trim()}>
+                  <Button className={SUBMIT} type="submit" disabled={formik.isSubmitting || isRedirecting || !formik.values.twoFactorCode.trim()}>
                     {formik.isSubmitting || isRedirecting ? 'Signing in…' : 'Verify and sign in'}
                   </Button>
                 )}
                 {!pending2FA && (
-                  <Button className="w-full" type="submit" disabled={formik.isSubmitting || isRedirecting}>
+                  <Button className={SUBMIT} type="submit" disabled={formik.isSubmitting || isRedirecting}>
                     {formik.isSubmitting || isRedirecting ? 'Signing in…' : 'Sign in'}
                   </Button>
                 )}
