@@ -18,10 +18,12 @@ import {
   type ReceiptPlaceholderMap,
   type ReceiptTemplateRecord,
 } from "@/types/receipt-template-db"
+import { APPROVAL_REQUEST_TYPE } from "@/types/approval-request"
 import {
   PAYMENT_METHOD_NAMES,
   RECEIPT_METHOD,
   RECEIPT_METHOD_NAMES,
+  RECEIPT_PAYMENT_METHOD,
 } from "@/types/receipt"
 
 const LEDGER_METHODS: number[] = [
@@ -73,17 +75,37 @@ function transactionNoFromSlipDate(slipDate: string | null): string {
 }
 
 function paymentDetailsText(opts: {
+  paymentMethod: number
   bank: string
   slipDate: string | null
   cardReference: string
   slipReference: string
 }): string {
   const bank = opts.bank.trim()
-  if (bank && opts.slipDate) return `${bank} ( ${opts.slipDate} )`
-  if (bank) return bank
-  if (opts.cardReference.trim()) return opts.cardReference.trim()
-  if (opts.slipReference.trim()) return opts.slipReference.trim()
-  return ""
+  const date = opts.slipDate?.trim() ?? ""
+  const cardReference = opts.cardReference.trim()
+  const slipReference = opts.slipReference.trim()
+
+  const parts: string[] = []
+  if (bank) parts.push(bank)
+  if (date && opts.paymentMethod === RECEIPT_PAYMENT_METHOD.CHECK) {
+    parts.push(`cheque dated ${date}`)
+  } else if (date && opts.paymentMethod === RECEIPT_PAYMENT_METHOD.SLIP) {
+    parts.push(`slip date ${date}`)
+  } else if (date) {
+    parts.push(date)
+  }
+
+  const reference =
+    opts.paymentMethod === RECEIPT_PAYMENT_METHOD.CREDIT_CARD ||
+    opts.paymentMethod === RECEIPT_PAYMENT_METHOD.E_WALLET
+      ? cardReference
+      : slipReference || cardReference
+
+  const detail = parts.join(" ")
+  if (reference && detail) return `${detail} (${reference})`
+  if (reference) return `(${reference})`
+  return detail
 }
 
 function agencyContact(agency: {
@@ -110,6 +132,34 @@ async function resolveGeneratedBy(userId: string | null | undefined): Promise<st
   })
   if (!user) return ""
   return formatUserDisplayName(user.name, userId, user.staff?.code)
+}
+
+/** Who approved a bank deposit, and when. Empty when the receipt has no approval. */
+async function resolveBankDepositApproval(
+  receiptId: string
+): Promise<{ approvedBy: string; approvedAt: string }> {
+  const approval = await prisma.approvalRequest.findFirst({
+    where: {
+      receiptId,
+      type: APPROVAL_REQUEST_TYPE.BANK_DEPOSIT,
+      approvedById: { not: null },
+    },
+    orderBy: { approvedAt: "desc" },
+    select: {
+      approvedAt: true,
+      approvedBy: {
+        select: { id: true, name: true, staff: { select: { code: true } } },
+      },
+    },
+  })
+  const approver = approval?.approvedBy
+  if (!approver) return { approvedBy: "", approvedAt: "" }
+  return {
+    approvedBy: formatUserDisplayName(approver.name, approver.id, approver.staff?.code),
+    approvedAt: approval.approvedAt
+      ? format(new Date(approval.approvedAt), "yyyy-MM-dd hh:mm a")
+      : "",
+  }
 }
 
 export type PrintLedgerReceiptData = {
@@ -194,6 +244,7 @@ export async function printLedgerReceiptService(
       return {
         mode: paymentModeLabel(line.paymentMethod),
         paymentDetails: paymentDetailsText({
+          paymentMethod: line.paymentMethod,
           bank: line.bank ?? "",
           slipDate: lineSlipDate,
           cardReference: line.cardReference ?? "",
@@ -205,6 +256,10 @@ export async function printLedgerReceiptService(
     })
 
     const generatedBy = await resolveGeneratedBy(receipt.createdBy)
+    const approval =
+      receipt.method === RECEIPT_METHOD.BANK_DEPOSIT
+        ? await resolveBankDepositApproval(receipt.id)
+        : { approvedBy: "", approvedAt: "" }
     const statusParts: string[] = []
     if (receipt.canceledAt) statusParts.push("CANCELED")
     // Any print after the first is a duplicate, including from the ledger table.
@@ -228,6 +283,8 @@ export async function printLedgerReceiptService(
       totalAmount: formatLKR(Number(receipt.amount) || 0),
       remarks: receipt.remarks ?? "",
       generatedBy,
+      approvedBy: approval.approvedBy,
+      approvedAt: approval.approvedAt,
       statusBanner: statusParts.join(" "),
       duplicateLabel: isDuplicate ? "DUPLICATE" : "",
     }

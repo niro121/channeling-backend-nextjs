@@ -1,12 +1,12 @@
 'use server';
 
 import moment from 'moment';
-import { requirePermission } from '@/lib/server-permissions';
+import { requireReport } from '@/lib/server-permissions';
 import { getWithholdingTaxReportService } from '@/services/reports/withholding-tax.report.service';
 import type { WithholdingTaxReportExportRow, WithholdingTaxReportQuery } from '@/types/report';
 
 export async function getWithholdingTaxReportData(query: WithholdingTaxReportQuery) {
-  await requirePermission('reports', 'view');
+  await requireReport('withholding-tax');
   try {
     return await getWithholdingTaxReportService(query);
   } catch (error: unknown) {
@@ -18,7 +18,7 @@ export async function getWithholdingTaxReportData(query: WithholdingTaxReportQue
 export async function exportWithholdingTaxReportData(
   query: WithholdingTaxReportQuery
 ): Promise<{ success: boolean; data?: WithholdingTaxReportExportRow[]; message?: string }> {
-  await requirePermission('reports', 'view');
+  await requireReport('withholding-tax');
   try {
     const result = await getWithholdingTaxReportService(query);
     if (!result.success || !result.data.length) {

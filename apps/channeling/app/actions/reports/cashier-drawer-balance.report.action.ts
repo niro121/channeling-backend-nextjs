@@ -2,7 +2,7 @@
 
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { requirePermission } from '@/lib/server-permissions';
+import { requireReport } from '@/lib/server-permissions';
 import { logActivityNonBlocking } from '@/lib/activity-log';
 import moment from 'moment';
 import { formatCents } from '@/lib/format-money';
@@ -14,7 +14,7 @@ import type {
 } from '@/types/reports/cashier-drawer-balance';
 
 export async function getCashierDrawerBalanceReportData(query: CashierDrawerBalanceReportQuery) {
-  await requirePermission('reports', 'view');
+  await requireReport('cashier-drawer-balance');
   try {
     return await getCashierDrawerBalanceReportService(query);
   } catch (error: unknown) {
@@ -26,7 +26,7 @@ export async function getCashierDrawerBalanceReportData(query: CashierDrawerBala
 export async function exportCashierDrawerBalanceReportData(
   query: CashierDrawerBalanceReportQuery
 ): Promise<{ success: boolean; data?: CashierDrawerBalanceReportExportRow[]; message?: string }> {
-  await requirePermission('reports', 'view');
+  await requireReport('cashier-drawer-balance');
   try {
     const result = await getCashierDrawerBalanceReportService(query);
     if (!result.success || !result.data?.length) {

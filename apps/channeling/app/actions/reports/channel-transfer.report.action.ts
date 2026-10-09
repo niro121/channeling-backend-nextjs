@@ -2,7 +2,7 @@
 
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { requirePermission } from '@/lib/server-permissions';
+import { requireReport } from '@/lib/server-permissions';
 import { logActivityNonBlocking } from '@/lib/activity-log';
 import moment from 'moment';
 import { getChannelTransferReportService } from '@/services/reports/channel-transfer.report.service';
@@ -12,7 +12,7 @@ import type {
 } from '@/types/reports/channel-transfer';
 
 export async function getChannelTransferReportData(query: ChannelTransferReportQuery) {
-  await requirePermission('reports', 'view');
+  await requireReport('channel-transfer');
   try {
     return await getChannelTransferReportService(query);
   } catch (error: unknown) {
@@ -24,7 +24,7 @@ export async function getChannelTransferReportData(query: ChannelTransferReportQ
 export async function exportChannelTransferReportData(
   query: ChannelTransferReportQuery
 ): Promise<{ success: boolean; data?: ChannelTransferReportExportRow[]; message?: string }> {
-  await requirePermission('reports', 'view');
+  await requireReport('channel-transfer');
   try {
     const result = await getChannelTransferReportService(query);
     if (!result.success || !result.data?.length) {

@@ -3,7 +3,7 @@
 import { getServerSession } from 'next-auth';
 import moment from 'moment';
 import { authOptions } from '@/lib/auth';
-import { requirePermission } from '@/lib/server-permissions';
+import { requireReport } from '@/lib/server-permissions';
 import { logActivityNonBlocking } from '@/lib/activity-log';
 import {
   ChannelScheduleWithChargesReportExportRow,
@@ -51,7 +51,7 @@ function getFeeById(
 export async function getChannelScheduleWithChargesReportData(
   query: ChannelScheduleWithChargesReportQuery
 ) {
-  await requirePermission('reports', 'view');
+  await requireReport('channel-schedule-with-charges');
   try {
     const result = await getChannelScheduleWithChargesReportService(query);
     return {
@@ -81,7 +81,7 @@ export async function exportChannelScheduleWithChargesReportData(
   data?: ChannelScheduleWithChargesReportExportRow[];
   message?: string;
 }> {
-  await requirePermission('reports', 'view');
+  await requireReport('channel-schedule-with-charges');
   try {
     const result = await getChannelScheduleWithChargesReportService(query);
     if (!result.success || !result.data?.length) {

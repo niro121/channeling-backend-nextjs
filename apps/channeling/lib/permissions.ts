@@ -1,5 +1,6 @@
 import { Permissions } from "@/types/user-group"
 import { canAddLedgerTransactionType } from "@/lib/ledger-type-permissions"
+import { canAccessReportPath } from "@/lib/report-privileges"
 
 // Map routes to resources
 export const ROUTE_TO_RESOURCE: Record<string, string> = {
@@ -83,6 +84,10 @@ export function canAccessRoute(
   permissions: Permissions | null | undefined,
   route: string
 ): boolean {
+  if (route === "/reports" || route.startsWith("/reports/")) {
+    return canAccessReportPath(permissions, route)
+  }
+
   // Find the resource for this route
   const resource = ROUTE_TO_RESOURCE[route]
   if (!resource) {

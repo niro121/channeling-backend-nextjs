@@ -9,7 +9,7 @@ import ChannelDiscountReportContent from './channel-discount-report-content';
 export const dynamic = 'force-dynamic';
 
 export default async function ChannelDiscountReportPage() {
-  const canView = await checkRouteAccess('/reports');
+  const canView = await checkRouteAccess('/reports/channel-discount');
   if (!canView) redirect('/unauthorized-access');
 
   const [session, ref, discountRows] = await Promise.all([

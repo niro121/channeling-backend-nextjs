@@ -3,7 +3,7 @@
 import moment from 'moment';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { requirePermission } from '@/lib/server-permissions';
+import { requireReport } from '@/lib/server-permissions';
 import { logActivityNonBlocking } from '@/lib/activity-log';
 import { formatCents } from '@/lib/format-money';
 import type {
@@ -14,7 +14,7 @@ import type {
 import { getCashBookReportService } from '@/services/reports/cash-book.report.service';
 
 export async function getCashBookReportData(query: CashBookReportQuery): Promise<CashBookReportResponse> {
-  await requirePermission('reports', 'view');
+  await requireReport('cash-book');
   try {
     return await getCashBookReportService(query);
   } catch (error: unknown) {
@@ -35,7 +35,7 @@ export async function getCashBookReportData(query: CashBookReportQuery): Promise
 export async function exportCashBookReportData(
   query: CashBookReportQuery
 ): Promise<{ success: boolean; data?: CashBookReportExportRow[]; message?: string }> {
-  await requirePermission('reports', 'view');
+  await requireReport('cash-book');
   try {
     const result = await getCashBookReportService(query);
     if (!result.success) {

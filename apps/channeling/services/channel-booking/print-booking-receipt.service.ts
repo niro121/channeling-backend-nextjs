@@ -37,6 +37,15 @@ function invoiceStatus(status: number): string {
   return "Unknown"
 }
 
+/** Suffix stored on save: ` - Ref Bill No. : ${paidReceipt.receiptNoString}`. Refund slip prints the typed remark only. */
+const STORED_REF_BILL_SUFFIX = " - Ref Bill No. : "
+
+function refundRemarkForPrint(storedReason: string): string {
+  const idx = storedReason.lastIndexOf(STORED_REF_BILL_SUFFIX)
+  if (idx === -1) return storedReason
+  return storedReason.slice(0, idx).trim()
+}
+
 /** booking.refund: 1 professional fee, 2 hospital fee, 3 full cancel. */
 function refundTypeLabel(refund: number): string {
   if (refund === 1) return "Professional Fee"
@@ -333,7 +342,7 @@ export async function printBookingReceiptService(
             refund_type: refundTypeLabel(details.refund ?? 0),
             refund_by: refundBy,
             authorized_by: authorizedBy,
-            refund_reason: receipt.remarks?.trim() || refundReason,
+            refund_reason: refundRemarkForPrint(receipt.remarks?.trim() || refundReason),
             generated_by: printedBy,
             generated_at: format(new Date(), "dd/MM/yyyy HH.mm"),
           },

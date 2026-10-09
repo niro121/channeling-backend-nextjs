@@ -223,6 +223,7 @@ export function HandoverSummaryPrint({
   includedHandovers,
   cashierSummary,
   tillBreakdown,
+  reconciliation,
 }: {
   handover: SummaryHandover
   receivedFloats: ReceivedFloat[]
@@ -232,6 +233,12 @@ export function HandoverSummaryPrint({
     includedShifts?: CashierSummaryIncludedShift[]
   } | null
   tillBreakdown?: TillBreakdown
+  /** Present after the handover has been sent to reconciliation. Printed on the record slip. */
+  reconciliation?: {
+    reconciliationNoString: string
+    sentAt?: Date | string | null
+    sentTo?: StaffUser
+  } | null
 }) {
   const { data: session } = useSession()
   const [generatedAt, setGeneratedAt] = useState(() => formatPrintDateTime(new Date()))
@@ -246,6 +253,10 @@ export function HandoverSummaryPrint({
   const fromLabel = personLabel(handover.fromUser)
   const toLabel = personLabel(handover.toUser)
   const billNo = handover.handoverNoString || shortRef("HO", handover.id)
+  const reconNo = reconciliation?.reconciliationNoString?.trim() || ""
+  /** Record slip after send-to-reconciliation: identity plus non-cash instruments only. */
+  const reconciliationSlip = Boolean(reconNo)
+  const sentToLabel = reconNo ? personLabel(reconciliation?.sentTo) : ""
   const generatedBy = (session?.user?.name ?? "—").toUpperCase()
 
   const totalCents =
@@ -316,6 +327,8 @@ export function HandoverSummaryPrint({
     label: METHOD_PRINT_LABELS[key],
     cents: handover[key] ?? 0,
   }))
+  const nonCashMethodLines = methodLines.filter((line) => line.label !== METHOD_PRINT_LABELS.cashCents)
+  const nonCashDeclaredCents = nonCashMethodLines.reduce((sum, line) => sum + line.cents, 0)
 
   const breakdown = parseBreakdown(handover.enteredBreakdown)
   const denoms = (breakdown?.cashDenominations ?? []).filter((d) => d.count > 0)
@@ -419,28 +432,48 @@ export function HandoverSummaryPrint({
       `}</style>
       <div className="handover-summary-print text-black bg-white font-mono text-[11px] leading-snug">
         <p className="print-title text-center font-bold tracking-wide text-[14px] mb-1">HAND OVER REPORT</p>
-        <p className="print-status text-center font-bold tracking-wide text-[17px] mb-1.5">
+        <p className={`print-status text-center font-bold tracking-wide text-[17px] ${reconNo ? "mb-0.5" : "mb-1.5"}`}>
           {reportStatus.toUpperCase()}
         </p>
+        {reconNo ? (
+          <p className="print-status text-center font-bold tracking-wide text-[15px] mb-1.5">
+            SENT TO RECONCILIATION
+          </p>
+        ) : null}
         <div className="mb-1.5 space-y-0">
           <p>
-            <span className="inline-block w-[4.6rem]">BILL NO</span>: {billNo}
+            <span className="inline-block w-[5.4rem]">BILL NO</span>: {billNo}
+          </p>
+          {reconNo ? (
+            <p>
+              <span className="inline-block w-[5.4rem]">RECON NO</span>: {reconNo}
+            </p>
+          ) : null}
+          <p>
+            <span className="inline-block w-[5.4rem]">BILL AT</span>: {formatPrintDateTime(handover.createdAt)}
           </p>
           <p>
-            <span className="inline-block w-[4.6rem]">BILL AT</span>: {formatPrintDateTime(handover.createdAt)}
+            <span className="inline-block w-[5.4rem]">FROM</span>: {fromLabel}
           </p>
           <p>
-            <span className="inline-block w-[4.6rem]">FROM</span>: {fromLabel}
+            <span className="inline-block w-[5.4rem]">TO</span>: {toLabel}
           </p>
+          {reconNo ? (
+            <>
+              <p>
+                <span className="inline-block w-[5.4rem]">SENT TO</span>: {sentToLabel}
+              </p>
+              <p>
+                <span className="inline-block w-[5.4rem]">SENT AT</span>: {formatPrintDateTime(reconciliation?.sentAt)}
+              </p>
+            </>
+          ) : null}
           <p>
-            <span className="inline-block w-[4.6rem]">TO</span>: {toLabel}
-          </p>
-          <p>
-            <span className="inline-block w-[4.6rem]">GENERATED</span>: {generatedAt} ({generatedBy})
+            <span className="inline-block w-[5.4rem]">GENERATED</span>: {generatedAt} ({generatedBy})
           </p>
         </div>
 
-        {cashInRows.length > 0 ? (
+        {!reconciliationSlip && cashInRows.length > 0 ? (
           <div className="mb-1.5">
             <p className="print-section-title text-center font-bold mb-0.5">CASH IN</p>
             <MiniGrid
@@ -461,7 +494,7 @@ export function HandoverSummaryPrint({
           </div>
         ) : null}
 
-        {cashOutRows.length > 0 ? (
+        {!reconciliationSlip && cashOutRows.length > 0 ? (
           <div className="mb-1.5">
             <p className="print-section-title text-center font-bold mb-0.5">CASH OUT</p>
             <MiniGrid
@@ -482,6 +515,7 @@ export function HandoverSummaryPrint({
           </div>
         ) : null}
 
+        {!reconciliationSlip ? (
         <div className="mb-1.5">
           <p className="print-section-title text-center font-bold mb-0.5">SUMMARY</p>
           <MiniGrid
@@ -506,7 +540,10 @@ export function HandoverSummaryPrint({
             ])}
           />
         </div>
+        ) : null}
 
+        {!reconciliationSlip ? (
+        <>
         <div className="ml-auto print-totals w-[14rem] max-w-full mb-1.5">
           {sentToReconciliationCents > 0 ? (
             <div className="flex justify-between gap-2">
@@ -548,8 +585,26 @@ export function HandoverSummaryPrint({
           </div>
           <div className="border-b-2 border-double border-black" />
         </div>
+        </>
+        ) : nonCashDeclaredCents > 0 ? (
+          <div className="print-totals w-[12rem] max-w-full mb-1.5 space-y-0">
+            {nonCashMethodLines.map((line) => (
+              <div key={line.label} className="flex justify-between gap-2">
+                <span>{line.label} =</span>
+                <span className="tabular-nums">{formatCents(line.cents)}</span>
+              </div>
+            ))}
+            <div className="flex justify-between gap-2 font-bold border-t border-black pt-0.5">
+              <span>NON-CASH TOTAL</span>
+              <span className="tabular-nums">{formatCents(nonCashDeclaredCents)}</span>
+            </div>
+            <div className="border-b-2 border-double border-black" />
+          </div>
+        ) : nonCash.length === 0 ? (
+          <p className="mb-1.5">No card, slip, cheque, credit, or e-wallet on this handover.</p>
+        ) : null}
 
-        {denoms.length > 0 ? (
+        {!reconciliationSlip && denoms.length > 0 ? (
           <div className="mb-1.5">
             <p className="font-bold mb-0.5">NOTE</p>
             <div className="grid grid-cols-2 gap-x-4">

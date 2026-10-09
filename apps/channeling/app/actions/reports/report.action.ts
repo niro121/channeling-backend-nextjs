@@ -12,7 +12,7 @@ import {
   ExportDoctorData,
   ExportChannelAgentReferenceBookData
 } from '@/types/report';
-import { requirePermission } from '@/lib/server-permissions';
+import { requireReport } from '@/lib/server-permissions';
 import { Doctor } from '@/types/doctor';
 import { AgencyBook } from '@/types/agencybook';
 import moment from 'moment';
@@ -121,7 +121,7 @@ export const exportDoctorReportData = async (
 export const getChannelAgentReferenceBookReportData = async (
   query: ChannelAgentReferenceBookReportQuery
 ): Promise<ChannelAgentReferenceBookReportResponse> => {
-  await requirePermission('reports', 'view');
+  await requireReport('channel-agent-reference-book');
   try {
     const result = await getChannelAgentReferenceBookReportDataService(query);
     
@@ -160,7 +160,7 @@ export const getChannelAgentReferenceBookReportData = async (
 export const exportChannelAgentReferenceBookReportData = async (
   query: ChannelAgentReferenceBookReportQuery
 ): Promise<{ success: boolean; data?: ExportChannelAgentReferenceBookData[]; message?: string }> => {
-  await requirePermission('reports', 'view');
+  await requireReport('channel-agent-reference-book');
   try {
     const result = await getChannelAgentReferenceBookReportDataService(query);
 

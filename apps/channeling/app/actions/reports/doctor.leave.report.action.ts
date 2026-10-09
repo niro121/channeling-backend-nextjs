@@ -3,13 +3,13 @@
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { getDoctorLeaveReportService } from '@/services/reports/doctor.leave.report.service';
-import { requirePermission } from '@/lib/server-permissions';
+import { requireReport } from '@/lib/server-permissions';
 import { logActivityNonBlocking } from '@/lib/activity-log';
 import moment from 'moment';
 import {DoctorLeaveReportQuery, DoctorLeaveReportExportRow} from '@/types/reports/doctor.leave'
 
 export async function getDoctorLeaveReportData(query: DoctorLeaveReportQuery) {
-  await requirePermission('reports', 'view');
+  await requireReport('doctor-leave');
   try {
     const result = await getDoctorLeaveReportService(query);
     return {
@@ -32,7 +32,7 @@ export async function getDoctorLeaveReportData(query: DoctorLeaveReportQuery) {
 export async function exportDoctorLeaveReportData(
   query: DoctorLeaveReportQuery
 ): Promise<{ success: boolean; data?: DoctorLeaveReportExportRow[]; message?: string }> {
-  await requirePermission('reports', 'view');
+  await requireReport('doctor-leave');
   try {
     const result = await getDoctorLeaveReportService(query);
     if (!result.success || !result.data?.length) {

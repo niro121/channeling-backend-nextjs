@@ -43,6 +43,29 @@ export async function allocateHandoverDocumentNumber(
   }
 }
 
+/**
+ * Location-based reconciliation sequence, issued when a handover is sent to reconciliation.
+ * Same branch shortcode as cash-in documents, with a REC prefix so the slip can be filed separately.
+ */
+export async function allocateReconciliationDocumentNumber(
+  locationId: string | null | undefined
+): Promise<{ reconciliationNo: number; reconciliationNoString: string } | null> {
+  let scopeKey = "recon:global"
+  let shortcode = ""
+  if (locationId) {
+    const location = await prisma.location.findUnique({
+      where: { id: locationId },
+      select: { code: true },
+    })
+    shortcode = location?.code ?? "LOC"
+    scopeKey = `${locationId}-recon`
+  }
+  const seq = await getNextSequenceNumber(scopeKey, { startFrom: 1 })
+  if (!seq.success) return null
+  const reconciliationNoString = shortcode ? `${shortcode}REC/${pad(seq.value, 5)}` : `REC/${pad(seq.value, 5)}`
+  return { reconciliationNo: seq.value, reconciliationNoString }
+}
+
 /** Assign a document number if this handover was created before the sequence existed. */
 export async function ensureHandoverDocumentNumber(
   handoverId: string,
