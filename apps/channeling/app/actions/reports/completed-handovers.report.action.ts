@@ -3,7 +3,7 @@
 import moment from 'moment';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { requirePermission } from '@/lib/server-permissions';
+import { requireReport } from '@/lib/server-permissions';
 import { logActivityNonBlocking } from '@/lib/activity-log';
 import { formatCents } from '@/lib/format-money';
 import { getCompletedHandoversReportService } from '@/services/reports/completed-handovers.report.service';
@@ -23,7 +23,7 @@ function varianceCents(
 }
 
 export async function getCompletedHandoversReportData(query: CompletedHandoversReportQuery) {
-  await requirePermission('reports', 'view');
+  await requireReport('completed-handovers');
   try {
     return await getCompletedHandoversReportService(query);
   } catch (error: unknown) {
@@ -35,7 +35,7 @@ export async function getCompletedHandoversReportData(query: CompletedHandoversR
 export async function exportCompletedHandoversReportData(
   query: CompletedHandoversReportQuery
 ): Promise<{ success: boolean; data?: CompletedHandoversReportExportRow[]; message?: string }> {
-  await requirePermission('reports', 'view');
+  await requireReport('completed-handovers');
   try {
     const result = await getCompletedHandoversReportService(query);
     if (!result.success || !result.data?.length) {

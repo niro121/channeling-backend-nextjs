@@ -223,6 +223,7 @@ export function HandoverSummaryPrint({
   includedHandovers,
   cashierSummary,
   tillBreakdown,
+  reconciliation,
 }: {
   handover: SummaryHandover
   receivedFloats: ReceivedFloat[]
@@ -232,6 +233,12 @@ export function HandoverSummaryPrint({
     includedShifts?: CashierSummaryIncludedShift[]
   } | null
   tillBreakdown?: TillBreakdown
+  /** Present after the handover has been sent to reconciliation. Printed on the record slip. */
+  reconciliation?: {
+    reconciliationNoString: string
+    sentAt?: Date | string | null
+    sentTo?: StaffUser
+  } | null
 }) {
   const { data: session } = useSession()
   const [generatedAt, setGeneratedAt] = useState(() => formatPrintDateTime(new Date()))
@@ -246,6 +253,8 @@ export function HandoverSummaryPrint({
   const fromLabel = personLabel(handover.fromUser)
   const toLabel = personLabel(handover.toUser)
   const billNo = handover.handoverNoString || shortRef("HO", handover.id)
+  const reconNo = reconciliation?.reconciliationNoString?.trim() || ""
+  const sentToLabel = reconNo ? personLabel(reconciliation?.sentTo) : ""
   const generatedBy = (session?.user?.name ?? "—").toUpperCase()
 
   const totalCents =
@@ -419,24 +428,44 @@ export function HandoverSummaryPrint({
       `}</style>
       <div className="handover-summary-print text-black bg-white font-mono text-[11px] leading-snug">
         <p className="print-title text-center font-bold tracking-wide text-[14px] mb-1">HAND OVER REPORT</p>
-        <p className="print-status text-center font-bold tracking-wide text-[17px] mb-1.5">
+        <p className={`print-status text-center font-bold tracking-wide text-[17px] ${reconNo ? "mb-0.5" : "mb-1.5"}`}>
           {reportStatus.toUpperCase()}
         </p>
+        {reconNo ? (
+          <p className="print-status text-center font-bold tracking-wide text-[15px] mb-1.5">
+            SENT TO RECONCILIATION
+          </p>
+        ) : null}
         <div className="mb-1.5 space-y-0">
           <p>
-            <span className="inline-block w-[4.6rem]">BILL NO</span>: {billNo}
+            <span className="inline-block w-[5.4rem]">BILL NO</span>: {billNo}
+          </p>
+          {reconNo ? (
+            <p>
+              <span className="inline-block w-[5.4rem]">RECON NO</span>: {reconNo}
+            </p>
+          ) : null}
+          <p>
+            <span className="inline-block w-[5.4rem]">BILL AT</span>: {formatPrintDateTime(handover.createdAt)}
           </p>
           <p>
-            <span className="inline-block w-[4.6rem]">BILL AT</span>: {formatPrintDateTime(handover.createdAt)}
+            <span className="inline-block w-[5.4rem]">FROM</span>: {fromLabel}
           </p>
           <p>
-            <span className="inline-block w-[4.6rem]">FROM</span>: {fromLabel}
+            <span className="inline-block w-[5.4rem]">TO</span>: {toLabel}
           </p>
+          {reconNo ? (
+            <>
+              <p>
+                <span className="inline-block w-[5.4rem]">SENT TO</span>: {sentToLabel}
+              </p>
+              <p>
+                <span className="inline-block w-[5.4rem]">SENT AT</span>: {formatPrintDateTime(reconciliation?.sentAt)}
+              </p>
+            </>
+          ) : null}
           <p>
-            <span className="inline-block w-[4.6rem]">TO</span>: {toLabel}
-          </p>
-          <p>
-            <span className="inline-block w-[4.6rem]">GENERATED</span>: {generatedAt} ({generatedBy})
+            <span className="inline-block w-[5.4rem]">GENERATED</span>: {generatedAt} ({generatedBy})
           </p>
         </div>
 

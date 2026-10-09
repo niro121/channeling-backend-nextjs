@@ -49,6 +49,7 @@ const NON_CASH_METHODS = [
 type Props = {
   topLevelHandoverId: string
   handoverNoString?: string | null
+  reconciliationNoString?: string | null
   reconciliationStatus?: number
   hasReconciliationIssues?: boolean
   chain: HandoverTabData[]
@@ -59,6 +60,7 @@ type Props = {
 export function ReconciliationPrint({
   topLevelHandoverId,
   handoverNoString,
+  reconciliationNoString,
   reconciliationStatus,
   hasReconciliationIssues = false,
   chain,
@@ -200,6 +202,9 @@ export function ReconciliationPrint({
         <div className="mb-1.5 space-y-0">
           <p>
             <span className="inline-block w-[7rem]">HANDOVER NO</span>: {(handoverNoString ?? "—").toUpperCase()}
+          </p>
+          <p>
+            <span className="inline-block w-[7rem]">RECON NO</span>: {(reconciliationNoString ?? "—").toUpperCase()}
           </p>
           <p>
             <span className="inline-block w-[7rem]">STATUS</span>: {reconciliationStatusLabel(reconciliationStatus)}

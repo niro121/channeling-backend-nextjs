@@ -8,7 +8,7 @@ import {
   AgentDetailReportResponse,
   ExportAgentDetailData
 } from '@/types/report';
-import { requirePermission } from '@/lib/server-permissions';
+import { requireReport } from '@/lib/server-permissions';
 import { logActivityNonBlocking } from '@/lib/activity-log';
 import { Agency } from '@/types/agency';
 import moment from 'moment';
@@ -17,7 +17,7 @@ import moment from 'moment';
 export const getAgentDetailReportData = async (
   query: AgentDetailReportQuery
 ): Promise<AgentDetailReportResponse> => {
-  await requirePermission('reports', 'view');
+  await requireReport('agent-detail');
   try {
     const result = await getAgentDetailReportDataService(query);
     return {
@@ -41,7 +41,7 @@ export const getAgentDetailReportData = async (
 export const exportAgentDetailReportData = async (
   query: AgentDetailReportQuery
 ): Promise<{ success: boolean; data?: ExportAgentDetailData[]; message?: string }> => {
-  await requirePermission('reports', 'view');
+  await requireReport('agent-detail');
   try {
     const result = await getAgentDetailReportDataService(query);
 

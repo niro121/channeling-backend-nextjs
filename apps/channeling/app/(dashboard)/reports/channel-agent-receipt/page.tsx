@@ -9,7 +9,7 @@ import ChannelAgentReceiptReportContent from './channel-agent-receipt-report-con
 export const dynamic = 'force-dynamic';
 
 export default async function ChannelAgentReceiptReportPage() {
-  const canView = await checkRouteAccess('/reports');
+  const canView = await checkRouteAccess('/reports/channel-agent-receipt');
   if (!canView) {
     redirect('/unauthorized-access');
   }

@@ -1,7 +1,7 @@
 'use server';
 
 import moment from 'moment';
-import { requirePermission } from '@/lib/server-permissions';
+import { requireReport } from '@/lib/server-permissions';
 import { getChannelAgentReceiptReportService } from '@/services/reports/channel-agent-receipt.report.service';
 import type {
   ChannelAgentReceiptReportExportRow,
@@ -17,7 +17,7 @@ export async function getChannelAgentReceiptReportData(
   totalRecords: number;
   message?: string;
 }> {
-  await requirePermission('reports', 'view');
+  await requireReport('channel-agent-receipt');
   try {
     const result = await getChannelAgentReceiptReportService(query);
     return {
@@ -40,7 +40,7 @@ export async function getChannelAgentReceiptReportData(
 export async function exportChannelAgentReceiptReportData(
   query: ChannelAgentReceiptReportQuery
 ): Promise<{ success: boolean; data?: ChannelAgentReceiptReportExportRow[]; message?: string }> {
-  await requirePermission('reports', 'view');
+  await requireReport('channel-agent-receipt');
   try {
     const result = await getChannelAgentReceiptReportService(query);
     if (!result.success || !result.data?.length) {

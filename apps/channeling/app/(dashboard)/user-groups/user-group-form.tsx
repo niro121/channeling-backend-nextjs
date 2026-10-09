@@ -25,6 +25,11 @@ import {
     ledgerTypeAddChecked,
     materializeLegacyLedgerTypePermissions,
 } from "@/lib/ledger-type-permissions"
+import {
+    REPORT_CATEGORIES,
+    REPORT_PRIVILEGES,
+    reportPrivilegeChecked,
+} from "@/lib/report-privileges"
 
 type UserGroupFormProps = {
     userGroup: UserGroup | null
@@ -400,6 +405,14 @@ const UserGroupForm = ({ userGroup, sessionUserType, isEditPage = false }: UserG
                                                     </div>
                                                 </div>
 
+                                                {resource.id === "reports" ? (
+                                                    <ReportPrivilegeFields
+                                                        stored={formik.values.permissions.reports}
+                                                        onChange={(actionId, value) =>
+                                                            handlePermissionChange(formik, resource.id, actionId, value)
+                                                        }
+                                                    />
+                                                ) : (
                                                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                                                     {actionsToShow.map((action) => {
                                                         const actionId = action.id
@@ -443,6 +456,7 @@ const UserGroupForm = ({ userGroup, sessionUserType, isEditPage = false }: UserG
                                                         )
                                                     })}
                                                 </div>
+                                                )}
                                             </div>
                                         )
                                     })}
@@ -503,6 +517,66 @@ const UserGroupForm = ({ userGroup, sessionUserType, isEditPage = false }: UserG
                 )
             }}
         </Formik>
+    )
+}
+
+function ReportPrivilegeFields({
+    stored,
+    onChange,
+}: {
+    stored: Record<string, boolean> | undefined
+    onChange: (actionId: string, value: boolean) => void
+}) {
+    const listChecked = !!stored?.view
+
+    return (
+        <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+                View reports list opens the reports page, and the doctor, nurse, and phone session views.
+                Turn on each report this group may open and run. A group that could already open reports keeps those reports until one is turned off.
+            </p>
+            <div className="flex items-center space-x-2 p-3 border rounded-md sm:max-w-sm">
+                <Checkbox
+                    id="reports-view"
+                    checked={listChecked}
+                    onCheckedChange={(checked) => onChange("view", checked as boolean)}
+                />
+                <Label htmlFor="reports-view" className="text-sm font-medium cursor-pointer">
+                    View reports list
+                </Label>
+            </div>
+            {REPORT_CATEGORIES.map((category) => {
+                const reports = REPORT_PRIVILEGES.filter((report) => report.category === category)
+                    .sort((a, b) => a.rank - b.rank)
+                return (
+                    <div key={category} className="space-y-2">
+                        <p className="text-sm font-medium">{category}</p>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                            {reports.map((report) => (
+                                <div
+                                    key={report.action}
+                                    className="flex items-start space-x-2 p-3 border rounded-md"
+                                >
+                                    <Checkbox
+                                        id={`reports-${report.action}`}
+                                        checked={reportPrivilegeChecked(stored, report.action)}
+                                        onCheckedChange={(checked) =>
+                                            onChange(report.action, checked as boolean)
+                                        }
+                                    />
+                                    <Label
+                                        htmlFor={`reports-${report.action}`}
+                                        className="text-sm font-medium cursor-pointer leading-snug"
+                                    >
+                                        {report.name}
+                                    </Label>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )
+            })}
+        </div>
     )
 }
 

@@ -1,6 +1,6 @@
 'use server';
 
-import { requirePermission } from '@/lib/server-permissions';
+import { requireReport } from '@/lib/server-permissions';
 import { getDoctorAppointmentCountReportService } from '@/services/reports/doctor-appointment-count.report.service';
 import type {
   DoctorAppointmentCountReportExportRow,
@@ -18,7 +18,7 @@ export async function getDoctorAppointmentCountReportData(
   totalRecords: number;
   message?: string;
 }> {
-  await requirePermission('reports', 'view');
+  await requireReport('doctor-appointment-count');
   try {
     const res = await getDoctorAppointmentCountReportService(query);
     return {
@@ -37,7 +37,7 @@ export async function getDoctorAppointmentCountReportData(
 export async function exportDoctorAppointmentCountReportData(
   query: DoctorAppointmentCountReportQuery
 ): Promise<{ success: boolean; data?: DoctorAppointmentCountReportExportRow[]; message?: string }> {
-  await requirePermission('reports', 'view');
+  await requireReport('doctor-appointment-count');
   try {
     const res = await getDoctorAppointmentCountReportService(query);
     if (!res.success || !res.data?.length) {

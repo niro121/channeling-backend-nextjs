@@ -3,7 +3,7 @@
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { getConsultantPaymentsReportService } from '@/services/reports/consultant.payments.report.service';
-import { requirePermission } from '@/lib/server-permissions';
+import { requireReport } from '@/lib/server-permissions';
 import { logActivityNonBlocking } from '@/lib/activity-log';
 import moment from 'moment';
 import type { ConsultantPaymentsReportQuery } from '@/types/report';
@@ -29,7 +29,7 @@ export type ConsultantPaymentsReportExportRow = {
 };
 
 export async function getConsultantPaymentsReportData(query: ConsultantPaymentsReportQuery) {
-  await requirePermission('reports', 'view');
+  await requireReport('consultant-payments');
   try {
     const result = await getConsultantPaymentsReportService(query);
     return {
@@ -52,7 +52,7 @@ export async function getConsultantPaymentsReportData(query: ConsultantPaymentsR
 export async function exportConsultantPaymentsReportData(
   query: ConsultantPaymentsReportQuery
 ): Promise<{ success: boolean; data?: ConsultantPaymentsReportExportRow[]; message?: string }> {
-  await requirePermission('reports', 'view');
+  await requireReport('consultant-payments');
   try {
     const result = await getConsultantPaymentsReportService(query);
     if (!result.success || !result.data?.length) {

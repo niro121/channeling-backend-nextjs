@@ -1,6 +1,6 @@
 'use server';
 
-import { requirePermission } from '@/lib/server-permissions';
+import { requireReport } from '@/lib/server-permissions';
 import { getAgentBalanceConfirmationLetterService } from '@/services/reports/agent.balance.confirmation.letter.service';
 import {
   AgentBalanceConfirmationLetterExportRow,
@@ -10,7 +10,7 @@ import {
 export async function getAgentBalanceConfirmationLetterData(
   query: AgentBalanceConfirmationLetterQuery
 ) {
-  await requirePermission('reports', 'view');
+  await requireReport('agent-balance-confirmation-letter');
   try {
     const result = await getAgentBalanceConfirmationLetterService(query);
     return {
@@ -31,7 +31,7 @@ export async function getAgentBalanceConfirmationLetterData(
 export async function exportAgentBalanceConfirmationLetterData(
   query: AgentBalanceConfirmationLetterQuery
 ): Promise<{ success: boolean; data?: AgentBalanceConfirmationLetterExportRow[]; message?: string }> {
-  await requirePermission('reports', 'view');
+  await requireReport('agent-balance-confirmation-letter');
   try {
     const result = await getAgentBalanceConfirmationLetterService(query);
     if (!result.success || !result.data?.length) {

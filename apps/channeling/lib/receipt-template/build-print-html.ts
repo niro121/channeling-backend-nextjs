@@ -584,7 +584,7 @@ const LEDGER_RECEIPT_PAGE_STYLES = `
   }
   .lines th { font-weight: 700; }
   .lines .si { white-space: nowrap; width: 1%; }
-  .lines .mode { white-space: nowrap; width: 1%; }
+  .lines .mode { white-space: normal; }
   .lines .details { overflow-wrap: anywhere; word-break: break-word; white-space: normal; }
   .lines .txn { white-space: nowrap; width: 1%; }
   .lines .amt,
@@ -685,10 +685,13 @@ function buildSailsLedgerReceiptHtml(placeholders: ReceiptPlaceholderMap): strin
 
   const lineRows = lines
     .map(
-      (line) => `<tr>
-        <td class="mode">${escapeHtml(line.mode)}</td>
+      (line) => {
+        const details = line.paymentDetails.trim()
+        return `<tr>
+        <td class="mode">${escapeHtml(line.mode)}${details ? ` ${escapeHtml(details)}` : ""}</td>
         <td class="amt">${escapeHtml(line.amount)}</td>
       </tr>`
+      }
     )
     .join("")
 

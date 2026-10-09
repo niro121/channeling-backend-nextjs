@@ -4,14 +4,14 @@ import moment from 'moment';
 import { headers } from 'next/headers';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { requirePermission } from '@/lib/server-permissions';
+import { requireReport } from '@/lib/server-permissions';
 import { logActivityNonBlocking } from '@/lib/activity-log';
 import { formatReceiptAmount } from '@/lib/format-money';
 import { getBankDepositsReportService } from '@/services/reports/bank-deposits.report.service';
 import type { BankDepositsReportExportRow, BankDepositsReportQuery } from '@/types/reports/bank-deposits';
 
 export async function getBankDepositsReportData(query: BankDepositsReportQuery) {
-  await requirePermission('reports', 'view');
+  await requireReport('bank-deposits');
   try {
     return await getBankDepositsReportService(query);
   } catch (error: unknown) {
@@ -23,7 +23,7 @@ export async function getBankDepositsReportData(query: BankDepositsReportQuery) 
 export async function exportBankDepositsReportData(
   query: BankDepositsReportQuery
 ): Promise<{ success: boolean; data?: BankDepositsReportExportRow[]; message?: string }> {
-  await requirePermission('reports', 'view');
+  await requireReport('bank-deposits');
   try {
     const result = await getBankDepositsReportService(query);
     if (!result.success || !result.data?.length) {

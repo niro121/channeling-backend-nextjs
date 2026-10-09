@@ -2,16 +2,9 @@
 
 import Link from 'next/link';
 import { ColumnDef } from '@tanstack/react-table';
+import { REPORT_CATEGORIES, type ReportCategory } from '@/lib/report-privileges';
 
-export const REPORT_CATEGORIES = [
-  'Doctors',
-  'Channel',
-  'Agents',
-  'Cashier',
-  'SMS & System',
-] as const;
-
-export type ReportCategory = (typeof REPORT_CATEGORIES)[number];
+export { REPORT_CATEGORIES, type ReportCategory };
 
 export type ReportListItem = {
   id: string;
