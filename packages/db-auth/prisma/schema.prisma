@@ -54,7 +54,7 @@ model UserGroup {
   status      Int     // 0 = inactive, 1 = active
 
   /// App ownership for multi-app auth. Optional for backward compatibility.
-  /// Values: "hrm" | "dpay" | "channeling" (see AUTH_APPS in @archmage/shared)
+  /// Values: "hrm" | "dpay" | "channeling" | "management" (see AUTH_APPS in @archmage/shared)
   app String?
 
   // { "resource": { "view": true, "add": true, "edit": true, "delete": true } }
