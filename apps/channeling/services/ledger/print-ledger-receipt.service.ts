@@ -18,6 +18,7 @@ import {
   type ReceiptPlaceholderMap,
   type ReceiptTemplateRecord,
 } from "@/types/receipt-template-db"
+import { APPROVAL_REQUEST_TYPE } from "@/types/approval-request"
 import {
   PAYMENT_METHOD_NAMES,
   RECEIPT_METHOD,
@@ -133,6 +134,34 @@ async function resolveGeneratedBy(userId: string | null | undefined): Promise<st
   return formatUserDisplayName(user.name, userId, user.staff?.code)
 }
 
+/** Who approved a bank deposit, and when. Empty when the receipt has no approval. */
+async function resolveBankDepositApproval(
+  receiptId: string
+): Promise<{ approvedBy: string; approvedAt: string }> {
+  const approval = await prisma.approvalRequest.findFirst({
+    where: {
+      receiptId,
+      type: APPROVAL_REQUEST_TYPE.BANK_DEPOSIT,
+      approvedById: { not: null },
+    },
+    orderBy: { approvedAt: "desc" },
+    select: {
+      approvedAt: true,
+      approvedBy: {
+        select: { id: true, name: true, staff: { select: { code: true } } },
+      },
+    },
+  })
+  const approver = approval?.approvedBy
+  if (!approver) return { approvedBy: "", approvedAt: "" }
+  return {
+    approvedBy: formatUserDisplayName(approver.name, approver.id, approver.staff?.code),
+    approvedAt: approval.approvedAt
+      ? format(new Date(approval.approvedAt), "yyyy-MM-dd hh:mm a")
+      : "",
+  }
+}
+
 export type PrintLedgerReceiptData = {
   placeholders: ReceiptPlaceholderMap
   template: ReceiptTemplateRecord | null
@@ -227,6 +256,10 @@ export async function printLedgerReceiptService(
     })
 
     const generatedBy = await resolveGeneratedBy(receipt.createdBy)
+    const approval =
+      receipt.method === RECEIPT_METHOD.BANK_DEPOSIT
+        ? await resolveBankDepositApproval(receipt.id)
+        : { approvedBy: "", approvedAt: "" }
     const statusParts: string[] = []
     if (receipt.canceledAt) statusParts.push("CANCELED")
     // Any print after the first is a duplicate, including from the ledger table.
@@ -250,6 +283,8 @@ export async function printLedgerReceiptService(
       totalAmount: formatLKR(Number(receipt.amount) || 0),
       remarks: receipt.remarks ?? "",
       generatedBy,
+      approvedBy: approval.approvedBy,
+      approvedAt: approval.approvedAt,
       statusBanner: statusParts.join(" "),
       duplicateLabel: isDuplicate ? "DUPLICATE" : "",
     }
