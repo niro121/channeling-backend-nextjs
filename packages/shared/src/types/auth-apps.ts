@@ -5,6 +5,7 @@ export const AUTH_APPS = {
   hrm: "hrm",
   dpay: "dpay",
   channeling: "channeling",
+  management: "management",
 } as const;
 
 export type AuthApp = (typeof AUTH_APPS)[keyof typeof AUTH_APPS];
@@ -13,6 +14,7 @@ export const AUTH_APP_OPTIONS: { id: AuthApp; name: string }[] = [
   { id: AUTH_APPS.hrm, name: "HRM" },
   { id: AUTH_APPS.dpay, name: "DPAY" },
   { id: AUTH_APPS.channeling, name: "Channeling" },
+  { id: AUTH_APPS.management, name: "Management" },
 ];
 
 export function isAuthApp(value: string | null | undefined): value is AuthApp {
