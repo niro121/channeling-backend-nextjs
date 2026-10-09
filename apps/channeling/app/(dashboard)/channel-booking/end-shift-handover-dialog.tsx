@@ -62,8 +62,10 @@ import { cn } from "@/lib/utils"
 import type { MyTillBalance } from "@/app/actions/till.actions"
 import {
   formatHandoverCashAboveShortError,
+  formatHandoverNonCashShortError,
   formatHandoverOverAmountError,
   handoverCashOverTillCents,
+  handoverNonCashShorts,
   handoverOversBeyondCashSettlement,
   handoverAmountsTotalCents,
   handoverTillGaps,
@@ -121,10 +123,18 @@ function matchDenom(a: number, b: number) {
   return a >= 1 && b >= 1 ? a === b : Math.abs(a - b) < 1e-6
 }
 
-function handoverDiffLabel(enteredCents: number, availableCents: number): string {
+function handoverDiffLabel(
+  enteredCents: number,
+  availableCents: number,
+  shortAllowed = true
+): string {
   const diff = availableCents - enteredCents
   if (diff === 0) return "difference: 0.00"
-  if (diff > 0) return `difference: Short ${formatCents(diff)}`
+  if (diff > 0) {
+    return shortAllowed
+      ? `difference: Short ${formatCents(diff)}`
+      : `short ${formatCents(diff)} is not allowed`
+  }
   return `difference: Over ${formatCents(Math.abs(diff))}`
 }
 
@@ -133,11 +143,13 @@ function HandoverTabAmountSummary({
   enteredCents,
   availableCents,
   availableSuffix,
+  shortAllowed = true,
 }: {
   label: string
   enteredCents: number
   availableCents: number
   availableSuffix?: string
+  shortAllowed?: boolean
 }) {
   const mismatch = enteredCents !== availableCents
   const availableText = availableSuffix
@@ -148,7 +160,7 @@ function HandoverTabAmountSummary({
       {label} entered: {formatCents(enteredCents)}
       <span className={mismatch ? "text-destructive font-medium" : "text-muted-foreground"}>
         {" "}
-        ({availableText}: {formatCents(availableCents)} · {handoverDiffLabel(enteredCents, availableCents)})
+        ({availableText}: {formatCents(availableCents)} · {handoverDiffLabel(enteredCents, availableCents, shortAllowed)})
       </span>
     </p>
   )
@@ -706,15 +718,9 @@ export function EndShiftHandoverDialog({
     eWalletCents: 0,
   }
   const enteredTotalCents = handoverAmountsTotalCents(enteredAmounts)
-  const hasShort = !!(
-    expectedBalance &&
-    (cashTotalCents < expectedBalance.cashCents ||
-      cardCents < expectedBalance.cardCents ||
-      slipCents < expectedBalance.slipCents ||
-      checkCents < expectedBalance.checkCents ||
-      creditCents < expectedBalance.creditCents ||
-      eWalletCents < expectedBalance.eWalletCents)
-  )
+  const nonCashShorts = expectedBalance ? handoverNonCashShorts(enteredAmounts, expectedBalance) : []
+  const hasNonCashShort = nonCashShorts.length > 0
+  const hasShort = !!(expectedBalance && cashTotalCents < expectedBalance.cashCents)
   const collectionDiffCents = expectedCollection
     ? enteredTotalCents - expectedCollection.expectedCents
     : 0
@@ -736,7 +742,7 @@ export function EndShiftHandoverDialog({
   const cashOverCoveredBySettlement =
     cashOverTillCents > 0 && !cashAboveShort && !cashAboveExcess
   const hasExcess = !!expectedCollection && isHandoverCollectionExcess(collectionDiffCents)
-  const needsDiscrepancyReason = (hasShort || hasExcess) && !hasOver
+  const needsDiscrepancyReason = (hasShort || hasExcess) && !hasOver && !hasNonCashShort
   const discrepancyCopy = { hasShort, hasExcess }
 
   const validateAndSubmit = async () => {
@@ -760,6 +766,9 @@ export function EndShiftHandoverDialog({
     }
     if (amountOvers.length > 0) {
       errors.push(formatHandoverOverAmountError(amountOvers, "submit"))
+    }
+    if (hasNonCashShort) {
+      errors.push(formatHandoverNonCashShortError(nonCashShorts))
     }
     if (cashAboveExcess && !cashAboveShort) {
       errors.push(
@@ -882,9 +891,9 @@ export function EndShiftHandoverDialog({
                 ? "Till is empty and there is nothing to hand over. You can end this shift without creating a handover."
                 : "Review your till balance by method. Then proceed to enter amounts and assign the handover.")}
             {step === 2 &&
-              "Entries from handovers not sent to reconciliation are pre-filled. You may hand over less than available. The difference is the short and is taken in full. You cannot hand over more than the till holds."}
+              "Entries from handovers not sent to reconciliation are pre-filled. You may hand over less cash than available. That difference is the cash short and is taken in full. Card, slips, cheques, credit, and e-wallet must match the till. You cannot hand over more than the till holds."}
             {step === 3 &&
-              "Review the summary below. Any amount under the till is the short and cannot be changed. Select the person receiving the handover, then confirm."}
+              "Review the summary below. Any cash under the till is the short and cannot be changed. Other methods must match the till. Select the person receiving the handover, then confirm."}
           </DialogDescription>
         </DialogHeader>
 
@@ -1226,6 +1235,7 @@ export function EndShiftHandoverDialog({
                           enteredCents={total}
                           availableCents={expected}
                           availableSuffix={tillBalanceLabel}
+                          shortAllowed={false}
                         />
                         <div className="flex justify-end">
                           <Button
@@ -1447,21 +1457,29 @@ export function EndShiftHandoverDialog({
               const isSignificantDiff = (entered: number, till: number) =>
                 Math.abs(till - entered) > TOLERANCE_CENTS
               const mismatches: { label: string; enteredCents: number; tillCents: number }[] = []
-              if (
-                isSignificantDiff(cashTotalCents, expectedBalance.cashCents) &&
-                !cashOverCoveredBySettlement
-              )
-                mismatches.push({ label: "Cash", enteredCents: cashTotalCents, tillCents: expectedBalance.cashCents })
-              if (isSignificantDiff(cardCents, expectedBalance.cardCents))
-                mismatches.push({ label: "Credit card slips", enteredCents: cardCents, tillCents: expectedBalance.cardCents })
-              if (isSignificantDiff(slipCents, expectedBalance.slipCents))
-                mismatches.push({ label: "Slips", enteredCents: slipCents, tillCents: expectedBalance.slipCents })
-              if (isSignificantDiff(checkCents, expectedBalance.checkCents))
-                mismatches.push({ label: "Cheques", enteredCents: checkCents, tillCents: expectedBalance.checkCents })
-              if (isSignificantDiff(creditCents, expectedBalance.creditCents))
-                mismatches.push({ label: "Credit", enteredCents: creditCents, tillCents: expectedBalance.creditCents })
-              if (isSignificantDiff(eWalletCents, expectedBalance.eWalletCents))
-                mismatches.push({ label: "E-Wallet", enteredCents: eWalletCents, tillCents: expectedBalance.eWalletCents })
+              const pushMismatch = (
+                label: string,
+                enteredCents: number,
+                tillCents: number,
+                blockAnyShort: boolean
+              ) => {
+                const shortCents = tillCents - enteredCents
+                if (blockAnyShort && shortCents > 0) {
+                  mismatches.push({ label, enteredCents, tillCents })
+                  return
+                }
+                if (isSignificantDiff(enteredCents, tillCents)) {
+                  mismatches.push({ label, enteredCents, tillCents })
+                }
+              }
+              if (!cashOverCoveredBySettlement) {
+                pushMismatch("Cash", cashTotalCents, expectedBalance.cashCents, false)
+              }
+              pushMismatch("Credit card slips", cardCents, expectedBalance.cardCents, true)
+              pushMismatch("Slips", slipCents, expectedBalance.slipCents, true)
+              pushMismatch("Cheques", checkCents, expectedBalance.checkCents, true)
+              pushMismatch("Credit", creditCents, expectedBalance.creditCents, true)
+              pushMismatch("E-Wallet", eWalletCents, expectedBalance.eWalletCents, true)
               return mismatches.length > 0 ? (
                 <Alert variant="destructive" className="mt-4">
                   <AlertTriangle className="h-4 w-4" />
@@ -1470,7 +1488,9 @@ export function EndShiftHandoverDialog({
                       ? "Cash is more than the till plus the open short"
                       : hasOver
                         ? "Cannot hand over more than the till holds"
-                        : "Entered amounts are less than available"}
+                        : hasNonCashShort
+                          ? "Only cash can be short"
+                          : "Entered amounts are less than available"}
                   </AlertTitle>
                   <AlertDescription>
                     <div>
@@ -1481,13 +1501,15 @@ export function EndShiftHandoverDialog({
                               availableCashCents: expectedBalance.cashCents,
                               openShortCents,
                             })
-                          : cashAboveExcess
-                            ? excessCents <= 0
-                              ? "A short can be settled only when this handover has an excess."
-                              : `Cash above the till (${formatCents(cashOverTillCents)}) is more than the excess of ${formatCents(excessCents)}.`
-                            : hasOver
-                              ? formatHandoverOverAmountError(amountOvers, "submit")
-                              : "The difference is the short. It is taken in full and cannot be changed. A reason is required."}
+                          : amountOvers.length > 0
+                            ? formatHandoverOverAmountError(amountOvers, "submit")
+                            : hasNonCashShort
+                              ? formatHandoverNonCashShortError(nonCashShorts)
+                              : cashAboveExcess
+                                ? excessCents <= 0
+                                  ? "A short can be settled only when this handover has an excess."
+                                  : `Cash above the till (${formatCents(cashOverTillCents)}) is more than the excess of ${formatCents(excessCents)}.`
+                                : "The cash difference is the short. It is taken in full and cannot be changed. A reason is required."}
                       </p>
                       <table className="w-full text-sm border-collapse">
                         <thead>
@@ -1704,6 +1726,7 @@ export function EndShiftHandoverDialog({
                   handoverUsersLoading ||
                   handoverUsers.length === 0 ||
                   hasOver ||
+                  hasNonCashShort ||
                   (needsDiscrepancyReason && !discrepancyReason.trim()) ||
                   !expectedCollection ||
                   pendingHandoversToMe.length > 0 ||
