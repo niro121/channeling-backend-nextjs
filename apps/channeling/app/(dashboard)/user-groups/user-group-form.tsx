@@ -19,6 +19,7 @@ import { useRouter } from "next/navigation"
 import { useDialogSafe } from "@/components/common/custom-dialog"
 import { Switch } from "@/components/ui/switch"
 import { TWO_FACTOR_AUTH } from "@/types/2FA"
+import { materializeLegacyBookingPaymentPermissions } from "@/lib/booking-payment-permissions"
 import {
     LEDGER_TYPE_ADD_ACTIONS,
     isLedgerTypeAddAction,
@@ -44,7 +45,9 @@ const UserGroupForm = ({ userGroup, sessionUserType, isEditPage = false }: UserG
         description: userGroup?.description ? userGroup.description : "",
         status: userGroup?.status !== undefined ? userGroup.status : 1,
         permissions: userGroup?.permissions
-            ? materializeLegacyLedgerTypePermissions(userGroup.permissions)
+            ? materializeLegacyBookingPaymentPermissions(
+                materializeLegacyLedgerTypePermissions(userGroup.permissions)
+            )
             : initializePermissions(),
         twoFactorEnabled: (userGroup as any)?.twoFactorEnabled ?? false,
         twoFactorMethods: Array.isArray((userGroup as any)?.twoFactorMethods) ? (userGroup as any).twoFactorMethods : [],
