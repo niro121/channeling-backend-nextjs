@@ -18,6 +18,7 @@ import type {
 import type { Prisma } from '@prisma/client';
 import {
   CASHIER_SUMMARY_ZERO_AMOUNTS as ZERO_AMOUNTS,
+  CASHIER_SUMMARY_DETAIL_IN_SUMMARY_KEYS,
   receiptToAmounts,
   receiptToAmountsDoctorPaymentNet,
   addCashierSummaryAmounts as addAmounts,
@@ -140,6 +141,8 @@ export async function getCashierSummaryReportService(
     };
   }
   const isSummary = query.format === 'summary';
+  const rowsForFormat = (key: string, rows: CashierSummaryReportLineItem[]) =>
+    !isSummary || CASHIER_SUMMARY_DETAIL_IN_SUMMARY_KEYS.has(key) ? rows : [];
 
   const receiptIncludeBookingSessionDoctor = {
     paymentLines: { select: { paymentMethod: true, amount: true } },
@@ -235,7 +238,7 @@ export async function getCashierSummaryReportService(
   sections.push({
     key: 'channelBilled',
     title: 'Channel Billed Bills',
-    rows: isSummary ? [] : channelBilledRows,
+    rows: rowsForFormat('channelBilled', channelBilledRows),
     totals: channelBilledTotals,
   });
   grandTotals = addAmounts(grandTotals, channelBilledTotals);
@@ -277,7 +280,7 @@ export async function getCashierSummaryReportService(
   sections.push({
     key: 'channelRefund',
     title: 'Channel Refund Bills',
-    rows: channelRefundRows,
+    rows: rowsForFormat('channelRefund', channelRefundRows),
     totals: channelRefundTotals,
   });
   grandTotals = addAmounts(grandTotals, channelRefundTotals);
@@ -314,7 +317,7 @@ export async function getCashierSummaryReportService(
   sections.push({
     key: 'channelCancel',
     title: 'Channel Cancel Bills',
-    rows: isSummary ? [] : channelCancelRows,
+    rows: rowsForFormat('channelCancel', channelCancelRows),
     totals: channelCancelTotals,
   });
   grandTotals = addAmounts(grandTotals, channelCancelTotals);
@@ -346,7 +349,7 @@ export async function getCashierSummaryReportService(
   sections.push({
     key: 'agentBilled',
     title: 'Agent - Billed Bills',
-    rows: isSummary ? [] : agentBilledRows,
+    rows: rowsForFormat('agentBilled', agentBilledRows),
     totals: agentBilledTotals,
   });
   grandTotals = addAmounts(grandTotals, agentBilledTotals);
@@ -387,7 +390,7 @@ export async function getCashierSummaryReportService(
   sections.push({
     key: 'agentRefunded',
     title: 'Agent - Refunded Bills',
-    rows: isSummary ? [] : agentRefundedRows,
+    rows: rowsForFormat('agentRefunded', agentRefundedRows),
     totals: agentRefundedTotals,
   });
   grandTotals = addAmounts(grandTotals, agentRefundedTotals);
@@ -423,7 +426,7 @@ export async function getCashierSummaryReportService(
   sections.push({
     key: 'agentCanceled',
     title: 'Agent - Canceled Bills',
-    rows: isSummary ? [] : agentCanceledRows,
+    rows: rowsForFormat('agentCanceled', agentCanceledRows),
     totals: agentCanceledTotals,
   });
   grandTotals = addAmounts(grandTotals, agentCanceledTotals);
@@ -481,7 +484,7 @@ export async function getCashierSummaryReportService(
   sections.push({
     key: 'agentDeposit',
     title: 'Agent - Deposit & Withdraw Bills',
-    rows: isSummary ? [] : agentDepositRows,
+    rows: rowsForFormat('agentDeposit', agentDepositRows),
     totals: agentDepositTotals,
   });
   grandTotals = addAmounts(grandTotals, agentDepositTotals);
@@ -508,7 +511,7 @@ export async function getCashierSummaryReportService(
   sections.push({
     key: 'agentDepositCanceled',
     title: 'Agent Deposit - Canceled Bills',
-    rows: isSummary ? [] : agentDepositCanceledRows,
+    rows: rowsForFormat('agentDepositCanceled', agentDepositCanceledRows),
     totals: agentDepositCanceledTotals,
   });
   grandTotals = addAmounts(grandTotals, agentDepositCanceledTotals);
@@ -623,7 +626,7 @@ export async function getCashierSummaryReportService(
   sections.push({
     key: 'doctorPayment',
     title: 'Doctor Payment / Canceled - Bills',
-    rows: isSummary ? [] : doctorPaymentRows,
+    rows: rowsForFormat('doctorPayment', doctorPaymentRows),
     totals: doctorPaymentTotals,
   });
   grandTotals = addAmounts(grandTotals, doctorPaymentTotals);
@@ -675,7 +678,7 @@ export async function getCashierSummaryReportService(
   sections.push({
     key: 'incomeExpense',
     title: 'Income / Expenses / Bank Deposits - Bills',
-    rows: isSummary ? [] : incomeExpenseRows,
+    rows: rowsForFormat('incomeExpense', incomeExpenseRows),
     totals: incomeExpenseTotals,
   });
   grandTotals = addAmounts(grandTotals, incomeExpenseTotals);

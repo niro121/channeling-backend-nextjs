@@ -20,6 +20,9 @@ import {
   type ApprovalRequestType,
   type BankDepositSnapshot,
   type BookingApprovalSummary,
+  type ChannelApprovalConfirmations,
+  checkedChannelApprovalLabels,
+  parseChannelApprovalConfirmations,
 } from "@/types/approval-request"
 import type { RefundChannelInput } from "@/services/channel-booking/refund-channel.service"
 import { BOOKING_METHODS } from "@/types/channel-booking"
@@ -43,6 +46,7 @@ export type RequestChannelApprovalInput = {
   hospital_fee?: number
   payment_lines?: ApprovalPaymentLineSnapshot[]
   remarks: string
+  confirmations: ChannelApprovalConfirmations
 }
 
 const OPEN_STATUS = [...OPEN_APPROVAL_STATUSES]
@@ -365,6 +369,14 @@ export async function requestChannelApproval(
   if (!remarks) {
     return { success: false, errorCode: "remarks_required", message: "Remarks are required." }
   }
+  const confirmations = parseChannelApprovalConfirmations(input.confirmations)
+  if (!confirmations?.bill) {
+    return {
+      success: false,
+      errorCode: "confirmations_required",
+      message: "Confirm that the original bill and copy are available.",
+    }
+  }
 
   const booking = await prisma.booking.findUnique({
     where: { id: input.booking_id },
@@ -434,6 +446,7 @@ export async function requestChannelApproval(
       professionalFee,
       hospitalFee,
       paymentLines: (input.payment_lines ?? null) as object | undefined,
+      confirmations: confirmations as object,
     },
     include: { requestedBy: { select: { name: true } } },
   })
@@ -453,6 +466,7 @@ export async function requestChannelApproval(
       refundTo: row.refundTo,
       professionalFee,
       hospitalFee,
+      confirmations,
     },
   })
 
@@ -1048,6 +1062,7 @@ export async function listApprovalRequests(
       paymentMethodName,
       paymentTypeName,
       refundMethodName,
+      checkedConfirmations: isDeposit ? [] : checkedChannelApprovalLabels(row.confirmations),
       detailSub: isDeposit
         ? bankSub
         : `Appt ${String(row.booking?.appointmentNo ?? 0).padStart(2, "0")} · ${row.booking?.receiptNoString ?? row.booking?.bookingid_string ?? row.booking?.id ?? "—"}`,

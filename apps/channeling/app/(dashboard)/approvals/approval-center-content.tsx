@@ -45,6 +45,7 @@ import {
   ChevronRight,
   ChevronsLeft,
   ChevronsRight,
+  Check,
   Loader2,
   Search,
 } from "lucide-react"
@@ -539,8 +540,18 @@ export function ApprovalCenterContent({
                     </td>
                     <td className="p-2 whitespace-nowrap">{formatRs(row.amount)}</td>
                     <td className="p-2">{statusBadge(row.status)}</td>
-                    <td className="p-2 max-w-[220px]">
+                    <td className="p-2 max-w-[280px]">
                       <p className="truncate" title={row.remarks}>{row.remarks}</p>
+                      {row.checkedConfirmations.length > 0 ? (
+                        <ul className="mt-1 space-y-0.5 text-xs text-muted-foreground">
+                          {row.checkedConfirmations.map((label) => (
+                            <li key={label} className="flex items-start gap-1 whitespace-normal">
+                              <Check className="mt-0.5 size-3 shrink-0 text-emerald-600" aria-hidden />
+                              <span>{label}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      ) : null}
                       {row.rejectReason ? (
                         <p className="text-xs text-destructive truncate" title={row.rejectReason}>
                           Rejected: {row.rejectReason}

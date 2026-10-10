@@ -6,6 +6,7 @@ import { requirePermission, checkRouteAccess } from "@/lib/server-permissions"
 import { userTypes } from "@/lib/roles"
 import {
   APPROVAL_REQUEST_TYPE,
+  CHANNEL_APPROVAL_CONFIRMATIONS,
   type ApprovalRequestType,
 } from "@/types/approval-request"
 import {
@@ -30,6 +31,15 @@ const paymentLineSchema = z.object({
   card: z.string().optional(),
 })
 
+const confirmationsSchema = z.object({
+  bill: z.literal(true, { error: "Confirm that the original bill and copy are available." }),
+  session: z.boolean(),
+  requirements: z.boolean(),
+}).refine(
+  (value) => CHANNEL_APPROVAL_CONFIRMATIONS.every((item) => !item.required || value[item.id]),
+  "Confirm that the original bill and copy are available."
+)
+
 const requestSchema = z.object({
   booking_id: z.string().min(1),
   type: z.enum([APPROVAL_REQUEST_TYPE.CHANNEL_CANCEL, APPROVAL_REQUEST_TYPE.CHANNEL_REFUND]),
@@ -38,6 +48,7 @@ const requestSchema = z.object({
   hospital_fee: z.number().min(0).optional(),
   payment_lines: z.array(paymentLineSchema).optional(),
   remarks: z.string().min(1).refine((s) => s.trim().length > 0, "Remarks are required"),
+  confirmations: confirmationsSchema,
 })
 
 async function getActor() {

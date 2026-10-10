@@ -1,4 +1,5 @@
 import type { ResourceWithOptionalActions } from "@archmage/shared";
+import { BOOKING_PAYMENT_METHOD_ACTIONS, BOOKING_PAYMENT_RESOURCE } from "@/lib/booking-payment-permissions";
 import { REPORT_PERMISSION_ACTIONS } from "@/lib/report-privileges";
 
 export {
@@ -30,6 +31,14 @@ export const RESOURCES: ResourceWithOptionalActions[] = [
     ],
   },
   { id: "channel-booking", name: "Channel Booking" },
+  {
+    id: BOOKING_PAYMENT_RESOURCE,
+    name: "Channel Booking – Payment methods",
+    customActions: BOOKING_PAYMENT_METHOD_ACTIONS.map((action) => ({
+      id: action.id,
+      name: action.name,
+    })),
+  },
   { id: "channel-booking-date", name: "Channel Booking – Change Date", actions: ["view"], actionLabels: { view: "Change Date" } },
   {
     id: "channel-booking-block",
@@ -58,6 +67,7 @@ export const RESOURCES: ResourceWithOptionalActions[] = [
   { id: "doctor-sessions", name: "Doctor Sessions" },
   { id: "departments", name: "Departments" },
   { id: "patients", name: "Patients" },
+  { id: "staff", name: "Staff" },
   { id: "tags", name: "Tags" },
   { id: "zones", name: "Zones" },
   { id: "rooms", name: "Rooms" },
@@ -80,6 +90,7 @@ export const RESOURCES: ResourceWithOptionalActions[] = [
   { id: "discounts", name: "Discounts" },
   { id: "doctor-leaves", name: "Doctor Leave" },
   { id: "sms-playground", name: "SMS Playground" },
+  { id: "sms-templates", name: "SMS Templates" },
   {
     id: "reports",
     name: "Reports",
