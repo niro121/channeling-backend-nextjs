@@ -6,6 +6,7 @@ import { parseReportDateTime } from '@/lib/parse-report-datetime';
 import { PAYMENT_METHOD_NAMES } from '@/types/receipt';
 import { netEffectForAccountType } from '@/lib/accounting/helpers';
 import { getAccountBalance } from '@/services/accounting.service';
+import { isBranchReconciledCashAccount } from '@/services/accounting/account/branch-reconciled-account.constants';
 import type {
   CashBookReportQuery,
   CashBookReportResponse,
@@ -117,7 +118,7 @@ export async function getCashBookReportService(
 
   const allCashAccounts = await prisma.account.findMany({
     where: { type: 'CASH', isActive: true },
-    select: { id: true, parentAccountId: true, locationId: true, name: true, code: true },
+    select: { id: true, parentAccountId: true, locationId: true, name: true, code: true, userId: true },
   });
 
   const byParent = new Map<string, string[]>();
@@ -141,13 +142,14 @@ export async function getCashBookReportService(
     }
   }
 
-  // Branch-selected scope: include all CASH accounts in that branch/location
-  // (till accounts may not always be nested as descendants under the branch account).
-  if (account.locationId && !account.userId) {
+  // Branch cash book: include tills at that location. Skip the branch Reconciled
+  // account (verified non-cash). Selecting Reconciled itself still shows only that book.
+  const selectedIsReconciled = isBranchReconciledCashAccount(account);
+  if (account.locationId && !account.userId && !selectedIsReconciled) {
     for (const a of allCashAccounts) {
-      if (a.locationId === account.locationId) {
-        scopedAccountIds.add(a.id);
-      }
+      if (a.locationId !== account.locationId) continue;
+      if (isBranchReconciledCashAccount(a)) continue;
+      scopedAccountIds.add(a.id);
     }
   }
 

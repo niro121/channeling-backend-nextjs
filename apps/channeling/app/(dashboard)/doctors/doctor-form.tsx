@@ -89,6 +89,8 @@ export default function DoctorForm({
     addressLine2: doctor?.addressLine2 ?? '',
     city: doctor?.city ?? '',
     registrationNumber: doctor?.registrationNumber ?? '',
+    tinNumber: doctor?.tinNumber ?? '',
+    nic: doctor?.nic ?? '',
     qualification: doctor?.qualification ?? '',
     referralCharge: doctor?.referralCharge ?? 0,
     sessionNoPrefix: doctor?.sessionNoPrefix ?? '',
@@ -115,6 +117,8 @@ export default function DoctorForm({
       .required('Mobile number is required')
       .matches(sriLankaMobileRegex, 'Mobile Number Ex: 07x xxxxxxx'),
     registrationNumber: Yup.string().trim().nullable().optional(),
+    tinNumber: Yup.string().trim().nullable().optional(),
+    nic: Yup.string().trim().nullable().optional(),
     qualification: Yup.string().trim().nullable().optional(),
     referralCharge: Yup.number().min(0, 'Must be 0 or greater').nullable().optional(),
     status: Yup.number()
@@ -452,6 +456,28 @@ export default function DoctorForm({
                 id="registrationNumber"
                 placeholder="Registration No"
                 value={formik.values.registrationNumber}
+                onChange={formik.handleChange}
+                onBlur={formik.handleBlur}
+                required={false}
+                styleClasses={styleClasses}
+              />
+
+              <CustomFormField
+                type="text"
+                id="tinNumber"
+                placeholder="TIN Number"
+                value={formik.values.tinNumber}
+                onChange={formik.handleChange}
+                onBlur={formik.handleBlur}
+                required={false}
+                styleClasses={styleClasses}
+              />
+
+              <CustomFormField
+                type="text"
+                id="nic"
+                placeholder="NIC"
+                value={formik.values.nic}
                 onChange={formik.handleChange}
                 onBlur={formik.handleBlur}
                 required={false}
