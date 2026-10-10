@@ -1,0 +1,214 @@
+{
+  "info": {
+    "name": "Doctor Mobile App API",
+    "description": "Doctor app API (userType 3). Set `doctor_email` (or username), `doctor_password`, then Check Login → Login (or 2FA) → Me → Sessions → Profile update / Password change.\n\nSee docs/DOCTOR_APP_API.md.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:3000" },
+    { "key": "doctor_email", "value": "dr@example.com", "description": "Doctor user email OR username" },
+    { "key": "doctor_password", "value": "", "description": "Doctor user password" },
+    { "key": "access_token", "value": "" },
+    { "key": "two_factor_token", "value": "", "description": "From Request 2FA (method 1 only)" },
+    { "key": "two_factor_code", "value": "", "description": "6-digit SMS or authenticator code" },
+    { "key": "two_factor_method", "value": "2", "description": "1=Authenticator, 2=SMS, 3=Email" },
+    { "key": "doctor_new_password", "value": "", "description": "New password after first-login change" },
+    { "key": "from_date", "value": "", "description": "Optional YYYY-MM-DD for sessions; empty = today" },
+    { "key": "session_id", "value": "", "description": "Session id for single-session request" },
+    { "key": "doctor_phone", "value": "", "description": "Doctor phone (optional)" },
+    { "key": "doctor_mobile", "value": "0771234567", "description": "Doctor mobile (required)" },
+    { "key": "doctor_address_line_1", "value": "", "description": "Doctor address line 1 (optional)" },
+    { "key": "doctor_address_line_2", "value": "", "description": "Doctor address line 2 (optional)" },
+    { "key": "doctor_city", "value": "", "description": "Doctor city (optional)" },
+    { "key": "doctor_registration_no", "value": "", "description": "Doctor registration number (optional)" },
+    { "key": "doctor_qualification", "value": "MBBS", "description": "Doctor qualification (required)" },
+    { "key": "current_password", "value": "", "description": "Current account password" },
+    { "key": "new_password", "value": "", "description": "New password" },
+    { "key": "confirm_password", "value": "", "description": "Confirm new password" }
+  ],
+  "item": [
+    {
+      "name": "0. Change Initial Password (first login)",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"{{doctor_email}}\",\n  \"currentPassword\": \"{{doctor_password}}\",\n  \"newPassword\": \"{{doctor_new_password}}\",\n  \"confirmPassword\": \"{{doctor_new_password}}\"\n}"
+        },
+        "url": "{{baseUrl}}/api/doctor-app/auth/change-initial-password",
+        "description": "When Check Login returns requiresPasswordChange. Set doctor_password=admin temp, doctor_new_password=new. Then update doctor_password to new and run Check Login again."
+      }
+    },
+    {
+      "name": "1. Check Login",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"{{doctor_email}}\",\n  \"password\": \"{{doctor_password}}\"\n}"
+        },
+        "url": "{{baseUrl}}/api/doctor-app/auth/check-login",
+        "description": "Step 1: If requiresTwoFactor is false, run Login next. If true, run Request 2FA Code then Login with twoFactorCode."
+      }
+    },
+    {
+      "name": "2. Request 2FA Code (if required)",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"{{doctor_email}}\",\n  \"password\": \"{{doctor_password}}\",\n  \"method\": \"{{two_factor_method}}\"\n}"
+        },
+        "url": "{{baseUrl}}/api/doctor-app/auth/request-2fa-code",
+        "description": "Only when Check Login returned requiresTwoFactor: true. Method 2 sends SMS. Method 1 returns twoFactorToken — saved to collection variable automatically."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "if (pm.response.code === 200) {",
+              "  const json = pm.response.json();",
+              "  if (json.twoFactorToken) {",
+              "    pm.collectionVariables.set('two_factor_token', json.twoFactorToken);",
+              "  }",
+              "}"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Login (no 2FA)",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"{{doctor_email}}\",\n  \"password\": \"{{doctor_password}}\"\n}"
+        },
+        "url": "{{baseUrl}}/api/doctor-app/auth/login",
+        "description": "Use when Check Login returned requiresTwoFactor: false. Saves access_token for Me request."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "if (pm.response.code === 200) {",
+              "  const json = pm.response.json();",
+              "  if (json.access_token) {",
+              "    pm.collectionVariables.set('access_token', json.access_token);",
+              "  }",
+              "}"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ]
+    },
+    {
+      "name": "3b. Login (with 2FA)",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"{{doctor_email}}\",\n  \"password\": \"{{doctor_password}}\",\n  \"twoFactorCode\": \"{{two_factor_code}}\",\n  \"twoFactorToken\": \"{{two_factor_token}}\"\n}"
+        },
+        "url": "{{baseUrl}}/api/doctor-app/auth/login",
+        "description": "After Request 2FA Code. Set two_factor_code (SMS from phone, or TOTP from app). For SMS leave two_factor_token empty. For authenticator, two_factor_token is set automatically from step 2."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "if (pm.response.code === 200) {",
+              "  const json = pm.response.json();",
+              "  if (json.access_token) {",
+              "    pm.collectionVariables.set('access_token', json.access_token);",
+              "  }",
+              "}"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Me (current session)",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }],
+        "url": "{{baseUrl}}/api/doctor-app/auth/me",
+        "description": "Requires access_token from Login. Returns user + doctor profile."
+      }
+    },
+    {
+      "name": "5. Get Sessions",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }],
+        "url": {
+          "raw": "{{baseUrl}}/api/doctor-app/sessions?fromDate={{from_date}}",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "doctor-app", "sessions"],
+          "query": [
+            {
+              "key": "fromDate",
+              "value": "{{from_date}}",
+              "description": "Optional YYYY-MM-DD; leave empty for today"
+            }
+          ]
+        },
+        "description": "Sessions for the logged-in doctor. Requires access_token from Login. Doctor is resolved from user link — no doctorCode parameter. Each session includes its bookings for the selected date/date-range/all filter."
+      }
+    },
+    {
+      "name": "6. Get Session By ID",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }],
+        "url": "{{baseUrl}}/api/doctor-app/sessions/{{session_id}}",
+        "description": "Single session by id for the logged-in doctor. Use session_id from Get Sessions response. Response includes bookings for that session."
+      }
+    },
+    {
+      "name": "7. Update Doctor Profile",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{access_token}}" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"phone\": \"{{doctor_phone}}\",\n  \"mobile\": \"{{doctor_mobile}}\",\n  \"addressLine1\": \"{{doctor_address_line_1}}\",\n  \"addressLine2\": \"{{doctor_address_line_2}}\",\n  \"city\": \"{{doctor_city}}\",\n  \"registrationNumber\": \"{{doctor_registration_no}}\",\n  \"qualification\": \"{{doctor_qualification}}\"\n}"
+        },
+        "url": "{{baseUrl}}/api/doctor-app/profile",
+        "description": "Update allowed doctor profile fields only."
+      }
+    },
+    {
+      "name": "8. Change Password",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{access_token}}" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"currentPassword\": \"{{current_password}}\",\n  \"newPassword\": \"{{new_password}}\",\n  \"confirmPassword\": \"{{confirm_password}}\"\n}"
+        },
+        "url": "{{baseUrl}}/api/doctor-app/profile/change-password",
+        "description": "Change password in a separate endpoint (current + new + confirm)."
+      }
+    }
+  ]
+}

@@ -1,0 +1,154 @@
+export const APPROVAL_REQUEST_TYPE = {
+  CHANNEL_CANCEL: "channel_cancel",
+  CHANNEL_REFUND: "channel_refund",
+  BANK_DEPOSIT: "bank_deposit",
+} as const
+
+export type ApprovalRequestType =
+  (typeof APPROVAL_REQUEST_TYPE)[keyof typeof APPROVAL_REQUEST_TYPE]
+
+/**
+ * status: 0=PENDING, 1=APPROVED, 2=REJECTED, 3=WITHDRAWN, 4=COMPLETED
+ * (Int, aligned with FloatRequest / ShiftHandover).
+ */
+export const APPROVAL_REQUEST_STATUS = {
+  PENDING: 0,
+  APPROVED: 1,
+  REJECTED: 2,
+  WITHDRAWN: 3,
+  COMPLETED: 4,
+} as const
+
+export type ApprovalRequestStatus =
+  (typeof APPROVAL_REQUEST_STATUS)[keyof typeof APPROVAL_REQUEST_STATUS]
+
+export function approvalRequestStatusLabel(status: number): string {
+  switch (status) {
+    case APPROVAL_REQUEST_STATUS.PENDING:
+      return "Pending"
+    case APPROVAL_REQUEST_STATUS.APPROVED:
+      return "Approved"
+    case APPROVAL_REQUEST_STATUS.REJECTED:
+      return "Rejected"
+    case APPROVAL_REQUEST_STATUS.WITHDRAWN:
+      return "Withdrawn"
+    case APPROVAL_REQUEST_STATUS.COMPLETED:
+      return "Completed"
+    default:
+      return "Unknown"
+  }
+}
+
+export const OPEN_APPROVAL_STATUSES: ApprovalRequestStatus[] = [
+  APPROVAL_REQUEST_STATUS.PENDING,
+  APPROVAL_REQUEST_STATUS.APPROVED,
+]
+
+export type ApprovalPaymentLineSnapshot = {
+  payment_method: number
+  amount: number
+  bank?: { id: string; name?: string } | null
+  slip_ref?: string
+  slip_date?: string
+  card?: string
+}
+
+export const BANK_DEPOSIT_SLIP_ALLOWED_CONTENT_TYPES = [
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+] as const
+
+export const BANK_DEPOSIT_SLIP_MAX_BYTES = 2 * 1024 * 1024
+
+export type BankDepositSnapshot = {
+  bank_name?: string
+  account_number?: string
+  slip_ref?: string
+  slip_date?: string
+  slip_image_key?: string
+  slip_image_thumb_key?: string
+  slip_image_content_type?: string
+  slip_image_name?: string
+}
+
+export const CHANNEL_APPROVAL_CONFIRMATIONS = [
+  { id: "bill", label: "Original bill and copy are available.", required: true },
+  { id: "session", label: "Session or appointment time has not lapsed.", required: false },
+  { id: "requirements", label: "All other refund or cancellation requirements have been satisfied.", required: false },
+] as const
+
+export type ChannelApprovalConfirmationId = (typeof CHANNEL_APPROVAL_CONFIRMATIONS)[number]["id"]
+
+export type ChannelApprovalConfirmations = Record<ChannelApprovalConfirmationId, boolean>
+
+export function emptyChannelApprovalConfirmations(): ChannelApprovalConfirmations {
+  return { bill: false, session: false, requirements: false }
+}
+
+export function parseChannelApprovalConfirmations(raw: unknown): ChannelApprovalConfirmations | null {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null
+  const obj = raw as Record<string, unknown>
+  const parsed = emptyChannelApprovalConfirmations()
+  for (const item of CHANNEL_APPROVAL_CONFIRMATIONS) {
+    const value = obj[item.id]
+    if (typeof value !== "boolean") return null
+    parsed[item.id] = value
+  }
+  return parsed
+}
+
+export function checkedChannelApprovalLabels(raw: unknown): string[] {
+  const parsed = parseChannelApprovalConfirmations(raw)
+  if (!parsed) return []
+  return CHANNEL_APPROVAL_CONFIRMATIONS.filter((item) => parsed[item.id]).map((item) => item.label)
+}
+
+export type BookingApprovalSummary = {
+  id: string
+  type: ApprovalRequestType
+  status: ApprovalRequestStatus
+  requestedById: string
+  requestedByName: string
+  amount: number
+  remarks: string
+  refundTo: number | null
+  professionalFee: number
+  hospitalFee: number
+  rejectReason: string | null
+  createdAt: Date
+}
+
+export type ApprovalRequestListItem = BookingApprovalSummary & {
+  bookingId: string | null
+  patientName: string
+  doctorName: string
+  appointmentNo: number | null
+  billNo: string
+  sessionLabel: string
+  detailTitle: string
+  detailSub: string
+  /** Booking.method: POS, On-Call, Agent, Staff, API. */
+  paymentMethodName: string
+  /** Booking.receiptPaymentMethod: Cash, Credit Card, Slip, and so on. */
+  paymentTypeName: string
+  /** Requested refund method for cancel/refund (Cash, Credit Card, and so on). */
+  refundMethodName: string
+  /** Labels of checklist items the requester ticked. */
+  checkedConfirmations: string[]
+  receiptId: string | null
+  receiptNoString: string | null
+  slipImageUrl: string | null
+  requestedAt: Date
+  approvedAt: Date | null
+  approvedByName: string | null
+  rejectedAt: Date | null
+  rejectedByName: string | null
+}
+
+export const APPROVAL_ACTION = {
+  VIEW: "view",
+  APPROVE_CHANNEL_CANCEL: "approve-channel-cancel",
+  APPROVE_CHANNEL_REFUND: "approve-channel-refund",
+  APPROVE_BANK_DEPOSIT: "approve-bank-deposit",
+} as const

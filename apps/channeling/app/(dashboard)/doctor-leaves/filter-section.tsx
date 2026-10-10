@@ -1,0 +1,83 @@
+'use client';
+
+import { DateRangePicker } from '@/components/common/date-range-picker';
+import { FilterWrapper } from '../filter-wrapper';
+import { Combobox } from '@/components/common/combobox';
+import { DoctorLeaveFilterOption } from '@/types/doctor.leave';
+
+type FilterValues = Record<string, string | undefined>;
+
+interface DoctorLeavesFilterSectionProps {
+  doctorOptions: DoctorLeaveFilterOption[];
+  branchOptions: DoctorLeaveFilterOption[];
+  doctorId?: string;
+  branchId?: string;
+  fromDate?: string;
+  toDate?: string;
+  onValuesChange?: (values: FilterValues) => void;
+}
+
+export default function DoctorLeavesFilterSection({
+  doctorOptions,
+  branchOptions,
+  doctorId,
+  branchId,
+  fromDate,
+  toDate,
+  onValuesChange
+}: DoctorLeavesFilterSectionProps) {
+  const initialValues = {
+    doctorId: doctorId ?? '',
+    branchId: branchId ?? '__all__',
+    fromDate,
+    toDate
+  };
+
+  return (
+    <FilterWrapper
+      key={[
+        initialValues.doctorId,
+        initialValues.branchId,
+        initialValues.fromDate,
+        initialValues.toDate
+      ].join('|')}
+      initialValues={initialValues}
+      onValuesChange={onValuesChange}
+    >
+      {({ values, setValue }) => {
+        const hasDoctorSelected = Boolean(
+          values.doctorId && values.doctorId !== '__all__'
+        );
+        return (
+          <>
+            <Combobox
+              label="Select Doctor"
+              options={doctorOptions}
+              value={values.doctorId ?? ''}
+              defaultValue=""
+              onChange={(v) => setValue('doctorId', v)}
+            />
+            <Combobox
+              label="Branch"
+              options={branchOptions}
+              value={values.branchId ?? '__all__'}
+              defaultValue="__all__"
+              clearable
+              onChange={(v) => setValue('branchId', v || '__all__')}
+            />
+            {hasDoctorSelected && (
+              <DateRangePicker
+                from={values.fromDate}
+                to={values.toDate}
+                onChange={({ from, to }) => {
+                  setValue('fromDate', from);
+                  setValue('toDate', to);
+                }}
+              />
+            )}
+          </>
+        );
+      }}
+    </FilterWrapper>
+  );
+}
