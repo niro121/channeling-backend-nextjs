@@ -26,11 +26,14 @@ export async function exportWithholdingTaxReportData(
     }
 
     const data: WithholdingTaxReportExportRow[] = result.data.map((row) => ({
-      sNo: String(row.sNo ?? '-'),
+      sNo: row.sNo,
       docDate: row.docDate ? moment(row.docDate).format('DD/MM/YYYY HH:mm') : '-',
       docNo: row.docNo ?? '-',
       consultant: row.consultant ?? '-',
       speciality: row.speciality ?? '-',
+      tinNumber: row.tinNumber ?? '-',
+      nic: row.nic ?? '-',
+      address: row.address ?? '-',
       remarks: row.remarks ?? '-',
       totalAmt: row.totalAmt ?? 0,
       taxPercent: row.taxPercent ?? 0,
@@ -47,6 +50,9 @@ export async function exportWithholdingTaxReportData(
       docNo: '',
       consultant: '',
       speciality: '',
+      tinNumber: '',
+      nic: '',
+      address: '',
       remarks: '',
       totalAmt,
       taxPercent: null,

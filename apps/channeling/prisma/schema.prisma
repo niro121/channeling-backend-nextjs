@@ -214,6 +214,8 @@ model Doctor {
   addressLine2       String?
   city               String?
   registrationNumber String?
+  tinNumber          String?
+  nic                String?
   qualification      String
   referralCharge     Float
   sessionNoPrefix    String?

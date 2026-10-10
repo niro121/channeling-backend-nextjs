@@ -14,6 +14,8 @@ export type Doctor = {
   addressLine2: string | null;
   city: string | null;
   registrationNumber: string | null;
+  tinNumber: string | null;
+  nic: string | null;
   qualification: string;
   referralCharge: number;
   sessionNoPrefix: string | null;
@@ -47,6 +49,8 @@ export type DoctorFormValues = {
   addressLine2: string;
   city: string;
   registrationNumber: string;
+  tinNumber: string;
+  nic: string;
   qualification: string;
   referralCharge: number;
   sessionNoPrefix: string;
@@ -71,6 +75,8 @@ export type UpdateDoctorPayload = Partial<{
   addressLine2: string;
   city: string;
   registrationNumber: string;
+  tinNumber: string;
+  nic: string;
   qualification: string;
   referralCharge: number;
   sessionNoPrefix: string;
