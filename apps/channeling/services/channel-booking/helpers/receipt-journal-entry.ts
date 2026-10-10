@@ -47,6 +47,8 @@ export type ReceiptJournalAccounts = {
   whtPayableAccountId?: string | null;
   /** Bank ledger account (for bank deposit/withdraw ledger methods). */
   bankLedgerAccountId?: string | null;
+  /** Branch reconciled account (cash voucher source). */
+  reconciledAccountId?: string | null;
 };
 
 /** When provided for channel PAYMENT (save/settle booking), journal credits branch with hospital fee and doctor payable with professional fee. */
@@ -670,6 +672,76 @@ export function buildReceiptJournalEntryInput(
           accountId: accounts.cashierAccountId,
           debitAmount: 0,
           creditAmount: amountCents,
+          paymentMethod: RECEIPT_PAYMENT_METHOD.CASH,
+        },
+      ],
+    };
+  }
+
+  // Ledger: Cash Voucher (12) - non-cash leaves the reconciled account, cash enters the till.
+  if (receipt.method === RECEIPT_METHOD.CASH_VOUCHER && accounts.cashierAccountId && accounts.reconciledAccountId) {
+    const sourceLines = (receipt.paymentLines ?? []).filter(
+      (line) =>
+        line.paymentMethod === RECEIPT_PAYMENT_METHOD.CREDIT_CARD ||
+        line.paymentMethod === RECEIPT_PAYMENT_METHOD.SLIP ||
+        line.paymentMethod === RECEIPT_PAYMENT_METHOD.CHECK ||
+        line.paymentMethod === RECEIPT_PAYMENT_METHOD.E_WALLET
+    );
+    const journalLines = sourceLines.map((line) => ({
+      accountId: accounts.reconciledAccountId!,
+      debitAmount: 0,
+      creditAmount: Math.round(Math.abs(Number(line.amount) || 0) * 100),
+      paymentMethod: line.paymentMethod,
+    }));
+    const totalCents = journalLines.reduce((sum, line) => sum + line.creditAmount, 0);
+    if (totalCents <= 0) return null;
+    journalLines.push({
+      accountId: accounts.cashierAccountId,
+      debitAmount: totalCents,
+      creditAmount: 0,
+      paymentMethod: RECEIPT_PAYMENT_METHOD.CASH,
+    });
+    return {
+      date: receipt.createdAt ?? new Date(),
+      description: `Cash voucher${descSuffix}`,
+      referenceType: REFERENCE_TYPES.Receipt,
+      referenceId: receipt.id,
+      locationId: receipt.locationId ?? receipt.userLocationId ?? null,
+      createdBy: receipt.createdBy ?? null,
+      lines: journalLines,
+    };
+  }
+
+  // Ledger: Cash Voucher Cancel (13) - restore non-cash on the reconciled account and take cash back from the till.
+  if (receipt.method === RECEIPT_METHOD.CASH_VOUCHER_CANCEL && accounts.cashierAccountId && accounts.reconciledAccountId) {
+    const sourceLines = (receipt.paymentLines ?? []).filter(
+      (line) =>
+        line.paymentMethod === RECEIPT_PAYMENT_METHOD.CREDIT_CARD ||
+        line.paymentMethod === RECEIPT_PAYMENT_METHOD.SLIP ||
+        line.paymentMethod === RECEIPT_PAYMENT_METHOD.CHECK ||
+        line.paymentMethod === RECEIPT_PAYMENT_METHOD.E_WALLET
+    );
+    const journalLines = sourceLines.map((line) => ({
+      accountId: accounts.reconciledAccountId!,
+      debitAmount: Math.round(Math.abs(Number(line.amount) || 0) * 100),
+      creditAmount: 0,
+      paymentMethod: line.paymentMethod,
+    }));
+    const totalCents = journalLines.reduce((sum, line) => sum + line.debitAmount, 0);
+    if (totalCents <= 0) return null;
+    return {
+      date: receipt.createdAt ?? new Date(),
+      description: `Cash voucher cancel${descSuffix}`,
+      referenceType: REFERENCE_TYPES.Receipt,
+      referenceId: receipt.id,
+      locationId: receipt.locationId ?? receipt.userLocationId ?? null,
+      createdBy: receipt.createdBy ?? null,
+      lines: [
+        ...journalLines,
+        {
+          accountId: accounts.cashierAccountId,
+          debitAmount: 0,
+          creditAmount: totalCents,
           paymentMethod: RECEIPT_PAYMENT_METHOD.CASH,
         },
       ],

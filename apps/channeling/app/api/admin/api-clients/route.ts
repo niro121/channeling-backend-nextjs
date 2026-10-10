@@ -1,26 +1,18 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getServerSession } from "next-auth"
 import * as argon2 from "argon2"
 import * as crypto from "crypto"
-import { authOptions } from "@/lib/auth"
 import { userTypes } from "@/lib/roles"
+import { privilegeDenied } from "@/lib/api-privilege"
 import prisma from "@/lib/prisma"
 
-async function requireAdmin() {
-  const session = await getServerSession(authOptions)
-  if (!session?.user) {
-    return { error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) }
-  }
-  const userType = (session.user as { userType?: number }).userType
-  if (userType !== userTypes.admin) {
-    return { error: NextResponse.json({ error: "Forbidden" }, { status: 403 }) }
-  }
-  return { error: null }
+async function requireApiClients(action: "view" | "add" | "edit") {
+  const denied = await privilegeDenied("api-clients", action)
+  return { error: denied }
 }
 
 /** GET /api/admin/api-clients — list all API clients (no secrets). */
 export async function GET() {
-  const auth = await requireAdmin()
+  const auth = await requireApiClients("view")
   if (auth.error) return auth.error
 
   try {
@@ -44,7 +36,7 @@ export async function GET() {
 
 /** POST /api/admin/api-clients — create. Body: { name, actingUserId }. Returns clientSecret only once. */
 export async function POST(request: NextRequest) {
-  const auth = await requireAdmin()
+  const auth = await requireApiClients("add")
   if (auth.error) return auth.error
 
   try {

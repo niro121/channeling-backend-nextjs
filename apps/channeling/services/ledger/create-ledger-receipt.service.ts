@@ -25,6 +25,14 @@ import {
 } from "@/types/receipt"
 import { requireActiveShift, getCurrentShift } from "@/services/shift.service"
 import { parseSlipDateInput } from "@/lib/slip-date"
+import {
+  assertPostedCashVoucherLinesWithTx,
+  assertSourceMethodsNonNegativeWithTx,
+  buildCashVoucherJournalLines,
+  loadReconciledCashAccount,
+  normalizeCashVoucherLines,
+  withCashVoucherAccountLock,
+} from "@/services/ledger/cash-voucher.service"
 
 const JOURNAL_SEQUENCE_SCOPE = "journal"
 
@@ -36,6 +44,7 @@ export const LEDGER_TRANSACTION_TYPES = [
   "AGENCY_DEPOSIT",
   "AGENCY_WITHDRAW",
   "BANK_DEPOSIT",
+  "CASH_VOUCHER",
 ] as const
 
 export type LedgerTransactionType = (typeof LEDGER_TRANSACTION_TYPES)[number]
@@ -70,6 +79,10 @@ export type CreateLedgerReceiptInput = {
   slipReference?: string
   /** For agency deposit via slip: slip date (YYYY-MM-DD) */
   slipDate?: string
+  /** Cash voucher: reconciled account the non-cash is taken from. */
+  cashVoucherAccountId?: string | null
+  /** Cash voucher: amounts per source payment method, in rupees. */
+  cashVoucherLines?: { paymentMethod: number; amount: number }[]
 }
 
 export type CreateLedgerReceiptResult =
@@ -234,6 +247,8 @@ function mapToReceiptMethodAndType(
     case "BANK_DEPOSIT":
       // Bank deposit moves cash out of till into bank ledger (outflow from cashier perspective).
       return { method: RECEIPT_METHOD.BANK_DEPOSIT, type: 0, paymentMethod: RECEIPT_PAYMENT_METHOD.CASH }
+    case "CASH_VOUCHER":
+      return { method: RECEIPT_METHOD.CASH_VOUCHER, type: 1, paymentMethod: RECEIPT_PAYMENT_METHOD.CASH }
     default:
       throw new Error(`Unknown transaction type: ${transactionType}`)
   }
@@ -242,6 +257,10 @@ function mapToReceiptMethodAndType(
 export async function createLedgerReceipt(
   input: CreateLedgerReceiptInput
 ): Promise<CreateLedgerReceiptResult> {
+  if (input.transactionType === "CASH_VOUCHER") {
+    return postCashVoucherReceipt(input)
+  }
+
   let shiftId: string | null = null
   if (input.createdBy) {
     await requireActiveShift(input.createdBy)
@@ -570,5 +589,146 @@ export async function createLedgerReceipt(
     success: true,
     receiptId: receipt.id,
     receiptNoString: receipt.receiptNoString,
+  }
+}
+
+async function postCashVoucherReceipt(
+  input: CreateLedgerReceiptInput
+): Promise<CreateLedgerReceiptResult> {
+  if (!input.createdBy) {
+    return { success: false, errorCode: "VALIDATION", message: "A requester is required for a cash voucher." }
+  }
+  const userLocationId = input.userLocationId?.trim() ?? ""
+  if (!userLocationId) {
+    return { success: false, errorCode: "VALIDATION", message: "You must have a branch assigned to record cash vouchers." }
+  }
+  const accountId = input.cashVoucherAccountId?.trim() ?? ""
+  if (!accountId) {
+    return { success: false, errorCode: "VALIDATION", message: "Select a reconciliation account." }
+  }
+  const normalized = normalizeCashVoucherLines(input.cashVoucherLines ?? [])
+  if (!normalized.success) return normalized
+
+  const account = await loadReconciledCashAccount(accountId)
+  if (!account) {
+    return { success: false, errorCode: "VALIDATION", message: "Select a reconciliation account." }
+  }
+
+  try {
+    await requireActiveShift(input.createdBy)
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "An open shift is required."
+    return { success: false, errorCode: "shift_required", message }
+  }
+  const shift = await getCurrentShift(input.createdBy)
+  const shiftId = shift?.id ?? null
+
+  const reqResult = await requireReceiptJournalAccounts(
+    {
+      locationId: account.locationId,
+      createdBy: input.createdBy,
+      userLocationId,
+      agencyId: null,
+      needTill: true,
+    },
+    { needTill: true, isAgent: false }
+  )
+  if (!reqResult.success) {
+    return { success: false, errorCode: reqResult.errorCode, message: reqResult.error }
+  }
+  const tillAccountId = reqResult.accounts.cashierAccountId
+  if (!tillAccountId) {
+    return { success: false, errorCode: "CASHIER_ACCOUNT_ERROR", message: "Till account could not be resolved for this cash voucher." }
+  }
+
+  const journalNumberResult = await getNextSequenceNumber(JOURNAL_SEQUENCE_SCOPE, { startFrom: 1 })
+  const journalNumber = journalNumberResult.success ? journalNumberResult.value : 0
+  if (journalNumber <= 0) {
+    return { success: false, errorCode: "SERVER", message: "Could not allocate a journal number." }
+  }
+
+  const amountRupees = normalized.totalCents / 100
+  const remarks = input.remarks?.trim() ?? ""
+
+  try {
+    const posted = await withCashVoucherAccountLock(account.id, async () => {
+      return prisma.$transaction(async (tx) => {
+        const ready = await assertPostedCashVoucherLinesWithTx(tx, account.id, normalized.lines)
+        if (!ready.success) {
+          throw Object.assign(new Error(ready.message), { errorCode: ready.errorCode })
+        }
+
+        const receiptResult = await createReceiptWithoutBooking(tx, {
+          paymentMethod: RECEIPT_PAYMENT_METHOD.CASH,
+          amount: amountRupees,
+          bank: account.name,
+          bankId: account.id,
+          remarks,
+          type: 1,
+          method: RECEIPT_METHOD.CASH_VOUCHER,
+          createdBy: input.createdBy,
+          locationId: account.locationId,
+          userLocationId,
+          shiftId: shiftId ?? undefined,
+          paymentLines: normalized.lines.map((line) => ({
+            paymentMethod: line.paymentMethod,
+            amount: line.amountCents / 100,
+            bank: account.name,
+          })),
+        })
+        if (!receiptResult.success) {
+          throw Object.assign(new Error(receiptResult.message), { errorCode: receiptResult.errorCode })
+        }
+
+        const journalResult = await createJournalEntryInTransaction(
+          tx,
+          {
+            date: receiptResult.receipt.createdAt ?? new Date(),
+            description: `Cash voucher - ${account.name}${receiptResult.receipt.receiptNoString ? ` - Receipt ${receiptResult.receipt.receiptNoString}` : ""}`,
+            referenceType: "Receipt",
+            referenceId: receiptResult.receipt.id,
+            locationId: account.locationId,
+            createdBy: input.createdBy,
+            lines: buildCashVoucherJournalLines({
+              direction: "convert",
+              reconciledAccountId: account.id,
+              tillAccountId,
+              lines: normalized.lines,
+            }),
+          },
+          journalNumber
+        )
+        if (!journalResult.success) {
+          throw Object.assign(new Error(journalResult.error), { errorCode: journalResult.errorCode ?? "JOURNAL" })
+        }
+
+        const stillNonNegative = await assertSourceMethodsNonNegativeWithTx(
+          tx,
+          account.id,
+          normalized.lines.map((line) => line.paymentMethod)
+        )
+        if (!stillNonNegative.success) {
+          throw Object.assign(new Error(stillNonNegative.message), { errorCode: stillNonNegative.errorCode })
+        }
+
+        return receiptResult.receipt
+      })
+    })
+
+    return {
+      success: true,
+      receiptId: posted.id,
+      receiptNoString: posted.receiptNoString,
+    }
+  } catch (err) {
+    const errorCode =
+      err && typeof err === "object" && "errorCode" in err && typeof err.errorCode === "string"
+        ? err.errorCode
+        : "SERVER"
+    const message = err instanceof Error ? err.message : "Failed to post cash voucher."
+    if (message === "This reconciliation account is busy. Try again.") {
+      return { success: false, errorCode: "BUSY", message }
+    }
+    return { success: false, errorCode, message }
   }
 }
