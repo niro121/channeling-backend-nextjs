@@ -31,6 +31,18 @@ export const WithholdingTaxReportColumns: ColumnDef<WithholdingTaxReportRow>[] =
     header: () => <span className="whitespace-nowrap">Speciality</span>
   },
   {
+    accessorKey: 'tinNumber',
+    header: () => <span className="whitespace-nowrap">TIN Number</span>
+  },
+  {
+    accessorKey: 'nic',
+    header: () => <span className="whitespace-nowrap">NIC</span>
+  },
+  {
+    accessorKey: 'address',
+    header: () => <span className="whitespace-nowrap">Address</span>
+  },
+  {
     accessorKey: 'remarks',
     header: () => <span className="whitespace-nowrap">Remarks</span>
   },
