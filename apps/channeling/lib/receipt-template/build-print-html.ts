@@ -580,12 +580,19 @@ function buildSailsRefundReceiptHtml(placeholders: ReceiptPlaceholderMap): strin
 
   const isCancelReceipt = (placeholders.refund_title ?? "") === "Cancel Receipt"
   const actorLabel = isCancelReceipt ? "Canceled by" : "Refund by"
+  const sessionLocationName = (placeholders.session_location_name ?? "").trim()
 
   const rows = [
     invoiceRow("Refund No", placeholders.refund_receipt_no ?? ""),
     invoiceRow("Appointment No", placeholders.appointment_no ?? ""),
     invoiceRow("Consultant", placeholders.consultant ?? ""),
     invoiceRow("Date", dateTime),
+    sessionLocationName
+      ? invoiceRow("Session Location", sessionLocationName, {
+          strongLabel: true,
+          strongValue: true,
+        })
+      : "",
     invoiceRow("Name", placeholders.patient_name ?? "", { strongValue: true }),
     invoiceRow("Phone No", placeholders.phone ?? ""),
     invoiceRow("Channel No", placeholders.channel_no ?? ""),
