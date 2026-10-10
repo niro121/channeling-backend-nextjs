@@ -13,6 +13,7 @@ import type {
   CashBookReportExportRow,
   CashBookReportQuery,
   CashBookReportRow,
+  CashBookTypeBalance,
 } from '@/types/reports/cash-book';
 import {
   exportCashBookReportData,
@@ -42,6 +43,7 @@ function ContentInner({ currentUserName, cashBookOptions }: Props) {
   const [summary, setSummary] = useState<{
     openingBalanceCents: number;
     closingBalanceCents: number;
+    closingBalancesByType: CashBookTypeBalance[];
   } | null>(null);
 
   const today = todayLocalYyyyMmDd();
@@ -137,6 +139,7 @@ function ContentInner({ currentUserName, cashBookOptions }: Props) {
         <CashBookPrintLayout
           rows={rows}
           closingBalanceCents={summary?.closingBalanceCents ?? null}
+          closingBalancesByType={summary?.closingBalancesByType ?? []}
         />
       )}
       customDownloadPdf={handlePdfDownload}
@@ -203,6 +206,7 @@ function ContentInner({ currentUserName, cashBookOptions }: Props) {
           setSummary({
             openingBalanceCents: result.openingBalanceCents,
             closingBalanceCents: result.closingBalanceCents,
+            closingBalancesByType: result.closingBalancesByType,
           });
           const openingRow: CashBookReportRow = {
             id: 'opening-balance-row',
@@ -245,6 +249,14 @@ function ContentInner({ currentUserName, cashBookOptions }: Props) {
               </TableCell>
               <TableCell className="text-right tabular-nums">{formatCents(summary.closingBalanceCents)}</TableCell>
             </TableRow>
+            {summary.closingBalancesByType.map((typeBalance) => (
+              <TableRow key={typeBalance.label} className="bg-muted/20">
+                <TableCell colSpan={7} className="pl-8 text-left">
+                  {typeBalance.label}
+                </TableCell>
+                <TableCell className="text-right tabular-nums">{formatCents(typeBalance.balanceCents)}</TableCell>
+              </TableRow>
+            ))}
             {rows.length === 0 && (
               <TableRow className="bg-muted/20">
                 <TableCell colSpan={8} className="text-center text-muted-foreground">
