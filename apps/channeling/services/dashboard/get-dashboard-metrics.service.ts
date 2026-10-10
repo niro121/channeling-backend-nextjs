@@ -165,6 +165,7 @@ export async function getDashboardApprovalStatsService(input: {
   if (access.canSeeCancels) attendTypes.push(APPROVAL_REQUEST_TYPE.CHANNEL_CANCEL)
   if (access.canSeeRefunds) attendTypes.push(APPROVAL_REQUEST_TYPE.CHANNEL_REFUND)
   if (access.canSeeDeposits) attendTypes.push(APPROVAL_REQUEST_TYPE.BANK_DEPOSIT)
+  if (access.canSeeCashVouchers) attendTypes.push(APPROVAL_REQUEST_TYPE.CASH_VOUCHER)
 
   const attendBase = {
     status: APPROVAL_REQUEST_STATUS.PENDING,

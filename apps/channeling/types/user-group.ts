@@ -18,6 +18,7 @@ export {
 // Available resources in the system
 export const RESOURCES: ResourceWithOptionalActions[] = [
   { id: "users", name: "Users" },
+  { id: "user-groups", name: "User Groups" },
   {
     id: "dashboard",
     name: "Dashboard",
@@ -31,6 +32,7 @@ export const RESOURCES: ResourceWithOptionalActions[] = [
     ],
   },
   { id: "channel-booking", name: "Channel Booking" },
+  { id: "channel-room-dashboard", name: "Channel Room Dashboard", actions: ["view"] },
   {
     id: BOOKING_PAYMENT_RESOURCE,
     name: "Channel Booking – Payment methods",
@@ -65,6 +67,11 @@ export const RESOURCES: ResourceWithOptionalActions[] = [
   { id: "doctors", name: "Doctors" },
   { id: "sessions", name: "Sessions" },
   { id: "doctor-sessions", name: "Doctor Sessions" },
+  {
+    id: "bulk-price-change",
+    name: "Bulk Price Change",
+    actions: ["view", "edit", "delete"],
+  },
   { id: "departments", name: "Departments" },
   { id: "patients", name: "Patients" },
   { id: "staff", name: "Staff" },
@@ -91,12 +98,17 @@ export const RESOURCES: ResourceWithOptionalActions[] = [
   { id: "doctor-leaves", name: "Doctor Leave" },
   { id: "sms-playground", name: "SMS Playground" },
   { id: "sms-templates", name: "SMS Templates" },
+  { id: "sms-activity", name: "SMS Activity", actions: ["view"] },
   {
     id: "reports",
     name: "Reports",
     customActions: REPORT_PERMISSION_ACTIONS,
   },
   { id: "api-clients", name: "API Clients" },
+  { id: "knowledge-hub", name: "Knowledge Hub", actions: ["view"] },
+  { id: "server-monitor", name: "Server Monitor", actions: ["view"] },
+  { id: "database-seeds", name: "Database Seeds", actions: ["view"] },
+  { id: "run-e2e", name: "Run End-to-end Tests", actions: ["view"] },
   {
     id: "bulk-cashier",
     name: "Bulk Cashier",
@@ -124,13 +136,20 @@ export const RESOURCES: ResourceWithOptionalActions[] = [
       { id: "add-agency-deposit", name: "Manage Agency Deposit" },
       { id: "add-agency-withdraw", name: "Manage Agency Withdraw" },
       { id: "add-bank-deposit", name: "Add Bank Deposit" },
+      { id: "add-cash-voucher", name: "Add Cash Voucher" },
       { id: "edit", name: "Edit" },
       { id: "delete", name: "Delete" },
       { id: "cancel", name: "Cancel entries" },
       { id: "cancel-bank-deposit", name: "Cancel Bank Deposits" },
+      { id: "cancel-cash-voucher", name: "Cancel Cash Vouchers" },
     ],
   },
   { id: "bank-accounts", name: "Bank Accounts" },
+  {
+    id: "receipt-templates",
+    name: "Receipt Templates",
+    actions: ["view", "edit"],
+  },
   { id: "receipt-manager", name: "Receipt Manager", actions: ["view"] },
   {
     id: "reconciliation",
@@ -149,6 +168,7 @@ export const RESOURCES: ResourceWithOptionalActions[] = [
       { id: "approve-channel-cancel", name: "Approve Channel Cancellations" },
       { id: "approve-channel-refund", name: "Approve Channel Refunds" },
       { id: "approve-bank-deposit", name: "Approve Bank Deposits" },
+      { id: "approve-cash-voucher", name: "Approve Cash Vouchers" },
     ],
   },
 ];

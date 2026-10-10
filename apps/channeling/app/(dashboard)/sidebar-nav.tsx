@@ -53,8 +53,6 @@ export type SidebarNavItem = {
 
 export type SidebarNavGroup = {
   label: string;
-  /** Shown only for admin user type. Items are not filtered by group permissions. */
-  adminOnly?: boolean;
   items: SidebarNavItem[];
 };
 
@@ -79,7 +77,6 @@ export const SIDEBAR_GROUPS: SidebarNavGroup[] = [
         href: "/doctor-sessions/bulk-price-change",
         label: "Bulk Price Change",
         icon: DollarSign,
-        accessPath: "/doctor-sessions",
       },
       { href: "/specialities", label: "Speciality", icon: StarIcon },
       { href: "/doctor-leaves", label: "Doctor Leave", icon: UserLock },
@@ -139,7 +136,6 @@ export const SIDEBAR_GROUPS: SidebarNavGroup[] = [
   },
   {
     label: "Admin",
-    adminOnly: true,
     items: [
       { href: "/admin/knowledge-hub", label: "Knowledge Hub", icon: BookOpen },
       { href: "/admin/monitor", label: "Server Monitor", icon: Activity },
@@ -175,21 +171,16 @@ function SidebarGroup({
 
 export function SidebarNavList({
   hasAccess,
-  isAdmin,
   e2eRunEnabled = false,
 }: {
   hasAccess: (path: string) => boolean;
-  isAdmin: boolean;
   e2eRunEnabled?: boolean;
 }) {
   return (
     <>
       {SIDEBAR_GROUPS.map((group) => {
-        if (group.adminOnly && !isAdmin) return null;
-
         const items = group.items.filter((item) => {
           if (item.requiresE2e && !e2eRunEnabled) return false;
-          if (group.adminOnly) return true;
           return hasAccess(item.accessPath ?? item.href);
         });
 

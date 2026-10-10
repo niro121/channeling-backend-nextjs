@@ -1,6 +1,5 @@
 import { redirect } from "next/navigation";
-import { fetchServerSession } from "@/lib/session";
-import { userTypes } from "@/lib/roles";
+import { checkRouteAccess } from "@/lib/server-permissions";
 import { RunE2EClient } from "./run-e2e-client";
 import { TestingGuideDialog } from "./testing-guide-dialog";
 import Link from "next/link";
@@ -16,12 +15,8 @@ const E2E_RUN_ENABLED =
   process.env.E2E_RUN_FROM_APP === "true" || process.env.E2E_RUN_FROM_APP === "1";
 
 export default async function AdminRunE2EPage() {
-  const session = await fetchServerSession();
-  if (!session?.user) {
-    redirect("/login");
-  }
-  const userType = (session.user as { userType?: number }).userType;
-  if (userType !== userTypes.admin) {
+  const canView = await checkRouteAccess("/admin/run-e2e");
+  if (!canView) {
     redirect("/unauthorized-access");
   }
 

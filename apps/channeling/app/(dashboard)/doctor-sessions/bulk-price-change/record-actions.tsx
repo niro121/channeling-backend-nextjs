@@ -67,7 +67,7 @@ export function BulkPriceChangeRecordActions({ row }: BulkPriceChangeRecordActio
           <Pencil className="h-4 w-4" />
           <span className="sr-only">Edit</span>
         </Button>
-        {has('doctor-sessions', 'delete') && (
+        {has('bulk-price-change', 'delete') && (
           <Button
             variant="ghost"
             size="icon"

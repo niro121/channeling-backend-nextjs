@@ -9,7 +9,7 @@ import { logActivityNonBlocking } from "@/lib/activity-log"
 
 export const getAllUserGroups = async (filter: GetUserGroupsParams) => {
     // Check view permission (user groups use "users" resource)
-    await requirePermission("users", "view")
+    await requirePermission("user-groups", "view")
 
     try {
 
@@ -30,7 +30,7 @@ export const getAllUserGroups = async (filter: GetUserGroupsParams) => {
 
 export const bulkDeleteUserGroups = async (ids: string[]) => {
     // Check delete permission
-    await requirePermission("users", "delete")
+    await requirePermission("user-groups", "delete")
 
     try {
 
@@ -46,7 +46,7 @@ export const bulkDeleteUserGroups = async (ids: string[]) => {
 
 export const deleteUserGroup = async (id: string) => {
     // Check delete permission
-    await requirePermission("users", "delete")
+    await requirePermission("user-groups", "delete")
     
     try {
         const response = await deleteOneUserGroup(id)
@@ -61,7 +61,7 @@ export const deleteUserGroup = async (id: string) => {
 
 export const createNewUserGroup = async (payload: UserGroup) => {
     // Check add permission
-    await requirePermission("users", "add")
+    await requirePermission("user-groups", "add")
 
     try {
         const session = await fetchServerSession()
@@ -110,7 +110,7 @@ export const createNewUserGroup = async (payload: UserGroup) => {
 
 export const updateUserGroup = async (id: string, payload: UserGroup) => {
     // Check edit permission
-    await requirePermission("users", "edit")
+    await requirePermission("user-groups", "edit")
     
     try {
         const session = await fetchServerSession()
@@ -185,7 +185,7 @@ export const getAllUserGroupsOptions = async () => {
 
 // ==== USER GROUPS EXPORT ==== //
 export const getUserGroupsExport = async (params: { keyword?: string }) => {
-  await requirePermission("users", "view");
+  await requirePermission("user-groups", "view");
   try {
     const response = await getAllUserGroups({
       page: "0",

@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { Row } from '@tanstack/react-table';
 import { useRouter } from 'next/navigation';
-import { Pencil, Trash2 } from 'lucide-react';
+import { Copy, Pencil, Trash2 } from 'lucide-react';
 import {
   Button,
   CustomAlertDialog,
@@ -74,6 +74,21 @@ export default function UserGroupRecordActions<TData extends UserGroup>({
           >
             <Pencil className="h-4 w-4" />
             <span className="sr-only">Edit</span>
+          </Button>
+        )}
+
+        {has('users', 'add') && userGroup.id && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 text-muted-foreground hover:text-foreground"
+            title="Copy and create"
+            onClick={() =>
+              router.push(`/user-groups/add?copyFrom=${userGroup.id}`)
+            }
+          >
+            <Copy className="h-4 w-4" />
+            <span className="sr-only">Copy and create</span>
           </Button>
         )}
 
