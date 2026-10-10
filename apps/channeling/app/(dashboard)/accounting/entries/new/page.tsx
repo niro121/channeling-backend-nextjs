@@ -1,8 +1,8 @@
 import React from 'react';
 import { checkRouteAccess, checkPermission } from '@/lib/server-permissions';
 import { redirect } from 'next/navigation';
-import { getAccounts } from '@/app/actions/accounting.actions';
 import { getAllLocations } from '@/app/actions/location.action';
+import { listActiveAccountOptions } from '@/services/accounting/account/read.service';
 import JournalEntryForm from '../../journal-entry-form';
 
 export default async function NewJournalEntryPage() {
@@ -15,20 +15,17 @@ export default async function NewJournalEntryPage() {
     redirect('/unauthorized-access');
   }
 
-  const [accountsRes, locationsRes] = await Promise.all([
-    getAccounts({ limit: 500, page: 0 }),
+  const [accountRows, locationsRes] = await Promise.all([
+    listActiveAccountOptions(),
     getAllLocations({ publishedOnly: true, limit: '500', page: '0' }),
   ]);
 
-  const accounts =
-    accountsRes.success && accountsRes.data
-      ? accountsRes.data.map((a) => ({
-          id: a.id,
-          name: a.name,
-          code: a.code ?? null,
-          type: a.type,
-        }))
-      : [];
+  const accounts = accountRows.map((a) => ({
+    id: a.id,
+    name: a.name,
+    code: a.code ?? null,
+    type: a.type,
+  }));
 
   const locations =
     locationsRes?.data?.map((l) => ({

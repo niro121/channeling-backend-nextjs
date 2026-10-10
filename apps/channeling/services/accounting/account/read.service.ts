@@ -112,6 +112,17 @@ export async function getLinkedAccountUserOptions(): Promise<
   }));
 }
 
+/** Every active account, without balances. Used by pickers that must list the full chart. */
+export async function listActiveAccountOptions(): Promise<
+  Array<{ id: string; name: string; code: string | null; type: AccountType }>
+> {
+  return prisma.account.findMany({
+    where: { isActive: true },
+    select: { id: true, name: true, code: true, type: true },
+    orderBy: [{ type: 'asc' }, { code: 'asc' }, { name: 'asc' }],
+  });
+}
+
 /** List accounts for Accounting page (with balance). */
 export async function getAllAccounts(
   params: GetAllAccountsParams = {}
