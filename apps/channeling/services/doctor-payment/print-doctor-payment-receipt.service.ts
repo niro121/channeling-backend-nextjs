@@ -88,9 +88,7 @@ function toPrintModel(
     wht: formatLKR(detail.whd),
     netPaid: formatLKR(detail.netAmount),
     totalPatientCount: detail.totalPatientCount,
-    paidTo: detail.canceledAt
-      ? `${detail.consultantName} .............................`
-      : detail.consultantName,
+    paidTo: `${detail.consultantName} .............................`,
     paidBy: detail.paidBy,
     paidOn: formatPaidOn(new Date(detail.paidAt ?? detail.createdAt)),
     canceledBy: detail.canceledBy,
