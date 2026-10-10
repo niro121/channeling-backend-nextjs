@@ -1,18 +1,19 @@
 'use client';
 
 import { formatCents } from '@/lib/format-money';
-import type { CashBookReportRow } from '@/types/reports/cash-book';
+import type { CashBookReportRow, CashBookTypeBalance } from '@/types/reports/cash-book';
 
 type Props = {
   rows: CashBookReportRow[];
   closingBalanceCents: number | null;
+  closingBalancesByType?: CashBookTypeBalance[];
 };
 
 /**
  * Print-only A4 portrait for Cash Book — matches on-screen report columns
  * (no No. column): Date | Journal # | Account | Description | Type | Debit | Credit | Balance
  */
-export function CashBookPrintLayout({ rows, closingBalanceCents }: Props) {
+export function CashBookPrintLayout({ rows, closingBalanceCents, closingBalancesByType = [] }: Props) {
   return (
     <div className="cb-print-root">
       <style>{`
@@ -115,6 +116,10 @@ export function CashBookPrintLayout({ rows, closingBalanceCents }: Props) {
           .cash-book-report-root .cb-right {
             text-align: right !important;
           }
+          .cash-book-report-root .cb-type-indent {
+            display: inline-block !important;
+            padding-left: 4mm !important;
+          }
           .cash-book-report-root .rpt-print-root table.cb-print-table tr.cb-opening td,
           .cash-book-report-root .rpt-print-root table.cb-print-table tr.cb-closing td {
             font-weight: 700 !important;
@@ -216,14 +221,26 @@ export function CashBookPrintLayout({ rows, closingBalanceCents }: Props) {
                 );
               })}
               {closingBalanceCents != null ? (
-                <tr className="cb-closing">
-                  <td className="cb-c0" colSpan={7}>
-                    Closing Balance
-                  </td>
-                  <td className="cb-c7 cb-right cb-nums">
-                    {formatCents(closingBalanceCents)}
-                  </td>
-                </tr>
+                <>
+                  <tr className="cb-closing">
+                    <td className="cb-c0" colSpan={7}>
+                      Closing Balance
+                    </td>
+                    <td className="cb-c7 cb-right cb-nums">
+                      {formatCents(closingBalanceCents)}
+                    </td>
+                  </tr>
+                  {closingBalancesByType.map((typeBalance) => (
+                    <tr key={typeBalance.label} className="cb-closing">
+                      <td className="cb-c0" colSpan={7}>
+                        <span className="cb-type-indent">{typeBalance.label}</span>
+                      </td>
+                      <td className="cb-c7 cb-right cb-nums">
+                        {formatCents(typeBalance.balanceCents)}
+                      </td>
+                    </tr>
+                  ))}
+                </>
               ) : null}
             </>
           )}

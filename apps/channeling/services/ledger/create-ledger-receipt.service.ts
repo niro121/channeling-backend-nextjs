@@ -564,7 +564,7 @@ export async function createLedgerReceipt(
       if (!jResult.success) throw new Error(jResult.error)
     }
     return r
-  })
+  }, { timeout: 15000 })
 
   if (!result.success) {
     return { success: false, errorCode: result.errorCode, message: result.message }
@@ -712,7 +712,7 @@ async function postCashVoucherReceipt(
         }
 
         return receiptResult.receipt
-      })
+      }, { timeout: 15000 })
     })
 
     return {
