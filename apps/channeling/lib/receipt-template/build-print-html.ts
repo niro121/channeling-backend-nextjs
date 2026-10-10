@@ -155,8 +155,8 @@ const DOCTOR_PAYMENT_PAGE_STYLES = `
   * { color: #000 !important; background: transparent !important; box-shadow: none !important; }
   body {
     font-family: Verdana, Geneva, Tahoma, sans-serif;
-    font-size: 11px;
-    line-height: 1.35;
+    font-size: 13pt;
+    line-height: 1.4;
     color: #000;
     padding: 0;
   }
@@ -164,13 +164,13 @@ const DOCTOR_PAYMENT_PAGE_STYLES = `
   .slip + .slip { page-break-before: always; break-before: page; }
   .title {
     text-align: center;
-    font-size: 14px;
+    font-size: 15pt;
     font-weight: 700;
     margin: 0 0 4px;
   }
   .status-banner {
     text-align: center;
-    font-size: 13px;
+    font-size: 13pt;
     font-weight: 700;
     margin: 0 0 10px;
   }
