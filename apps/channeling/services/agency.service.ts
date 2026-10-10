@@ -18,6 +18,16 @@ import { getAccountBalance } from '@/services/accounting/balance-calc.service';
 import { formatLKR } from '@/lib/format-money';
 import { getAgentBalance } from '@/services/channel-booking/helpers/get-agent-balance';
 
+/** Drop spaces so values like "091 2277091 " match the digit pattern. */
+function optionalSriLankaNumber(regex: RegExp, message: string) {
+  return z
+    .string()
+    .nullable()
+    .optional()
+    .transform((val) => (typeof val === 'string' ? val.replace(/\s+/g, '') : val))
+    .refine((val) => !val || regex.test(val), message);
+}
+
 // ==== AGENCY: VALIDATION SCHEMA ==== //
 const agencySchemaBase = z.object({
   name: z
@@ -42,22 +52,8 @@ const agencySchemaBase = z.object({
     .string()
     .min(1, 'This field is mandatory')
     .max(100, 'Must be less than 100 characters'),
-  phone: z
-    .string()
-    .nullable()
-    .optional()
-    .refine(
-      (val) => !val || val.trim() === '' || sriLankaPhoneRegex.test(val),
-      'Phone Number Ex: 07x xxxxxxx'
-    ),
-  mobile: z
-    .string()
-    .nullable()
-    .optional()
-    .refine(
-      (val) => !val || val.trim() === '' || sriLankaMobileRegex.test(val),
-      'Mobile Number Ex: 07x xxxxxxx'
-    ),
+  phone: optionalSriLankaNumber(sriLankaPhoneRegex, 'Phone Number Ex: 07x xxxxxxx'),
+  mobile: optionalSriLankaNumber(sriLankaMobileRegex, 'Mobile Number Ex: 07x xxxxxxx'),
   fax: z.string().optional().nullable(),
   email: z
     .string()
@@ -70,22 +66,14 @@ const agencySchemaBase = z.object({
   addressLine1: z.string().optional().nullable(),
   addressLine2: z.string().optional().nullable(),
   city: z.string().optional().nullable(),
-  contactPersonPhone: z
-    .string()
-    .nullable()
-    .optional()
-    .refine(
-      (val) => !val || val.trim() === '' || sriLankaPhoneRegex.test(val),
-      'Phone Number Ex: 07x xxxxxxx'
-    ),
-  contactPersonMobile: z
-    .string()
-    .nullable()
-    .optional()
-    .refine(
-      (val) => !val || val.trim() === '' || sriLankaMobileRegex.test(val),
-      'Mobile Number Ex: 07x xxxxxxx'
-    ),
+  contactPersonPhone: optionalSriLankaNumber(
+    sriLankaPhoneRegex,
+    'Phone Number Ex: 07x xxxxxxx'
+  ),
+  contactPersonMobile: optionalSriLankaNumber(
+    sriLankaMobileRegex,
+    'Mobile Number Ex: 07x xxxxxxx'
+  ),
   contactPersonEmail: z
     .string()
     .email('Invalid email format')
