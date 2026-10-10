@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Form, Formik, FormikHelpers, FieldArray } from 'formik';
 import * as Yup from 'yup';
 import { useRouter } from 'next/navigation';
@@ -16,8 +16,23 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { SearchableSelector } from '@/components/common/searchable-selector';
 import { createJournalEntryAction } from '@/app/actions/accounting.actions';
 import { Plus, Save, Trash2 } from 'lucide-react';
+
+const ACCOUNT_TYPE_LABEL: Record<string, string> = {
+  CASH: 'Cash',
+  PAYABLE: 'Payable',
+  RECEIVABLE: 'Receivable',
+  INCOME: 'Income',
+  EXPENSE: 'Expense',
+};
+
+function accountOptionLabel(account: JournalEntryFormAccount): string {
+  const title = account.code ? `${account.code} – ${account.name}` : account.name;
+  const type = ACCOUNT_TYPE_LABEL[account.type] ?? account.type;
+  return `${title} (${type})`;
+}
 
 export type JournalEntryFormAccount = {
   id: string;
@@ -101,6 +116,10 @@ export default function JournalEntryForm({
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
   const router = useRouter();
+  const accountOptions = useMemo(
+    () => accounts.map((account) => ({ id: account.id, name: accountOptionLabel(account) })),
+    [accounts]
+  );
 
   const initialValues: JournalEntryFormValues = {
     date: todayISO(),
@@ -255,27 +274,17 @@ export default function JournalEntryForm({
                           {values.lines.map((_, index) => (
                             <tr key={index} className="border-b last:border-0">
                               <td className="p-2">
-                                <Select
-                                  value={values.lines[index].accountId || '__none__'}
-                                  onValueChange={(v) =>
-                                    setFieldValue(
-                                      `lines.${index}.accountId`,
-                                      v === '__none__' ? '' : v
-                                    )
+                                <SearchableSelector
+                                  label="account"
+                                  placeholder="Select account"
+                                  options={accountOptions}
+                                  value={values.lines[index].accountId}
+                                  onChange={(accountId) =>
+                                    setFieldValue(`lines.${index}.accountId`, accountId)
                                   }
-                                >
-                                  <SelectTrigger className="h-9">
-                                    <SelectValue placeholder="Select account" />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    <SelectItem value="__none__">Select account</SelectItem>
-                                    {accounts.map((acc) => (
-                                      <SelectItem key={acc.id} value={acc.id}>
-                                        {acc.code ?? acc.name} – {acc.name}
-                                      </SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
+                                  className="h-9 w-full font-normal"
+                                  popoverClassName="min-w-[28rem]"
+                                />
                                 {touched.lines?.[index] &&
                                   (errors.lines as { [i: number]: { accountId?: string } })?.[index]?.accountId && (
                                     <p className="text-xs text-destructive mt-0.5">

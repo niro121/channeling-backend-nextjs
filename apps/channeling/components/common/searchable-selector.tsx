@@ -33,6 +33,10 @@ type SearchableSelectorProps = {
   disabled?: boolean;
   /** Shown on the trigger when no value is selected; defaults to label */
   placeholder?: string;
+  /** Optional width/style override for the dropdown panel. */
+  popoverClassName?: string;
+  /** Optional height/style override for the option list. */
+  listClassName?: string;
 };
 
 export function SearchableSelector({
@@ -44,6 +48,8 @@ export function SearchableSelector({
   className = 'w-60',
   disabled = false,
   placeholder,
+  popoverClassName,
+  listClassName,
 }: SearchableSelectorProps) {
   const [open, setOpen] = React.useState(false);
   const [search, setSearch] = React.useState('');
@@ -68,6 +74,7 @@ export function SearchableSelector({
     <Popover open={open} onOpenChange={handleOpenChange}>
       <PopoverTrigger asChild>
         <Button
+          type="button"
           variant="outline"
           role="combobox"
           disabled={disabled || options.length === 0}
@@ -84,8 +91,13 @@ export function SearchableSelector({
       </PopoverTrigger>
 
       <PopoverContent
-        className="w-[var(--radix-popover-trigger-width)] min-w-[12rem] p-0"
+        className={cn(
+          'w-[var(--radix-popover-trigger-width)] min-w-[12rem] p-0',
+          popoverClassName
+        )}
         align="start"
+        sideOffset={8}
+        collisionPadding={{ top: 72, bottom: 16, left: 12, right: 12 }}
         onOpenAutoFocus={(e) => {
           e.preventDefault();
           requestAnimationFrame(() => inputRef.current?.focus());
@@ -98,7 +110,13 @@ export function SearchableSelector({
             value={search}
             onValueChange={setSearch}
           />
-          <CommandList className="max-h-[300px]">
+          <CommandList
+            className={listClassName ?? 'max-h-[300px]'}
+            style={{
+              maxHeight:
+                'min(24rem, calc(var(--radix-popover-content-available-height) - 3.25rem))',
+            }}
+          >
             <CommandEmpty>No results found.</CommandEmpty>
 
             <CommandGroup>
