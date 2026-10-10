@@ -2,16 +2,11 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { fetchServerSession } from "@/lib/session";
-import { userTypes } from "@/lib/roles";
+import { checkRouteAccess } from "@/lib/server-permissions";
 
 export default async function AdminKnowledgeHubPage() {
-  const session = await fetchServerSession();
-  if (!session?.user) {
-    redirect("/login");
-  }
-  const userType = (session.user as { userType?: number }).userType;
-  if (userType !== userTypes.admin) {
+  const canView = await checkRouteAccess("/admin/knowledge-hub");
+  if (!canView) {
     redirect("/unauthorized-access");
   }
 

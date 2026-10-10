@@ -1,27 +1,73 @@
 import React from 'react';
-import { redirect } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 import { BackButton } from '@archmage/ui';
 import { fetchServerSession } from '@/lib/session';
 import { checkPermission } from '@/lib/server-permissions';
+import { fetchUserGroupById } from '@/app/actions/user-usergrp-actions/user-group.actions';
+import type { UserGroup } from '@/types/user-group';
 import UserGroupForm from '../user-group-form';
 
-export default async function AddUserGroupPage() {
+type PageProps = {
+  searchParams?: Promise<{
+    copyFrom?: string;
+  }>;
+};
+
+const NAME_MAX = 100;
+
+function copiedGroupName(name: string) {
+  return `Copy of ${name.trim()}`.slice(0, NAME_MAX);
+}
+
+export default async function AddUserGroupPage({ searchParams }: PageProps) {
   const canAdd = await checkPermission('users', 'add');
   if (!canAdd) {
     redirect('/unauthorized-access');
   }
 
   const session = await fetchServerSession();
+  const resolvedSearchParams = await searchParams;
+  const copyFrom = resolvedSearchParams?.copyFrom?.trim();
+  let userGroup: UserGroup | null = null;
+  let copiedFromName: string | null = null;
+
+  if (copyFrom) {
+    try {
+      const source = await fetchUserGroupById(copyFrom);
+      copiedFromName = source.name;
+      userGroup = {
+        name: copiedGroupName(source.name),
+        description: source.description ?? '',
+        status: source.status,
+        permissions: source.permissions as UserGroup['permissions'],
+        twoFactorEnabled: source.twoFactorEnabled ?? false,
+        twoFactorMethods: Array.isArray(source.twoFactorMethods)
+          ? (source.twoFactorMethods as UserGroup['twoFactorMethods'])
+          : [],
+      };
+    } catch {
+      notFound();
+    }
+  }
 
   return (
     <div className="flex-1 space-y-4 p-8 pt-6">
       <div className="flex items-center justify-between space-y-2">
-        <h2 className="text-3xl font-bold tracking-tight">Add User Group</h2>
+        <div>
+          <h2 className="text-3xl font-bold tracking-tight">
+            {copiedFromName ? 'Copy User Group' : 'Add User Group'}
+          </h2>
+          {copiedFromName ? (
+            <p className="mt-1 text-sm text-muted-foreground">
+              Permissions, description, status, and two-factor settings are copied from {copiedFromName}. Give this group a new name, then save.
+            </p>
+          ) : null}
+        </div>
         <BackButton href="/user-groups" />
       </div>
       <div className="hidden h-full flex-1 flex-col space-y-8 md:flex">
         <UserGroupForm
-          userGroup={null}
+          userGroup={userGroup}
           sessionUserType={session?.user?.userType}
         />
       </div>

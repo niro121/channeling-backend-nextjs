@@ -15,7 +15,7 @@ export default async function Page({ params }: PageProps) {
   const session = await fetchServerSession();
   
   // Check if user can edit user groups
-  const canEdit = await checkPermission("users", "edit")
+  const canEdit = await checkPermission("user-groups", "edit")
   if (!canEdit) {
     redirect("/unauthorized-access")
   }

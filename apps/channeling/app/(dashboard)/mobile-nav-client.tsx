@@ -48,7 +48,7 @@ export default function MobileNavClient({
           </Link>
         </div>
         <nav className="scrollbar-thin flex-1 overflow-y-auto flex flex-col gap-6 py-4 px-3 min-h-0">
-          <SidebarNavList hasAccess={hasAccess} isAdmin={isAdmin} e2eRunEnabled={e2eRunEnabled} />
+          <SidebarNavList hasAccess={hasAccess} e2eRunEnabled={e2eRunEnabled} />
         </nav>
       </SheetContent>
     </Sheet>

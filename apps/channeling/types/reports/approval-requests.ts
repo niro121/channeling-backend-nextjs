@@ -5,7 +5,7 @@ export type ApprovalRequestsReportQuery = {
   dateTo: string;
   /** 'requested' | 'decided' */
   dateField?: string;
-  /** '__all__' | 'channel_cancel' | 'channel_refund' | 'bank_deposit' */
+  /** '__all__' | 'channel_cancel' | 'channel_refund' | 'bank_deposit' | 'cash_voucher' */
   type?: string;
   /** '__all__' | 'pending' | 'approved' | 'rejected' | 'withdrawn' | 'completed' */
   status?: string;
