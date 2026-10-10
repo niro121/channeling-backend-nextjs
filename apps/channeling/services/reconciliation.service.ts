@@ -15,6 +15,13 @@ import {
 import { getTillBalanceBreakdown } from "@/services/accounting/balance.service"
 import { createJournalEntry } from "@/services/accounting.service"
 import { createAccount } from "@/services/accounting/account.service"
+import {
+  BRANCH_RECONCILED_LEGACY_NAME,
+  branchReconciledAccountCode,
+  branchReconciledAccountName,
+  isBranchReconciledCashAccount,
+  legacyBranchReconciledAccountCode,
+} from "@/services/accounting/account/branch-reconciled-account.constants"
 import { PAYMENT_METHOD_NAMES } from "@/types/receipt"
 import { signedReceiptAmountToCents } from "@/lib/format-money"
 import { formatSlipDate } from "@/lib/slip-date"
@@ -717,20 +724,69 @@ export async function getReconciliationJournals(
 }
 
 /**
- * Get or create the single "Reconciled" account for the branch (location).
+ * Get or create the single reconciled cash account for the branch.
+ * Name/code follow the branch cash book: "Reconciled - {branch name}", "REC-{branch code}".
  * One account per branch; holds verified non-cash after reconciliation.
  * Business rule: this account's balance must not go below zero (other flows that credit it must check before posting).
  */
 async function getOrCreateBranchReconciledAccount(locationId: string): Promise<
   { success: true; accountId: string } | { success: false; error: string }
 > {
-  const name = "Reconciled"
-  const code = `REC-${locationId}`
-  const existing = await prisma.account.findFirst({
-    where: { type: "CASH", locationId, name, isActive: true },
-    select: { id: true },
+  const location = await prisma.location.findUnique({
+    where: { id: locationId },
+    select: { id: true, name: true, code: true },
   })
-  if (existing) return { success: true, accountId: existing.id }
+  if (!location) return { success: false, error: "Branch location was not found for the reconciled account." }
+  const locationCode = location.code?.trim() ?? ""
+  if (!locationCode) return { success: false, error: "Branch code is required to name the reconciled account." }
+
+  const name = branchReconciledAccountName(location.name)
+  const code = branchReconciledAccountCode(locationCode)
+  const legacyCode = legacyBranchReconciledAccountCode(location.id)
+
+  const candidates = await prisma.account.findMany({
+    where: {
+      type: "CASH",
+      locationId,
+      userId: null,
+      OR: [
+        { name: BRANCH_RECONCILED_LEGACY_NAME },
+        { name },
+        { code: legacyCode },
+        { code },
+      ],
+    },
+    select: { id: true, name: true, code: true, isActive: true, createdAt: true },
+    orderBy: { createdAt: "asc" },
+  })
+  const reconciled = candidates.filter((account) => isBranchReconciledCashAccount(account))
+  const active = reconciled.filter((account) => account.isActive)
+  const pool = active.length > 0 ? active : reconciled
+  if (pool.length > 1) {
+    return {
+      success: false,
+      error: "More than one reconciled cash account exists for this branch. Deactivate the duplicate in Accounting.",
+    }
+  }
+
+  const existing = pool[0]
+  if (existing) {
+    if (existing.name !== name || existing.code !== code || !existing.isActive) {
+      try {
+        await prisma.account.update({
+          where: { id: existing.id },
+          data: { name, code, isActive: true },
+        })
+      } catch (error) {
+        const prismaCode = (error as { code?: string }).code
+        if (prismaCode === "P2002") {
+          return { success: false, error: `Account code ${code} is already used.` }
+        }
+        throw error
+      }
+    }
+    return { success: true, accountId: existing.id }
+  }
 
   const result = await createAccount({
     type: "CASH",
