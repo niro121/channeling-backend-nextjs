@@ -14,9 +14,10 @@ import {
   type GetDoctorPaymentListParams,
 } from "@/services/doctor-payment/get-doctor-payment-list.service";
 import {
-  getDoctorPaymentReceiptDetail,
-  getDoctorCancelReceiptDetail,
-} from "@/services/doctor-payment/get-doctor-payment-receipt-detail.service";
+  previewDoctorPaymentReceiptService,
+  printDoctorPaymentReceiptService,
+  type PrintDoctorPaymentOptions,
+} from "@/services/doctor-payment/print-doctor-payment-receipt.service";
 import {
   cancelDoctorPaymentService,
   type CancelDoctorPaymentResult,
@@ -83,17 +84,22 @@ export async function getDoctorPaymentList(params: GetDoctorPaymentListParams) {
   return getDoctorPaymentListService(params);
 }
 
-export async function getDoctorPaymentReceiptForPrint(receiptId: string) {
-  await requirePermission("doctor-payments", "view");
-  return getDoctorPaymentReceiptDetail(receiptId);
-}
-
-export async function getDoctorCancelReceiptForPrint(
-  cancelReceiptId: string,
-  options: { doctorName?: string; originalReceiptNoString?: string } = {}
+export async function getDoctorPaymentReceiptForPrint(
+  receiptId: string,
+  options: PrintDoctorPaymentOptions = {}
 ) {
   await requirePermission("doctor-payments", "view");
-  return getDoctorCancelReceiptDetail(cancelReceiptId, options);
+  const session = await getServerSession(authOptions);
+  return previewDoctorPaymentReceiptService(receiptId, session?.user?.id ?? null, options);
+}
+
+export async function printDoctorPaymentReceiptAction(
+  receiptId: string,
+  options: PrintDoctorPaymentOptions = {}
+) {
+  await requirePermission("doctor-payments", "view");
+  const session = await getServerSession(authOptions);
+  return printDoctorPaymentReceiptService(receiptId, session?.user?.id ?? null, options);
 }
 
 export async function cancelDoctorPaymentAction(

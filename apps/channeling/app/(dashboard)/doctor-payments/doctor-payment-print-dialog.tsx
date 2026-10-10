@@ -10,15 +10,16 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Printer, Loader2 } from "lucide-react";
+import { useToast } from "@/components/hooks/use-toast";
 import {
   getDoctorPaymentReceiptForPrint,
-  getDoctorCancelReceiptForPrint,
+  printDoctorPaymentReceiptAction,
 } from "@/app/actions/doctor-payment/doctor-payment.actions";
-import { getActiveReceiptTemplateAction } from "@/app/actions/receipt-template.actions";
-import { buildPlaceholdersForDoctorPayment } from "@/lib/receipt-template/build-placeholders";
-import { buildDoctorPaymentPrintHtml } from "@/lib/receipt-template/build-print-html";
-import type { DoctorPaymentReceiptDetail } from "@/services/doctor-payment/get-doctor-payment-receipt-detail.service";
-import type { ReceiptTemplateRecord } from "@/types/receipt-template-db";
+import {
+  buildDoctorPaymentPrintHtml,
+  type DoctorPaymentPrintModel,
+} from "@/lib/receipt-template/build-print-html";
+import { printHtmlInIframe } from "@/lib/receipt-template/print-html-iframe";
 
 type DoctorPaymentPrintDialogProps = {
   open: boolean;
@@ -38,21 +39,17 @@ export function DoctorPaymentPrintDialog({
   doctorName,
   originalReceiptNoString,
 }: DoctorPaymentPrintDialogProps) {
+  const { toast } = useToast();
   const [loading, setLoading] = useState(true);
+  const [printing, setPrinting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [detail, setDetail] = useState<DoctorPaymentReceiptDetail | null>(null);
-  const [cancelDetail, setCancelDetail] = useState<DoctorPaymentReceiptDetail | null>(null);
-  const [template, setTemplate] = useState<ReceiptTemplateRecord | null>(null);
-  const [receiptHtml, setReceiptHtml] = useState<string | null>(null);
-  const [cancelReceiptHtml, setCancelReceiptHtml] = useState<string | null>(null);
+  const [detail, setDetail] = useState<DoctorPaymentPrintModel | null>(null);
+  const [cancelDetail, setCancelDetail] = useState<DoctorPaymentPrintModel | null>(null);
 
   useEffect(() => {
     if (!open || !receiptId) {
       setDetail(null);
       setCancelDetail(null);
-      setTemplate(null);
-      setReceiptHtml(null);
-      setCancelReceiptHtml(null);
       setError(null);
       setLoading(false);
       return;
@@ -60,28 +57,25 @@ export function DoctorPaymentPrintDialog({
     let cancelled = false;
     setLoading(true);
     setError(null);
-    setReceiptHtml(null);
-    setCancelReceiptHtml(null);
-    const paidPromise = getDoctorPaymentReceiptForPrint(receiptId);
-    const templatePromise = getActiveReceiptTemplateAction("doctor_payment", "custom_size");
-    const cancelPromise = cancelReceiptId
-      ? getDoctorCancelReceiptForPrint(cancelReceiptId, { doctorName, originalReceiptNoString })
-      : Promise.resolve<{ success: false; message: string } | { success: true; data: DoctorPaymentReceiptDetail }>({ success: false, message: "" });
+    const loadPromise = cancelReceiptId
+      ? getDoctorPaymentReceiptForPrint(cancelReceiptId, { doctorName, originalReceiptNoString })
+      : getDoctorPaymentReceiptForPrint(receiptId);
 
-    Promise.all([paidPromise, templatePromise, cancelPromise])
-      .then(([detailRes, templateRes, cancelDetailRes]) => {
+    loadPromise
+      .then((detailRes) => {
         if (cancelled) return;
         if (detailRes.success && detailRes.data) {
-          setDetail(detailRes.data);
+          if (cancelReceiptId) {
+            setDetail(null);
+            setCancelDetail(detailRes.data);
+          } else {
+            setDetail(detailRes.data);
+            setCancelDetail(null);
+          }
         } else {
           setDetail(null);
-          setError(detailRes.success ? "No data" : (detailRes as { message?: string }).message ?? "Failed to load receipt.");
-        }
-        setTemplate(templateRes.success && templateRes.data != null ? templateRes.data : null);
-        if (cancelDetailRes.success && cancelDetailRes.data) {
-          setCancelDetail(cancelDetailRes.data);
-        } else {
           setCancelDetail(null);
+          setError(detailRes.success ? "No data" : detailRes.message ?? "Failed to load receipt.");
         }
       })
       .catch((err) => {
@@ -95,59 +89,51 @@ export function DoctorPaymentPrintDialog({
     };
   }, [open, receiptId, cancelReceiptId, doctorName, originalReceiptNoString]);
 
-  useEffect(() => {
-    if (!detail || !open) return;
-    const placeholders = buildPlaceholdersForDoctorPayment(detail);
-    const html = buildDoctorPaymentPrintHtml(placeholders, template, detail.receiptNoString);
-    setReceiptHtml(html);
-  }, [detail, template, open]);
-
-  useEffect(() => {
-    if (!cancelDetail || !open) return;
-    const placeholders = buildPlaceholdersForDoctorPayment(cancelDetail);
-    const html = buildDoctorPaymentPrintHtml(placeholders, template, cancelDetail.receiptNoString);
-    setCancelReceiptHtml(html);
-  }, [cancelDetail, template, open]);
-
-  const handlePrint = () => {
-    if (!detail) return;
-    const parts: string[] = [];
-    const placeholdersPaid = buildPlaceholdersForDoctorPayment(detail);
-    const htmlPaid = buildDoctorPaymentPrintHtml(placeholdersPaid, template, detail.receiptNoString);
-    parts.push(htmlPaid);
-    if (cancelDetail && cancelReceiptHtml) {
-      parts.push(cancelReceiptHtml);
+  const handlePrint = async () => {
+    const canPrint = cancelReceiptId ? Boolean(cancelDetail) : Boolean(detail);
+    if (!canPrint || printing) return;
+    setPrinting(true);
+    try {
+      const printId = cancelReceiptId ?? receiptId;
+      const printed = await printDoctorPaymentReceiptAction(
+        printId,
+        cancelReceiptId ? { doctorName, originalReceiptNoString } : {}
+      );
+      if (!printed.success || !printed.data) {
+        toast({
+          title: "Print failed",
+          description: printed.message ?? "Could not prepare the receipt.",
+          variant: "destructive",
+        });
+        return;
+      }
+      const models = [printed.data];
+      printHtmlInIframe(buildDoctorPaymentPrintHtml(models), {
+        title: "Consultant Payment",
+        width: "148mm",
+        height: "210mm",
+      });
+      onOpenChange(false);
+    } catch (err) {
+      toast({
+        title: "Print failed",
+        description: err instanceof Error ? err.message : "Could not print the receipt.",
+        variant: "destructive",
+      });
+    } finally {
+      setPrinting(false);
     }
-    const combinedHtml = parts.join('<div style="page-break-before:always;"></div>');
-    const iframe = document.createElement("iframe");
-    iframe.setAttribute("style", "position:absolute;width:0;height:0;border:0;visibility:hidden");
-    document.body.appendChild(iframe);
-    const doc = iframe.contentDocument ?? iframe.contentWindow?.document;
-    if (!doc) {
-      document.body.removeChild(iframe);
-      return;
-    }
-    doc.open();
-    doc.write(combinedHtml);
-    doc.close();
-    const win = iframe.contentWindow;
-    if (!win) {
-      document.body.removeChild(iframe);
-      return;
-    }
-    win.focus();
-    win.print();
-    document.body.removeChild(iframe);
-    onOpenChange(false);
   };
 
-  const hasContent = (detail && receiptHtml) || (cancelDetail && cancelReceiptHtml);
+  const paidHtml = detail ? buildDoctorPaymentPrintHtml([detail]) : null;
+  const cancelHtml = cancelDetail ? buildDoctorPaymentPrintHtml([cancelDetail]) : null;
+  const hasContent = Boolean(paidHtml || cancelHtml);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col">
         <DialogHeader>
-          <DialogTitle>View receipt{cancelReceiptId ? "s" : ""}</DialogTitle>
+          <DialogTitle>View receipt</DialogTitle>
         </DialogHeader>
         {loading && (
           <div className="flex items-center justify-center py-12">
@@ -159,27 +145,25 @@ export function DoctorPaymentPrintDialog({
         )}
         {!loading && !error && hasContent && (
           <div className="flex-1 min-h-0 overflow-y-auto space-y-6">
-            {detail && receiptHtml && (
+            {paidHtml && !cancelReceiptId && (
               <div className="space-y-2">
-                <p className="text-sm font-medium text-muted-foreground">Paid receipt</p>
-                <div className="rounded-md border bg-muted/30 overflow-hidden">
+                <div className="rounded-md border bg-white overflow-auto">
                   <iframe
                     title="Paid receipt preview"
-                    srcDoc={receiptHtml}
-                    className="w-full min-h-[320px] border-0 bg-white"
+                    srcDoc={paidHtml}
+                    className="w-full min-h-[520px] border-0 bg-white"
                     sandbox="allow-same-origin"
                   />
                 </div>
               </div>
             )}
-            {cancelDetail && cancelReceiptHtml && (
+            {cancelHtml && (
               <div className="space-y-2">
-                <p className="text-sm font-medium text-muted-foreground">Cancel receipt</p>
-                <div className="rounded-md border bg-muted/30 overflow-hidden">
+                <div className="rounded-md border bg-white overflow-auto">
                   <iframe
                     title="Cancel receipt preview"
-                    srcDoc={cancelReceiptHtml}
-                    className="w-full min-h-[320px] border-0 bg-white"
+                    srcDoc={cancelHtml}
+                    className="w-full min-h-[520px] border-0 bg-white"
                     sandbox="allow-same-origin"
                   />
                 </div>
@@ -191,9 +175,13 @@ export function DoctorPaymentPrintDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Close
           </Button>
-          {detail && (
-            <Button onClick={handlePrint}>
-              <Printer className="h-4 w-4 mr-2" />
+          {(cancelReceiptId ? cancelDetail : detail) && (
+            <Button onClick={handlePrint} disabled={printing}>
+              {printing ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Printer className="h-4 w-4 mr-2" />
+              )}
               Print
             </Button>
           )}
