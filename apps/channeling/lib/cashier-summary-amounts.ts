@@ -1,4 +1,4 @@
-import { RECEIPT_PAYMENT_METHOD } from '@/types/receipt';
+import { RECEIPT_METHOD, RECEIPT_PAYMENT_METHOD } from '@/types/receipt';
 import type { CashierSummaryPaymentAmounts } from '@/types/report';
 
 export const CASHIER_SUMMARY_ZERO_AMOUNTS: CashierSummaryPaymentAmounts = {
@@ -44,6 +44,20 @@ export function receiptToAmounts(
     result[key] += sign * Math.abs(line.amount);
   }
   return result;
+}
+
+/** Cash vouchers land as till cash. Source types stay on the reconciled account, not in these columns. */
+export function receiptAmountsForCashierSummary(
+  method: number,
+  paymentMethod: number,
+  amount: number,
+  type: number,
+  paymentLines?: Array<{ paymentMethod: number; amount: number }>
+): CashierSummaryPaymentAmounts {
+  if (method === RECEIPT_METHOD.CASH_VOUCHER || method === RECEIPT_METHOD.CASH_VOUCHER_CANCEL) {
+    return receiptToAmounts(RECEIPT_PAYMENT_METHOD.CASH, amount, type);
+  }
+  return receiptToAmounts(paymentMethod, amount, type, paymentLines);
 }
 
 /**

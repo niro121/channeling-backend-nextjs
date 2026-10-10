@@ -49,7 +49,7 @@ export function DesktopSidebar({
         </Link>
       </div>
       <nav className="scrollbar-thin flex-1 overflow-y-auto overflow-x-hidden flex flex-col gap-6 px-3 py-4 min-h-0">
-        <SidebarNavList hasAccess={hasAccess} isAdmin={isAdmin} e2eRunEnabled={e2eRunEnabled} />
+        <SidebarNavList hasAccess={hasAccess} e2eRunEnabled={e2eRunEnabled} />
       </nav>
       <div className="shrink-0 border-t border-primary/20 bg-secondary px-3 py-3">
         <p className="text-muted-foreground text-xs">{process.env.NEXT_PUBLIC_APP_VERSION ?? "1.0.0"}</p>

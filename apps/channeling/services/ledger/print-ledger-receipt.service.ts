@@ -35,6 +35,8 @@ const LEDGER_METHODS: number[] = [
   RECEIPT_METHOD.BRANCH_EXPENSE,
   RECEIPT_METHOD.BANK_DEPOSIT,
   RECEIPT_METHOD.BANK_WITHDRAW,
+  RECEIPT_METHOD.CASH_VOUCHER,
+  RECEIPT_METHOD.CASH_VOUCHER_CANCEL,
 ]
 
 function ledgerPrintTitle(method: number): string {
@@ -165,7 +167,7 @@ async function resolveBankDepositApproval(
   const approval = await prisma.approvalRequest.findFirst({
     where: {
       receiptId,
-      type: APPROVAL_REQUEST_TYPE.BANK_DEPOSIT,
+      type: { in: [APPROVAL_REQUEST_TYPE.BANK_DEPOSIT, APPROVAL_REQUEST_TYPE.CASH_VOUCHER] },
       approvedById: { not: null },
     },
     orderBy: { approvedAt: "desc" },
@@ -281,7 +283,7 @@ export async function printLedgerReceiptService(
 
     const generatedBy = await resolveGeneratedBy(receipt.createdBy)
     const approval =
-      receipt.method === RECEIPT_METHOD.BANK_DEPOSIT
+      receipt.method === RECEIPT_METHOD.BANK_DEPOSIT || receipt.method === RECEIPT_METHOD.CASH_VOUCHER
         ? await resolveBankDepositApproval(receipt.id)
         : { approvedBy: "", approvedAt: "" }
     const statusParts: string[] = []
@@ -301,7 +303,11 @@ export async function printLedgerReceiptService(
       agentCity: receipt.agency?.city ?? "",
       agentContact: agencyContact(receipt.agency),
       branchName: loc?.name ?? "",
-      transactionType: PAYMENT_METHOD_NAMES[receipt.paymentMethod] ?? "—",
+      transactionType:
+        receipt.method === RECEIPT_METHOD.CASH_VOUCHER ||
+        receipt.method === RECEIPT_METHOD.CASH_VOUCHER_CANCEL
+          ? "Cash"
+          : PAYMENT_METHOD_NAMES[receipt.paymentMethod] ?? "—",
       showAgentFields: Boolean(receipt.agency),
       lines,
       totalAmount: formatLKR(Number(receipt.amount) || 0),
