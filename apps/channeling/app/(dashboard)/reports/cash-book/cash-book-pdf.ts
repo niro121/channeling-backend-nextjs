@@ -174,6 +174,12 @@ function isClosingRow(row: CashBookReportExportRow): boolean {
   return /^closing\s*balance$/i.test((row.description || '').trim());
 }
 
+function closingRowLabel(row: CashBookReportExportRow): string {
+  const type = (row.paymentType || '').trim();
+  if (type && type !== '-') return type;
+  return 'Closing Balance';
+}
+
 function cellOrDash(value: string | undefined | null): string {
   if (value == null || value === '') return '-';
   return value;
@@ -224,7 +230,7 @@ export async function downloadCashBookReportPdf({
     if (isClosingRow(r)) {
       return [
         {
-          content: 'Closing Balance',
+          content: closingRowLabel(r),
           colSpan: 7,
           styles: { halign: 'left', fontStyle: 'bold' },
         },
