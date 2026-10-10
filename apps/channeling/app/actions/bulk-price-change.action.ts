@@ -18,14 +18,14 @@ import type { BulkPriceChangeRule } from '@/types/bulk-price-change';
 const BULK_PATH = '/doctor-sessions/bulk-price-change';
 
 export async function listBulkPriceChanges() {
-  await requirePermission('doctor-sessions', 'view');
+  await requirePermission('bulk-price-change', 'view');
   const res = await listBulkPriceChangesService();
   if (!res.success) return { success: false as const, data: [], error: res.error };
   return { success: true as const, data: res.data ?? [], error: undefined };
 }
 
 export async function createBulkPriceChange(name: string, feeTypeId: string) {
-  await requirePermission('doctor-sessions', 'edit');
+  await requirePermission('bulk-price-change', 'edit');
   const session = await fetchServerSession();
   const createdBy = session?.user?.id ?? null;
   const res = await createBulkPriceChangeService(name, feeTypeId, createdBy);
@@ -36,7 +36,7 @@ export async function createBulkPriceChange(name: string, feeTypeId: string) {
 }
 
 export async function getBulkPriceChange(bulkPriceChangeId: string) {
-  await requirePermission('doctor-sessions', 'view');
+  await requirePermission('bulk-price-change', 'view');
   return getBulkPriceChangeWithRulesService(bulkPriceChangeId);
 }
 
@@ -44,33 +44,33 @@ export async function addBulkPriceChangeRule(
   bulkPriceChangeId: string,
   rule: Omit<BulkPriceChangeRule, 'id' | 'bulkPriceChangeId'>
 ) {
-  await requirePermission('doctor-sessions', 'edit');
+  await requirePermission('bulk-price-change', 'edit');
   const res = await addBulkPriceChangeRuleService(bulkPriceChangeId, rule);
   if (res.success) revalidatePath(BULK_PATH);
   return res;
 }
 
 export async function deleteBulkPriceChangeRule(ruleId: string) {
-  await requirePermission('doctor-sessions', 'edit');
+  await requirePermission('bulk-price-change', 'edit');
   const res = await deleteBulkPriceChangeRuleService(ruleId);
   if (res.success) revalidatePath(BULK_PATH);
   return res;
 }
 
 export async function bulkDeleteBulkPriceChanges(ids: string[]): Promise<boolean> {
-  await requirePermission('doctor-sessions', 'delete');
+  await requirePermission('bulk-price-change', 'delete');
   const res = await bulkDeleteBulkPriceChangesService(ids);
   if (res.success) revalidatePath(BULK_PATH);
   return res.success;
 }
 
 export async function preprocessBulkPriceChange(bulkPriceChangeId: string) {
-  await requirePermission('doctor-sessions', 'view');
+  await requirePermission('bulk-price-change', 'view');
   return preprocessBulkPriceChangeService(bulkPriceChangeId);
 }
 
 export async function processBulkPriceChange(bulkPriceChangeId: string) {
-  await requirePermission('doctor-sessions', 'edit');
+  await requirePermission('bulk-price-change', 'edit');
   const res = await processBulkPriceChangeService(bulkPriceChangeId);
   if (res.success) {
     revalidatePath(BULK_PATH);

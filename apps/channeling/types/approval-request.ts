@@ -2,6 +2,7 @@ export const APPROVAL_REQUEST_TYPE = {
   CHANNEL_CANCEL: "channel_cancel",
   CHANNEL_REFUND: "channel_refund",
   BANK_DEPOSIT: "bank_deposit",
+  CASH_VOUCHER: "cash_voucher",
 } as const
 
 export type ApprovalRequestType =
@@ -70,6 +71,49 @@ export type BankDepositSnapshot = {
   slip_image_thumb_key?: string
   slip_image_content_type?: string
   slip_image_name?: string
+}
+
+/** Non-cash types a cash voucher can move off a reconciled account into till cash. */
+export const CASH_VOUCHER_PAYMENT_METHODS = [1, 2, 3, 6] as const
+
+export type CashVoucherLineSnapshot = {
+  payment_method: number
+  amount: number
+}
+
+export type CashVoucherSnapshot = {
+  reconciled_account_id: string
+  reconciled_account_name: string
+  reconciled_account_code?: string
+  branch_name?: string
+  location_id: string
+  lines: CashVoucherLineSnapshot[]
+}
+
+export function parseCashVoucherSnapshot(raw: unknown): CashVoucherSnapshot | null {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null
+  const obj = raw as Record<string, unknown>
+  const accountId = typeof obj.reconciled_account_id === "string" ? obj.reconciled_account_id.trim() : ""
+  const locationId = typeof obj.location_id === "string" ? obj.location_id.trim() : ""
+  if (!accountId || !locationId || !Array.isArray(obj.lines)) return null
+  const lines: CashVoucherLineSnapshot[] = []
+  for (const line of obj.lines) {
+    if (!line || typeof line !== "object") return null
+    const row = line as Record<string, unknown>
+    if (typeof row.payment_method !== "number" || typeof row.amount !== "number") return null
+    lines.push({ payment_method: row.payment_method, amount: row.amount })
+  }
+  if (lines.length === 0) return null
+  return {
+    reconciled_account_id: accountId,
+    reconciled_account_name:
+      typeof obj.reconciled_account_name === "string" ? obj.reconciled_account_name : "",
+    reconciled_account_code:
+      typeof obj.reconciled_account_code === "string" ? obj.reconciled_account_code : undefined,
+    branch_name: typeof obj.branch_name === "string" ? obj.branch_name : undefined,
+    location_id: locationId,
+    lines,
+  }
 }
 
 export const CHANNEL_APPROVAL_CONFIRMATIONS = [
@@ -151,4 +195,5 @@ export const APPROVAL_ACTION = {
   APPROVE_CHANNEL_CANCEL: "approve-channel-cancel",
   APPROVE_CHANNEL_REFUND: "approve-channel-refund",
   APPROVE_BANK_DEPOSIT: "approve-bank-deposit",
+  APPROVE_CASH_VOUCHER: "approve-cash-voucher",
 } as const

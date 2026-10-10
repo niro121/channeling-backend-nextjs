@@ -79,6 +79,7 @@ function statusBadge(status: ApprovalRequestStatus) {
 function typeLabel(type: string) {
   if (type === APPROVAL_REQUEST_TYPE.CHANNEL_CANCEL) return "Cancel"
   if (type === APPROVAL_REQUEST_TYPE.BANK_DEPOSIT) return "Bank deposit"
+  if (type === APPROVAL_REQUEST_TYPE.CASH_VOUCHER) return "Cash voucher"
   return "Refund"
 }
 
@@ -286,7 +287,8 @@ export function ApprovalCenterContent({
         toast({
           title: "Approved",
           description:
-            row.type === APPROVAL_REQUEST_TYPE.BANK_DEPOSIT
+            row.type === APPROVAL_REQUEST_TYPE.BANK_DEPOSIT ||
+            row.type === APPROVAL_REQUEST_TYPE.CASH_VOUCHER
               ? `Posted to ledger${result.data?.receiptNoString ? ` as ${result.data.receiptNoString}` : ""}.`
               : "The requester can now complete this on the booking.",
         })
@@ -354,6 +356,7 @@ export function ApprovalCenterContent({
   const showCancelType = view === "mine" || access.canSeeCancels
   const showRefundType = view === "mine" || access.canSeeRefunds
   const showDepositType = view === "mine" || access.canSeeDeposits
+  const showVoucherType = view === "mine" || access.canSeeCashVouchers
 
   return (
     <div className="space-y-4">
@@ -361,7 +364,7 @@ export function ApprovalCenterContent({
         <h1 className="text-xl font-semibold">Approval Center</h1>
         <p className="text-sm text-muted-foreground">
           {view === "attend"
-            ? "Pending requests waiting for approval. Bank deposits post to the ledger when you approve."
+            ? "Pending requests waiting for approval. Bank deposits and cash vouchers post to the ledger when you approve."
             : "Requests you have sent."}
         </p>
       </div>
@@ -420,6 +423,9 @@ export function ApprovalCenterContent({
               )}
               {showDepositType && (
                 <SelectItem value={APPROVAL_REQUEST_TYPE.BANK_DEPOSIT}>Bank deposits</SelectItem>
+              )}
+              {showVoucherType && (
+                <SelectItem value={APPROVAL_REQUEST_TYPE.CASH_VOUCHER}>Cash vouchers</SelectItem>
               )}
             </SelectContent>
           </Select>
@@ -485,21 +491,24 @@ export function ApprovalCenterContent({
               {rows.map((row) => {
                 const isOwn = row.requestedById === currentUserId
                 const isDeposit = row.type === APPROVAL_REQUEST_TYPE.BANK_DEPOSIT
+                const isVoucher = row.type === APPROVAL_REQUEST_TYPE.CASH_VOUCHER
+                const isImmediate = isDeposit || isVoucher
                 const canActOnType =
                   (row.type === APPROVAL_REQUEST_TYPE.CHANNEL_CANCEL && access.canApproveCancel) ||
                   (row.type === APPROVAL_REQUEST_TYPE.CHANNEL_REFUND && access.canApproveRefund) ||
-                  (isDeposit && access.canApproveBankDeposit)
+                  (isDeposit && access.canApproveBankDeposit) ||
+                  (isVoucher && access.canApproveCashVoucher)
                 const canApprove =
                   !isOwn && row.status === APPROVAL_REQUEST_STATUS.PENDING && canActOnType
                 const canReject =
                   !isOwn &&
                   canActOnType &&
                   (row.status === APPROVAL_REQUEST_STATUS.PENDING ||
-                    (!isDeposit && row.status === APPROVAL_REQUEST_STATUS.APPROVED))
+                    (!isImmediate && row.status === APPROVAL_REQUEST_STATUS.APPROVED))
                 const canWithdraw =
                   isOwn &&
                   (row.status === APPROVAL_REQUEST_STATUS.PENDING ||
-                    (!isDeposit && row.status === APPROVAL_REQUEST_STATUS.APPROVED))
+                    (!isImmediate && row.status === APPROVAL_REQUEST_STATUS.APPROVED))
                 return (
                   <tr key={row.id} className="border-b last:border-0">
                     <td className="p-2">
@@ -513,7 +522,7 @@ export function ApprovalCenterContent({
                     <td className="p-2 whitespace-nowrap">{row.paymentTypeName}</td>
                     <td className="p-2 whitespace-nowrap">{row.paymentMethodName}</td>
                     <td className="p-2">
-                      {isDeposit ? (
+                      {isImmediate ? (
                         <span className="text-muted-foreground">—</span>
                       ) : (
                         <span title={row.doctorName}>{row.doctorName || "—"}</span>

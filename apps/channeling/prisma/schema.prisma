@@ -583,10 +583,10 @@ model FloatRequest {
   @@index([floatNoString])
 }
 
-/// Approval: channel cancel/refund (request → approve → requester executes)
-/// or bank deposit (request → approve posts ledger receipt).
+/// Approval: channel cancel/refund (request → approve → requester executes),
+/// bank deposit, or cash voucher (request → approve posts ledger receipt).
 /// status: 0=PENDING, 1=APPROVED, 2=REJECTED, 3=WITHDRAWN, 4=COMPLETED
-/// type: channel_cancel | channel_refund | bank_deposit
+/// type: channel_cancel | channel_refund | bank_deposit | cash_voucher
 model ApprovalRequest {
   id              String   @id @default(auto()) @map("_id") @db.ObjectId
   type            String
@@ -1392,6 +1392,15 @@ model Sequence {
   id        String   @id @default(auto()) @map("_id") @db.ObjectId
   scopeKey  String   @unique
   lastValue Int      @default(0)
+  updatedAt DateTime @updatedAt
+}
+
+/// Short-lived mutex so cash-voucher balance checks and posts for one account cannot overlap.
+model CashVoucherAccountLock {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  accountId String   @unique @db.ObjectId
+  owner     String
+  expiresAt DateTime
   updatedAt DateTime @updatedAt
 }
 
