@@ -27,6 +27,7 @@ export type User = {
     bookingLocations?: { locationId: string; location?: Location }[]
     bookingLocationIds?: string[] // form-only: ids for multi-select, synced to bookingLocations
     userGroupId?: string | null
+    userGroup?: { id: string; name: string } | null
     createdAt?: Date
     updatedAt?: Date
 }
