@@ -471,7 +471,7 @@ export function ChannelBookingShiftBar() {
     }
   }, [shiftDetailsOpen, shift?.id])
 
-  // When max duration is exceeded: end immediately if till is empty; otherwise force handover
+  // When max duration is exceeded: end immediately only if the till is empty and the shift has no receipts; otherwise force handover
   useEffect(() => {
     if (!shift) {
       forcedHandoverPromptedForShiftIdRef.current = null

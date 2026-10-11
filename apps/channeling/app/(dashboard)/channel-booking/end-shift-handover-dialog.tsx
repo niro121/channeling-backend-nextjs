@@ -244,6 +244,7 @@ export function EndShiftHandoverDialog({
   const [step1DataReady, setStep1DataReady] = useState(false)
   const [handoverPermissionDenied, setHandoverPermissionDenied] = useState<string | null>(null)
   const [canEndWithoutHandover, setCanEndWithoutHandover] = useState(false)
+  const [endWithoutReason, setEndWithoutReason] = useState<string | null>(null)
   const [endWithoutLoading, setEndWithoutLoading] = useState(false)
   const [billAttachments, setBillAttachments] = useState<ShiftBillAttachmentDto[]>([])
   const [selectedAttachmentIds, setSelectedAttachmentIds] = useState<string[]>([])
@@ -309,6 +310,7 @@ export function EndShiftHandoverDialog({
       setStep1DataReady(false)
       setHandoverPermissionDenied(null)
       setCanEndWithoutHandover(false)
+      setEndWithoutReason(null)
       setOpenFloatsBlocking(EMPTY_OPEN_FLOATS)
       setOpenApprovalRequestsCount(0)
       setOpenApprovalRequestsMessage(null)
@@ -399,6 +401,7 @@ export function EndShiftHandoverDialog({
           }
           if (endWithoutRes.success) {
             setCanEndWithoutHandover(!!endWithoutRes.allowed)
+            setEndWithoutReason(endWithoutRes.allowed ? null : (endWithoutRes.reason ?? null))
           }
           if (expectedCollectionRes.success) {
             setExpectedCollection(expectedCollectionRes.data)
@@ -1057,6 +1060,9 @@ export function EndShiftHandoverDialog({
                     <span>Total</span>
                     <span className="tabular-nums">{formatCents(balance.totalCents)}</span>
                   </div>
+                  {balance.totalCents === 0 && endWithoutReason ? (
+                    <p className="text-sm text-muted-foreground">{endWithoutReason}</p>
+                  ) : null}
                 </div>
               </div>
             ) : (

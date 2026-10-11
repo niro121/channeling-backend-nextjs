@@ -42,6 +42,11 @@ export const userColumns: ColumnDef<User>[] = [
         header: "Email",
     },
     {
+        id: "userGroup",
+        header: "User Group",
+        cell: ({ row }) => row.original.userGroup?.name ?? "—",
+    },
+    {
         accessorKey: "status",
         header: "Status",
         cell: ({ row }) => {
