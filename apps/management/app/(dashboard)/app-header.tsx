@@ -7,6 +7,7 @@ import { Avatar, AvatarFallback } from '@archmage/ui';
 import DashboardBreadcrumb from './breadcrumbs';
 import { Profile } from './profile';
 import { NAV_ITEMS, isNavActive } from './nav-items';
+import { HEADER_ACTIONS_ID } from './header-actions';
 
 function initialOf(name?: string | null, email?: string | null): string {
   return (name?.trim() || email?.trim() || 'U').charAt(0).toUpperCase();
@@ -25,6 +26,7 @@ export function AppHeader() {
         <div className="hidden min-w-0 flex-1 lg:block">
           <DashboardBreadcrumb />
         </div>
+        <div id={HEADER_ACTIONS_ID} className="flex shrink-0 items-center gap-2" />
         <Link href="/account" className="shrink-0 lg:hidden" aria-label="Account">
           <Avatar className="h-9 w-9">
             <AvatarFallback className="bg-primary/10 text-sm font-medium text-primary">

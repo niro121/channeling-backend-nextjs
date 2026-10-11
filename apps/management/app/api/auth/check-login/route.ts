@@ -2,7 +2,6 @@ import { NextResponse } from 'next/server';
 import { authPrisma } from '@archmage/db-auth';
 import * as argon2 from 'argon2';
 import { isDashboardLoginUserType } from '@/lib/roles';
-import { canAccessManagementApp } from '@/lib/auth-app-access';
 
 export async function POST(request: Request) {
   try {
@@ -39,7 +38,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });
     }
 
-    if (!isDashboardLoginUserType(user.userType) || !canAccessManagementApp(user)) {
+    if (!isDashboardLoginUserType(user.userType)) {
       return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });
     }
 

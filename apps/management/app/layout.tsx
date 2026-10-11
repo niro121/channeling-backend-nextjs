@@ -2,6 +2,7 @@ import './globals.css';
 import { Toaster } from '@archmage/ui';
 import type { Metadata, Viewport } from 'next';
 import { ServiceWorkerRegister } from './service-worker-register';
+import { AppUpdate } from '@/components/pwa/app-update';
 
 const brand = process.env.NEXT_PUBLIC_BRAND_NAME || 'Ruhunu';
 
@@ -27,6 +28,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         {children}
         <Toaster />
         <ServiceWorkerRegister />
+        <AppUpdate />
       </body>
     </html>
   );

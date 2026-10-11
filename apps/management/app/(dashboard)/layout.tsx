@@ -2,6 +2,9 @@ import Providers from './providers';
 import { fetchServerSession } from '@/lib/session';
 import { SidebarLayoutClient } from './sidebar-layout-client';
 import { AppHeader } from './app-header';
+import { PushSync } from '@/components/pwa/notifications';
+import { NoAccessScreen } from '@/components/no-access-screen';
+import { getManagementAccess } from '@/lib/management-access';
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const session = await fetchServerSession();
@@ -11,8 +14,18 @@ export default async function DashboardLayout({ children }: { children: React.Re
     redirect('/login');
   }
 
+  const access = await getManagementAccess();
+  if (access !== 'allowed') {
+    return (
+      <Providers session={session}>
+        <NoAccessScreen reason={access} email={session?.user?.email} />
+      </Providers>
+    );
+  }
+
   return (
     <Providers session={session}>
+      <PushSync />
       <div className="flex min-h-dvh w-full flex-col bg-background">
         <SidebarLayoutClient>
           <AppHeader />
