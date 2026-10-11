@@ -8,7 +8,7 @@ export default async function ApprovalsPage({ searchParams }: { searchParams: Pr
 
   if (!isChannelingUserApiConfigured()) {
     return (
-      <div className="mx-auto w-full max-w-3xl rounded-2xl border border-dashed p-8 text-center text-sm text-muted-foreground">
+      <div className="w-full rounded-2xl border border-dashed p-8 text-center text-sm text-muted-foreground">
         Approvals are not connected yet. Set CHANNELING_API_URL and MANAGEMENT_APP_JWT_SECRET.
       </div>
     );
