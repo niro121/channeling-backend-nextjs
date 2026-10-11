@@ -3,6 +3,8 @@ import { fetchServerSession } from '@/lib/session';
 import { getUserTypeLabel } from '@/lib/roles';
 import { Profile2FADialogContent } from '../profile-2fa-dialog';
 import { AccountActions } from './account-actions';
+import { APP_VERSION, BUILD_ID } from '@/lib/pwa/version';
+import { NotificationSettings } from '@/components/pwa/notifications';
 
 export default async function AccountPage() {
   const session = await fetchServerSession();
@@ -29,9 +31,11 @@ export default async function AccountPage() {
         <Profile2FADialogContent />
       </section>
 
+      <NotificationSettings />
+
       <AccountActions />
 
-      <p className="text-center text-xs text-muted-foreground">Version {process.env.NEXT_PUBLIC_APP_VERSION ?? '1.0.0'}</p>
+      <p className="text-center text-xs text-muted-foreground">Version {APP_VERSION} ({BUILD_ID})</p>
     </div>
   );
 }

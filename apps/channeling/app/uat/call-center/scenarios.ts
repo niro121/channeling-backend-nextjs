@@ -31,8 +31,8 @@ export const DECLARATION = [
   "I know how to change a call booking.",
   "I know how to cancel a call booking that is not paid.",
   "I know how to book for an agency.",
-  "I know how to refund an agency booking and wait for approval.",
-  "I know how to cancel an agency booking and wait for approval.",
+  "I know how to refund an agency booking back to the agent.",
+  "I know how to cancel an agency booking back to the agent.",
   "I know how to take an agency deposit by bank slip.",
   "I know how to hand over the shift.",
   "I do not request a float.",
@@ -118,24 +118,12 @@ export function buildSheet(wizard: Wizard): Sheet {
     },
     {
       id: "refund",
-      title: "How to refund an agency booking — wait for approval",
-      learn: "Tick one fee only. Refund to the agent, not as cash. Wait for a manager, then you complete it.",
+      title: "How to refund an agency booking back to the agent",
+      learn: "Tick one fee only. Refund to the agent, not as cash. It finishes immediately. No cash leaves your desk.",
       steps: [
         {
           id: "rf-1",
-          do: `Open ${p(3)}. Refund. Tick Hospital Fee only. Refund to Agent. Remarks: Refund hospital fee. Press Request refund.`,
-          amount: rs(a.hospital),
-          report: "Waiting",
-        },
-        {
-          id: "rf-2",
-          do: "Stop. Wait until a manager approves. Do not end the shift.",
-          amount: "—",
-          report: "—",
-        },
-        {
-          id: "rf-3",
-          do: "When it says Approved, press Refund. No cash leaves your desk.",
+          do: `Open ${p(3)}. Refund. Tick Hospital Fee only. Refund to Agent. Remarks: Refund hospital fee. Press Refund.`,
           amount: `${rs(a.hospital)} agent`,
           report: "Agent Refunded",
         },
@@ -143,24 +131,12 @@ export function buildSheet(wizard: Wizard): Sheet {
     },
     {
       id: "cancel",
-      title: "How to cancel an agency booking — wait for approval",
-      learn: "Cancel returns the whole bill to the agent account. Same wait. No cash.",
+      title: "How to cancel an agency booking back to the agent",
+      learn: "Cancel returns the whole bill to the agent account. It finishes immediately. No cash.",
       steps: [
         {
           id: "cx-1",
-          do: `Open ${p(4)}. Cancel. Refund to Agent. Remarks: Cancel the booking. Press Request cancellation.`,
-          amount: rs(c.bill),
-          report: "Waiting",
-        },
-        {
-          id: "cx-2",
-          do: "Stop. Wait until a manager approves. Do not end the shift.",
-          amount: "—",
-          report: "—",
-        },
-        {
-          id: "cx-3",
-          do: "When it says Approved, press Cancel Booking. No cash leaves your desk.",
+          do: `Open ${p(4)}. Cancel. Refund to Agent. Remarks: Cancel the booking. Press Cancel Booking.`,
           amount: `${rs(c.bill)} agent`,
           report: "Agent Canceled",
         },

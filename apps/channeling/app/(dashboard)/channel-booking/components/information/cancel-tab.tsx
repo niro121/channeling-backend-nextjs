@@ -44,6 +44,7 @@ import {
 } from "./refund-cancel-confirmations"
 import { emptyChannelApprovalConfirmations } from "@/types/approval-request"
 import {
+  SAVE_PAYMENT_TYPE_AGENT,
   SAVE_PAYMENT_TYPE_CASH,
   SAVE_PAYMENT_TYPE_CREDIT_CARD,
   SAVE_PAYMENT_TYPE_E_WALLET,
@@ -57,7 +58,7 @@ function getRefundToOptionsForCancel(
   includeMixed: boolean
 ): { value: number; label: string }[] {
   const cash = { value: 0, label: "Refund as CASH" }
-  if (paymentMethod === 4) return [cash, { value: 4, label: "Refund to Agent" }]
+  if (paymentMethod === SAVE_PAYMENT_TYPE_AGENT) return [cash, { value: SAVE_PAYMENT_TYPE_AGENT, label: "Refund to Agent" }]
   if (paymentMethod === 5) return [cash, { value: 5, label: "Refund to Credit Customer" }]
   if (paymentMethod === 6) return [cash, { value: 6, label: "Refund as E-WALLET" }]
   if (paymentMethod === 1) return [cash, { value: 1, label: "Refund as CREDIT CARD" }]
@@ -301,7 +302,8 @@ export function CancelTab({ onCancelSuccess }: { onCancelSuccess?: () => void })
       toast({ title: "Remarks required", description: "Please enter a reason for cancellation.", variant: "destructive" })
       return
     }
-    if (isPaid && !requiredRefundCancelConfirmationChecked(confirmations)) {
+    const needsApproval = isPaid && refundTo !== SAVE_PAYMENT_TYPE_AGENT
+    if (needsApproval && !requiredRefundCancelConfirmationChecked(confirmations)) {
       toast({
         title: "Confirmation required",
         description: "Confirm that the original bill and copy are available.",
@@ -311,7 +313,7 @@ export function CancelTab({ onCancelSuccess }: { onCancelSuccess?: () => void })
     }
     setSubmitting(true)
     try {
-      if (!isPaid) {
+      if (!needsApproval) {
         const result = await refundChannelAction({
           booking_id: selectedBooking.id,
           refund_type: 0,
@@ -503,7 +505,7 @@ export function CancelTab({ onCancelSuccess }: { onCancelSuccess?: () => void })
           </Select>
         </div>
       )}
-      {isPaid && (
+      {isPaid && refundTo !== SAVE_PAYMENT_TYPE_AGENT && (
         <RefundCancelConfirmations
           idPrefix="cancel"
           value={confirmations}
@@ -546,10 +548,20 @@ export function CancelTab({ onCancelSuccess }: { onCancelSuccess?: () => void })
         disabled={
           submitting ||
           !remarks.trim() ||
-          (isPaid && !requiredRefundCancelConfirmationChecked(confirmations))
+          (isPaid &&
+            refundTo !== SAVE_PAYMENT_TYPE_AGENT &&
+            !requiredRefundCancelConfirmationChecked(confirmations))
         }
       >
-        {submitting ? "Requesting…" : isPaid ? `Request cancellation - ${formatRs(refundAmount)}` : "Cancel Booking"}
+        {submitting
+          ? isPaid && refundTo !== SAVE_PAYMENT_TYPE_AGENT
+            ? "Requesting…"
+            : "Canceling…"
+          : isPaid && refundTo !== SAVE_PAYMENT_TYPE_AGENT
+            ? `Request cancellation - ${formatRs(refundAmount)}`
+            : isPaid
+              ? `Cancel Booking - ${formatRs(refundAmount)}`
+              : "Cancel Booking"}
       </Button>
       </>
       )}

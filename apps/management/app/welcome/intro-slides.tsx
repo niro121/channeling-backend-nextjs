@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
-import { ArrowRight, Building2, Fingerprint, LineChart, Lock, ShieldCheck, Smartphone, Stethoscope, Wallet } from 'lucide-react';
+import { ArrowRight, Building2, Fingerprint, Lock, ShieldCheck, Smartphone, Stethoscope, Wallet } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { PRIMARY_BUTTON } from '@/components/pwa/install-steps';
 
@@ -98,7 +98,7 @@ export function IntroSlides() {
     <div className="app-gradient flex h-dvh flex-col pt-safe pb-safe">
       <div className="flex h-14 shrink-0 items-center justify-between px-6">
         <span className="flex items-center gap-2 text-sm font-semibold text-primary">
-          <LineChart className="h-4 w-4" aria-hidden />
+          <Image src="/icon-192.png" alt="" width={20} height={20} className="h-5 w-5 rounded" />
           {process.env.NEXT_PUBLIC_BRAND_NAME || 'Ruhunu'} Management
         </span>
         {!last && (

@@ -155,7 +155,8 @@ const DOCTOR_PAYMENT_PAGE_STYLES = `
   * { color: #000 !important; background: transparent !important; box-shadow: none !important; }
   body {
     font-family: Verdana, Geneva, Tahoma, sans-serif;
-    font-size: 13pt;
+    /* Match booking receipt field text (.invoice-fields). Paid and canceled slips share this sheet. */
+    font-size: 12.5pt;
     line-height: 1.4;
     color: #000;
     padding: 0;
@@ -173,6 +174,16 @@ const DOCTOR_PAYMENT_PAGE_STYLES = `
     font-size: 13pt;
     font-weight: 700;
     margin: 0 0 10px;
+  }
+  .meta td,
+  .patients th,
+  .patients td,
+  .totals td,
+  .pairs td,
+  .session-line,
+  .patient-count,
+  .generated {
+    font-size: 12.5pt;
   }
   .meta, .patients, .totals {
     width: 100%;

@@ -171,6 +171,26 @@ export const RESOURCES: ResourceWithOptionalActions[] = [
       { id: "approve-cash-voucher", name: "Approve Cash Vouchers" },
     ],
   },
+  {
+    // Management app (apps/management): who may use it at all. Admins always can.
+    id: "management-app",
+    name: "Management App",
+    customActions: [{ id: "access", name: "Sign in to Management app" }],
+  },
+  {
+    // Management app Overview (apps/management) — one switch per channel-insights module.
+    id: "management-overview",
+    name: "Management App Overview",
+    customActions: [
+      { id: "revenue", name: "Revenue" },
+      { id: "bookings", name: "Bookings & channel mix" },
+      { id: "top-doctors", name: "Top doctors" },
+      { id: "session-fill", name: "Session fill" },
+      { id: "booking-behaviour", name: "Booking behaviour" },
+      { id: "leakage", name: "Cancellations, no-shows & unpaid" },
+      { id: "specialities", name: "Speciality demand" },
+    ],
+  },
 ];
 
 /** Extended permission actions specific to Bulk Cashier (use with customActions). */

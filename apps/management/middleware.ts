@@ -1,5 +1,5 @@
-import { withAuth } from "next-auth/middleware";
-import { NextResponse } from "next/server";
+import { withAuth, type NextRequestWithAuth } from "next-auth/middleware";
+import { NextResponse, type NextFetchEvent } from "next/server";
 import { userTypes, roleRights } from "@/lib/roles";
 import { canAccessRoute, getResourceFromRoute } from "@/lib/permissions";
 
@@ -12,7 +12,7 @@ const getSecret = () => {
 const STATIC_PATHS = ['/favicon.ico', '/favicon', '/_next/static', '/_next/image'];
 const STATIC_EXT = /\.(ico|png|jpg|jpeg|gif|svg|webp|woff2?|css|js)(\?.*)?$/i;
 
-export default withAuth(
+const authMiddleware = withAuth(
   function middleware(request) {
     const currentPath = request.nextUrl.pathname;
     if (STATIC_PATHS.some((p) => currentPath === p || currentPath.startsWith(p + '/'))) {
@@ -51,6 +51,33 @@ export default withAuth(
   }
 );
 
+// Paths that don't need a session (sign-in, intro, install page, PWA files, APIs).
+const PUBLIC_PATH = /^\/(?:$|login|welcome|install|offline\.html|api\/|favicon|manifest\.webmanifest|sw\.js|_next\/static|_next\/image|.*\.(?:ico|png|jpg|jpeg|gif|svg|woff2?)$)/;
+
+/**
+ * People should only use the real domain (NEXTAUTH_URL). The herokuapp.com address works too, but
+ * signing in there is a separate session and the PWA installs as a second app — so page visits
+ * there are sent over (same as the KLV app). /api is left alone.
+ */
+function canonicalRedirect(request: NextRequestWithAuth): NextResponse | null {
+  const host = request.headers.get("x-forwarded-host") ?? request.headers.get("host") ?? "";
+  const canonical = process.env.NEXTAUTH_URL;
+  if (!canonical || !host.endsWith(".herokuapp.com")) return null;
+  if (request.method !== "GET" && request.method !== "HEAD") return null;
+  if (request.nextUrl.pathname.startsWith("/api/")) return null;
+  const url = new URL(canonical);
+  url.pathname = request.nextUrl.pathname;
+  url.search = request.nextUrl.search;
+  return NextResponse.redirect(url, 308);
+}
+
+export default function middleware(request: NextRequestWithAuth, event: NextFetchEvent) {
+  const redirect = canonicalRedirect(request);
+  if (redirect) return redirect;
+  if (PUBLIC_PATH.test(request.nextUrl.pathname)) return NextResponse.next();
+  return authMiddleware(request, event);
+}
+
 export const config = {
-  matcher: ['/((?!$|login|welcome|install|offline.html|api/|favicon|manifest.webmanifest|sw.js|_next/static|_next/image|.*\\.(?:ico|png|jpg|jpeg|gif|svg|woff2?)$).*)'],
+  matcher: ["/((?!_next/static|_next/image).*)"],
 };
