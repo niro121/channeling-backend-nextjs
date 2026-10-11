@@ -6,10 +6,9 @@ export type ChannelBookingStaffOption = {
   code: string
 }
 
-const MAX_STAFF_OPTIONS = 500
-
 /**
  * Get staff options for channel booking dropdown (e.g. Staff booking type).
+ * Returns every active staff member so the searchable picker is complete.
  */
 export async function getStaffOptionsForChannelBookingService(): Promise<{
   success: boolean
@@ -19,7 +18,6 @@ export async function getStaffOptionsForChannelBookingService(): Promise<{
   try {
     const records = await prisma.staff.findMany({
       where: { status: 1 },
-      take: MAX_STAFF_OPTIONS,
       orderBy: { name: "asc" },
       select: {
         id: true,

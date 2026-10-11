@@ -14,6 +14,7 @@ import {
 } from "@/types/save-booking"
 import { getIO, channelBookingRoom, floatBalanceRoom } from "@/lib/socket-server"
 import { sendSms } from "@/lib/helpers/sms/send-sms"
+import { sendBookingSms } from "@/lib/helpers/sms/send-booking-sms"
 import {
   createReceiptAndUpdateBooking,
   loadSessionForSaveBooking,
@@ -64,6 +65,11 @@ export type SaveBookingServiceOptions = {
    * Applies to POS/Agent/API methods only. Default true.
    */
   settleOnCreate?: boolean
+  /**
+   * Patient channel-details SMS after a successful booking. Default true.
+   * API method (4) never sends, even when this is true.
+   */
+  sendBookingSms?: boolean
 }
 
 function isPrismaUniqueConstraintError(e: unknown): boolean {
@@ -945,6 +951,17 @@ export async function saveBookingService(
           console.log("[save-booking] session-update skipped: getIO() is null (not using custom server?)")
         }
       }
+    }
+
+    // Patient SMS is fire-and-forget. A Mobitel failure must not fail or delay the booking.
+    // API method bookings never receive this SMS.
+    if (
+      options?.sendBookingSms !== false &&
+      input.payment_method !== SAVE_BOOKING_METHOD_API
+    ) {
+      void sendBookingSms(booking.id).catch((err) => {
+        console.error("saveBookingService booking sms error", err)
+      })
     }
 
     return { success: true, data: fullBooking }

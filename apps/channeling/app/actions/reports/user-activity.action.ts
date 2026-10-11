@@ -2,7 +2,8 @@
 
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { requireReport } from '@/lib/server-permissions';
+import { REPORTS_WITH_USER_OPTIONS } from '@/lib/report-privileges';
+import { requireAnyReport, requireReport } from '@/lib/server-permissions';
 import { logActivityNonBlocking } from '@/lib/activity-log';
 import prisma from '@/lib/prisma';
 import { getActivityLogsForReport } from '@/services/reports/user-activity.service';
@@ -19,7 +20,7 @@ export async function getReportUserOptionsAction(): Promise<{
   data?: Array<{ id: string; name: string }>;
   message?: string;
 }> {
-  await requireReport('user-activity');
+  await requireAnyReport([...REPORTS_WITH_USER_OPTIONS]);
   try {
     const ref = await getReferenceData({ users: true });
     if (!ref.success) return { success: false, message: ref.message ?? 'Failed to load users' };
