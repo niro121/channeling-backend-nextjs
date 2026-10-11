@@ -794,51 +794,75 @@ export function FloatRequestSummaryDialog({
   );
 }
 
+function collectDocumentCss(): string {
+  let css = '';
+  for (const sheet of Array.from(document.styleSheets)) {
+    try {
+      for (const rule of Array.from(sheet.cssRules)) {
+        css += `${rule.cssText}\n`;
+      }
+    } catch {
+      // Cross-origin sheet; the slip styles live in the app stylesheet.
+    }
+  }
+  return css;
+}
+
+/** Print only the slip. Printing the dashboard page leaves blank sheets around the dialog. */
+function printFloatSlip(source: HTMLElement) {
+  const existing = document.getElementById('float-slip-print-iframe');
+  if (existing) existing.remove();
+
+  const iframe = document.createElement('iframe');
+  iframe.id = 'float-slip-print-iframe';
+  iframe.setAttribute('aria-hidden', 'true');
+  iframe.style.cssText = 'position:fixed;left:-10000px;top:0;width:148mm;height:210mm;border:0;';
+  document.body.appendChild(iframe);
+
+  const doc = iframe.contentDocument;
+  const win = iframe.contentWindow;
+  if (!doc || !win) {
+    iframe.remove();
+    return;
+  }
+
+  doc.open();
+  doc.write('<!DOCTYPE html><html><head><title>Float handover slip</title></head><body></body></html>');
+  doc.close();
+
+  const style = doc.createElement('style');
+  style.textContent = `${collectDocumentCss()}
+    @page { size: A5 portrait; margin: 10mm; }
+    html, body { margin: 0; padding: 0; background: #fff; color: #111; }
+    .float-slip-print-area {
+      width: 128mm;
+      margin: 0 auto;
+      box-sizing: border-box;
+      background: #fff;
+    }
+  `;
+  doc.head.appendChild(style);
+  doc.body.appendChild(source.cloneNode(true));
+
+  const cleanup = () => {
+    win.removeEventListener('afterprint', cleanup);
+    iframe.remove();
+  };
+  win.addEventListener('afterprint', cleanup);
+  window.setTimeout(() => {
+    win.focus();
+    win.print();
+  }, 50);
+}
+
 export function FloatPrintSlipDialog({ data, onClose }: { data: FloatRequestPrintData; onClose: () => void }) {
   const printRef = useRef<HTMLDivElement>(null);
   const handlePrint = () => {
-    window.print();
+    if (printRef.current) printFloatSlip(printRef.current);
   };
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="sm:max-w-md">
-        <style>{`@media print {
-  @page { size: A5 portrait; margin: 10mm; }
-  html, body { margin: 0 !important; padding: 0 !important; background: #fff !important; }
-  body * { visibility: hidden; }
-  .float-slip-print-area, .float-slip-print-area * { visibility: visible; }
-  [role="dialog"] {
-    position: static !important;
-    inset: auto !important;
-    transform: none !important;
-    translate: none !important;
-    max-width: none !important;
-    width: auto !important;
-    margin: 0 !important;
-    padding: 0 !important;
-    border: none !important;
-    box-shadow: none !important;
-    background: transparent !important;
-    overflow: visible !important;
-  }
-  .float-slip-print-area {
-    position: relative !important;
-    left: auto !important;
-    top: auto !important;
-    width: 128mm !important;
-    margin: 8mm auto 0 !important;
-    padding: 8mm 7mm !important;
-    box-sizing: border-box !important;
-    border: 1px solid #000 !important;
-    border-radius: 0 !important;
-    box-shadow: none !important;
-    background: #fff !important;
-    color: #000 !important;
-    break-inside: avoid;
-    page-break-inside: avoid;
-  }
-  .no-print { display: none !important; }
-}`}</style>
         <DialogHeader className="no-print">
           <DialogTitle>Float handover slip</DialogTitle>
           <DialogDescription>Print this slip and give it to the cashier. They will enter the code to confirm receipt.</DialogDescription>

@@ -178,7 +178,9 @@ export default function DoctorLeaveForm({
       doctorLeave?.sendSms,
       doctorLeave?.status,
       doctorLeave?.doctorId,
-      doctorId
+      doctorLeave?.locationId,
+      doctorId,
+      defaultBranchId
     ]
   );
 
@@ -245,6 +247,7 @@ export default function DoctorLeaveForm({
     const payload = {
       ...values,
       doctorId: values.doctorId ?? doctorId,
+      locationId: values.locationId || branchId || undefined,
       sendSms: values.sendSms === true ? 1 : 0,
       sessions: sessionIds.map((id) => ({ id }))
     } as DoctorLeaveFormProps & { sendSms: number; sessions: { id: string }[] };
@@ -616,7 +619,8 @@ export default function DoctorLeaveForm({
                 <div className={styleClasses.inputClassName}>
                   {lockedBranchId ? (
                     <div className="flex h-9 w-full items-center rounded-md border border-input bg-muted px-3 text-sm text-muted-foreground">
-                      {branchOptions.find((o) => o.id === lockedBranchId)?.name ??
+                      {branchOptions.find((o) => o.id === lockedBranchId)?.name ||
+                        doctorLeave?.location?.name ||
                         'This branch'}
                     </div>
                   ) : (
