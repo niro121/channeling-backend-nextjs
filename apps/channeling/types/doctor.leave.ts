@@ -27,6 +27,7 @@ export type DoctorLeave = {
   doctor: Doctor
   doctorId: string;
   locationId?: string | null;
+  location?: { id: string; name: string } | null;
   createdBy: string | null;
   updatedBy: string | null;
   createdAt: Date;
