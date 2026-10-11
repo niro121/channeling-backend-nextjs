@@ -16,9 +16,9 @@ import { Textarea } from "@/components/ui/textarea"
 import { SearchableUserSelect } from "@/components/common/user-select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { getMyCashierShortBalance, getMyTillBalance } from "@/app/actions/till.actions"
-import { getBulkCashierUsersAction } from "@/app/actions/float-request.actions"
 import {
   submitShiftHandoverAction,
+  getHandoverRecipientOptionsAction,
   getHandoversReceivedByShiftAction,
   getHandoversToMeAction,
   getPendingIncomingHandoverCountAction,
@@ -460,7 +460,7 @@ export function EndShiftHandoverDialog({
   useEffect(() => {
     if (open && (step === 2 || step === 3)) {
       setHandoverUsersLoading(true)
-      getBulkCashierUsersAction()
+      getHandoverRecipientOptionsAction()
         .then((res) => {
           if (res.success && res.data?.length) {
             const list = res.data

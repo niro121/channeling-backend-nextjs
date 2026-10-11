@@ -20,13 +20,17 @@ import { requireActiveShift, getCurrentShift } from "@/services/shift.service"
 import { isShiftRequirementError } from "@/lib/shift-requirement-error"
 import { logActivityNonBlocking } from "@/lib/activity-log"
 import {
+  APPROVAL_REQUEST_STATUS,
   APPROVAL_REQUEST_TYPE,
 } from "@/types/approval-request"
 import {
+  assertNoOpenApproval,
+  findOpenApprovalForBooking,
   markApprovalCompleted,
   requireApprovedRequestForPaidAction,
 } from "@/services/approval-request.service"
 import {
+  SAVE_PAYMENT_TYPE_AGENT,
   SAVE_PAYMENT_TYPE_CASH,
   SAVE_PAYMENT_TYPE_CREDIT_CARD,
   SAVE_PAYMENT_TYPE_E_WALLET,
@@ -199,6 +203,10 @@ export async function refundChannelService(
     }
   }
 
+  const refundTo = input.refund_to ?? REFUND_TO_DEFAULT
+  // Refund to Agent credits the agency account and does not leave the till.
+  const refundsToAgent = refundTo === SAVE_PAYMENT_TYPE_AGENT
+
   let approvedRequestId: string | null = null
   const isPaidCancel = input.refund_type === 0 && booking.status === 1
   const isPartialRefund = input.refund_type === 1
@@ -206,15 +214,26 @@ export async function refundChannelService(
     const type = isPaidCancel
       ? APPROVAL_REQUEST_TYPE.CHANNEL_CANCEL
       : APPROVAL_REQUEST_TYPE.CHANNEL_REFUND
-    const gate = await requireApprovedRequestForPaidAction(booking.id, userId, type)
-    if (!gate.success) return gate
-    approvedRequestId = gate.requestId
+    if (refundsToAgent) {
+      const open = await findOpenApprovalForBooking(booking.id)
+      if (open?.type === type && open.status === APPROVAL_REQUEST_STATUS.APPROVED) {
+        const gate = await requireApprovedRequestForPaidAction(booking.id, userId, type)
+        if (!gate.success) return gate
+        approvedRequestId = gate.requestId
+      } else if (open) {
+        const blocking = await assertNoOpenApproval(booking.id)
+        if (blocking) return blocking
+      }
+    } else {
+      const gate = await requireApprovedRequestForPaidAction(booking.id, userId, type)
+      if (!gate.success) return gate
+      approvedRequestId = gate.requestId
+    }
   }
 
   const bookingAgencyId = booking.agencyId ?? null
   const bookingCreditCustomerId = (booking as { creditCustomerId?: string | null }).creditCustomerId ?? null
   const receiptPaymentMethod = (booking as { receiptPaymentMethod?: number | null }).receiptPaymentMethod ?? null
-  const refundTo = input.refund_to ?? REFUND_TO_DEFAULT
   const receiptLocationId = await resolveReceiptLocationId(
     userId,
     booking.locationId ?? null
@@ -735,6 +754,19 @@ export async function refundChannelService(
   const data = await getBookingForSaveBooking(input.booking_id)
   if (approvedRequestId && userId) {
     await markApprovalCompleted(approvedRequestId, userId)
+  } else if (userId && refundsToAgent && (isPaidCancel || isPartialRefund)) {
+    logActivityNonBlocking({
+      userId,
+      action: isPaidCancel ? "booking.cancel.completed" : "booking.refund.completed",
+      entityType: "Booking",
+      entityId: input.booking_id,
+      importance: "high",
+      metadata: {
+        remarks: remarksTrimmed,
+        refundTo,
+        skippedApproval: true,
+      },
+    })
   }
   return { success: true, data }
 }

@@ -29,6 +29,7 @@
     "backfill:advance-booking-enabled": "npx tsx scripts/backfill-advance-booking-enabled.ts",
     "backfill:doctor-locations": "npx tsx scripts/backfill-doctor-locations.ts",
     "backfill:reconciled-accounts": "npx tsx scripts/backfill-reconciled-account-names.ts",
+    "backfill:migrated-agent-payment-method": "npx tsx scripts/backfill-migrated-agent-receipt-payment-method.ts",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "test:appointment-logic": "npx tsx scripts/verify-appointment-number-logic.ts"
