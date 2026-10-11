@@ -151,7 +151,9 @@ export default function DoctorSessionsGroupedList({
   bulkDeleteAction
 }: {
   sessions: SessionRecord[];
-  bulkDeleteAction: (ids: string[]) => Promise<boolean>;
+  bulkDeleteAction: (
+    ids: string[]
+  ) => Promise<{ success: boolean; message?: string }>;
 }) {
   const [rowSelection, setRowSelection] = useState<Record<string, boolean>>({});
   const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
@@ -184,14 +186,22 @@ export default function DoctorSessionsGroupedList({
     if (selectedIds.length === 0) return;
     try {
       setLoading(true);
-      const ok = await bulkDeleteAction(selectedIds);
+      const result = await bulkDeleteAction(selectedIds);
       setShowBulkDeleteConfirm(false);
-      setRowSelection({});
-      if (ok) {
-        toast({ variant: 'success', title: 'Success', description: 'Records were deleted successfully' });
+      if (result.success) {
+        setRowSelection({});
+        toast({
+          variant: 'success',
+          title: 'Success',
+          description: result.message ?? 'Records were deleted successfully'
+        });
         router.refresh();
       } else {
-        toast({ variant: 'destructive', title: 'Error', description: 'Records could not be deleted.' });
+        toast({
+          variant: 'destructive',
+          title: 'Error',
+          description: result.message ?? 'Records could not be deleted.'
+        });
       }
     } catch (e: any) {
       toast({ variant: 'destructive', title: 'Error', description: e?.message ?? 'Delete failed.' });
