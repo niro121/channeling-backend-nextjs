@@ -197,6 +197,22 @@
     background-color: hsl(var(--muted-foreground) / 0.4);
   }
 
+  /* Swipeable chip row (date presets, filters): no scrollbar, snaps to chips, and a soft fade
+     at the right edge so it's clear there is more to swipe. */
+  .chip-scroller {
+    scrollbar-width: none;
+    scroll-snap-type: x proximity;
+    scroll-padding-inline: 1rem;
+    -webkit-overflow-scrolling: touch;
+    mask-image: linear-gradient(to right, #000 calc(100% - 2rem), transparent);
+  }
+  .chip-scroller::-webkit-scrollbar {
+    display: none;
+  }
+  .chip-scroller > * {
+    scroll-snap-align: start;
+  }
+
   .image-wrapper {
     img {
       position: relative !important;

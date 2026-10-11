@@ -60,7 +60,7 @@ export function DateRangeBar({ from, to, previousFrom, previousTo }: { from: str
 
   return (
     <div className="flex flex-col gap-2">
-      <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:px-0">
+      <div className="chip-scroller -mx-4 flex gap-2 overflow-x-auto px-4 sm:mx-0 sm:px-0">
         {options.map((p) => (
           <button
             key={p.key}
