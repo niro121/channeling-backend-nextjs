@@ -17,6 +17,16 @@ export async function deleteSessionService(
       return { success: false, error: 'Session not found' };
     }
 
+    const bookingCount = await prisma.booking.count({
+      where: { sessionId },
+    });
+    if (bookingCount > 0) {
+      return {
+        success: false,
+        error: 'This session has bookings and cannot be deleted.',
+      };
+    }
+
     if (userId) {
       logActivityNonBlocking({
         userId,

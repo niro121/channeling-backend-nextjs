@@ -517,6 +517,19 @@ export const deleteDoctorSessionByIdService = async (
   };
 }> => {
   try {
+    const childSessionCount = await prisma.session.count({
+      where: { doctorSessionId: id }
+    });
+    if (childSessionCount > 0) {
+      return {
+        success: false,
+        error: {
+          message:
+            'This doctor session has sessions created under it and cannot be deleted.'
+        }
+      };
+    }
+
     const session = await prisma.doctorSession.delete({
       where: { id }
     });
@@ -566,6 +579,19 @@ export const bulkDeleteDoctorSessionsByIdsService = async (
         success: false,
         error: {
           message: 'No doctor session IDs provided'
+        }
+      };
+    }
+
+    const childSessionCount = await prisma.session.count({
+      where: { doctorSessionId: { in: ids } }
+    });
+    if (childSessionCount > 0) {
+      return {
+        success: false,
+        error: {
+          message:
+            'One or more doctor sessions have sessions created under them and cannot be deleted.'
         }
       };
     }
