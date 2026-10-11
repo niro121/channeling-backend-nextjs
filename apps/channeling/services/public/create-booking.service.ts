@@ -388,6 +388,8 @@ export async function createPublicAgentBooking(
     // On-Call never creates a receipt and does not debit the agency; paid API/Agent
     // path settles against the agency. Agency + bookReference may still be stored as a tag.
     settleOnCreate: !isOnCall,
+    // Channel-details SMS is for counter bookings only, not the public API.
+    sendBookingSms: false,
   })
 
   if (!result.success) {

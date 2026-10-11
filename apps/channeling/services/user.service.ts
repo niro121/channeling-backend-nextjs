@@ -147,6 +147,7 @@ export const getUsers = async ({
             },
             include: {
                 bookingLocations: { select: { locationId: true } },
+                userGroup: { select: { id: true, name: true } },
             },
         })
 

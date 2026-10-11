@@ -107,7 +107,7 @@ export async function endShiftAction(shiftId: string) {
   return result
 }
 
-/** Whether the current user can end their shift with no handover (empty till, nothing to forward). */
+/** Whether the current user can end their shift with no handover (empty till, no receipts, nothing to forward). */
 export async function canEndShiftWithoutHandoverAction(): Promise<{
   success: true
   allowed: boolean

@@ -404,6 +404,20 @@ export const REPORT_PERMISSION_ACTIONS: { id: string; name: string }[] = [
   ...REPORT_PRIVILEGES.map((report) => ({ id: report.action, name: report.name })),
 ]
 
+/** Reports that load the shared user dropdown. Any one of these is enough. */
+export const REPORTS_WITH_USER_OPTIONS = [
+  "user-activity",
+  "channel-transfer",
+  "channel-agent-reference-book",
+  "cashier-summary",
+  "all-cashier-summary-detail",
+  "bank-deposits",
+  "cash-vouchers",
+  "completed-handovers",
+  "approval-requests",
+  "agent-history-credit-limit-update",
+] as const
+
 const PRIVILEGE_BY_ACTION = new Map(REPORT_PRIVILEGES.map((report) => [report.action, report]))
 const PRIVILEGE_BY_ROUTE = new Map(REPORT_PRIVILEGES.map((report) => [report.route, report]))
 

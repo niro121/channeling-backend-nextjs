@@ -199,6 +199,8 @@ export function NewBookingDetailsTab() {
   const [areaOpen, setAreaOpen] = useState(false)
   const [agencyOpen, setAgencyOpen] = useState(false)
   const agencyListRef = useRef<HTMLDivElement | null>(null)
+  const [staffOpen, setStaffOpen] = useState(false)
+  const staffListRef = useRef<HTMLDivElement | null>(null)
   const [agentBookingSuccess, setAgentBookingSuccess] = useState<AgentBookingSuccessInfo | null>(null)
   const [saving, setSaving] = useState(false)
   const [mixedDialogOpen, setMixedDialogOpen] = useState(false)
@@ -1279,23 +1281,90 @@ export function NewBookingDetailsTab() {
       )}
       {isStaff && (
         <div className="space-y-0.5">
-          <Select
-            value={staffId || undefined}
-            onValueChange={setStaffId}
-          >
-            <SelectTrigger
-              className={`${fieldClass} ${staffError ? errorClass : ""} ${!staffId ? "text-placeholder" : ""}`}
+          <Popover open={staffOpen} onOpenChange={setStaffOpen}>
+            <PopoverTrigger asChild>
+              <Button
+                type="button"
+                variant="outline"
+                role="combobox"
+                aria-expanded={staffOpen}
+                className={cn(
+                  fieldClass,
+                  "w-full justify-between font-normal",
+                  staffError && errorClass,
+                  !staffId && "text-placeholder"
+                )}
+              >
+                <span className="min-w-0 truncate">
+                  {selectedStaff
+                    ? selectedStaff.code
+                      ? `${selectedStaff.name} (${selectedStaff.code})`
+                      : selectedStaff.name
+                    : "Select Staff Member"}
+                </span>
+                <ChevronsUpDown className="ml-2 h-3.5 w-3.5 shrink-0 opacity-50" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent
+              className="w-[var(--radix-popover-trigger-width)] p-0 overflow-hidden"
+              align="start"
             >
-              <SelectValue placeholder="Select Staff Member" />
-            </SelectTrigger>
-            <SelectContent>
-              {staffOptions.map((s) => (
-                <SelectItem key={s.id} value={s.id} className="text-xs">
-                  {s.name} {s.code ? `(${s.code})` : ""}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+              <Command
+                className="h-auto overflow-hidden rounded-md"
+                filter={(value, search, keywords) => {
+                  const query = search.trim().toLowerCase()
+                  if (!query) return 1
+                  const haystack = [value, ...(keywords ?? [])].join(" ").toLowerCase()
+                  return haystack.includes(query) ? 1 : 0
+                }}
+              >
+                <CommandInput
+                  placeholder="Search staff name or code..."
+                  className="h-8 text-xs"
+                  onValueChange={() => {
+                    requestAnimationFrame(() => {
+                      setTimeout(() => {
+                        staffListRef.current?.scrollTo({ top: 0 })
+                      }, 0)
+                    })
+                  }}
+                />
+                <CommandList
+                  ref={staffListRef}
+                  className="max-h-[240px] overflow-y-auto overscroll-contain"
+                >
+                  <CommandEmpty className="text-xs py-4 text-center text-muted-foreground">
+                    No staff found.
+                  </CommandEmpty>
+                  <CommandGroup className="overflow-visible">
+                    {staffOptions.map((s) => {
+                      const label = s.code ? `${s.name} (${s.code})` : s.name
+                      return (
+                        <CommandItem
+                          key={s.id}
+                          value={`${label} ${s.id}`}
+                          keywords={[s.name, s.code, label].filter(Boolean)}
+                          className="text-xs scroll-mt-0"
+                          onSelect={() => {
+                            setStaffId(s.id)
+                            setStaffOpen(false)
+                          }}
+                        >
+                          <Check
+                            className={cn(
+                              "mr-2 h-3.5 w-3.5",
+                              staffId === s.id ? "opacity-100" : "opacity-0"
+                            )}
+                          />
+                          {label}
+                        </CommandItem>
+                      )
+                    })}
+                  </CommandGroup>
+                </CommandList>
+              </Command>
+            </PopoverContent>
+          </Popover>
         </div>
       )}
       {isCard && (

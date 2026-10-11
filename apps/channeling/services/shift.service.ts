@@ -448,12 +448,22 @@ export async function resumeShift(shiftId: string, userId: string) {
   return { success: true }
 }
 
+/** Receipts posted on this shift. A later refund still leaves the original receipt. */
+async function shiftHasReceipts(shiftId: string): Promise<boolean> {
+  const count = await prisma.receipt.count({ where: { shiftId } })
+  return count > 0
+}
+
 /**
  * True when the shift can be closed with no ShiftHandover:
- * every till is empty (or missing), nothing to forward, no handovers waiting to accept,
- * and no open float requests (pending approval or approved but not yet received).
+ * every till is empty (or missing), the shift has no receipts, nothing to forward,
+ * no handovers waiting to accept, and no open float requests
+ * (pending approval or approved but not yet received).
  */
-export async function canEndShiftWithoutHandover(userId: string): Promise<{
+export async function canEndShiftWithoutHandover(
+  userId: string,
+  shiftId?: string
+): Promise<{
   allowed: boolean
   reason?: string
 }> {
@@ -529,6 +539,25 @@ export async function canEndShiftWithoutHandover(userId: string): Promise<{
     }
   }
 
+  const receiptShiftId =
+    shiftId ??
+    (
+      await shiftModel.findFirst({
+        where: {
+          userId,
+          status: { in: [SHIFT_STATUS.ACTIVE, SHIFT_STATUS.PAUSED] },
+        },
+        select: { id: true },
+        orderBy: { startedAt: "desc" },
+      })
+    )?.id
+  if (receiptShiftId && (await shiftHasReceipts(receiptShiftId))) {
+    return {
+      allowed: false,
+      reason: "This shift has receipts. Complete a handover to end this shift.",
+    }
+  }
+
   return { allowed: true }
 }
 
@@ -543,7 +572,7 @@ export async function endShift(shiftId: string, userId: string) {
   })
   if (!shift) return { success: false, message: "Shift not found" }
 
-  const emptyClose = await canEndShiftWithoutHandover(validUserId)
+  const emptyClose = await canEndShiftWithoutHandover(validUserId, validShiftId)
   if (!emptyClose.allowed) {
     return {
       success: false,
