@@ -47,6 +47,7 @@ import {
 } from "@/components/ui/select";
 import { Loader2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { DoctorPaymentPrintDialog } from "../doctor-payment-print-dialog";
 
 function formatSessionTime(unixSec: number): string {
   const d = new Date(unixSec * 1000);
@@ -197,6 +198,7 @@ export function MakeDoctorPaymentClient({
   const [handedStaffId, setHandedStaffId] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [showPayConfirm, setShowPayConfirm] = useState(false);
+  const [printReceiptId, setPrintReceiptId] = useState<string | null>(null);
   const [isSticky, setIsSticky] = useState(false);
   const sentinelRef = useRef<HTMLDivElement>(null);
   const stickyRef = useRef<HTMLDivElement>(null);
@@ -456,8 +458,7 @@ export function MakeDoctorPaymentClient({
       });
       if (res.success) {
         toast({ title: `Payment completed. Receipt: ${res.receiptNoString}` });
-        router.push("/doctor-payments");
-        router.refresh();
+        setPrintReceiptId(res.receiptId);
       } else {
         toast({
           title: res.errorCode === "SHIFT_EXPIRED" ? "Shift expired" : (res.message ?? "Payment failed."),
@@ -473,6 +474,12 @@ export function MakeDoctorPaymentClient({
       setSubmitting(false);
       setShowPayConfirm(false);
     }
+  };
+
+  const leaveAfterPrint = () => {
+    setPrintReceiptId(null);
+    router.push("/doctor-payments");
+    router.refresh();
   };
 
   const handlePayNowClick = () => {
@@ -1037,6 +1044,15 @@ export function MakeDoctorPaymentClient({
           </AlertDialog>
         </>
       )}
+      {printReceiptId ? (
+        <DoctorPaymentPrintDialog
+          open
+          onOpenChange={(open) => {
+            if (!open) leaveAfterPrint();
+          }}
+          receiptId={printReceiptId}
+        />
+      ) : null}
     </div>
   );
 }
