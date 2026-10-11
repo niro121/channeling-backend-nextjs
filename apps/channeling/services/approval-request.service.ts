@@ -1075,6 +1075,8 @@ export type ListApprovalRequestsInput = {
   dateTo?: string | null
   page?: number
   limit?: number
+  /** Narrow to one request (deep links). Same visibility rules as the list. */
+  requestId?: string | null
   userId: string
   permissions: Permissions | null | undefined
   isAdmin: boolean
@@ -1231,7 +1233,9 @@ export async function listApprovalRequests(
   const status = input.status ?? "open"
   const view: ApprovalListView = input.view ?? (access.canAttend ? "attend" : "mine")
 
-  const where = buildListWhere(access, input.userId, view, type, status, input.dateFrom, input.dateTo)
+  const listWhere = buildListWhere(access, input.userId, view, type, status, input.dateFrom, input.dateTo)
+  const requestId = input.requestId?.trim()
+  const where = listWhere && requestId ? { AND: [listWhere, { id: requestId }] } : listWhere
   if (!where) {
     return { success: false, errorCode: "forbidden", message: "Permission denied", data: [], total: 0, page: 1, limit, access }
   }

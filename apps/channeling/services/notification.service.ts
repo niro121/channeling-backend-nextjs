@@ -1,4 +1,4 @@
-'use server';
+import 'server-only';
 
 import prisma from '@/lib/prisma';
 import { getIO, notificationRoom } from '@/lib/socket-server';
@@ -22,6 +22,8 @@ export async function createNotification(input: NotificationCreateInput): Promis
     if (io) {
       io.to(notificationRoom(input.userId)).emit('notification-update', {});
     }
+    // Phone pushes for the management PWA are sent by the push worker (services/push-worker.service.ts),
+    // which picks up new rows from any instance — including ones running older code.
   } catch (e) {
     console.error('createNotification error:', e);
   }

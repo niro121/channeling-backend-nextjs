@@ -1,7 +1,11 @@
 import { authPrisma } from '@archmage/db-auth';
 import { CheckCircle2, CircleDashed, KeyRound, Stethoscope, TriangleAlert, Wallet, Fingerprint } from 'lucide-react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@archmage/ui';
 import { getChannelingOverview, isChannelingApiConfigured } from '@/lib/sources/channeling';
 import { cn } from '@/lib/utils';
+import { getAuthStats } from '@/lib/sources/auth-stats';
+import { UsersByAppChart } from './users-by-app-chart';
+import { getManagementAccess } from '@/lib/management-access';
 
 export const dynamic = 'force-dynamic';
 
@@ -25,14 +29,22 @@ async function check(fn: () => Promise<unknown>): Promise<Status> {
 
 /** Which systems feed the dashboard, and whether each one is reachable right now. */
 export default async function SystemsPage() {
-  const [authStatus, channelingStatus] = await Promise.all([
+  if ((await getManagementAccess()) !== 'allowed') return null;
+
+  const [authStatus, channelingStatus, auth] = await Promise.all([
     check(() => authPrisma.user.count({ take: 1 })),
-    isChannelingApiConfigured() ? check(getChannelingOverview) : Promise.resolve<Status>('not-configured')
+    isChannelingApiConfigured() ? check(getChannelingOverview) : Promise.resolve<Status>('not-configured'),
+    getAuthStats().catch((error) => {
+      console.error('[management systems] auth stats', error);
+      return null;
+    })
   ]);
+  const twoFactorPct =
+    auth && auth.activeUsers > 0 ? Math.round((auth.twoFactorEnabled / auth.activeUsers) * 100) : null;
 
   const systems: { name: string; feeds: string; icon: React.ReactNode; status: Status }[] = [
     { name: 'Accounts', feeds: 'Sign-in, users and 2FA adoption', icon: <KeyRound className="h-5 w-5" />, status: authStatus },
-    { name: 'Channeling', feeds: 'Doctors and branches · revenue and bookings next', icon: <Stethoscope className="h-5 w-5" />, status: channelingStatus },
+    { name: 'Channeling', feeds: 'Channel insights and approvals', icon: <Stethoscope className="h-5 w-5" />, status: channelingStatus },
     { name: 'HRM', feeds: 'Attendance, leave and overtime', icon: <Fingerprint className="h-5 w-5" />, status: 'planned' },
     { name: 'DPAY', feeds: 'Doctor payments and patient bills', icon: <Wallet className="h-5 w-5" />, status: 'planned' }
   ];
@@ -71,6 +83,21 @@ export default async function SystemsPage() {
           </li>
         ))}
       </ul>
+
+      {auth && (
+        <Card className="mt-3 min-w-0">
+          <CardHeader>
+            <CardTitle className="text-base">Users</CardTitle>
+            <CardDescription>
+              {auth.activeUsers.toLocaleString()} active · {auth.admins} admins · 2FA{' '}
+              {twoFactorPct != null ? `${twoFactorPct}%` : '—'} ({auth.twoFactorEnabled} of {auth.activeUsers})
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <UsersByAppChart data={auth.usersByApp} />
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }
