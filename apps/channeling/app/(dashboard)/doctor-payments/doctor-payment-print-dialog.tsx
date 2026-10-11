@@ -21,6 +21,31 @@ import {
 } from "@/lib/receipt-template/build-print-html";
 import { printHtmlInIframe } from "@/lib/receipt-template/print-html-iframe";
 
+type DoctorPaymentPrintOptions = {
+  doctorName?: string;
+  originalReceiptNoString?: string;
+};
+
+/** Opens the browser print dialog for an existing consultant-payment receipt. */
+export async function printDoctorPaymentReceiptById(
+  receiptId: string,
+  options: DoctorPaymentPrintOptions = {}
+): Promise<{ success: boolean; message?: string }> {
+  if (!receiptId.trim()) {
+    return { success: false, message: "Receipt is required." };
+  }
+  const printed = await printDoctorPaymentReceiptAction(receiptId.trim(), options);
+  if (!printed.success || !printed.data) {
+    return { success: false, message: printed.message ?? "Could not prepare the receipt." };
+  }
+  printHtmlInIframe(buildDoctorPaymentPrintHtml([printed.data]), {
+    title: "Consultant Payment",
+    width: "148mm",
+    height: "210mm",
+  });
+  return { success: true };
+}
+
 type DoctorPaymentPrintDialogProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -95,11 +120,11 @@ export function DoctorPaymentPrintDialog({
     setPrinting(true);
     try {
       const printId = cancelReceiptId ?? receiptId;
-      const printed = await printDoctorPaymentReceiptAction(
+      const printed = await printDoctorPaymentReceiptById(
         printId,
         cancelReceiptId ? { doctorName, originalReceiptNoString } : {}
       );
-      if (!printed.success || !printed.data) {
+      if (!printed.success) {
         toast({
           title: "Print failed",
           description: printed.message ?? "Could not prepare the receipt.",
@@ -107,12 +132,6 @@ export function DoctorPaymentPrintDialog({
         });
         return;
       }
-      const models = [printed.data];
-      printHtmlInIframe(buildDoctorPaymentPrintHtml(models), {
-        title: "Consultant Payment",
-        width: "148mm",
-        height: "210mm",
-      });
       onOpenChange(false);
     } catch (err) {
       toast({
