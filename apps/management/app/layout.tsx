@@ -11,7 +11,7 @@ export const metadata: Metadata = {
   description: `${brand} management statistics`,
   applicationName: `${brand} Management`,
   appleWebApp: { capable: true, title: 'Management', statusBarStyle: 'default' },
-  icons: { icon: '/icon.svg', apple: '/apple-touch-icon.png' }
+  icons: { icon: '/favicon.png', apple: '/apple-touch-icon.png' }
 };
 
 export const viewport: Viewport = {
