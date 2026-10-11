@@ -195,7 +195,7 @@ export function ApprovalsContent({ initialId }: { initialId: string | null }) {
       )}
 
       {typeFilters.length > 2 && (
-        <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:px-0">
+        <div className="chip-scroller -mx-4 flex gap-2 overflow-x-auto px-4 sm:mx-0 sm:px-0">
           {typeFilters.map((f) => (
             <button
               key={f.value}
