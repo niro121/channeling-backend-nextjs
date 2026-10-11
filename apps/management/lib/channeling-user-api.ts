@@ -10,6 +10,9 @@ import { fetchServerSession } from '@/lib/session';
 const ISSUER = 'archmage-management';
 const AUDIENCE = 'channeling-management-api';
 const TOKEN_TTL_SEC = 60;
+// Give up well inside Heroku's 30s request limit, so a slow or restarting channeling shows the
+// app's own "Try again" screen instead of Heroku's error page. Pages make at most two calls in a row.
+const REQUEST_TIMEOUT_MS = 8_000;
 
 export class ChannelingUserApiError extends Error {
   constructor(message: string, readonly status: number) {
@@ -54,7 +57,9 @@ export async function channelingUserFetch(path: string, init: RequestInit = {}):
   headers.set('Authorization', `Bearer ${token}`);
   if (init.body && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json');
 
-  return fetch(`${config.baseUrl}${path}`, { ...init, headers, cache: 'no-store' });
+  const timeout = AbortSignal.timeout(REQUEST_TIMEOUT_MS);
+  const signal = init.signal ? AbortSignal.any([init.signal, timeout]) : timeout;
+  return fetch(`${config.baseUrl}${path}`, { ...init, headers, signal, cache: 'no-store' });
 }
 
 /** JSON call; channeling's { success, errorCode, message } failures are returned, not thrown. */

@@ -158,7 +158,7 @@ export function ApprovalsContent({ initialId }: { initialId: string | null }) {
   const typeFilters = access ? TYPE_FILTERS.filter((f) => f.visible(access)) : TYPE_FILTERS.slice(0, 1);
 
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
+    <div className="flex w-full min-w-0 flex-col gap-4">
       <HeaderActions>
         <Button
           type="button"
@@ -234,7 +234,7 @@ export function ApprovalsContent({ initialId }: { initialId: string | null }) {
           {view === 'attend' ? 'Nothing waiting for approval.' : 'You have no open requests.'}
         </div>
       ) : (
-        <ul className="flex flex-col gap-2">
+        <ul className="grid gap-2 lg:grid-cols-2">
           {rows.map((row) => (
             <li key={row.id}>
               <button
