@@ -3,14 +3,14 @@
 import prisma from '@/lib/prisma';
 import { getInclusiveDaySpan, getReportMaxRangeDays, getReportMaxRecords } from '@/lib/report-limits';
 import { parseReportDateTime } from '@/lib/parse-report-datetime';
-import { PAYMENT_METHOD_NAMES } from '@/types/receipt';
+import { PAYMENT_METHOD_NAMES, RECEIPT_PAYMENT_METHOD } from '@/types/receipt';
 import { netEffectForAccountType } from '@/lib/accounting/helpers';
-import { getAccountBalance } from '@/services/accounting.service';
 import { isBranchReconciledCashAccount } from '@/services/accounting/account/branch-reconciled-account.constants';
 import type {
   CashBookReportQuery,
   CashBookReportResponse,
   CashBookReportRow,
+  CashBookTypeBalance,
 } from '@/types/reports/cash-book';
 
 const MAX_RANGE_DAYS = getReportMaxRangeDays('cash_book', 31);
@@ -32,6 +32,82 @@ function mapPaymentType(paymentMethod: number | null | undefined): string {
   return PAYMENT_METHOD_NAMES[paymentMethod] ?? 'Other';
 }
 
+/** Footer order. Untagged lines fold into Cash, matching the cashier drawer. */
+const CLOSING_TYPE_ORDER: number[] = [
+  RECEIPT_PAYMENT_METHOD.CASH,
+  RECEIPT_PAYMENT_METHOD.CREDIT_CARD,
+  RECEIPT_PAYMENT_METHOD.SLIP,
+  RECEIPT_PAYMENT_METHOD.CHECK,
+  RECEIPT_PAYMENT_METHOD.E_WALLET,
+  RECEIPT_PAYMENT_METHOD.CREDIT,
+  RECEIPT_PAYMENT_METHOD.AGENT,
+  RECEIPT_PAYMENT_METHOD.MIXED,
+];
+
+function typeBalanceKey(paymentMethod: number | null | undefined): string {
+  if (paymentMethod != null && CLOSING_TYPE_ORDER.includes(paymentMethod)) {
+    return String(paymentMethod);
+  }
+  return String(RECEIPT_PAYMENT_METHOD.CASH);
+}
+
+function addTypeBalance(
+  totals: Map<string, number>,
+  paymentMethod: number | null | undefined,
+  cents: number
+) {
+  const key = typeBalanceKey(paymentMethod);
+  totals.set(key, (totals.get(key) ?? 0) + cents);
+}
+
+function toClosingTypeBalances(totals: Map<string, number>): CashBookTypeBalance[] {
+  const rows: CashBookTypeBalance[] = [];
+  for (const method of CLOSING_TYPE_ORDER) {
+    const balanceCents = totals.get(String(method)) ?? 0;
+    if (balanceCents === 0) continue;
+    rows.push({
+      label: PAYMENT_METHOD_NAMES[method] ?? 'Other',
+      balanceCents,
+    });
+  }
+  return rows;
+}
+
+/** Opening balance split by payment type, for journals dated on or before asOf. */
+async function openingBalancesByType(
+  accountIds: string[],
+  asOf: Date
+): Promise<Map<string, number>> {
+  const totals = new Map<string, number>();
+  if (accountIds.length === 0) return totals;
+
+  const journals = await prisma.journal.findMany({
+    where: { date: { lte: asOf } },
+    select: { id: true },
+  });
+  const journalIds = journals.map((journal) => journal.id);
+  if (journalIds.length === 0) return totals;
+
+  const grouped = await prisma.journalLine.groupBy({
+    by: ['paymentMethod'],
+    where: {
+      accountId: { in: accountIds },
+      journalId: { in: journalIds },
+    },
+    _sum: { debitAmount: true, creditAmount: true },
+  });
+
+  for (const row of grouped) {
+    const net = netEffectForAccountType(
+      row._sum.debitAmount ?? 0,
+      row._sum.creditAmount ?? 0,
+      'CASH'
+    );
+    addTypeBalance(totals, row.paymentMethod, net);
+  }
+  return totals;
+}
+
 export async function getCashBookReportService(
   query: CashBookReportQuery
 ): Promise<CashBookReportResponse> {
@@ -43,6 +119,7 @@ export async function getCashBookReportService(
       totalRecords: 0,
       openingBalanceCents: 0,
       closingBalanceCents: 0,
+      closingBalancesByType: [],
       cashBookName: '-',
       cashBookCode: null,
       message: 'From and To date/time are required.',
@@ -57,6 +134,7 @@ export async function getCashBookReportService(
       totalRecords: 0,
       openingBalanceCents: 0,
       closingBalanceCents: 0,
+      closingBalancesByType: [],
       cashBookName: '-',
       cashBookCode: null,
       message: 'From date/time must be before or equal to To date/time.',
@@ -71,6 +149,7 @@ export async function getCashBookReportService(
       totalRecords: 0,
       openingBalanceCents: 0,
       closingBalanceCents: 0,
+      closingBalancesByType: [],
       cashBookName: '-',
       cashBookCode: null,
       message: `Date range is too large. Please select ${MAX_RANGE_DAYS} days or less.`,
@@ -84,6 +163,7 @@ export async function getCashBookReportService(
       totalRecords: 0,
       openingBalanceCents: 0,
       closingBalanceCents: 0,
+      closingBalancesByType: [],
       cashBookName: '-',
       cashBookCode: null,
       message: 'Please select a cash book.',
@@ -110,6 +190,7 @@ export async function getCashBookReportService(
       totalRecords: 0,
       openingBalanceCents: 0,
       closingBalanceCents: 0,
+      closingBalancesByType: [],
       cashBookName: '-',
       cashBookCode: null,
       message: 'Selected cash book was not found.',
@@ -181,17 +262,16 @@ export async function getCashBookReportService(
       totalRecords: 0,
       openingBalanceCents: 0,
       closingBalanceCents: 0,
+      closingBalancesByType: [],
       cashBookName: account.name ?? '-',
       cashBookCode: account.code ?? null,
       message: `Too many records in selected range (${rangeCount}). Please narrow the date range.`,
     };
   }
 
-  let openingBalanceCents = 0;
   const openingAsOf = new Date(from.getTime() - 1);
-  for (const scopedAccountId of accountIds) {
-    openingBalanceCents += await getAccountBalance(scopedAccountId, openingAsOf);
-  }
+  const balancesByType = await openingBalancesByType(accountIds, openingAsOf);
+  const openingBalanceCents = [...balancesByType.values()].reduce((sum, cents) => sum + cents, 0);
 
   const lines = journalIdsInRange.length
     ? await prisma.journalLine.findMany({
@@ -220,7 +300,9 @@ export async function getCashBookReportService(
 
   let runningBalance = openingBalanceCents;
   const rows: CashBookReportRow[] = lines.map((line) => {
-    runningBalance += netEffectForAccountType(line.debitAmount, line.creditAmount, 'CASH');
+    const net = netEffectForAccountType(line.debitAmount, line.creditAmount, 'CASH');
+    runningBalance += net;
+    addTypeBalance(balancesByType, line.paymentMethod, net);
     const acc = accountMap.get(line.accountId);
     const accountLabel = acc?.code ? `${acc.name} (${acc.code})` : (acc?.name ?? '-');
     return {
@@ -242,6 +324,7 @@ export async function getCashBookReportService(
     totalRecords: rows.length,
     openingBalanceCents,
     closingBalanceCents: runningBalance,
+    closingBalancesByType: toClosingTypeBalances(balancesByType),
     cashBookName: account.name ?? '-',
     cashBookCode: account.code ?? null,
   };

@@ -20,7 +20,7 @@ import {
   getExpectedHandoverCollection,
 } from "@/services/shift-handover.service"
 import { getTillBalanceBreakdown } from "@/services/accounting/balance.service"
-import { getReceivedFloatsForHandover, getOpenFloatsBlockingShiftEnd, openFloatsBlockingTotal } from "@/services/float-request.service"
+import { getBulkCashierUsers, getReceivedFloatsForHandover, getOpenFloatsBlockingShiftEnd, openFloatsBlockingTotal } from "@/services/float-request.service"
 import { getAccountBalance } from "@/services/accounting/balance-calc.service"
 import prisma from "@/lib/prisma"
 import { getServerSession } from "next-auth"
@@ -107,7 +107,7 @@ export async function endShiftAction(shiftId: string) {
   return result
 }
 
-/** Whether the current user can end their shift with no handover (empty till, nothing to forward). */
+/** Whether the current user can end their shift with no handover (empty till, no receipts, nothing to forward). */
 export async function canEndShiftWithoutHandoverAction(): Promise<{
   success: true
   allowed: boolean
@@ -127,6 +127,36 @@ export async function getHandoverUserOptionsAction() {
   if (!session?.user?.id) return { success: true, data: [] }
   const options = await getHandoverUserOptions(session.user.id)
   return { success: true, data: options }
+}
+
+/**
+ * People who can receive a shift handover (Float Approve), excluding the current user.
+ * Shift view is enough. Float Request is only required when requesting float.
+ */
+export async function getHandoverRecipientOptionsAction(): Promise<{
+  success: boolean
+  data: Awaited<ReturnType<typeof getBulkCashierUsers>>
+  message?: string
+}> {
+  try {
+    await requirePermission(SHIFT_RESOURCE, "view")
+  } catch (err) {
+    return { success: false, data: [], message: err instanceof Error ? err.message : "Access denied." }
+  }
+  const session = await getServerSession(authOptions)
+  const currentUserId = session?.user?.id ?? null
+  if (!currentUserId) return { success: false, data: [], message: "Unauthorized" }
+  try {
+    const users = await getBulkCashierUsers(currentUserId)
+    return { success: true, data: users }
+  } catch (e) {
+    console.error("getHandoverRecipientOptionsAction error:", e)
+    return {
+      success: false,
+      data: [],
+      message: e instanceof Error ? e.message : "Failed to load handover recipients",
+    }
+  }
 }
 
 /** Single payload for submit shift handover (one arg = no serialization drop). */

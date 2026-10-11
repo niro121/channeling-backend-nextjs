@@ -60,7 +60,9 @@ export function InstallSteps() {
     return (
       <div className="space-y-4">
         <h2 className="text-xl font-semibold">{done ? 'Installed 🎉' : 'You’re in the app'}</h2>
-        <p className="text-[15px] text-muted-foreground">Open Management from your home screen and sign in.</p>
+        <p className="text-[15px] text-muted-foreground">
+          Open Management from your home screen and sign in, then turn on notifications from the banner or Account.
+        </p>
         {openApp}
       </div>
     );
@@ -100,7 +102,10 @@ export function InstallSteps() {
         <ol className="space-y-2">
           <Step n={1}>Tap the Share button <ShareIcon /> (bottom of Safari on iPhone, top right on iPad).</Step>
           <Step n={2}>Scroll down and tap <b>Add to Home Screen</b>, then <b>Add</b>.</Step>
-          <Step n={3}>Open <b>Management</b> from your home screen and sign in.</Step>
+          <Step n={3}>
+            Open <b>Management</b> from your home screen and sign in. On iPhone and iPad, notifications only work from the
+            installed app.
+          </Step>
         </ol>
       ) : (
         <ol className="space-y-2">

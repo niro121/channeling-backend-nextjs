@@ -80,6 +80,12 @@ function isClosingRow(row: CashBookReportExportRow): boolean {
   return /^closing\s*balance$/i.test((row.description || '').trim());
 }
 
+function closingRowLabel(row: CashBookReportExportRow): string {
+  const type = (row.paymentType || '').trim();
+  if (type && type !== '-') return type;
+  return 'Closing Balance';
+}
+
 function cellOrDash(value: string | undefined | null): string {
   if (value == null || value === '') return '-';
   return value;
@@ -332,7 +338,7 @@ export async function downloadCashBookReportExcel({
         });
       }
       // Only set value on the merge master (col 1) — clearing sibling cells wipes the label.
-      sheet.getCell(row, 1).value = 'Closing Balance';
+      sheet.getCell(row, 1).value = closingRowLabel(dataRow);
       const balanceCell = sheet.getCell(row, 8);
       balanceCell.value = moneyOrDash(dataRow.balance);
       applyCellBase(balanceCell, {

@@ -1,5 +1,5 @@
-import { withAuth } from "next-auth/middleware";
-import { NextResponse } from "next/server";
+import { withAuth, type NextRequestWithAuth } from "next-auth/middleware";
+import { NextResponse, type NextFetchEvent } from "next/server";
 import { userTypes, roleRights } from "@/lib/roles";
 import { canAccessRoute, getResourceFromRoute } from "@/lib/permissions";
 
@@ -19,7 +19,7 @@ const getSecret = () => {
 const STATIC_PATHS = ['/favicon.ico', '/favicon', '/_next/static', '/_next/image', '/sw-shift-bills.js', '/shift-bills.webmanifest'];
 const STATIC_EXT = /\.(ico|png|jpg|jpeg|gif|svg|webp|woff2?|css|webmanifest)(\?.*)?$/i;
 
-export default withAuth(
+const authMiddleware = withAuth(
   function middleware(request) {
     const currentPath = request.nextUrl.pathname;
     // Skip auth for static assets (favicon, _next, and common file extensions)
@@ -97,7 +97,31 @@ export default withAuth(
 );
 
 
-// Don't invoke Middleware on some paths (include favicon/static assets so they don't run auth)
-export const config = {
-  matcher: ['/((?!login|forgot-password|check-email|register|api/|uat|favicon|_next/static|_next/image|sw-shift-bills\\.js|shift-bills\\.webmanifest|.*\\.(?:ico|png|jpg|jpeg|gif|svg|woff2?|webmanifest)$).*)', "/api/doctors/:path*"]
+/**
+ * Paths the auth middleware skips. This used to be the `matcher`; it moved here so the
+ * API_ONLY gate below can also see /api and /login (the matcher now covers everything).
+ */
+const AUTH_SKIP = /^\/(?:login|forgot-password|check-email|register|api\/|uat|favicon|_next\/static|_next\/image|sw-shift-bills\.js|shift-bills\.webmanifest|.*\.(?:ico|png|jpg|jpeg|gif|svg|woff2?|webmanifest)$)/;
+const AUTH_ALSO = /^\/api\/doctors(?:\/|$)/;
+
+/**
+ * API_ONLY=true (the api.ruhunuhospital.lk instance): only the management and public APIs
+ * are served; every page and other API returns 404, so staff can't use a second copy of the app.
+ */
+const API_ONLY_ALLOWED = /^\/api\/(?:management|public)(?:\/|$)/;
+
+export default function middleware(request: NextRequestWithAuth, event: NextFetchEvent) {
+  const path = request.nextUrl.pathname;
+
+  if (process.env.API_ONLY === "true") {
+    if (API_ONLY_ALLOWED.test(path) || path.startsWith("/_next/")) return NextResponse.next();
+    return NextResponse.json({ error: "not_found" }, { status: 404 });
+  }
+
+  if (AUTH_SKIP.test(path) && !AUTH_ALSO.test(path)) return NextResponse.next();
+  return authMiddleware(request, event);
 }
+
+export const config = {
+  matcher: ["/((?!_next/static|_next/image).*)"],
+};
