@@ -327,7 +327,7 @@ export function buildSheet(wizard: Wizard): Sheet {
         },
         {
           id: "ag-2",
-          do: `Open ${p(9)}. Refund. Tick Hospital Fee only. Refund to Agent. Remarks: Refund hospital fee. Press Request refund. Wait for approval, then complete it.`,
+          do: `Open ${p(9)}. Refund. Tick Hospital Fee only. Refund to Agent. Remarks: Refund hospital fee. Press Refund. It finishes immediately. No cash leaves your desk.`,
           amount: `${rs(-b.hospital)} agent`,
           report: "Agent Refunded",
         },
@@ -345,7 +345,7 @@ export function buildSheet(wizard: Wizard): Sheet {
         },
         {
           id: "ag-5",
-          do: `Open ${p(11)}. Cancel the whole bill back to the agent. Remarks: Cancel the booking. Wait for approval, then complete it.`,
+          do: `Open ${p(11)}. Cancel. Refund to Agent. Remarks: Cancel the booking. Press Cancel Booking. It finishes immediately. No cash leaves your desk.`,
           amount: `${rs(-c.bill)} agent`,
           report: "Agent Canceled",
         },

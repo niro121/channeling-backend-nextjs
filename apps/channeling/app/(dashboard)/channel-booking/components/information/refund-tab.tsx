@@ -5,6 +5,7 @@ import { useSession } from "next-auth/react"
 import {
   getBookingDetails,
   getBookingsBySession,
+  refundChannelAction,
 } from "@/app/actions/channel-booking"
 import {
   completeApprovedRefundAction,
@@ -35,12 +36,12 @@ import {
   type RefundCancelConfirmationsState,
 } from "./refund-cancel-confirmations"
 import { emptyChannelApprovalConfirmations } from "@/types/approval-request"
-import { SAVE_PAYMENT_TYPE_SLIP } from "@/types/save-booking"
+import { SAVE_PAYMENT_TYPE_AGENT, SAVE_PAYMENT_TYPE_SLIP } from "@/types/save-booking"
 
 /** refund_to: 0 Cash, 1 Card, 2 Slip, 4 Agent, 5 Credit Customer, 6 E-wallet. Options depend on how booking was paid. */
 function getRefundToOptionsForRefund(paymentMethod: number | undefined): { value: number; label: string }[] {
   const cash = { value: 0, label: "Refund as CASH" }
-  if (paymentMethod === 4) return [cash, { value: 4, label: "Refund to Agent" }]
+  if (paymentMethod === SAVE_PAYMENT_TYPE_AGENT) return [cash, { value: SAVE_PAYMENT_TYPE_AGENT, label: "Refund to Agent" }]
   if (paymentMethod === 5) return [cash, { value: 5, label: "Refund to Credit Customer" }]
   if (paymentMethod === 6) return [cash, { value: 6, label: "Refund as E-WALLET" }]
   if (paymentMethod === 1) return [cash, { value: 1, label: "Refund as CREDIT CARD" }]
@@ -260,7 +261,8 @@ export function RefundTab({ onRefundSuccess }: { onRefundSuccess?: () => void })
       toast({ title: "Remarks required", description: "Please enter a reason for refund.", variant: "destructive" })
       return
     }
-    if (!requiredRefundCancelConfirmationChecked(confirmations)) {
+    const refundsToAgent = refundTo === SAVE_PAYMENT_TYPE_AGENT
+    if (!refundsToAgent && !requiredRefundCancelConfirmationChecked(confirmations)) {
       toast({
         title: "Confirmation required",
         description: "Confirm that the original bill and copy are available.",
@@ -270,21 +272,43 @@ export function RefundTab({ onRefundSuccess }: { onRefundSuccess?: () => void })
     }
     setSubmitting(true)
     try {
-      const result = await requestChannelApprovalAction({
-        booking_id: selectedBooking.id,
-        type: APPROVAL_REQUEST_TYPE.CHANNEL_REFUND,
-        professional_fee: professionalChecked ? professionalRefundable : 0,
-        hospital_fee: hospitalChecked ? hospitalRefundable : 0,
-        refund_to: refundTo,
-        remarks: remarks.trim(),
-        confirmations,
-      })
+      const professionalFee = professionalChecked ? professionalRefundable : 0
+      const hospitalFee = hospitalChecked ? hospitalRefundable : 0
+      const result = refundsToAgent
+        ? await refundChannelAction({
+            booking_id: selectedBooking.id,
+            refund_type: 1,
+            professional_fee: professionalFee,
+            hospital_fee: hospitalFee,
+            refund_to: refundTo,
+            remarks: remarks.trim(),
+          })
+        : await requestChannelApprovalAction({
+            booking_id: selectedBooking.id,
+            type: APPROVAL_REQUEST_TYPE.CHANNEL_REFUND,
+            professional_fee: professionalFee,
+            hospital_fee: hospitalFee,
+            refund_to: refundTo,
+            remarks: remarks.trim(),
+            confirmations,
+          })
       if (result?.success) {
-        toast({
-          title: "Refund requested",
-          description: "A manager must approve this before you can refund.",
-        })
-        setConfirmations(emptyChannelApprovalConfirmations())
+        toast(
+          refundsToAgent
+            ? { title: "Refunded", description: "Refund has been recorded." }
+            : {
+                title: "Refund requested",
+                description: "A manager must approve this before you can refund.",
+              }
+        )
+        if (refundsToAgent) {
+          setRemarks("")
+          setProfessionalChecked(false)
+          setHospitalChecked(false)
+          onRefundSuccess?.()
+        } else {
+          setConfirmations(emptyChannelApprovalConfirmations())
+        }
         await refreshBooking()
       } else {
         toast({ title: "Error", description: actionError(result), variant: "destructive" })
@@ -431,13 +455,15 @@ export function RefundTab({ onRefundSuccess }: { onRefundSuccess?: () => void })
         </Select>
       </div>
 
-      <RefundCancelConfirmations
-        idPrefix="refund"
-        value={confirmations}
-        onChange={(id: RefundCancelConfirmationId, checked) =>
-          setConfirmations((current) => ({ ...current, [id]: checked }))
-        }
-      />
+      {refundTo !== SAVE_PAYMENT_TYPE_AGENT && (
+        <RefundCancelConfirmations
+          idPrefix="refund"
+          value={confirmations}
+          onChange={(id: RefundCancelConfirmationId, checked) =>
+            setConfirmations((current) => ({ ...current, [id]: checked }))
+          }
+        />
+      )}
 
       <Button
         className="w-full bg-red-600 hover:bg-red-700 text-white"
@@ -446,10 +472,17 @@ export function RefundTab({ onRefundSuccess }: { onRefundSuccess?: () => void })
           submitting ||
           totalRefund <= 0 ||
           !remarks.trim() ||
-          !requiredRefundCancelConfirmationChecked(confirmations)
+          (refundTo !== SAVE_PAYMENT_TYPE_AGENT &&
+            !requiredRefundCancelConfirmationChecked(confirmations))
         }
       >
-        {submitting ? "Requesting…" : `Request refund ${formatRs(totalRefund)}`}
+        {submitting
+          ? refundTo === SAVE_PAYMENT_TYPE_AGENT
+            ? "Refunding…"
+            : "Requesting…"
+          : refundTo === SAVE_PAYMENT_TYPE_AGENT
+            ? `Refund ${formatRs(totalRefund)}`
+            : `Request refund ${formatRs(totalRefund)}`}
       </Button>
       </>
       )}

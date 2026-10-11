@@ -22,11 +22,27 @@ function findMonorepoRoot(startDir: string): string {
 }
 
 const monorepoRoot = findMonorepoRoot(process.cwd());
+
+/**
+ * PWA version stamp, inlined into the build. APP_VERSION is package.json "version" (bump it for
+ * releases); BUILD_ID changes on every deploy (Heroku's commit SHA, else the build time). The
+ * service worker and update banner compare them with /api/version — see lib/pwa/version.ts.
+ */
+const APP_VERSION: string = JSON.parse(fs.readFileSync(path.join(process.cwd(), "package.json"), "utf8")).version ?? "0.0.0";
+const BUILD_ID =
+  process.env.NODE_ENV === "development"
+    ? "dev"
+    : (process.env.SOURCE_VERSION || process.env.GIT_COMMIT_SHA || "").slice(0, 7) || `t${Date.now().toString(36)}`;
 const prismaClientGlob = path
   .join(monorepoRoot, "packages/db-auth/src/generated/client/**/*")
   .replace(/\\/g, "/");
 
 const nextConfig: NextConfig = {
+  env: {
+    NEXT_PUBLIC_APP_VERSION: APP_VERSION,
+    NEXT_PUBLIC_BUILD_ID: BUILD_ID,
+  },
+  generateBuildId: async () => BUILD_ID,
   transpilePackages: ["@archmage/shared", "@archmage/ui", "@archmage/db-auth"],
   serverExternalPackages: ["@prisma/client"],
   outputFileTracingRoot: monorepoRoot,

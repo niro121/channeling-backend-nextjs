@@ -2,6 +2,7 @@ import './globals.css';
 import { Toaster } from '@archmage/ui';
 import type { Metadata, Viewport } from 'next';
 import { ServiceWorkerRegister } from './service-worker-register';
+import { AppUpdate } from '@/components/pwa/app-update';
 
 const brand = process.env.NEXT_PUBLIC_BRAND_NAME || 'Ruhunu';
 
@@ -10,7 +11,7 @@ export const metadata: Metadata = {
   description: `${brand} management statistics`,
   applicationName: `${brand} Management`,
   appleWebApp: { capable: true, title: 'Management', statusBarStyle: 'default' },
-  icons: { icon: '/icon.svg', apple: '/apple-touch-icon.png' }
+  icons: { icon: '/favicon.png', apple: '/apple-touch-icon.png' }
 };
 
 export const viewport: Viewport = {
@@ -27,6 +28,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         {children}
         <Toaster />
         <ServiceWorkerRegister />
+        <AppUpdate />
       </body>
     </html>
   );

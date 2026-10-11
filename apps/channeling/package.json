@@ -29,6 +29,7 @@
     "backfill:advance-booking-enabled": "npx tsx scripts/backfill-advance-booking-enabled.ts",
     "backfill:doctor-locations": "npx tsx scripts/backfill-doctor-locations.ts",
     "backfill:reconciled-accounts": "npx tsx scripts/backfill-reconciled-account-names.ts",
+    "backfill:migrated-agent-payment-method": "npx tsx scripts/backfill-migrated-agent-receipt-payment-method.ts",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "test:appointment-logic": "npx tsx scripts/verify-appointment-number-logic.ts"
@@ -105,6 +106,7 @@
     "tailwindcss": "^4.1.13",
     "tailwindcss-animate": "^1.0.7",
     "typescript": "5.9.2",
+    "web-push": "^3.6.7",
     "yup": "^1.7.1",
     "zod": "^4.3.5",
     "zustand": "^5.0.10"
@@ -119,6 +121,7 @@
     "@playwright/test": "^1.58.2",
     "@types/file-saver": "^2.0.7",
     "@types/lodash.orderby": "^4.6.9",
+    "@types/web-push": "^3.6.4",
     "dotenv": "^16.4.5",
     "tsx": "^4.19.2"
   },
