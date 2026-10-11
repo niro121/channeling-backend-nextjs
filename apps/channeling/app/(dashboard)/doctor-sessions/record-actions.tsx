@@ -68,12 +68,21 @@ export function DoctorSessionRecordActions({
     if (doctorSession.id) {
       try {
         setLoading(true);
-        await deleteDoctorSession(doctorSession.id);
+        const result = await deleteDoctorSession(doctorSession.id);
+        if (!result.success) {
+          toast({
+            variant: 'destructive',
+            title: 'Error',
+            description:
+              result.error?.message ?? 'Doctor session deletion unsuccessful.'
+          });
+          return;
+        }
 
         toast({
           variant: 'success',
           title: 'Success',
-          description: 'Doctor session was deleted successfully.'
+          description: result.message ?? 'Doctor session was deleted successfully.'
         });
         router.refresh();
       } catch (error: any) {
