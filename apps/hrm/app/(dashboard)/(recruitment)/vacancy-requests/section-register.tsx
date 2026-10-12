@@ -1,17 +1,14 @@
 'use client';
 
 import { Suspense } from 'react';
-import { useToast } from '@archmage/ui';
 import {
   CommonDataTable,
   DataTableExportFeature
 } from '@/components/common/common-data-table';
-import {
-  VACANCY_EMPLOYMENT_TYPE_LABELS,
-  VACANCY_PRIORITY_LABELS,
-  VACANCY_REQUEST_STATUS_LABELS,
-  type VacancyRequestFilters,
-  type VacancyRequestRecord
+import type {
+  VacancyRequestFilters,
+  VacancyRequestRecord,
+  VacancySelectOption
 } from '@/types/recruitment';
 import {
   VACANCY_EXPORT_COLUMNS,
@@ -20,56 +17,51 @@ import {
 } from './columns';
 import SectionFilters from './section-filters';
 
+type VacancyExportRow = {
+  requestId: string;
+  department: string;
+  designation: string;
+  vacancies: number;
+  employmentType: string;
+  requestedBy: string;
+  requestedDate: string;
+  requiredDate: string;
+  priority: string;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
 type SectionRegisterProps = {
   records?: VacancyRequestRecord[];
   totalRecords?: number;
   page?: string;
   initialFilters?: VacancyRequestFilters;
+  departmentOptions?: VacancySelectOption[];
+  designationOptions?: VacancySelectOption[];
+  onExport: () => Promise<{
+    success: boolean;
+    data?: VacancyExportRow[];
+    message?: string;
+  }>;
 };
 
 export default function SectionRegister({
   records = [],
   totalRecords = 0,
   page,
-  initialFilters = {}
+  initialFilters = {},
+  departmentOptions = [],
+  designationOptions = [],
+  onExport
 }: SectionRegisterProps) {
-  const { toast } = useToast();
-
-  const handleExport = async () => {
-    if (!records.length) {
-      toast({
-        title: 'Export',
-        description: 'No vacancy requests to export.'
-      });
-      return {
-        success: false,
-        message: 'No vacancy requests found'
-      };
-    }
-
-    const data = records.map((row) => ({
-      requestId: row.requestId,
-      department: row.department,
-      designation: row.designation,
-      vacancies: row.vacancies,
-      employmentType:
-        VACANCY_EMPLOYMENT_TYPE_LABELS[row.employmentType] ??
-        row.employmentType,
-      requestedBy: row.requestedBy,
-      requestedDate: row.requestedDate,
-      requiredDate: row.requiredDate,
-      priority: VACANCY_PRIORITY_LABELS[row.priority] ?? row.priority,
-      status: VACANCY_REQUEST_STATUS_LABELS[row.status] ?? row.status,
-      createdAt: row.createdAt,
-      updatedAt: row.updatedAt
-    }));
-
-    return { success: true, data };
-  };
-
   return (
     <div className="space-y-4">
-      <SectionFilters initial={initialFilters} />
+      <SectionFilters
+        initial={initialFilters}
+        departmentOptions={departmentOptions}
+        designationOptions={designationOptions}
+      />
 
       <Suspense
         fallback={
@@ -90,7 +82,7 @@ export default function SectionRegister({
             <DataTableExportFeature
               showColumnToggle
               showPrintButton
-              serverData={handleExport}
+              serverData={onExport}
               columns={[...VACANCY_EXPORT_COLUMNS]}
               keys={[...VACANCY_EXPORT_KEYS]}
               title="Vacancy Requests"

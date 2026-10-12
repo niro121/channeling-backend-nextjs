@@ -1,3 +1,6 @@
+/** Sequence / record-code prefix → codes like VR-1 (see generateRecordCode). */
+export const VACANCY_REQUEST_CODE_PREFIX = 'VR';
+
 export const VACANCY_EMPLOYMENT_TYPES = [
   'permanent',
   'contract',
@@ -59,7 +62,11 @@ export const VACANCY_REQUEST_STATUS_LABELS: Record<
 export type VacancyRequestRecord = {
   id: string;
   requestId: string;
+  departmentId: string;
+  designationId: string;
+  /** Denormalized display name */
   department: string;
+  /** Denormalized display name */
   designation: string;
   vacancies: number;
   employmentType: VacancyEmploymentType;
@@ -92,7 +99,9 @@ export type VacancyRequestSummary = {
 
 export type VacancyRequestFilters = {
   requestId?: string;
+  /** Department ObjectId */
   department?: string;
+  /** Designation ObjectId */
   designation?: string;
   employmentType?: string;
   requestedBy?: string;
@@ -102,9 +111,32 @@ export type VacancyRequestFilters = {
   search?: string;
 };
 
+export type GetVacancyRequestsParams = VacancyRequestFilters & {
+  page?: string;
+  limit?: string;
+};
+
+export type VacancyRequestPayload = {
+  departmentId: string;
+  designationId: string;
+  vacancies: number | string;
+  employmentType: VacancyEmploymentType | string;
+  requiredQualifications?: string;
+  requiredExperience?: string;
+  skills?: string[];
+  jobDescription?: string;
+  salaryRange?: string;
+  requiredDate: Date | string | null;
+  priority: VacancyPriority | string;
+  justification: string;
+  remarks?: string;
+  /** draft = save as draft; submit = pending_approval */
+  submitIntent?: 'draft' | 'submit';
+};
+
 export type VacancyRequestFormValues = {
-  department: string;
-  designation: string;
+  departmentId: string;
+  designationId: string;
   vacancies: string;
   employmentType: string;
   requiredQualifications: string;
@@ -119,8 +151,8 @@ export type VacancyRequestFormValues = {
 };
 
 export const EMPTY_VACANCY_REQUEST_FORM: VacancyRequestFormValues = {
-  department: '',
-  designation: '',
+  departmentId: '',
+  designationId: '',
   vacancies: '1',
   employmentType: '',
   requiredQualifications: '',
@@ -133,6 +165,8 @@ export const EMPTY_VACANCY_REQUEST_FORM: VacancyRequestFormValues = {
   justification: '',
   remarks: ''
 };
+
+export type VacancySelectOption = { id: string; name: string };
 
 export const VACANCY_DEPARTMENT_OPTIONS = [
   { id: 'Nursing - Ward 3', name: 'Nursing - Ward 3' },

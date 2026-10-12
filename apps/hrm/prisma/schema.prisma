@@ -672,6 +672,8 @@ model Designation {
   categoryId  String // clinical | non-clinical
   description String  @default("")
 
+  vacancyRequests VacancyRequest[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   createdBy String?  @db.ObjectId
@@ -1135,6 +1137,8 @@ model Department {
   status          Int     @default(1) // 0 = unpublish, 1 = publish
   migrateSourceId String? // Channeling Department.id
 
+  vacancyRequests VacancyRequest[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   createdBy String?  @db.ObjectId
@@ -1362,6 +1366,71 @@ model ActivityLog {
   @@index([action])
   @@index([entityType, entityId])
   @@index([importance, createdAt(sort: Desc)])
+  @@index([createdAt(sort: Desc)])
+}
+
+/* ---------------------------------
+RECRUITMENT
+--------------------------------- */
+
+/// Staffing vacancy request raised by departments; root of the recruitment pipeline.
+model VacancyRequest {
+  id     String @id @default(auto()) @map("_id") @db.ObjectId
+  /// Human-readable code from Sequence, e.g. VR-1
+  requestId String @unique
+
+  departmentId   String @db.ObjectId
+  designationId  String @db.ObjectId
+  /// Denormalized for list/filter display (resolved from Department / Designation on write).
+  departmentName  String @default("")
+  designationName String @default("")
+
+  vacancies      Int
+  employmentType String // permanent | contract | temporary | casual
+  priority       String // low | medium | high | urgent
+  /// draft | pending_approval | approved | rejected | closed | cancelled
+  status String @default("draft")
+
+  requiredQualifications String   @default("")
+  requiredExperience     String   @default("")
+  skills                 String[] @default([])
+  jobDescription         String   @default("")
+  salaryRange            String   @default("")
+  justification          String   @default("")
+  remarks                String   @default("")
+
+  requiredDate  DateTime
+  requestedDate DateTime?
+  /// Auth User.id who raised the request (no cross-DB Prisma relation).
+  requestedById   String? @db.ObjectId
+  requestedByName String?
+
+  /// Auth User.id of the approver / rejector.
+  decidedById   String?   @db.ObjectId
+  decidedByName String?
+  decidedAt     DateTime?
+  rejectReason  String?
+
+  /// True once a Job Post is linked (Wave 2+).
+  linkedJobPost Boolean @default(false)
+
+  department  Department  @relation(fields: [departmentId], references: [id])
+  designation Designation @relation(fields: [designationId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy String?  @db.ObjectId // Auth User.id
+  updatedBy String?  @db.ObjectId // Auth User.id
+
+  @@index([departmentId])
+  @@index([designationId])
+  @@index([status])
+  @@index([employmentType])
+  @@index([priority])
+  @@index([requiredDate])
+  @@index([requestedDate])
+  @@index([requestedById])
+  @@index([linkedJobPost])
   @@index([createdAt(sort: Desc)])
 }
 

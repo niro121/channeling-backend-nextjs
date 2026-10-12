@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Form, Formik, type FormikHelpers } from 'formik';
 import * as Yup from 'yup';
 import { Save, Send, X } from 'lucide-react';
@@ -17,18 +18,22 @@ import {
   SheetTitle,
   useToast
 } from '@archmage/ui';
+import {
+  createVacancyRequestAction,
+  updateVacancyRequestAction
+} from '@/app/actions/recruitment-actions/vacancy-request.actions';
 import { BadgeInput } from '@/components/custom/badge-input';
 import { buttonStyles } from '@/lib/utils/common-styles';
 import {
   EMPTY_VACANCY_REQUEST_FORM,
-  VACANCY_DEPARTMENT_OPTIONS,
-  VACANCY_DESIGNATION_OPTIONS,
   VACANCY_EMPLOYMENT_TYPE_LABELS,
   VACANCY_EMPLOYMENT_TYPES,
   VACANCY_PRIORITIES,
   VACANCY_PRIORITY_LABELS,
   type VacancyRequestFormValues,
-  type VacancyRequestRecord
+  type VacancyRequestPayload,
+  type VacancyRequestRecord,
+  type VacancySelectOption
 } from '@/types/recruitment';
 import type { VacancyFormMode } from './vacancy-requests-ui-context';
 
@@ -36,6 +41,8 @@ type SheetVacancyRequestFormProps = {
   open: boolean;
   mode: VacancyFormMode;
   record: VacancyRequestRecord | null;
+  departmentOptions: VacancySelectOption[];
+  designationOptions: VacancySelectOption[];
   onOpenChange: (open: boolean) => void;
 };
 
@@ -46,8 +53,8 @@ const fieldStyleClasses = {
 };
 
 const validationSchema = Yup.object({
-  department: Yup.string().required('Department is required'),
-  designation: Yup.string().required('Designation is required'),
+  departmentId: Yup.string().required('Department is required'),
+  designationId: Yup.string().required('Designation is required'),
   vacancies: Yup.string()
     .required('Number of vacancies is required')
     .test('vacancies', 'Enter a whole number of at least 1', (value) => {
@@ -66,16 +73,6 @@ const validationSchema = Yup.object({
   justification: Yup.string().trim().required('Justification is required'),
   remarks: Yup.string().trim()
 });
-
-const departmentOptions = VACANCY_DEPARTMENT_OPTIONS.map((item) => ({
-  id: item.id,
-  name: item.name
-}));
-
-const designationOptions = VACANCY_DESIGNATION_OPTIONS.map((item) => ({
-  id: item.id,
-  name: item.name
-}));
 
 const employmentTypeOptions = VACANCY_EMPLOYMENT_TYPES.map((id) => ({
   id,
@@ -98,8 +95,8 @@ function recordToFormValues(
 ): VacancyRequestFormValues {
   if (!record) return EMPTY_VACANCY_REQUEST_FORM;
   return {
-    department: record.department,
-    designation: record.designation,
+    departmentId: record.departmentId,
+    designationId: record.designationId,
     vacancies: String(record.vacancies),
     employmentType: record.employmentType,
     requiredQualifications: record.requiredQualifications,
@@ -114,15 +111,33 @@ function recordToFormValues(
   };
 }
 
+function firstErrorMessage(errors: unknown): string {
+  if (!errors || typeof errors !== 'object') {
+    return 'Something went wrong. Please try again later';
+  }
+  const record = errors as Record<string, unknown>;
+  if (typeof record.message === 'string' && record.message) {
+    return record.message;
+  }
+  for (const value of Object.values(record)) {
+    if (Array.isArray(value) && typeof value[0] === 'string') return value[0];
+    if (typeof value === 'string' && value) return value;
+  }
+  return 'Something went wrong. Please try again later';
+}
+
 type SubmitIntent = 'draft' | 'submit';
 
 export default function SheetVacancyRequestForm({
   open,
   mode,
   record,
+  departmentOptions,
+  designationOptions,
   onOpenChange
 }: SheetVacancyRequestFormProps) {
   const { toast } = useToast();
+  const router = useRouter();
   const [saving, setSaving] = useState(false);
   const submitIntentRef = useRef<SubmitIntent>('draft');
 
@@ -147,20 +162,52 @@ export default function SheetVacancyRequestForm({
   const handleClose = () => onOpenChange(false);
 
   const handleSubmit = async (
-    _values: VacancyRequestFormValues,
+    values: VacancyRequestFormValues,
     _helpers: FormikHelpers<VacancyRequestFormValues>
   ) => {
     setSaving(true);
     try {
-      const actionLabel =
-        submitIntentRef.current === 'submit'
-          ? 'Submit for approval'
-          : 'Save';
+      const payload: VacancyRequestPayload = {
+        departmentId: values.departmentId,
+        designationId: values.designationId,
+        vacancies: values.vacancies,
+        employmentType: values.employmentType,
+        requiredQualifications: values.requiredQualifications,
+        requiredExperience: values.requiredExperience,
+        skills: values.skills,
+        jobDescription: values.jobDescription,
+        salaryRange: values.salaryRange,
+        requiredDate: values.requiredDate,
+        priority: values.priority,
+        justification: values.justification,
+        remarks: values.remarks,
+        submitIntent: submitIntentRef.current
+      };
+
+      const result =
+        mode === 'create'
+          ? await createVacancyRequestAction(payload)
+          : await updateVacancyRequestAction(record!.id, payload);
+
+      if (result.isError) {
+        toast({
+          variant: 'destructive',
+          title: 'Save failed',
+          description: firstErrorMessage(result.errors)
+        });
+        return;
+      }
+
       toast({
-        title: 'Not saved',
-        description: `${actionLabel} for vacancy requests will be wired in the workflow phase.`
+        variant: 'success',
+        title: submitIntentRef.current === 'submit' ? 'Submitted' : 'Saved',
+        description:
+          submitIntentRef.current === 'submit'
+            ? 'Vacancy request submitted for approval.'
+            : 'Vacancy request saved successfully.'
       });
       handleClose();
+      router.refresh();
     } finally {
       setSaving(false);
       submitIntentRef.current = 'draft';
@@ -196,22 +243,22 @@ export default function SheetVacancyRequestForm({
               <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-6 py-4">
                 <div className="grid gap-3 sm:grid-cols-2">
                   <CustomSelectField
-                    id="department"
+                    id="departmentId"
                     placeholder="Department"
-                    value={formik.values.department || undefined}
+                    value={formik.values.departmentId || undefined}
                     onChange={(value) =>
-                      void formik.setFieldValue('department', value)
+                      void formik.setFieldValue('departmentId', value)
                     }
                     required
                     options={departmentOptions}
                     styleClasses={fieldStyleClasses}
                   />
                   <CustomSelectField
-                    id="designation"
+                    id="designationId"
                     placeholder="Designation"
-                    value={formik.values.designation || undefined}
+                    value={formik.values.designationId || undefined}
                     onChange={(value) =>
-                      void formik.setFieldValue('designation', value)
+                      void formik.setFieldValue('designationId', value)
                     }
                     required
                     options={designationOptions}

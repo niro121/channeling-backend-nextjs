@@ -10,17 +10,18 @@ import {
 } from '@archmage/ui';
 import { FilterWrapper } from '@/app/(dashboard)/filter-wrapper';
 import {
-  VACANCY_DEPARTMENT_OPTIONS,
-  VACANCY_DESIGNATION_OPTIONS,
   VACANCY_EMPLOYMENT_TYPE_LABELS,
   VACANCY_EMPLOYMENT_TYPES,
   VACANCY_REQUEST_STATUS_LABELS,
   VACANCY_REQUEST_STATUSES,
-  type VacancyRequestFilters
+  type VacancyRequestFilters,
+  type VacancySelectOption
 } from '@/types/recruitment';
 
 type SectionFiltersProps = {
   initial?: VacancyRequestFilters;
+  departmentOptions?: VacancySelectOption[];
+  designationOptions?: VacancySelectOption[];
 };
 
 function parseFilterDate(value?: string): Date | null {
@@ -37,17 +38,11 @@ function toYmd(date?: Date): string {
   return `${y}-${m}-${d}`;
 }
 
-function SectionFiltersInner({ initial = {} }: SectionFiltersProps) {
-  const departmentOptions = VACANCY_DEPARTMENT_OPTIONS.map((item) => ({
-    id: item.id,
-    name: item.name
-  }));
-
-  const designationOptions = VACANCY_DESIGNATION_OPTIONS.map((item) => ({
-    id: item.id,
-    name: item.name
-  }));
-
+function SectionFiltersInner({
+  initial = {},
+  departmentOptions = [],
+  designationOptions = []
+}: SectionFiltersProps) {
   const employmentTypeOptions = VACANCY_EMPLOYMENT_TYPES.map((id) => ({
     id,
     name: VACANCY_EMPLOYMENT_TYPE_LABELS[id]
@@ -106,7 +101,7 @@ function SectionFiltersInner({ initial = {} }: SectionFiltersProps) {
               </Label>
               <Input
                 id="vacancy-request-id"
-                placeholder="VR-2026-…"
+                placeholder="VR-…"
                 value={values.requestId ?? ''}
                 onChange={(e) => setValue('requestId', e.target.value)}
               />

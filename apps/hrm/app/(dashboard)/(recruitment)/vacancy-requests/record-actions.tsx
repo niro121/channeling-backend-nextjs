@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Check, Eye, Megaphone, Pencil, X } from 'lucide-react';
 import {
   Button,
@@ -15,6 +16,10 @@ import {
   Textarea,
   useToast
 } from '@archmage/ui';
+import {
+  approveVacancyRequestAction,
+  rejectVacancyRequestAction
+} from '@/app/actions/recruitment-actions/vacancy-request.actions';
 import { usePermissions } from '@/components/hooks/use-permissions';
 import { buttonStyles } from '@/lib/utils/common-styles';
 import {
@@ -35,6 +40,7 @@ export default function VacancyRecordActions({
   record
 }: VacancyRecordActionsProps) {
   const { toast } = useToast();
+  const router = useRouter();
   const { has } = usePermissions();
   const { openView, openEdit } = useVacancyRequestsUi();
 
@@ -50,13 +56,71 @@ export default function VacancyRecordActions({
   const [rejectReason, setRejectReason] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const finishUiOnly = (title: string, description: string) => {
+  const finishLinkUiOnly = () => {
     setLoading(true);
-    toast({ title, description });
+    toast({
+      variant: 'default',
+      title: 'Linked (UI only)',
+      description: `${record.requestId} marked linked until Job Posts is built.`
+    });
     setLoading(false);
     setDecision(null);
-    setRejectOpen(false);
-    setRejectReason('');
+  };
+
+  const handleApprove = async () => {
+    setLoading(true);
+    try {
+      const result = await approveVacancyRequestAction(record.id);
+      if (result.isError) {
+        toast({
+          variant: 'destructive',
+          title: 'Approve failed',
+          description:
+            (result.errors as { message?: string })?.message ??
+            'Unable to approve vacancy request.'
+        });
+        return;
+      }
+      toast({
+        variant: 'success',
+        title: 'Approved',
+        description: `${record.requestId} approved successfully.`
+      });
+      setDecision(null);
+      router.refresh();
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleReject = async () => {
+    setLoading(true);
+    try {
+      const result = await rejectVacancyRequestAction(
+        record.id,
+        rejectReason.trim() || undefined
+      );
+      if (result.isError) {
+        toast({
+          variant: 'destructive',
+          title: 'Reject failed',
+          description:
+            (result.errors as { message?: string })?.message ??
+            'Unable to reject vacancy request.'
+        });
+        return;
+      }
+      toast({
+        variant: 'success',
+        title: 'Rejected',
+        description: `${record.requestId} rejected.`
+      });
+      setRejectOpen(false);
+      setRejectReason('');
+      router.refresh();
+    } finally {
+      setLoading(false);
+    }
   };
 
   if (!canView && !canEdit) return null;
@@ -137,12 +201,7 @@ export default function VacancyRecordActions({
         loading={loading}
         title="Approve?"
         description="Approve this vacancy request? A job post can then be created."
-        handleContinue={() =>
-          finishUiOnly(
-            'Not saved',
-            `Approve for ${record.requestId} will be wired in the workflow phase.`
-          )
-        }
+        handleContinue={() => void handleApprove()}
         className={{
           actionButton:
             'bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground'
@@ -161,12 +220,7 @@ export default function VacancyRecordActions({
             ? `${record.requestId} is already marked as linked. Confirm again when Job Posts UI is available.`
             : `Mark ${record.requestId} as linked to a job post? Full linking arrives with the Job Posts module.`
         }
-        handleContinue={() =>
-          finishUiOnly(
-            'Linked (UI only)',
-            `${record.requestId} marked linked until Job Posts is built.`
-          )
-        }
+        handleContinue={finishLinkUiOnly}
       />
 
       <Dialog
@@ -214,16 +268,7 @@ export default function VacancyRecordActions({
               type="button"
               className={buttonStyles.delete.danger}
               disabled={loading}
-              onClick={() =>
-                finishUiOnly(
-                  'Not saved',
-                  `Reject for ${record.requestId}${
-                    rejectReason.trim()
-                      ? ` (${rejectReason.trim()})`
-                      : ''
-                  } will be wired in the workflow phase.`
-                )
-              }
+              onClick={() => void handleReject()}
             >
               Reject
             </Button>

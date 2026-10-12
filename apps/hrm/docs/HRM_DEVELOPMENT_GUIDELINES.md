@@ -192,6 +192,7 @@ Wire the route in:
 - [ ] Table columns + `record-actions` (edit link, delete + confirm)
 - [ ] Add → `/[entity]/add`
 - [ ] Enrich audit users via `resolve-auth-users` when showing created/updated by
+- [ ] Export via **server filter query** (not current page rows only) — see **§4.7**
 
 ### 4.4 Checklist — Form / tabs
 
@@ -216,6 +217,29 @@ Wire the route in:
 - [ ] Isolated client: regenerate with `db:generate` (output under `lib/generated/prisma-client`)
 - [ ] Record codes via `Sequence` + `generateRecordCode` when the entity needs a human code
 - [ ] Never put auth `User` models in the HRM schema; resolve users through `@archmage/db-auth`
+
+### 4.7 Checklist — Export (Excel / PDF / Print)
+
+**Reference implementations:** `users/page.tsx`, `user-groups/page.tsx` (and Vacancy Requests after Wave 1).
+
+Export must reload **all rows matching the current list filters**, not only the paginated page shown in the table.
+
+| Layer | Pattern |
+|-------|---------|
+| **Service** | `getXForExport(filters)` — reuse the same `build…Where` as the list; `findMany` **without** `skip`/`take` (or with a documented `EXPORT_LIMIT` if the module needs a cap); `orderBy` consistent with list; enrich with `resolveAuthUsers` when export shows audit names |
+| **Action** | `getXExport(params)` — `requirePermission(resource, 'view')`; call service; return `{ success, data, totalRecords, message }` (empty → `success: false`, message like `No … found`) |
+| **Page (server)** | Define `handleExport` with `'use server'`; close over current `searchParams` / filters; call `getXExport`; **map** rows to flat export objects (human labels for enums/status, formatted dates); return `{ success, data }` / `{ success: false, message }` |
+| **UI** | Pass `handleExport` as `serverData` to `ExportWrapper` or `DataTableExportFeature` (`columns` = headers, `keys` = field names, `title`, `fileName`) |
+
+**Do not**
+
+- Map only `records` already loaded for the current page (that exports one page and ignores other filtered matches).
+- Call Prisma from the client or from `ExportWrapper` directly.
+- Skip permission checks on the export action.
+
+**Workspace / sheet-style lists** (e.g. Vacancy Requests): keep `ExportWrapper` / `DataTableExportFeature` in the client toolbar, but define `handleExport` on the **server page** and pass it down as `onExport` / `serverData` — same contract as User Groups.
+
+Optional: modules with very large result sets may apply `EXPORT_LIMIT` (see Leave Types) and document the cap in the empty/error toast message.
 
 ---
 
@@ -254,6 +278,7 @@ Do **not** share Prisma clients across apps. Cross-app writes go through public 
 
 - Prefer `@archmage/ui` components (table, fields, dialogs, tabs, toasts).
 - List toolbar: search, primary Add, secondary actions (export, sync) aligned with Staff.
+- **Export:** use `ExportWrapper` / `DataTableExportFeature` with a **server** `serverData` handler that re-queries by current filters (§4.7). Prefer User Groups / Users as the copy-paste template.
 - Accordion sections inside large tabs (Staff General / HR / Employment).
 - Loading: layout navigation wrapper; avoid one-off loading pages per entity unless needed.
 - Status labels: keep list and form wording consistent (Active/Inactive vs Published/Unpublished — pick one per entity and stick to it).
@@ -338,7 +363,8 @@ Local env: copy `apps/hrm/.env.example`. Run HRM on port **3001**. Channeling mu
 5. **Create vs update sync defaults** — create may default `syncToChanneling: true`; updates should be explicit via the dialog.  
 6. **Do not duplicate Channeling’s single `staff-form`** — HRM uses the tabbed manager for a reason.  
 7. **Avoid unused deps / dead sync paths** — remove or finish commented “NO NEED” Channeling per-id sync before adding more.  
-8. **Shared `Staff` type in `@archmage/shared` is Channeling-shaped** — HRM nested shapes live in `apps/hrm/types/staff.ts`.
+8. **Shared `Staff` type in `@archmage/shared` is Channeling-shaped** — HRM nested shapes live in `apps/hrm/types/staff.ts`.  
+9. **Export from current page rows only** — always re-query with list filters via `getXForExport` / `getXExport` (§4.7); do not map the paginated `data` prop.
 
 ---
 
@@ -362,6 +388,7 @@ New HRM feature?
 - [ ] Yup (client) + Zod (service)  
 - [ ] Activity log keys for meaningful events  
 - [ ] List/search/pagination via URL params  
+- [ ] Export (if the list has Excel/PDF/Print): server filter re-query per §4.7  
 - [ ] Audit fields set server-side  
 - [ ] Channeling sync (if any) documented in the PR and limited to the field boundary  
 - [ ] No Prisma / secrets in client components  

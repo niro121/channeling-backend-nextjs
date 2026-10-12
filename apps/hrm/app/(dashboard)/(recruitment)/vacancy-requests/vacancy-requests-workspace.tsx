@@ -8,7 +8,8 @@ import { buttonStyles } from '@/lib/utils/common-styles';
 import type {
   VacancyRequestFilters,
   VacancyRequestRecord,
-  VacancyRequestSummary
+  VacancyRequestSummary,
+  VacancySelectOption
 } from '@/types/recruitment';
 import DialogVacancyRequestView from './dialog-vacancy-request-view';
 import { VacancyRequestsHeaderActions } from './header-actions';
@@ -20,12 +21,34 @@ import {
   useVacancyRequestsUi
 } from './vacancy-requests-ui-context';
 
+type VacancyExportRow = {
+  requestId: string;
+  department: string;
+  designation: string;
+  vacancies: number;
+  employmentType: string;
+  requestedBy: string;
+  requestedDate: string;
+  requiredDate: string;
+  priority: string;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
 type VacancyRequestsWorkspaceProps = {
   initialRecords: VacancyRequestRecord[];
   totalRecords: number;
   summary: VacancyRequestSummary;
   page?: string;
   initialFilters?: VacancyRequestFilters;
+  departmentOptions: VacancySelectOption[];
+  designationOptions: VacancySelectOption[];
+  onExport: () => Promise<{
+    success: boolean;
+    data?: VacancyExportRow[];
+    message?: string;
+  }>;
 };
 
 function VacancyRequestsWorkspaceInner({
@@ -33,7 +56,10 @@ function VacancyRequestsWorkspaceInner({
   totalRecords,
   summary,
   page,
-  initialFilters
+  initialFilters,
+  departmentOptions,
+  designationOptions,
+  onExport
 }: VacancyRequestsWorkspaceProps) {
   const { toast } = useToast();
   const {
@@ -58,6 +84,9 @@ function VacancyRequestsWorkspaceInner({
         totalRecords={totalRecords}
         page={page}
         initialFilters={initialFilters}
+        departmentOptions={departmentOptions}
+        designationOptions={designationOptions}
+        onExport={onExport}
       />
 
       <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
@@ -67,6 +96,7 @@ function VacancyRequestsWorkspaceInner({
           className={buttonStyles.cancel.healthy}
           onClick={() =>
             toast({
+              variant: 'default',
               title: 'Recruitment Dashboard',
               description: 'This page will be added with the Recruitment group.'
             })
@@ -91,6 +121,8 @@ function VacancyRequestsWorkspaceInner({
         open={formSheet != null}
         mode={formSheet?.mode ?? 'create'}
         record={formSheet?.record ?? null}
+        departmentOptions={departmentOptions}
+        designationOptions={designationOptions}
         onOpenChange={(open) => {
           if (!open) closeFormSheet();
         }}

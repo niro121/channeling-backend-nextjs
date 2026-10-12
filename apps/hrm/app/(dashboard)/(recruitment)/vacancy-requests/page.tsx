@@ -3,14 +3,24 @@ import { getServerSession } from 'next-auth';
 import { checkRouteAccess } from '@/lib/server-permissions';
 import { authOptions } from '@/lib/auth';
 import { logActivityNonBlocking } from '@/lib/activity-log';
-import type {
-  VacancyRequestFilters,
-  VacancyRequestRecord
-} from '@/types/recruitment';
+import { formatDate, formatDateTime } from '@/lib/utils/date';
 import {
-  SAMPLE_VACANCY_REQUESTS,
-  SAMPLE_VACANCY_SUMMARY
-} from './sample-data';
+  getVacancyRequestFormOptionsAction,
+  getVacancyRequestSummaryAction,
+  getVacancyRequestsAction,
+  getVacancyRequestsExport
+} from '@/app/actions/recruitment-actions/vacancy-request.actions';
+import {
+  VACANCY_EMPLOYMENT_TYPE_LABELS,
+  VACANCY_PRIORITY_LABELS,
+  VACANCY_REQUEST_STATUS_LABELS,
+  type VacancyEmploymentType,
+  type VacancyPriority,
+  type VacancyRequestFilters,
+  type VacancyRequestStatus,
+  type VacancyRequestSummary,
+  type VacancySelectOption
+} from '@/types/recruitment';
 import VacancyRequestsWorkspace from './vacancy-requests-workspace';
 
 type SearchParams = {
@@ -34,65 +44,12 @@ function normalizeFilter(value?: string): string | undefined {
   return trimmed || undefined;
 }
 
-function filterVacancyRequests(
-  records: VacancyRequestRecord[],
-  filters: VacancyRequestFilters
-): VacancyRequestRecord[] {
-  const requestId = filters.requestId?.toLowerCase();
-  const department = filters.department?.toLowerCase();
-  const designation = filters.designation?.toLowerCase();
-  const employmentType = filters.employmentType?.toLowerCase();
-  const requestedBy = filters.requestedBy?.toLowerCase();
-  const status = filters.status?.toLowerCase();
-  const search = filters.search?.toLowerCase();
-
-  return records.filter((row) => {
-    if (requestId && !row.requestId.toLowerCase().includes(requestId)) {
-      return false;
-    }
-    if (department && row.department.toLowerCase() !== department) {
-      return false;
-    }
-    if (designation && row.designation.toLowerCase() !== designation) {
-      return false;
-    }
-    if (
-      employmentType &&
-      row.employmentType.toLowerCase() !== employmentType
-    ) {
-      return false;
-    }
-    if (
-      requestedBy &&
-      !row.requestedBy.toLowerCase().includes(requestedBy)
-    ) {
-      return false;
-    }
-    if (filters.requestDate && row.requestedDate !== filters.requestDate) {
-      return false;
-    }
-    if (filters.requiredDate && row.requiredDate !== filters.requiredDate) {
-      return false;
-    }
-    if (status && row.status.toLowerCase() !== status) {
-      return false;
-    }
-    if (search) {
-      const haystack = [
-        row.requestId,
-        row.department,
-        row.designation,
-        row.requestedBy,
-        row.employmentType,
-        row.status
-      ]
-        .join(' ')
-        .toLowerCase();
-      if (!haystack.includes(search)) return false;
-    }
-    return true;
-  });
-}
+const EMPTY_SUMMARY: VacancyRequestSummary = {
+  openRequests: 0,
+  pendingApproval: 0,
+  approved: 0,
+  totalPositions: 0
+};
 
 export default async function VacancyRequestsPage({
   searchParams
@@ -125,21 +82,94 @@ export default async function VacancyRequestsPage({
     search: normalizeFilter(params?.search)
   };
 
-  const filtered = filterVacancyRequests(SAMPLE_VACANCY_REQUESTS, filters);
-  const pageSize = process.env.DEFAULT_PER_PAGE
-    ? Number(process.env.DEFAULT_PER_PAGE)
-    : 10;
-  const pageNumber = params?.page ? Math.max(1, Number(params.page) || 1) : 1;
-  const start = (pageNumber - 1) * pageSize;
-  const pageRecords = filtered.slice(start, start + pageSize);
+  const [listRes, summaryRes, optionsRes] = await Promise.all([
+    getVacancyRequestsAction({
+      ...filters,
+      page: params?.page,
+      limit: process.env.DEFAULT_PER_PAGE
+    }),
+    getVacancyRequestSummaryAction(),
+    getVacancyRequestFormOptionsAction()
+  ]);
+
+  const records = listRes.isError ? [] : (listRes.data?.data ?? []);
+  const totalRecords = listRes.isError
+    ? 0
+    : (listRes.data?.totalRecords ?? 0);
+  const summary = summaryRes.isError
+    ? EMPTY_SUMMARY
+    : (summaryRes.data ?? EMPTY_SUMMARY);
+  const departmentOptions: VacancySelectOption[] = optionsRes.data
+    ?.departments ?? [];
+  const designationOptions: VacancySelectOption[] = optionsRes.data
+    ?.designations ?? [];
+
+  const handleExport = async () => {
+    'use server';
+
+    const exportResponse = await getVacancyRequestsExport({
+      requestId: filters.requestId,
+      department: filters.department,
+      designation: filters.designation,
+      employmentType: filters.employmentType,
+      requestedBy: filters.requestedBy,
+      requestDate: filters.requestDate,
+      requiredDate: filters.requiredDate,
+      status: filters.status,
+      search: filters.search
+    });
+
+    if (!exportResponse.success || !exportResponse.data?.length) {
+      return {
+        success: false,
+        message: exportResponse.success
+          ? 'No vacancy requests found'
+          : exportResponse.message
+      };
+    }
+
+    return {
+      success: true,
+      data: exportResponse.data.map((row) => ({
+        requestId: row.requestId || '-',
+        department: row.department || '-',
+        designation: row.designation || '-',
+        vacancies: row.vacancies,
+        employmentType:
+          VACANCY_EMPLOYMENT_TYPE_LABELS[
+            row.employmentType as VacancyEmploymentType
+          ] ??
+          row.employmentType ??
+          '-',
+        requestedBy: row.requestedBy || '-',
+        requestedDate: row.requestedDate
+          ? formatDate(row.requestedDate)
+          : '-',
+        requiredDate: row.requiredDate ? formatDate(row.requiredDate) : '-',
+        priority:
+          VACANCY_PRIORITY_LABELS[row.priority as VacancyPriority] ??
+          row.priority ??
+          '-',
+        status:
+          VACANCY_REQUEST_STATUS_LABELS[row.status as VacancyRequestStatus] ??
+          row.status ??
+          '-',
+        createdAt: row.createdAt ? formatDateTime(row.createdAt) : '-',
+        updatedAt: row.updatedAt ? formatDateTime(row.updatedAt) : '-'
+      }))
+    };
+  };
 
   return (
     <VacancyRequestsWorkspace
-      initialRecords={pageRecords}
-      totalRecords={filtered.length}
-      summary={SAMPLE_VACANCY_SUMMARY}
+      initialRecords={records}
+      totalRecords={totalRecords}
+      summary={summary}
       page={params?.page}
       initialFilters={filters}
+      departmentOptions={departmentOptions}
+      designationOptions={designationOptions}
+      onExport={handleExport}
     />
   );
 }
