@@ -60,8 +60,17 @@ export default function DialogJobPostView({
         },
         { label: 'Job Title', value: record.jobTitle },
         {
-          label: 'Linked Vacancy Request',
+          label: 'Linked Vacancy Request(s)',
           value: record.linkedVacancyRequestLabel || '—'
+        },
+        {
+          label: 'Slug',
+          value: record.slug || '—'
+        },
+        {
+          label: 'Short Description',
+          value: record.shortDescription || '—',
+          fullWidth: true
         },
         { label: 'Department', value: record.department },
         { label: 'Designation', value: record.designation },

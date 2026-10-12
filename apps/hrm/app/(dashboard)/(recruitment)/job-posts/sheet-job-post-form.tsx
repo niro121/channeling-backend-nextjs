@@ -1,6 +1,7 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Form, Formik, type FormikHelpers } from 'formik';
 import * as Yup from 'yup';
 import { Save, X } from 'lucide-react';
@@ -8,6 +9,7 @@ import {
   Button,
   CustomDatePickerField,
   CustomFormField,
+  CustomMultiSelect,
   CustomSelectField,
   Sheet,
   SheetContent,
@@ -17,26 +19,36 @@ import {
   SheetTitle,
   useToast
 } from '@archmage/ui';
+import {
+  createJobPostAction,
+  updateJobPostAction
+} from '@/app/actions/recruitment-actions/job-post.actions';
 import { BadgeInput } from '@/components/custom/badge-input';
+import { CustomSlugField } from '@/components/custom/custom-slug-field';
 import { buttonStyles } from '@/lib/utils/common-styles';
+import type { SlugifyOptions } from '@/lib/utils/slug';
 import {
   EMPTY_JOB_POST_FORM,
   JOB_POST_STATUS_LABELS,
   JOB_POST_STATUSES,
-  VACANCY_DEPARTMENT_OPTIONS,
-  VACANCY_DESIGNATION_OPTIONS,
   VACANCY_EMPLOYMENT_TYPE_LABELS,
   VACANCY_EMPLOYMENT_TYPES,
+  type ApprovedVacancyOption,
   type JobPostFormValues,
-  type JobPostRecord
+  type JobPostPayload,
+  type JobPostRecord,
+  type VacancySelectOption
 } from '@/types/recruitment';
 import type { JobPostFormMode } from './job-posts-ui-context';
-import { SAMPLE_APPROVED_VACANCY_OPTIONS } from './sample-data';
 
 type SheetJobPostFormProps = {
   open: boolean;
   mode: JobPostFormMode;
   record: JobPostRecord | null;
+  prefillVacancyIds?: string[];
+  departmentOptions: VacancySelectOption[];
+  designationOptions: VacancySelectOption[];
+  approvedVacancies: ApprovedVacancyOption[];
   onOpenChange: (open: boolean) => void;
 };
 
@@ -46,11 +58,15 @@ const fieldStyleClasses = {
   inputClassName: 'w-full'
 };
 
+const jobPostSlugifyOptions: SlugifyOptions = { fallback: 'job-post' };
+
 const validationSchema = Yup.object({
-  linkedVacancyRequestId: Yup.string(),
+  linkedVacancyRequestIds: Yup.array().of(Yup.string()),
   jobTitle: Yup.string().trim().required('Job title is required'),
-  department: Yup.string().required('Department is required'),
-  designation: Yup.string().required('Designation is required'),
+  slug: Yup.string().trim(),
+  shortDescription: Yup.string().trim(),
+  departmentId: Yup.string(),
+  designationId: Yup.string().required('Designation is required'),
   jobDescription: Yup.string().trim(),
   responsibilities: Yup.string().trim(),
   qualifications: Yup.string().trim(),
@@ -70,16 +86,6 @@ const validationSchema = Yup.object({
   status: Yup.string().required('Status is required')
 });
 
-const departmentOptions = VACANCY_DEPARTMENT_OPTIONS.map((item) => ({
-  id: item.id,
-  name: item.name
-}));
-
-const designationOptions = VACANCY_DESIGNATION_OPTIONS.map((item) => ({
-  id: item.id,
-  name: item.name
-}));
-
 const employmentTypeOptions = VACANCY_EMPLOYMENT_TYPES.map((id) => ({
   id,
   name: VACANCY_EMPLOYMENT_TYPE_LABELS[id]
@@ -88,11 +94,6 @@ const employmentTypeOptions = VACANCY_EMPLOYMENT_TYPES.map((id) => ({
 const statusOptions = JOB_POST_STATUSES.map((id) => ({
   id,
   name: JOB_POST_STATUS_LABELS[id]
-}));
-
-const linkedVacancyOptions = SAMPLE_APPROVED_VACANCY_OPTIONS.map((item) => ({
-  id: item.id,
-  name: item.name
 }));
 
 function parseIsoDate(value?: string | null): Date | null {
@@ -107,10 +108,14 @@ function recordToFormValues(
 ): JobPostFormValues {
   if (!record) return EMPTY_JOB_POST_FORM;
   return {
-    linkedVacancyRequestId: record.linkedVacancyRequestId,
+    linkedVacancyRequestIds: asDuplicate
+      ? []
+      : [...record.linkedVacancyRequestIds],
     jobTitle: asDuplicate ? `${record.jobTitle} (Copy)` : record.jobTitle,
-    department: record.department,
-    designation: record.designation,
+    slug: asDuplicate ? '' : record.slug,
+    shortDescription: record.shortDescription,
+    departmentId: record.departmentId ?? '',
+    designationId: record.designationId,
     jobDescription: record.jobDescription,
     responsibilities: record.responsibilities,
     qualifications: record.qualifications,
@@ -125,20 +130,117 @@ function recordToFormValues(
   };
 }
 
+function firstErrorMessage(errors: unknown): string {
+  if (!errors || typeof errors !== 'object') {
+    return 'Something went wrong. Please try again later';
+  }
+  const record = errors as Record<string, unknown>;
+  if (typeof record.message === 'string' && record.message) {
+    return record.message;
+  }
+  for (const value of Object.values(record)) {
+    if (Array.isArray(value) && typeof value[0] === 'string') return value[0];
+    if (typeof value === 'string' && value) return value;
+  }
+  return 'Something went wrong. Please try again later';
+}
+
+function mergeUniqueSkills(rows: ApprovedVacancyOption[]): string[] {
+  const seen = new Set<string>();
+  const merged: string[] = [];
+  for (const row of rows) {
+    for (const skill of row.skills ?? []) {
+      const trimmed = skill.trim();
+      if (!trimmed) continue;
+      const key = trimmed.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      merged.push(trimmed);
+    }
+  }
+  return merged;
+}
+
+function applyVacancyPrefill(
+  values: JobPostFormValues,
+  selectedIds: string[],
+  options: ApprovedVacancyOption[]
+): JobPostFormValues {
+  const selected = options.filter((o) => selectedIds.includes(o.id));
+  if (!selected.length) {
+    return { ...values, linkedVacancyRequestIds: selectedIds };
+  }
+
+  const designationId = selected[0]!.designationId;
+  const employmentType = selected[0]!.employmentType;
+  const openings = String(
+    selected.reduce((sum, row) => sum + row.openings, 0)
+  );
+  const vacancySkills = mergeUniqueSkills(selected);
+
+  return {
+    ...values,
+    linkedVacancyRequestIds: selectedIds,
+    designationId,
+    employmentType,
+    openings,
+    departmentId: selected.length === 1 ? selected[0]!.departmentId : '',
+    jobTitle: values.jobTitle || selected[0]!.designationName,
+    skills: vacancySkills.length ? vacancySkills : values.skills
+  };
+}
+
 export default function SheetJobPostForm({
   open,
   mode,
   record,
+  prefillVacancyIds,
+  departmentOptions,
+  designationOptions,
+  approvedVacancies,
   onOpenChange
 }: SheetJobPostFormProps) {
   const { toast } = useToast();
+  const router = useRouter();
   const [saving, setSaving] = useState(false);
 
+  const vacancyOptionsForEdit = useMemo(() => {
+    if (mode !== 'edit' || !record) return approvedVacancies;
+    const missing = record.linkedVacancies
+      .filter(
+        (link) => !approvedVacancies.some((o) => o.id === link.vacancyRequestId)
+      )
+      .map((link) => ({
+        id: link.vacancyRequestId,
+        name: `${link.requestId} — ${record.designation} (${link.departmentName})`,
+        requestId: link.requestId,
+        designationId: record.designationId,
+        designationName: record.designation,
+        departmentId: link.departmentId,
+        departmentName: link.departmentName,
+        employmentType: record.employmentType,
+        openings: link.openings,
+        skills: [] as string[]
+      }));
+    return [...approvedVacancies, ...missing];
+  }, [approvedVacancies, mode, record]);
+
+  const multiSelectOptions = vacancyOptionsForEdit.map((item) => ({
+    id: item.id,
+    name: item.name
+  }));
+
   const initialValues = useMemo(() => {
-    if (mode === 'create') return EMPTY_JOB_POST_FORM;
+    if (mode === 'create') {
+      const base = { ...EMPTY_JOB_POST_FORM };
+      if (prefillVacancyIds?.length) {
+        return applyVacancyPrefill(base, prefillVacancyIds, approvedVacancies);
+      }
+      return base;
+    }
     if (mode === 'duplicate') return recordToFormValues(record, true);
     return recordToFormValues(record);
-  }, [mode, record]);
+  }, [mode, record, prefillVacancyIds, approvedVacancies]);
 
   const title =
     mode === 'edit'
@@ -150,22 +252,67 @@ export default function SheetJobPostForm({
   const description =
     mode === 'edit'
       ? 'Update job post details for recruitment.'
-      : 'Create from an approved vacancy request.';
+      : 'Link one or more approved vacancy requests (same designation) to combine openings.';
 
   const handleClose = () => onOpenChange(false);
 
+  useEffect(() => {
+    if (!open && typeof window !== 'undefined') {
+      const url = new URL(window.location.href);
+      if (url.searchParams.has('prefillVacancyId')) {
+        url.searchParams.delete('prefillVacancyId');
+        router.replace(url.pathname + (url.search ? url.search : ''));
+      }
+    }
+  }, [open, router]);
+
   const handleSubmit = async (
-    _values: JobPostFormValues,
+    values: JobPostFormValues,
     _helpers: FormikHelpers<JobPostFormValues>
   ) => {
     setSaving(true);
     try {
+      const payload: JobPostPayload = {
+        linkedVacancyRequestIds: values.linkedVacancyRequestIds,
+        jobTitle: values.jobTitle,
+        slug: values.slug,
+        shortDescription: values.shortDescription,
+        departmentId: values.departmentId || undefined,
+        designationId: values.designationId,
+        jobDescription: values.jobDescription,
+        responsibilities: values.responsibilities,
+        qualifications: values.qualifications,
+        experience: values.experience,
+        skills: values.skills,
+        employmentType: values.employmentType,
+        salaryInformation: values.salaryInformation,
+        openings: values.openings,
+        closingDate: values.closingDate,
+        applicationInstructions: values.applicationInstructions,
+        status: values.status
+      };
+
+      const result =
+        mode === 'edit' && record
+          ? await updateJobPostAction(record.id, payload)
+          : await createJobPostAction(payload);
+
+      if (result.isError) {
+        toast({
+          variant: 'destructive',
+          title: 'Save failed',
+          description: firstErrorMessage(result.errors)
+        });
+        return;
+      }
+
       toast({
-        title: 'Not saved',
-        description:
-          'Save for job posts will be wired in the workflow phase.'
+        variant: 'success',
+        title: 'Saved',
+        description: 'Job post saved successfully.'
       });
       handleClose();
+      router.refresh();
     } finally {
       setSaving(false);
     }
@@ -189,7 +336,7 @@ export default function SheetJobPostForm({
         </SheetHeader>
 
         <Formik
-          key={`${mode}-${record?.id ?? 'new'}`}
+          key={`${mode}-${record?.id ?? 'new'}-${(prefillVacancyIds ?? []).join(',')}`}
           initialValues={initialValues}
           enableReinitialize
           validationSchema={validationSchema}
@@ -198,30 +345,20 @@ export default function SheetJobPostForm({
           {(formik) => (
             <Form className="flex min-h-0 flex-1 flex-col">
               <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-6 py-4">
-                <CustomSelectField
-                  id="linkedVacancyRequestId"
-                  placeholder="Linked Vacancy Request"
-                  value={formik.values.linkedVacancyRequestId || undefined}
-                  onChange={(value) => {
-                    void formik.setFieldValue('linkedVacancyRequestId', value);
-                    const option = SAMPLE_APPROVED_VACANCY_OPTIONS.find(
-                      (item) => item.id === value
+                <CustomMultiSelect
+                  id="linkedVacancyRequestIds"
+                  placeholder="Linked Vacancy Requests"
+                  value={formik.values.linkedVacancyRequestIds}
+                  onChange={(ids) => {
+                    const next = applyVacancyPrefill(
+                      formik.values,
+                      ids,
+                      vacancyOptionsForEdit
                     );
-                    if (option && mode !== 'edit') {
-                      // Prefill lightly from vacancy label when creating/duplicating
-                      if (!formik.values.jobTitle) {
-                        const titlePart = option.name.split(' — ')[1];
-                        if (titlePart) {
-                          void formik.setFieldValue(
-                            'jobTitle',
-                            titlePart.split(' (')[0] ?? titlePart
-                          );
-                        }
-                      }
-                    }
+                    void formik.setValues(next);
                   }}
                   required={false}
-                  options={linkedVacancyOptions}
+                  options={multiSelectOptions}
                   styleClasses={fieldStyleClasses}
                 />
 
@@ -236,24 +373,50 @@ export default function SheetJobPostForm({
                   styleClasses={fieldStyleClasses}
                 />
 
+                <CustomSlugField
+                  id="slug"
+                  placeholder="Slug (careers URL)"
+                  value={formik.values.slug}
+                  onChange={formik.handleChange}
+                  onBlur={formik.handleBlur}
+                  sourceValue={formik.values.jobTitle}
+                  onSlugChange={(slug) =>
+                    void formik.setFieldValue('slug', slug)
+                  }
+                  required={false}
+                  styleClasses={fieldStyleClasses}
+                  slugifyOptions={jobPostSlugifyOptions}
+                />
+
+                <CustomFormField
+                  id="shortDescription"
+                  type="textarea"
+                  placeholder="Short Description"
+                  value={formik.values.shortDescription}
+                  onChange={formik.handleChange}
+                  onBlur={formik.handleBlur}
+                  required={false}
+                  styleClasses={fieldStyleClasses}
+                />
+
                 <div className="grid gap-3 sm:grid-cols-2">
                   <CustomSelectField
-                    id="department"
-                    placeholder="Department"
-                    value={formik.values.department || undefined}
+                    id="departmentId"
+                    placeholder="Primary Department"
+                    value={formik.values.departmentId || undefined}
                     onChange={(value) =>
-                      void formik.setFieldValue('department', value)
+                      void formik.setFieldValue('departmentId', value)
                     }
-                    required
+                    required={false}
                     options={departmentOptions}
                     styleClasses={fieldStyleClasses}
                   />
                   <CustomSelectField
-                    id="designation"
+                    id="designationId"
                     placeholder="Designation"
-                    value={formik.values.designation || undefined}
+                    value={formik.values.designationId || undefined}
                     onChange={(value) =>
-                      void formik.setFieldValue('designation', value)
+                      void formik.setFieldValue('designationId', value)
                     }
                     required
                     options={designationOptions}

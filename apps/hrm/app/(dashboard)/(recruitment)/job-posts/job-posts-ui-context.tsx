@@ -4,6 +4,7 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useState,
   type ReactNode
@@ -15,12 +16,14 @@ export type JobPostFormMode = 'create' | 'edit' | 'duplicate';
 type FormSheetState = {
   mode: JobPostFormMode;
   record: JobPostRecord | null;
+  /** Prefill vacancy ids when creating from Vacancy Requests link. */
+  prefillVacancyIds?: string[];
 };
 
 type JobPostsUiContextValue = {
   formSheet: FormSheetState | null;
   viewRecord: JobPostRecord | null;
-  openCreate: () => void;
+  openCreate: (prefillVacancyIds?: string[]) => void;
   openEdit: (record: JobPostRecord) => void;
   openDuplicate: (record: JobPostRecord) => void;
   openView: (record: JobPostRecord) => void;
@@ -30,14 +33,32 @@ type JobPostsUiContextValue = {
 
 const JobPostsUiContext = createContext<JobPostsUiContextValue | null>(null);
 
-export function JobPostsUiProvider({ children }: { children: ReactNode }) {
+export function JobPostsUiProvider({
+  children,
+  initialPrefillVacancyIds
+}: {
+  children: ReactNode;
+  initialPrefillVacancyIds?: string[];
+}) {
   const [formSheet, setFormSheet] = useState<FormSheetState | null>(null);
   const [viewRecord, setViewRecord] = useState<JobPostRecord | null>(null);
 
-  const openCreate = useCallback(() => {
+  const openCreate = useCallback((prefillVacancyIds?: string[]) => {
     setViewRecord(null);
-    setFormSheet({ mode: 'create', record: null });
+    setFormSheet({
+      mode: 'create',
+      record: null,
+      prefillVacancyIds: prefillVacancyIds?.length
+        ? prefillVacancyIds
+        : undefined
+    });
   }, []);
+
+  useEffect(() => {
+    if (initialPrefillVacancyIds?.length) {
+      openCreate(initialPrefillVacancyIds);
+    }
+  }, [initialPrefillVacancyIds, openCreate]);
 
   const openEdit = useCallback((record: JobPostRecord) => {
     setViewRecord(null);
@@ -81,7 +102,9 @@ export function JobPostsUiProvider({ children }: { children: ReactNode }) {
   );
 
   return (
-    <JobPostsUiContext.Provider value={value}>{children}</JobPostsUiContext.Provider>
+    <JobPostsUiContext.Provider value={value}>
+      {children}
+    </JobPostsUiContext.Provider>
   );
 }
 

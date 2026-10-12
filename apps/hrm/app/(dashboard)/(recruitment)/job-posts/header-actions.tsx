@@ -18,7 +18,7 @@ export function JobPostsHeaderActions() {
       type="button"
       size="sm"
       className={`${buttonStyles.save} gap-1.5`}
-      onClick={openCreate}
+      onClick={() => openCreate()}
     >
       <Plus className="h-4 w-4" />
       New Job Post

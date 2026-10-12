@@ -3,9 +3,24 @@ import { getServerSession } from 'next-auth';
 import { checkRouteAccess } from '@/lib/server-permissions';
 import { authOptions } from '@/lib/auth';
 import { logActivityNonBlocking } from '@/lib/activity-log';
-import type { JobPostFilters, JobPostRecord } from '@/types/recruitment';
+import { formatDate, formatDateTime } from '@/lib/utils/date';
+import {
+  getJobPostFormOptionsAction,
+  getJobPostSummaryAction,
+  getJobPostsAction,
+  getJobPostsExport
+} from '@/app/actions/recruitment-actions/job-post.actions';
+import {
+  JOB_POST_STATUS_LABELS,
+  VACANCY_EMPLOYMENT_TYPE_LABELS,
+  type JobPostFilters,
+  type JobPostStatus,
+  type JobPostSummary,
+  type VacancyEmploymentType,
+  type VacancySelectOption,
+  type ApprovedVacancyOption
+} from '@/types/recruitment';
 import JobPostsWorkspace from './job-posts-workspace';
-import { SAMPLE_JOB_POSTS, SAMPLE_JOB_POST_SUMMARY } from './sample-data';
 
 type SearchParams = {
   searchParams?: Promise<{
@@ -18,6 +33,7 @@ type SearchParams = {
     postedDate?: string;
     closingDate?: string;
     search?: string;
+    prefillVacancyId?: string;
   }>;
 };
 
@@ -27,58 +43,12 @@ function normalizeFilter(value?: string): string | undefined {
   return trimmed || undefined;
 }
 
-function filterJobPosts(
-  records: JobPostRecord[],
-  filters: JobPostFilters
-): JobPostRecord[] {
-  const jobTitle = filters.jobTitle?.toLowerCase();
-  const department = filters.department?.toLowerCase();
-  const designation = filters.designation?.toLowerCase();
-  const employmentType = filters.employmentType?.toLowerCase();
-  const status = filters.status?.toLowerCase();
-  const search = filters.search?.toLowerCase();
-
-  return records.filter((row) => {
-    if (jobTitle && !row.jobTitle.toLowerCase().includes(jobTitle)) {
-      return false;
-    }
-    if (department && row.department.toLowerCase() !== department) {
-      return false;
-    }
-    if (designation && row.designation.toLowerCase() !== designation) {
-      return false;
-    }
-    if (
-      employmentType &&
-      row.employmentType.toLowerCase() !== employmentType
-    ) {
-      return false;
-    }
-    if (status && row.status.toLowerCase() !== status) {
-      return false;
-    }
-    if (filters.postedDate && row.postedDate !== filters.postedDate) {
-      return false;
-    }
-    if (filters.closingDate && row.closingDate !== filters.closingDate) {
-      return false;
-    }
-    if (search) {
-      const haystack = [
-        row.jobPostId,
-        row.jobTitle,
-        row.department,
-        row.designation,
-        row.employmentType,
-        row.status
-      ]
-        .join(' ')
-        .toLowerCase();
-      if (!haystack.includes(search)) return false;
-    }
-    return true;
-  });
-}
+const EMPTY_SUMMARY: JobPostSummary = {
+  published: 0,
+  unpublished: 0,
+  applications: 0,
+  closingThisWeek: 0
+};
 
 export default async function JobPostsPage({ searchParams }: SearchParams) {
   const canView = await checkRouteAccess('/job-posts');
@@ -108,21 +78,96 @@ export default async function JobPostsPage({ searchParams }: SearchParams) {
     search: normalizeFilter(params?.search)
   };
 
-  const filtered = filterJobPosts(SAMPLE_JOB_POSTS, filters);
-  const pageSize = process.env.DEFAULT_PER_PAGE
-    ? Number(process.env.DEFAULT_PER_PAGE)
-    : 10;
-  const pageNumber = params?.page ? Math.max(1, Number(params.page) || 1) : 1;
-  const start = (pageNumber - 1) * pageSize;
-  const pageRecords = filtered.slice(start, start + pageSize);
+  const prefillVacancyId = normalizeFilter(params?.prefillVacancyId);
+
+  const [listRes, summaryRes, optionsRes] = await Promise.all([
+    getJobPostsAction({
+      ...filters,
+      page: params?.page,
+      limit: process.env.DEFAULT_PER_PAGE
+    }),
+    getJobPostSummaryAction(),
+    getJobPostFormOptionsAction()
+  ]);
+
+  const records = listRes.isError ? [] : (listRes.data?.data ?? []);
+  const totalRecords = listRes.isError
+    ? 0
+    : (listRes.data?.totalRecords ?? 0);
+  const summary = summaryRes.isError
+    ? EMPTY_SUMMARY
+    : (summaryRes.data ?? EMPTY_SUMMARY);
+  const departmentOptions: VacancySelectOption[] =
+    optionsRes.data?.departments ?? [];
+  const designationOptions: VacancySelectOption[] =
+    optionsRes.data?.designations ?? [];
+  const approvedVacancies: ApprovedVacancyOption[] =
+    optionsRes.data?.approvedVacancies ?? [];
+
+  const handleExport = async () => {
+    'use server';
+
+    const exportResponse = await getJobPostsExport({
+      jobTitle: filters.jobTitle,
+      department: filters.department,
+      designation: filters.designation,
+      employmentType: filters.employmentType,
+      status: filters.status,
+      postedDate: filters.postedDate,
+      closingDate: filters.closingDate,
+      search: filters.search
+    });
+
+    if (!exportResponse.success || !exportResponse.data?.length) {
+      return {
+        success: false,
+        message: exportResponse.success
+          ? 'No job posts found'
+          : exportResponse.message
+      };
+    }
+
+    return {
+      success: true,
+      data: exportResponse.data.map((row) => ({
+        jobPostId: row.jobPostId || '-',
+        jobTitle: row.jobTitle || '-',
+        department: row.department || '-',
+        designation: row.designation || '-',
+        employmentType:
+          VACANCY_EMPLOYMENT_TYPE_LABELS[
+            row.employmentType as VacancyEmploymentType
+          ] ??
+          row.employmentType ??
+          '-',
+        openings: row.openings,
+        postedDate: row.postedDate ? formatDate(row.postedDate) : '-',
+        closingDate: row.closingDate ? formatDate(row.closingDate) : '-',
+        applicationsCount: row.applicationsCount,
+        status:
+          JOB_POST_STATUS_LABELS[row.status as JobPostStatus] ??
+          row.status ??
+          '-',
+        createdAt: row.createdAt ? formatDateTime(row.createdAt) : '-',
+        updatedAt: row.updatedAt ? formatDateTime(row.updatedAt) : '-'
+      }))
+    };
+  };
 
   return (
     <JobPostsWorkspace
-      initialRecords={pageRecords}
-      totalRecords={filtered.length}
-      summary={SAMPLE_JOB_POST_SUMMARY}
+      initialRecords={records}
+      totalRecords={totalRecords}
+      summary={summary}
       page={params?.page}
       initialFilters={filters}
+      departmentOptions={departmentOptions}
+      designationOptions={designationOptions}
+      approvedVacancies={approvedVacancies}
+      initialPrefillVacancyIds={
+        prefillVacancyId ? [prefillVacancyId] : undefined
+      }
+      onExport={handleExport}
     />
   );
 }

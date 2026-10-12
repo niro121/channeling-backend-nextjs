@@ -155,7 +155,7 @@ Implement backend + wire UI **one wave at a time**. Within each module wave: sch
 |------|-----------|----------------|
 | **0** | Foundations | Shared enums already in `types/recruitment.ts`; add Prisma models + Sequence codes; optional shared `RecruitmentActivity` / audit helper |
 | **1** | Vacancy Requests | Root of pipeline; no FK to other recruitment entities |
-| **2** | Job Posts | Requires `VacancyRequest` (approved) link; public-facing content fields (title, slug, descriptions) live here |
+| **2** | Job Posts | Link one or more approved `VacancyRequest`s (same designation; combine across departments); public fields (title, slug, short/full description) live here |
 | **3** | Resume Bank | Independent candidate store; needed before “add to job” |
 | **4** | Applications | Requires Job Post; can ingest from Resume Bank; **same create path** the public API will call |
 | **5** | Shortlisting | View / actions over Application mid-pipeline (+ screening score) |
@@ -204,7 +204,7 @@ Sketch only — refine in Prisma when Wave 0 starts. All in HRM MongoDB.
 
 ```
 VacancyRequest
-JobPost          *──1 VacancyRequest (optional link)
+JobPost          *──* VacancyRequest (combine same designation across depts)
 ResumeBankProfile
 Application      *──1 JobPost ; optional ResumeBankProfile
   └─ history[]   (embedded ApplicationHistoryEntry)
@@ -216,8 +216,8 @@ AppointmentLetter *──1 Evaluation (or Application)
 
 | Model | Notes |
 |-------|--------|
-| **VacancyRequest** | Status workflow; department / designation; openings; audit |
-| **JobPost** | `linkedVacancyRequestId`; slug; short/full description; skills; publish / unpublish / close; public DTO source |
+| **VacancyRequest** | Status workflow; department / designation; openings; audit; `linkedJobPost` / `linkedJobPostId` |
+| **JobPost** | `vacancyRequestIds[]` + `linkedVacancies[]` snapshots; slug; short/full description; skills; publish / unpublish / close; public DTO source. Openings default to sum of linked vacancies. |
 | **ResumeBankProfile** | Contact + skills + preferred role; file ref for CV |
 | **Application** | `applicationId` code; `currentStage` vs `status`; history embeds; `source` (`hrm` \| `website` \| `resume_bank` \| …) |
 | **Interview** | `interviewCode`; date/time; panel; type; location; status |
@@ -253,13 +253,15 @@ All under `app/(dashboard)/(recruitment)/`.
 | Actions | View, edit, submit approval, approve/reject (toast) |
 | Key types | `VacancyRequestRecord`, `VACANCY_REQUEST_STATUSES` |
 
-### 6.2 Job Posts — `/job-posts`
+### 6.2 Job Posts — `/job-posts` (Wave 2 — dynamized)
 
 | Concern | Detail |
 |---------|--------|
-| Link | Optional approved vacancy |
-| Actions | Create/edit Sheet; publish / unpublish / close; view |
-| Public fields | Title, short title, slug, short description, full description (website-facing) |
+| Link | One or more approved vacancies (same designation); combine openings across departments via `CustomMultiSelect` |
+| Prefill | Vacancy Requests **Link** → `/job-posts?prefillVacancyId=` opens create Sheet |
+| Actions | Create/edit/duplicate Sheet; view dialog; Applications deep-link |
+| Public fields | Title, slug, short/full description, skills (website-facing later) |
+| Export | Server re-query with active filters (same pattern as Vacancy Requests / user-groups) |
 | Footer | Vacancy Requests ← → Applications |
 
 ### 6.3 Applications — `/applications`

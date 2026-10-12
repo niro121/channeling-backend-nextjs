@@ -83,6 +83,7 @@ export type VacancyRequestRecord = {
   justification: string;
   remarks: string;
   linkedJobPost: boolean;
+  linkedJobPostId?: string;
   rejectReason?: string;
   createdAt: string;
   createdBy: string;
@@ -203,6 +204,9 @@ export function canLinkVacancyToJobPost(
 
 // ─── Job Posts ───────────────────────────────────────────────────────────────
 
+/** Sequence / record-code prefix → codes like JP-1 (see generateRecordCode). */
+export const JOB_POST_CODE_PREFIX = 'JP';
+
 export const JOB_POST_STATUSES = [
   'draft',
   'published',
@@ -219,19 +223,36 @@ export const JOB_POST_STATUS_LABELS: Record<JobPostStatus, string> = {
   closed: 'Closed'
 };
 
+/** Snapshot of a vacancy attached to a job post (combine across departments). */
+export type JobPostVacancyLink = {
+  vacancyRequestId: string;
+  requestId: string;
+  departmentId: string;
+  departmentName: string;
+  openings: number;
+};
+
 export type JobPostRecord = {
   id: string;
   jobPostId: string;
+  slug: string;
   jobTitle: string;
+  shortDescription: string;
+  /** Display label — single dept or combined e.g. "ICU, Ward 3". */
   department: string;
+  departmentId?: string;
   designation: string;
+  designationId: string;
   employmentType: VacancyEmploymentType;
   openings: number;
   postedDate: string | null;
   closingDate: string;
   applicationsCount: number;
   status: JobPostStatus;
-  linkedVacancyRequestId: string;
+  /** Linked VacancyRequest ids (same designation; may span departments). */
+  linkedVacancyRequestIds: string[];
+  linkedVacancies: JobPostVacancyLink[];
+  /** Join of linked vacancy labels for list/view. */
   linkedVacancyRequestLabel: string;
   jobDescription: string;
   responsibilities: string;
@@ -255,7 +276,9 @@ export type JobPostSummary = {
 
 export type JobPostFilters = {
   jobTitle?: string;
+  /** Department ObjectId or name contains (filters departmentName) */
   department?: string;
+  /** Designation ObjectId */
   designation?: string;
   employmentType?: string;
   status?: string;
@@ -264,11 +287,53 @@ export type JobPostFilters = {
   search?: string;
 };
 
-export type JobPostFormValues = {
-  linkedVacancyRequestId: string;
+export type GetJobPostsParams = JobPostFilters & {
+  page?: string;
+  limit?: string;
+};
+
+export type JobPostPayload = {
+  linkedVacancyRequestIds?: string[];
   jobTitle: string;
-  department: string;
-  designation: string;
+  slug?: string;
+  shortDescription?: string;
+  departmentId?: string;
+  designationId: string;
+  jobDescription?: string;
+  responsibilities?: string;
+  qualifications?: string;
+  experience?: string;
+  skills?: string[];
+  employmentType: VacancyEmploymentType | string;
+  salaryInformation?: string;
+  openings: number | string;
+  closingDate: Date | string | null;
+  applicationInstructions?: string;
+  status: JobPostStatus | string;
+};
+
+/** Option row for linking approved vacancies into a job post. */
+export type ApprovedVacancyOption = {
+  id: string;
+  name: string;
+  requestId: string;
+  designationId: string;
+  designationName: string;
+  departmentId: string;
+  departmentName: string;
+  employmentType: VacancyEmploymentType;
+  openings: number;
+  skills: string[];
+};
+
+export type JobPostFormValues = {
+  /** One or more approved vacancy request ids to combine into this post. */
+  linkedVacancyRequestIds: string[];
+  jobTitle: string;
+  slug: string;
+  shortDescription: string;
+  departmentId: string;
+  designationId: string;
   jobDescription: string;
   responsibilities: string;
   qualifications: string;
@@ -283,10 +348,12 @@ export type JobPostFormValues = {
 };
 
 export const EMPTY_JOB_POST_FORM: JobPostFormValues = {
-  linkedVacancyRequestId: '',
+  linkedVacancyRequestIds: [],
   jobTitle: '',
-  department: '',
-  designation: '',
+  slug: '',
+  shortDescription: '',
+  departmentId: '',
+  designationId: '',
   jobDescription: '',
   responsibilities: '',
   qualifications: '',

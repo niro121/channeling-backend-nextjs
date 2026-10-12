@@ -12,15 +12,16 @@ import { FilterWrapper } from '@/app/(dashboard)/filter-wrapper';
 import {
   JOB_POST_STATUS_LABELS,
   JOB_POST_STATUSES,
-  VACANCY_DEPARTMENT_OPTIONS,
-  VACANCY_DESIGNATION_OPTIONS,
   VACANCY_EMPLOYMENT_TYPE_LABELS,
   VACANCY_EMPLOYMENT_TYPES,
-  type JobPostFilters
+  type JobPostFilters,
+  type VacancySelectOption
 } from '@/types/recruitment';
 
 type SectionFiltersProps = {
   initial?: JobPostFilters;
+  departmentOptions?: VacancySelectOption[];
+  designationOptions?: VacancySelectOption[];
 };
 
 function parseFilterDate(value?: string): Date | null {
@@ -37,15 +38,11 @@ function toYmd(date?: Date): string {
   return `${y}-${m}-${d}`;
 }
 
-function SectionFiltersInner({ initial = {} }: SectionFiltersProps) {
-  const departmentOptions = VACANCY_DEPARTMENT_OPTIONS.map((item) => ({
-    id: item.id,
-    name: item.name
-  }));
-  const designationOptions = VACANCY_DESIGNATION_OPTIONS.map((item) => ({
-    id: item.id,
-    name: item.name
-  }));
+function SectionFiltersInner({
+  initial = {},
+  departmentOptions = [],
+  designationOptions = []
+}: SectionFiltersProps) {
   const employmentTypeOptions = VACANCY_EMPLOYMENT_TYPES.map((id) => ({
     id,
     name: VACANCY_EMPLOYMENT_TYPE_LABELS[id]

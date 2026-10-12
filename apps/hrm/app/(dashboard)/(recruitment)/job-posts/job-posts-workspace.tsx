@@ -6,9 +6,11 @@ import { Button } from '@archmage/ui';
 import { CommonManagerHeader } from '@/components/common/common-manager-header';
 import { buttonStyles } from '@/lib/utils/common-styles';
 import type {
+  ApprovedVacancyOption,
   JobPostFilters,
   JobPostRecord,
-  JobPostSummary
+  JobPostSummary,
+  VacancySelectOption
 } from '@/types/recruitment';
 import DialogJobPostView from './dialog-job-post-view';
 import { JobPostsHeaderActions } from './header-actions';
@@ -20,12 +22,36 @@ import SectionRegister from './section-register';
 import SectionSummary from './section-summary';
 import SheetJobPostForm from './sheet-job-post-form';
 
+type JobPostExportRow = {
+  jobPostId: string;
+  jobTitle: string;
+  department: string;
+  designation: string;
+  employmentType: string;
+  openings: number;
+  postedDate: string;
+  closingDate: string;
+  applicationsCount: number;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
 type JobPostsWorkspaceProps = {
   initialRecords: JobPostRecord[];
   totalRecords: number;
   summary: JobPostSummary;
   page?: string;
   initialFilters?: JobPostFilters;
+  departmentOptions: VacancySelectOption[];
+  designationOptions: VacancySelectOption[];
+  approvedVacancies: ApprovedVacancyOption[];
+  initialPrefillVacancyIds?: string[];
+  onExport: () => Promise<{
+    success: boolean;
+    data?: JobPostExportRow[];
+    message?: string;
+  }>;
 };
 
 function JobPostsWorkspaceInner({
@@ -33,14 +59,14 @@ function JobPostsWorkspaceInner({
   totalRecords,
   summary,
   page,
-  initialFilters
+  initialFilters,
+  departmentOptions,
+  designationOptions,
+  approvedVacancies,
+  onExport
 }: JobPostsWorkspaceProps) {
-  const {
-    formSheet,
-    viewRecord,
-    closeFormSheet,
-    closeViewDialog
-  } = useJobPostsUi();
+  const { formSheet, viewRecord, closeFormSheet, closeViewDialog } =
+    useJobPostsUi();
 
   return (
     <div className="space-y-6">
@@ -57,6 +83,9 @@ function JobPostsWorkspaceInner({
         totalRecords={totalRecords}
         page={page}
         initialFilters={initialFilters}
+        departmentOptions={departmentOptions}
+        designationOptions={designationOptions}
+        onExport={onExport}
       />
 
       <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
@@ -87,6 +116,10 @@ function JobPostsWorkspaceInner({
         open={formSheet != null}
         mode={formSheet?.mode ?? 'create'}
         record={formSheet?.record ?? null}
+        prefillVacancyIds={formSheet?.prefillVacancyIds}
+        departmentOptions={departmentOptions}
+        designationOptions={designationOptions}
+        approvedVacancies={approvedVacancies}
         onOpenChange={(open) => {
           if (!open) closeFormSheet();
         }}
@@ -103,9 +136,12 @@ function JobPostsWorkspaceInner({
   );
 }
 
-export default function JobPostsWorkspace(props: JobPostsWorkspaceProps) {
+export default function JobPostsWorkspace({
+  initialPrefillVacancyIds,
+  ...props
+}: JobPostsWorkspaceProps) {
   return (
-    <JobPostsUiProvider>
+    <JobPostsUiProvider initialPrefillVacancyIds={initialPrefillVacancyIds}>
       <JobPostsWorkspaceInner {...props} />
     </JobPostsUiProvider>
   );

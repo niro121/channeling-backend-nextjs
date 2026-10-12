@@ -673,6 +673,7 @@ model Designation {
   description String  @default("")
 
   vacancyRequests VacancyRequest[]
+  jobPosts        JobPost[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1138,6 +1139,7 @@ model Department {
   migrateSourceId String? // Channeling Department.id
 
   vacancyRequests VacancyRequest[]
+  jobPosts        JobPost[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1411,8 +1413,9 @@ model VacancyRequest {
   decidedAt     DateTime?
   rejectReason  String?
 
-  /// True once a Job Post is linked (Wave 2+).
-  linkedJobPost Boolean @default(false)
+  /// True once linked to a Job Post (one vacancy → at most one open post).
+  linkedJobPost   Boolean @default(false)
+  linkedJobPostId String? @db.ObjectId
 
   department  Department  @relation(fields: [departmentId], references: [id])
   designation Designation @relation(fields: [designationId], references: [id])
@@ -1431,6 +1434,77 @@ model VacancyRequest {
   @@index([requestedDate])
   @@index([requestedById])
   @@index([linkedJobPost])
+  @@index([linkedJobPostId])
+  @@index([createdAt(sort: Desc)])
+}
+
+/// Snapshot of a VacancyRequest attached to a Job Post (supports combining depts).
+type JobPostVacancyLink {
+  vacancyRequestId String
+  /// Human code e.g. VR-1
+  requestId        String
+  departmentId     String
+  departmentName   String
+  openings         Int
+}
+
+/// Public-facing recruitment post; may combine multiple approved VacancyRequests
+/// for the same designation across departments.
+model JobPost {
+  id        String @id @default(auto()) @map("_id") @db.ObjectId
+  /// Human-readable code from Sequence, e.g. JP-1
+  jobPostId String @unique
+  /// URL slug for careers site (unique).
+  slug      String @unique
+
+  jobTitle String
+  /// Public short summary (website list cards).
+  shortDescription String @default("")
+  jobDescription   String @default("")
+  responsibilities String @default("")
+  qualifications   String @default("")
+  experience       String @default("")
+  skills           String[] @default([])
+  salaryInformation String @default("")
+  applicationInstructions String @default("")
+
+  designationId   String @db.ObjectId
+  designationName String @default("")
+  /// Display label when multiple departments are linked (e.g. "ICU, Ward 3").
+  departmentName  String @default("")
+  /// Optional primary department when a single vacancy is linked.
+  departmentId    String? @db.ObjectId
+
+  employmentType String // permanent | contract | temporary | casual
+  /// Total openings (usually sum of linked vacancy openings; may be overridden).
+  openings Int
+
+  /// Linked VacancyRequest ObjectIds (same designation; combine across depts).
+  vacancyRequestIds String[] @default([])
+  linkedVacancies   JobPostVacancyLink[]
+
+  /// draft | published | unpublished | closed
+  status      String    @default("draft")
+  postedDate  DateTime?
+  closingDate DateTime
+  /// Denormalized count; Wave 4+ keeps in sync with Application.
+  applicationsCount Int @default(0)
+
+  designation Designation @relation(fields: [designationId], references: [id])
+  department  Department? @relation(fields: [departmentId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy String?  @db.ObjectId // Auth User.id
+  updatedBy String?  @db.ObjectId // Auth User.id
+
+  @@index([status])
+  @@index([designationId])
+  @@index([departmentId])
+  @@index([employmentType])
+  @@index([closingDate])
+  @@index([postedDate])
+  @@index([vacancyRequestIds])
   @@index([createdAt(sort: Desc)])
 }
 

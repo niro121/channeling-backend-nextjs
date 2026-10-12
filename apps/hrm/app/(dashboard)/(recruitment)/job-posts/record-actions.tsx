@@ -1,7 +1,8 @@
 'use client';
 
+import Link from 'next/link';
 import { Copy, Eye, Pencil, Users } from 'lucide-react';
-import { Button, useToast } from '@archmage/ui';
+import { Button } from '@archmage/ui';
 import { usePermissions } from '@/components/hooks/use-permissions';
 import {
   isJobPostEditable,
@@ -16,7 +17,6 @@ type JobPostRecordActionsProps = {
 export default function JobPostRecordActions({
   record
 }: JobPostRecordActionsProps) {
-  const { toast } = useToast();
   const { has } = usePermissions();
   const { openView, openEdit, openDuplicate } = useJobPostsUi();
 
@@ -75,14 +75,11 @@ export default function JobPostRecordActions({
           variant="ghost"
           className="h-8 w-8 text-primary hover:bg-primary/10 hover:text-primary"
           aria-label={`View applications for ${record.jobPostId}`}
-          onClick={() =>
-            toast({
-              title: 'Applications',
-              description: `Applications for ${record.jobPostId} will open when the Applications module is built.`
-            })
-          }
+          asChild
         >
-          <Users className="h-4 w-4" />
+          <Link href={`/applications?jobPostId=${record.id}`}>
+            <Users className="h-4 w-4" />
+          </Link>
         </Button>
       ) : null}
     </div>

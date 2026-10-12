@@ -56,15 +56,13 @@ export default function VacancyRecordActions({
   const [rejectReason, setRejectReason] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const finishLinkUiOnly = () => {
-    setLoading(true);
-    toast({
-      variant: 'default',
-      title: 'Linked (UI only)',
-      description: `${record.requestId} marked linked until Job Posts is built.`
-    });
-    setLoading(false);
+  const finishLinkToJobPost = () => {
     setDecision(null);
+    if (record.linkedJobPost) {
+      router.push('/job-posts');
+      return;
+    }
+    router.push(`/job-posts?prefillVacancyId=${record.id}`);
   };
 
   const handleApprove = async () => {
@@ -217,10 +215,10 @@ export default function VacancyRecordActions({
         title="Link to job post?"
         description={
           record.linkedJobPost
-            ? `${record.requestId} is already marked as linked. Confirm again when Job Posts UI is available.`
-            : `Mark ${record.requestId} as linked to a job post? Full linking arrives with the Job Posts module.`
+            ? `${record.requestId} is already linked. Open Job Posts to review or edit the post.`
+            : `Create a job post from ${record.requestId}? You can combine other approved vacancies for the same designation.`
         }
-        handleContinue={finishLinkUiOnly}
+        handleContinue={finishLinkToJobPost}
       />
 
       <Dialog

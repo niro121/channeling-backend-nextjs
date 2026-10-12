@@ -88,6 +88,7 @@ function mapVacancyRecord(
     requestedDate: Date | null;
     requestedByName: string | null;
     linkedJobPost: boolean;
+    linkedJobPostId?: string | null;
     rejectReason: string | null;
     createdAt: Date;
     updatedAt: Date;
@@ -119,6 +120,7 @@ function mapVacancyRecord(
     justification: record.justification,
     remarks: record.remarks,
     linkedJobPost: record.linkedJobPost,
+    linkedJobPostId: record.linkedJobPostId ?? undefined,
     rejectReason: record.rejectReason ?? undefined,
     createdAt: toIso(record.createdAt),
     createdBy: record.createdUser?.name ?? '',
