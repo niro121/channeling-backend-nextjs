@@ -12,18 +12,18 @@ import type { VacancyRequestRecord } from '@/types/recruitment';
 
 export type VacancyFormMode = 'create' | 'edit';
 
-type FormDialogState = {
+type FormSheetState = {
   mode: VacancyFormMode;
   record: VacancyRequestRecord | null;
 };
 
 type VacancyRequestsUiContextValue = {
-  formDialog: FormDialogState | null;
+  formSheet: FormSheetState | null;
   viewRecord: VacancyRequestRecord | null;
   openCreate: () => void;
   openEdit: (record: VacancyRequestRecord) => void;
   openView: (record: VacancyRequestRecord) => void;
-  closeFormDialog: () => void;
+  closeFormSheet: () => void;
   closeViewDialog: () => void;
 };
 
@@ -35,46 +35,46 @@ export function VacancyRequestsUiProvider({
 }: {
   children: ReactNode;
 }) {
-  const [formDialog, setFormDialog] = useState<FormDialogState | null>(null);
+  const [formSheet, setFormSheet] = useState<FormSheetState | null>(null);
   const [viewRecord, setViewRecord] = useState<VacancyRequestRecord | null>(
     null
   );
 
   const openCreate = useCallback(() => {
     setViewRecord(null);
-    setFormDialog({ mode: 'create', record: null });
+    setFormSheet({ mode: 'create', record: null });
   }, []);
 
   const openEdit = useCallback((record: VacancyRequestRecord) => {
     setViewRecord(null);
-    setFormDialog({ mode: 'edit', record });
+    setFormSheet({ mode: 'edit', record });
   }, []);
 
   const openView = useCallback((record: VacancyRequestRecord) => {
-    setFormDialog(null);
+    setFormSheet(null);
     setViewRecord(record);
   }, []);
 
-  const closeFormDialog = useCallback(() => setFormDialog(null), []);
+  const closeFormSheet = useCallback(() => setFormSheet(null), []);
   const closeViewDialog = useCallback(() => setViewRecord(null), []);
 
   const value = useMemo(
     () => ({
-      formDialog,
+      formSheet,
       viewRecord,
       openCreate,
       openEdit,
       openView,
-      closeFormDialog,
+      closeFormSheet,
       closeViewDialog
     }),
     [
-      formDialog,
+      formSheet,
       viewRecord,
       openCreate,
       openEdit,
       openView,
-      closeFormDialog,
+      closeFormSheet,
       closeViewDialog
     ]
   );

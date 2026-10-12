@@ -10,11 +10,11 @@ import type {
   VacancyRequestRecord,
   VacancyRequestSummary
 } from '@/types/recruitment';
-import DialogVacancyRequestForm from './dialog-vacancy-request-form';
 import DialogVacancyRequestView from './dialog-vacancy-request-view';
 import { VacancyRequestsHeaderActions } from './header-actions';
 import SectionRegister from './section-register';
 import SectionSummary from './section-summary';
+import SheetVacancyRequestForm from './sheet-vacancy-request-form';
 import {
   VacancyRequestsUiProvider,
   useVacancyRequestsUi
@@ -37,9 +37,9 @@ function VacancyRequestsWorkspaceInner({
 }: VacancyRequestsWorkspaceProps) {
   const { toast } = useToast();
   const {
-    formDialog,
+    formSheet,
     viewRecord,
-    closeFormDialog,
+    closeFormSheet,
     closeViewDialog
   } = useVacancyRequestsUi();
 
@@ -87,12 +87,12 @@ function VacancyRequestsWorkspaceInner({
         </Button>
       </div>
 
-      <DialogVacancyRequestForm
-        open={formDialog != null}
-        mode={formDialog?.mode ?? 'create'}
-        record={formDialog?.record ?? null}
+      <SheetVacancyRequestForm
+        open={formSheet != null}
+        mode={formSheet?.mode ?? 'create'}
+        record={formSheet?.record ?? null}
         onOpenChange={(open) => {
-          if (!open) closeFormDialog();
+          if (!open) closeFormSheet();
         }}
       />
 
