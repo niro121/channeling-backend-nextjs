@@ -122,6 +122,8 @@ export const getAllDoctorViewReportDataService = async ({
 
     sessions.forEach((session) => {
       if (!session.doctor) return;
+      // A cancelled booking stays on the session, so those sessions still appear.
+      if (session.bookings.length === 0) return;
 
       const doctorId = session.doctor.id;
       const doctorKey = `${session.doctor.id}_${session.locationId || 'no-location'}`;
