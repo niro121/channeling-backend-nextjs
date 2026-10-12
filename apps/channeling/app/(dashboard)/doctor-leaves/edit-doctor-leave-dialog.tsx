@@ -13,7 +13,7 @@ import DoctorLeaveForm from './doctor-leave-form';
 import { getOneLeaveByID, getSessionsByIds } from '@/app/actions/doctor.leave.action';
 import { useDoctorLeavesRefetch } from './doctor-leaves-refresh-context';
 import type { DoctorLeave, Session } from '@/types/doctor.leave';
-import { formatSessionTime, getSessionStartAt } from '../channel-booking/components/sessions-selection/util';
+import { formatSessionTime } from '../channel-booking/components/sessions-selection/util';
 import Loading from '../loading';
 
 type EditDoctorLeaveDialogProps = {
@@ -30,8 +30,7 @@ function mapApiSessionToItem(raw: any): Session {
     location: raw.location?.name ?? '',
     locationId: raw.location?.id ?? raw.locationId ?? '',
     startTime: formatSessionTime(raw.startTime, raw.date),
-    endTime: formatSessionTime(raw.endTime, raw.date),
-    startAt: getSessionStartAt(raw.startTime, date)
+    endTime: formatSessionTime(raw.endTime, raw.date)
   };
 }
 
