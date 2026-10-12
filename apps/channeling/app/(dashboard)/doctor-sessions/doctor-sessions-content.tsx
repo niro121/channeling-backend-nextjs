@@ -30,7 +30,9 @@ type Props = {
   departmentOptions?: { id: string; name: string }[];
   locationOptions?: { id: string; name: string }[];
   branchOptions: Option[];
-  bulkDeleteAction: (ids: string[]) => Promise<boolean>;
+  bulkDeleteAction: (
+    ids: string[]
+  ) => Promise<{ success: boolean; message?: string }>;
 };
 
 export default function DoctorSessionsContent({

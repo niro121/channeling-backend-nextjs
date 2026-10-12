@@ -353,7 +353,10 @@ export const bulkDeleteDoctorSessions = async (ids: string[]) => {
     const result = await bulkDeleteDoctorSessionsByIdsService(ids);
 
     if (!result.success) {
-      return false;
+      return {
+        success: false,
+        message: result.error?.message ?? 'Records could not be deleted.'
+      };
     }
     const session = await getServerSession(authOptions);
     if (session?.user?.id) {
@@ -370,11 +373,14 @@ export const bulkDeleteDoctorSessions = async (ids: string[]) => {
     revalidatePath('/locations');
     revalidatePath('/departments');
 
-    return true;
+    return { success: true, message: result.message };
   } catch (error: any) {
     console.error('bulkDeleteDoctorSessions action error:', error);
 
-    return false;
+    return {
+      success: false,
+      message: error.message || 'Unexpected error occurred'
+    };
   }
 };
 
