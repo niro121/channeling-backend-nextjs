@@ -3,7 +3,6 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
 import { Plus } from 'lucide-react';
-import { SearchInput } from '@/components/common/search';
 import { CustomDataTable } from '@/components/common/custom-data-table';
 import Loading from '../loading';
 import Link from 'next/link';
@@ -28,6 +27,7 @@ type SearchParams = {
     limit?: string;
     keyword?: string;
     locationId?: string;
+    occupancy?: string;
   }>;
 };
 
@@ -52,7 +52,8 @@ export default async function Page({ searchParams }: SearchParams) {
     page: params?.page,
     limit: params?.limit,
     keyword: params?.keyword,
-    locationId: params?.locationId
+    locationId: params?.locationId,
+    occupancy: params?.occupancy
   });
 
   const locationRes = await getAllLocations();
@@ -64,7 +65,8 @@ export default async function Page({ searchParams }: SearchParams) {
 
     const roomListResponse = await getRoomsExport({
       keyword: params?.keyword,
-      locationId: params?.locationId
+      locationId: params?.locationId,
+      occupancy: params?.occupancy
     });
 
     if (!roomListResponse.success || !roomListResponse.data?.length) {
@@ -124,19 +126,11 @@ export default async function Page({ searchParams }: SearchParams) {
           page={params?.page}
           toolbarLeft={
             <div className="flex flex-col gap-3 flex-1 min-w-0">
-              <div className="flex flex-col sm:flex-row gap-3 items-start">
-                <div className="relative w-full sm:max-w-sm">
-                  <SearchInput
-                    name="keyword"
-                    placeholder="Search by number, zone"
-                    className="pl-8 w-full h-9"
-                  />
-                </div>
-                <FilterSection
-                  locationOptions={locationOptions}
-                  locationId={params?.locationId}
-                />
-              </div>
+              <FilterSection
+                locationOptions={locationOptions}
+                locationId={params?.locationId}
+                occupancy={params?.occupancy}
+              />
               <div className="flex items-center">
                 <ExportWrapper
                   serverData={handleExport}
