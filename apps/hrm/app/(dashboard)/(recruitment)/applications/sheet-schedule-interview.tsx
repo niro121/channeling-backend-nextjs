@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Form, Formik, type FormikHelpers } from 'formik';
 import * as Yup from 'yup';
 import { Save, X } from 'lucide-react';
@@ -17,12 +18,14 @@ import {
   SheetTitle,
   useToast
 } from '@archmage/ui';
+import { createInterviewAction } from '@/app/actions/recruitment-actions/interview.actions';
 import { buttonStyles } from '@/lib/utils/common-styles';
 import {
   EMPTY_SCHEDULE_INTERVIEW_FORM,
   INTERVIEW_TYPE_LABELS,
   INTERVIEW_TYPES,
   type ApplicationRecord,
+  type InterviewPayload,
   type ScheduleInterviewFormValues,
   type VacancySelectOption
 } from '@/types/recruitment';
@@ -30,7 +33,7 @@ import {
 type SheetScheduleInterviewProps = {
   open: boolean;
   record: ApplicationRecord | null;
-  jobPostOptions: VacancySelectOption[];
+  jobPostOptions?: VacancySelectOption[];
   onOpenChange: (open: boolean) => void;
 };
 
@@ -41,6 +44,7 @@ const fieldStyleClasses = {
 };
 
 const validationSchema = Yup.object({
+  applicationRefId: Yup.string().required('Application is required'),
   candidateName: Yup.string().required('Candidate is required'),
   jobPostId: Yup.string().required('Job position is required'),
   interviewType: Yup.string().required('Interview type is required'),
@@ -59,6 +63,28 @@ const interviewTypeOptions = INTERVIEW_TYPES.map((id) => ({
   name: INTERVIEW_TYPE_LABELS[id]
 }));
 
+function firstErrorMessage(errors: unknown): string {
+  if (!errors || typeof errors !== 'object') {
+    return 'Something went wrong. Please try again later';
+  }
+  const record = errors as Record<string, unknown>;
+  if (typeof record.message === 'string' && record.message) {
+    return record.message;
+  }
+  for (const value of Object.values(record)) {
+    if (Array.isArray(value) && typeof value[0] === 'string') return value[0];
+    if (typeof value === 'string' && value) return value;
+  }
+  return 'Something went wrong. Please try again later';
+}
+
+function toYmd(date: Date): string {
+  const y = date.getFullYear();
+  const m = `${date.getMonth() + 1}`.padStart(2, '0');
+  const d = `${date.getDate()}`.padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
 export default function SheetScheduleInterview({
   open,
   record,
@@ -66,6 +92,7 @@ export default function SheetScheduleInterview({
   onOpenChange
 }: SheetScheduleInterviewProps) {
   const { toast } = useToast();
+  const router = useRouter();
   const [saving, setSaving] = useState(false);
 
   const jobPositionOptions = useMemo(() => {
@@ -86,6 +113,7 @@ export default function SheetScheduleInterview({
     if (!record) return EMPTY_SCHEDULE_INTERVIEW_FORM;
     return {
       ...EMPTY_SCHEDULE_INTERVIEW_FORM,
+      applicationRefId: record.id,
       candidateName: record.candidateName,
       jobPostId: record.jobPostId
     };
@@ -94,18 +122,42 @@ export default function SheetScheduleInterview({
   const handleClose = () => onOpenChange(false);
 
   const handleSubmit = async (
-    _values: ScheduleInterviewFormValues,
+    values: ScheduleInterviewFormValues,
     _helpers: FormikHelpers<ScheduleInterviewFormValues>
   ) => {
+    if (!values.interviewDate || !record) return;
     setSaving(true);
     try {
+      const payload: InterviewPayload = {
+        applicationId: record.id,
+        interviewType: values.interviewType,
+        interviewDate: toYmd(values.interviewDate),
+        startTime: values.startTime,
+        endTime: values.endTime,
+        interviewerPanel: values.interviewerPanel,
+        location: values.location,
+        notesToCandidate: values.notesToCandidate
+      };
+
+      const result = await createInterviewAction(payload);
+      if (result.isError) {
+        toast({
+          variant: 'destructive',
+          title: 'Schedule failed',
+          description: firstErrorMessage(result.errors)
+        });
+        return;
+      }
+
       toast({
-        variant: 'default',
-        title: 'Interview Schedule next',
-        description:
-          'Interview create will be available in Wave 6 (Interview Schedule).'
+        variant: 'success',
+        title: 'Scheduled',
+        description: result.data?.interviewCode
+          ? `Interview ${result.data.interviewCode} created for ${record.candidateName}.`
+          : `Interview scheduled for ${record.candidateName}.`
       });
       handleClose();
+      router.refresh();
     } finally {
       setSaving(false);
     }
@@ -165,6 +217,7 @@ export default function SheetScheduleInterview({
                     required
                     options={jobPositionOptions}
                     styleClasses={fieldStyleClasses}
+                    disabled
                   />
                   <CustomSelectField
                     id="interviewType"
@@ -251,7 +304,7 @@ export default function SheetScheduleInterview({
                 <Button
                   type="button"
                   variant="outline"
-                  className={buttonStyles.cancel.normal}
+                  className={`mr-0! ${buttonStyles.cancel.normal}`}
                   disabled={saving}
                   onClick={handleClose}
                 >
@@ -261,7 +314,7 @@ export default function SheetScheduleInterview({
                 <Button
                   type="submit"
                   className={buttonStyles.save}
-                  disabled={saving}
+                  disabled={saving || !record}
                 >
                   <Save className="h-4 w-4" />
                   {saving ? 'Scheduling…' : 'Schedule'}

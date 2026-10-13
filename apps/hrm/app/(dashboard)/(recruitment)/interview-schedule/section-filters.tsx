@@ -14,13 +14,14 @@ import {
   INTERVIEW_STATUSES,
   INTERVIEW_TYPE_LABELS,
   INTERVIEW_TYPES,
-  VACANCY_DEPARTMENT_OPTIONS,
-  type InterviewFilters
+  type InterviewFilters,
+  type VacancySelectOption
 } from '@/types/recruitment';
-import { SAMPLE_INTERVIEW_JOB_POST_OPTIONS } from './sample-data';
 
 type SectionFiltersProps = {
   initial?: InterviewFilters;
+  departmentOptions?: VacancySelectOption[];
+  jobPostOptions?: VacancySelectOption[];
 };
 
 function parseFilterDate(value?: string): Date | null {
@@ -37,15 +38,11 @@ function toYmd(date?: Date): string {
   return `${y}-${m}-${d}`;
 }
 
-function SectionFiltersInner({ initial = {} }: SectionFiltersProps) {
-  const departmentOptions = VACANCY_DEPARTMENT_OPTIONS.map((item) => ({
-    id: item.id,
-    name: item.name
-  }));
-  const jobPostOptions = SAMPLE_INTERVIEW_JOB_POST_OPTIONS.map((item) => ({
-    id: item.id,
-    name: item.name
-  }));
+function SectionFiltersInner({
+  initial = {},
+  departmentOptions = [],
+  jobPostOptions = []
+}: SectionFiltersProps) {
   const typeOptions = INTERVIEW_TYPES.map((id) => ({
     id,
     name: INTERVIEW_TYPE_LABELS[id]
@@ -84,7 +81,7 @@ function SectionFiltersInner({ initial = {} }: SectionFiltersProps) {
           <div className="grid w-full gap-3 sm:grid-cols-2 xl:grid-cols-4">
             <CustomDatePickerField
               id="int-date"
-              placeholder="Date"
+              placeholder="Interview Date"
               value={parseFilterDate(values.interviewDate)}
               onChange={(date) => setValue('interviewDate', toYmd(date))}
               onBlur={() => undefined}
@@ -126,7 +123,7 @@ function SectionFiltersInner({ initial = {} }: SectionFiltersProps) {
             />
 
             <Selector
-              label="Job Position"
+              label="Job Post"
               options={jobPostOptions}
               value={values.jobPostId ?? '__all__'}
               defaultValue="__all__"
@@ -152,7 +149,7 @@ function SectionFiltersInner({ initial = {} }: SectionFiltersProps) {
               className={{ trigger: 'h-10 w-full max-w-none self-end' }}
             />
 
-            <div className="space-y-2 sm:col-span-2">
+            <div className="space-y-2 sm:col-span-2 xl:col-span-2">
               <Label
                 htmlFor="int-search"
                 className="text-xs uppercase text-muted-foreground"

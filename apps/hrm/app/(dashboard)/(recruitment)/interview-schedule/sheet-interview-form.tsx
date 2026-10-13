@@ -1,15 +1,18 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Form, Formik, type FormikHelpers } from 'formik';
 import * as Yup from 'yup';
 import { parseISO } from 'date-fns';
 import { Save, X } from 'lucide-react';
 import {
   Button,
+  Combobox,
   CustomDatePickerField,
   CustomFormField,
   CustomSelectField,
+  Label,
   Sheet,
   SheetContent,
   SheetDescription,
@@ -18,21 +21,34 @@ import {
   SheetTitle,
   useToast
 } from '@archmage/ui';
+import {
+  createInterviewAction,
+  rescheduleInterviewAction
+} from '@/app/actions/recruitment-actions/interview.actions';
 import { buttonStyles } from '@/lib/utils/common-styles';
 import {
   EMPTY_SCHEDULE_INTERVIEW_FORM,
   INTERVIEW_TYPE_LABELS,
   INTERVIEW_TYPES,
+  type InterviewPayload,
   type InterviewRecord,
-  type ScheduleInterviewFormValues
+  type RescheduleInterviewPayload,
+  type ScheduleInterviewFormValues,
+  type VacancySelectOption
 } from '@/types/recruitment';
 import type { InterviewFormMode } from './interview-schedule-ui-context';
-import { SAMPLE_INTERVIEW_JOB_POST_OPTIONS } from './sample-data';
+
+type ApplicationSelectOption = VacancySelectOption & {
+  jobPostId?: string;
+  candidateName?: string;
+};
 
 type SheetInterviewFormProps = {
   open: boolean;
   mode: InterviewFormMode;
   record: InterviewRecord | null;
+  jobPostOptions?: VacancySelectOption[];
+  applicationOptions?: ApplicationSelectOption[];
   onOpenChange: (open: boolean) => void;
 };
 
@@ -43,6 +59,9 @@ const fieldStyleClasses = {
 };
 
 const validationSchema = Yup.object({
+  applicationRefId: Yup.string()
+    .trim()
+    .required('Candidate application is required'),
   candidateName: Yup.string().trim().required('Candidate is required'),
   jobPostId: Yup.string().required('Job position is required'),
   interviewType: Yup.string().required('Interview type is required'),
@@ -61,24 +80,45 @@ const interviewTypeOptions = INTERVIEW_TYPES.map((id) => ({
   name: INTERVIEW_TYPE_LABELS[id]
 }));
 
-const jobPositionOptions = SAMPLE_INTERVIEW_JOB_POST_OPTIONS.map((item) => ({
-  id: item.id,
-  name: item.name
-}));
+function firstErrorMessage(errors: unknown): string {
+  if (!errors || typeof errors !== 'object') {
+    return 'Something went wrong. Please try again later';
+  }
+  const record = errors as Record<string, unknown>;
+  if (typeof record.message === 'string' && record.message) {
+    return record.message;
+  }
+  for (const value of Object.values(record)) {
+    if (Array.isArray(value) && typeof value[0] === 'string') return value[0];
+    if (typeof value === 'string' && value) return value;
+  }
+  return 'Something went wrong. Please try again later';
+}
+
+function toYmd(date: Date): string {
+  const y = date.getFullYear();
+  const m = `${date.getMonth() + 1}`.padStart(2, '0');
+  const d = `${date.getDate()}`.padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
 
 export default function SheetInterviewForm({
   open,
   mode,
   record,
+  jobPostOptions = [],
+  applicationOptions = [],
   onOpenChange
 }: SheetInterviewFormProps) {
   const { toast } = useToast();
+  const router = useRouter();
   const [saving, setSaving] = useState(false);
   const isReschedule = mode === 'reschedule';
 
   const initialValues = useMemo<ScheduleInterviewFormValues>(() => {
     if (!record) return EMPTY_SCHEDULE_INTERVIEW_FORM;
     return {
+      applicationRefId: record.applicationRefId,
       candidateName: record.candidateName,
       jobPostId: record.jobPostId,
       interviewType: record.interviewType,
@@ -93,21 +133,86 @@ export default function SheetInterviewForm({
     };
   }, [record]);
 
+  const jobPositionOptions = useMemo(() => {
+    const options = [...jobPostOptions];
+    if (
+      record?.jobPostId &&
+      !options.some((item) => item.id === record.jobPostId)
+    ) {
+      options.unshift({
+        id: record.jobPostId,
+        name: `${record.jobPostCode || record.jobPostId} — ${record.jobTitle}`
+      });
+    }
+    return options;
+  }, [jobPostOptions, record]);
+
   const handleClose = () => onOpenChange(false);
 
   const handleSubmit = async (
-    _values: ScheduleInterviewFormValues,
+    values: ScheduleInterviewFormValues,
     _helpers: FormikHelpers<ScheduleInterviewFormValues>
   ) => {
+    if (!values.interviewDate) return;
     setSaving(true);
     try {
-      toast({
-        title: 'Not saved',
-        description: isReschedule
-          ? `Reschedule ${record?.interviewCode ?? ''} will be wired in the workflow phase.`
-          : 'Schedule interview will be wired in the workflow phase.'
-      });
+      const dateStr = toYmd(values.interviewDate);
+
+      if (isReschedule && record) {
+        const payload: RescheduleInterviewPayload = {
+          interviewType: values.interviewType,
+          interviewDate: dateStr,
+          startTime: values.startTime,
+          endTime: values.endTime,
+          interviewerPanel: values.interviewerPanel,
+          location: values.location,
+          notesToCandidate: values.notesToCandidate
+        };
+        const result = await rescheduleInterviewAction(record.id, payload);
+        if (result.isError) {
+          toast({
+            variant: 'destructive',
+            title: 'Reschedule failed',
+            description: firstErrorMessage(result.errors)
+          });
+          return;
+        }
+        toast({
+          variant: 'success',
+          title: 'Rescheduled',
+          description: `${record.interviewCode} was rescheduled.`
+        });
+      } else {
+        const payload: InterviewPayload = {
+          applicationId: values.applicationRefId,
+          interviewType: values.interviewType,
+          interviewDate: dateStr,
+          startTime: values.startTime,
+          endTime: values.endTime,
+          interviewerPanel: values.interviewerPanel,
+          location: values.location,
+          notesToCandidate: values.notesToCandidate
+        };
+        const result = await createInterviewAction(payload);
+        if (result.isError) {
+          toast({
+            variant: 'destructive',
+            title: 'Schedule failed',
+            description: firstErrorMessage(result.errors)
+          });
+          return;
+        }
+        toast({
+          variant: 'success',
+          title: 'Scheduled',
+          description: result.data?.interviewCode
+            ? `Interview ${result.data.interviewCode} created.`
+            : 'Interview scheduled successfully.'
+        });
+      }
+
       handleClose();
+      router.refresh();
     } finally {
       setSaving(false);
     }
@@ -148,17 +253,60 @@ export default function SheetInterviewForm({
           {(formik) => (
             <Form className="flex min-h-0 flex-1 flex-col">
               <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-6 py-4">
-                <CustomFormField
-                  id="candidateName"
-                  type="text"
-                  placeholder="Candidate"
-                  value={formik.values.candidateName}
-                  onChange={formik.handleChange}
-                  onBlur={formik.handleBlur}
-                  required
-                  disabled={isReschedule}
-                  styleClasses={fieldStyleClasses}
-                />
+                {!isReschedule ? (
+                  <div className={fieldStyleClasses.parentDiv}>
+                    <Label
+                      htmlFor="applicationRefId"
+                      className={fieldStyleClasses.labelClassName}
+                    >
+                      Candidate Application
+                      <span className="text-red-600"> *</span>
+                    </Label>
+                    <div className={fieldStyleClasses.inputClassName}>
+                      <Combobox
+                        label="Candidate Application"
+                        options={applicationOptions}
+                        value={formik.values.applicationRefId || ''}
+                        defaultValue=""
+                        onChange={(value) => {
+                          const selected = applicationOptions.find(
+                            (item) => item.id === value
+                          );
+                          void formik.setFieldValue('applicationRefId', value);
+                          void formik.setFieldValue(
+                            'candidateName',
+                            selected?.candidateName ?? selected?.name ?? ''
+                          );
+                          if (selected?.jobPostId) {
+                            void formik.setFieldValue(
+                              'jobPostId',
+                              selected.jobPostId
+                            );
+                          }
+                          void formik.setFieldTouched(
+                            'applicationRefId',
+                            true
+                          );
+                        }}
+                        clearable
+                        triggerClassName="w-full max-w-none font-normal!"
+                        popoverClassName="w-[var(--radix-popover-trigger-width)] min-w-60"
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <CustomFormField
+                    id="candidateName"
+                    type="text"
+                    placeholder="Candidate"
+                    value={formik.values.candidateName}
+                    onChange={formik.handleChange}
+                    onBlur={formik.handleBlur}
+                    required
+                    disabled
+                    styleClasses={fieldStyleClasses}
+                  />
+                )}
 
                 <div className="grid gap-3 sm:grid-cols-2">
                   <CustomSelectField
@@ -171,6 +319,7 @@ export default function SheetInterviewForm({
                     required
                     options={jobPositionOptions}
                     styleClasses={fieldStyleClasses}
+                    disabled
                   />
                   <CustomSelectField
                     id="interviewType"

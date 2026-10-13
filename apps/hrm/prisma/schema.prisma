@@ -1570,7 +1570,8 @@ model Application {
 
   history ApplicationHistoryEntry[]
 
-  jobPost JobPost @relation(fields: [jobPostId], references: [id])
+  jobPost    JobPost     @relation(fields: [jobPostId], references: [id])
+  interviews Interview[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1594,6 +1595,57 @@ model Application {
   @@index([resumeBankProfileId])
   @@index([createdAt(sort: Desc)])
   @@unique([jobPostId, candidateEmail])
+}
+
+/// Candidate interview against an Application. Wave 6 Interview Schedule.
+model Interview {
+  id            String @id @default(auto()) @map("_id") @db.ObjectId
+  /// Human-readable code from Sequence, e.g. INT-1
+  interviewCode String @unique
+
+  applicationId String @db.ObjectId
+  /// Denormalized Application.applicationId (APP-*).
+  applicationCode String @default("")
+
+  candidateName String
+  jobPostId     String @db.ObjectId
+  /// Denormalized JobPost.jobPostId for list/filter display.
+  jobPostCode   String @default("")
+  jobTitle      String @default("")
+  departmentName String @default("")
+
+  /// Calendar date (time stored separately as HH:mm strings).
+  interviewDate DateTime
+  startTime     String
+  endTime       String
+  interviewerPanel String @default("")
+  /// phone | video | in_person | panel
+  interviewType String
+  location          String @default("")
+  notesToCandidate  String @default("")
+
+  /// scheduled | confirmed | rescheduled | completed | no_show | cancelled
+  status       String  @default("scheduled")
+  cancelReason String?
+
+  application Application @relation(fields: [applicationId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy String?  @db.ObjectId // Auth User.id
+  updatedBy String?  @db.ObjectId // Auth User.id
+
+  @@index([applicationId])
+  @@index([applicationCode])
+  @@index([jobPostId])
+  @@index([jobPostCode])
+  @@index([candidateName])
+  @@index([departmentName])
+  @@index([interviewDate])
+  @@index([interviewType])
+  @@index([status])
+  @@index([interviewerPanel])
+  @@index([createdAt(sort: Desc)])
 }
 
 /// Talent pool profile; independent of JobPost. Wave 4 “add to job” creates Application

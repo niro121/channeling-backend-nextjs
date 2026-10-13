@@ -9,26 +9,36 @@ import { buttonStyles } from '@/lib/utils/common-styles';
 import type {
   InterviewFilters,
   InterviewRecord,
-  InterviewSummary
+  InterviewSummary,
+  VacancySelectOption
 } from '@/types/recruitment';
 import DialogInterviewView from './dialog-interview-view';
 import InterviewScheduleHeaderActions from './header-actions';
 import {
   InterviewScheduleUiProvider,
-  useInterviewScheduleUi
+  useInterviewScheduleUi,
+  type InterviewViewMode
 } from './interview-schedule-ui-context';
 import SectionRegister from './section-register';
 import SectionSummary from './section-summary';
 import SheetInterviewForm from './sheet-interview-form';
-import { SAMPLE_WEEK_START } from './sample-data';
 
-type InterviewScheduleWorkspaceProps = {
+type ApplicationSelectOption = VacancySelectOption & {
+  jobPostId?: string;
+  candidateName?: string;
+};
+
+export type InterviewScheduleWorkspaceProps = {
   initialRecords: InterviewRecord[];
   totalRecords: number;
   summary: InterviewSummary;
   page?: string;
   initialFilters?: InterviewFilters;
   weekStartIso?: string;
+  viewMode?: InterviewViewMode;
+  departmentOptions: VacancySelectOption[];
+  jobPostOptions: VacancySelectOption[];
+  applicationOptions: ApplicationSelectOption[];
 };
 
 function InterviewScheduleWorkspaceInner({
@@ -36,7 +46,10 @@ function InterviewScheduleWorkspaceInner({
   totalRecords,
   summary,
   page,
-  initialFilters
+  initialFilters,
+  departmentOptions,
+  jobPostOptions,
+  applicationOptions
 }: InterviewScheduleWorkspaceProps) {
   const { formSheet, viewRecord, closeFormSheet, closeView } =
     useInterviewScheduleUi();
@@ -56,6 +69,8 @@ function InterviewScheduleWorkspaceInner({
         totalRecords={totalRecords}
         page={page}
         initialFilters={initialFilters}
+        departmentOptions={departmentOptions}
+        jobPostOptions={jobPostOptions}
       />
 
       <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
@@ -86,6 +101,8 @@ function InterviewScheduleWorkspaceInner({
         open={formSheet != null}
         mode={formSheet?.mode ?? 'create'}
         record={formSheet?.record ?? null}
+        jobPostOptions={jobPostOptions}
+        applicationOptions={applicationOptions}
         onOpenChange={(open) => {
           if (!open) closeFormSheet();
         }}
@@ -105,10 +122,16 @@ function InterviewScheduleWorkspaceInner({
 export default function InterviewScheduleWorkspace(
   props: InterviewScheduleWorkspaceProps
 ) {
-  const weekStart = parseISO(props.weekStartIso ?? SAMPLE_WEEK_START);
+  const weekStart = parseISO(
+    props.weekStartIso ?? new Date().toISOString().slice(0, 10)
+  );
 
   return (
-    <InterviewScheduleUiProvider initialWeekStart={weekStart}>
+    <InterviewScheduleUiProvider
+      key={`${props.weekStartIso ?? 'week'}-${props.viewMode ?? 'calendar'}`}
+      initialWeekStart={weekStart}
+      initialViewMode={props.viewMode ?? 'calendar'}
+    >
       <InterviewScheduleWorkspaceInner {...props} />
     </InterviewScheduleUiProvider>
   );

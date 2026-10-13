@@ -11,6 +11,7 @@ import {
 import type { InterviewRecord } from '@/types/recruitment';
 
 export type InterviewFormMode = 'create' | 'reschedule';
+export type InterviewViewMode = 'calendar' | 'list';
 
 type FormSheetState = {
   mode: InterviewFormMode;
@@ -18,8 +19,8 @@ type FormSheetState = {
 };
 
 type InterviewScheduleUiContextValue = {
-  viewMode: 'calendar' | 'list';
-  setViewMode: (mode: 'calendar' | 'list') => void;
+  viewMode: InterviewViewMode;
+  setViewMode: (mode: InterviewViewMode) => void;
   weekStart: Date;
   setWeekStart: (date: Date) => void;
   formSheet: FormSheetState | null;
@@ -37,13 +38,16 @@ const InterviewScheduleUiContext =
 type ProviderProps = {
   children: ReactNode;
   initialWeekStart: Date;
+  initialViewMode?: InterviewViewMode;
 };
 
 export function InterviewScheduleUiProvider({
   children,
-  initialWeekStart
+  initialWeekStart,
+  initialViewMode = 'calendar'
 }: ProviderProps) {
-  const [viewMode, setViewMode] = useState<'calendar' | 'list'>('calendar');
+  const [viewMode, setViewMode] =
+    useState<InterviewViewMode>(initialViewMode);
   const [weekStart, setWeekStart] = useState(initialWeekStart);
   const [formSheet, setFormSheet] = useState<FormSheetState | null>(null);
   const [viewRecord, setViewRecord] = useState<InterviewRecord | null>(null);

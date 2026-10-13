@@ -375,6 +375,7 @@ export function isJobPostEditable(status: JobPostStatus): boolean {
 
 /** Sequence / record-code prefix → codes like APP-1 (see generateRecordCode). */
 export const APPLICATION_CODE_PREFIX = 'APP';
+export const INTERVIEW_CODE_PREFIX = 'INT';
 
 /** Pipeline position in recruitment. */
 export const APPLICATION_STAGES = [
@@ -587,6 +588,8 @@ export const EMPTY_APPLICATION_FORM: ApplicationFormValues = {
 };
 
 export type ScheduleInterviewFormValues = {
+  /** Application Mongo ObjectId — required on create. */
+  applicationRefId: string;
   candidateName: string;
   jobPostId: string;
   interviewType: string;
@@ -599,6 +602,7 @@ export type ScheduleInterviewFormValues = {
 };
 
 export const EMPTY_SCHEDULE_INTERVIEW_FORM: ScheduleInterviewFormValues = {
+  applicationRefId: '',
   candidateName: '',
   jobPostId: '',
   interviewType: '',
@@ -863,10 +867,16 @@ export type InterviewRecord = {
   id: string;
   interviewCode: string;
   candidateName: string;
+  /** Application Mongo ObjectId */
+  applicationRefId: string;
+  /** Denormalized Application.applicationId, e.g. APP-1 */
   applicationId: string;
+  /** JobPost Mongo ObjectId */
   jobPostId: string;
+  jobPostCode: string;
   jobTitle: string;
   department: string;
+  /** yyyy-MM-dd */
   interviewDate: string;
   startTime: string;
   endTime: string;
@@ -875,6 +885,7 @@ export type InterviewRecord = {
   location: string;
   notesToCandidate: string;
   status: InterviewStatus;
+  cancelReason?: string;
   createdAt: string;
   createdBy: string;
   updatedAt: string;
@@ -896,6 +907,34 @@ export type InterviewFilters = {
   interviewType?: string;
   status?: string;
   search?: string;
+};
+
+export type GetInterviewsParams = InterviewFilters & {
+  page?: string;
+  limit?: string;
+  /** Inclusive week start (yyyy-MM-dd Monday) — optional calendar window. */
+  weekStart?: string;
+};
+
+export type InterviewPayload = {
+  applicationId: string;
+  interviewType: InterviewType | string;
+  interviewDate: Date | string;
+  startTime: string;
+  endTime: string;
+  interviewerPanel: string;
+  location?: string;
+  notesToCandidate?: string;
+};
+
+export type RescheduleInterviewPayload = {
+  interviewType: InterviewType | string;
+  interviewDate: Date | string;
+  startTime: string;
+  endTime: string;
+  interviewerPanel: string;
+  location?: string;
+  notesToCandidate?: string;
 };
 
 export function canRescheduleInterview(record: InterviewRecord): boolean {

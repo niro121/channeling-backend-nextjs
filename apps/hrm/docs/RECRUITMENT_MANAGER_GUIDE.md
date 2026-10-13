@@ -220,7 +220,7 @@ AppointmentLetter *──1 Evaluation (or Application)
 | **JobPost** | `vacancyRequestIds[]` + `linkedVacancies[]` snapshots; slug; short/full description; skills; publish / unpublish / close; public DTO source. Openings default to sum of linked vacancies. |
 | **ResumeBankProfile** | `profileId` (RB-*); contact + skills + preferred role/dept; `resumeFileName` / `resumeFileKey` (key in Wave 10); `linkedApplicationIds[]`; status `in_bank` \| `linked` \| `shortlisted` |
 | **Application** | `applicationId` (APP-*); FK `jobPostId` + denormalized `jobPostCode` / title / dept / designation; optional `resumeBankProfileId`; `currentStage` vs `status`; Wave 5 shortlisting fields `shortlistStatus` (`to_review` \| `shortlisted` \| `on_hold` \| `rejected`), `screeningScore`, `qualifications` / `skills`, `holdReason`; embedded `history[]`; `source` (`hospital_website` \| `resume_bank` \| …); unique `(jobPostId, candidateEmail)`; CV `resumeFileName` / `resumeFileKey`. **No separate Shortlisting model** — `/shortlisting` is a mid-pipeline view over Application. |
-| **Interview** | `interviewCode`; date/time; panel; type; location; status |
+| **Interview** | `interviewCode` (INT-*); FK `applicationId` + denormalized APP/JP codes; date + start/end time; panel; type; location; notes; status (`scheduled` \| `confirmed` \| `rescheduled` \| `completed` \| `no_show` \| `cancelled`); `cancelReason` |
 | **Evaluation** | `ratings` JSON; strengths/weaknesses/comments; recommendation / finalDecision; overallScore |
 | **AppointmentLetter** | `letterNumber`; salary; dates; `letterGenerated`; status; file refs |
 
@@ -268,7 +268,7 @@ All under `app/(dashboard)/(recruitment)/`.
 
 | Concern | Detail |
 |---------|--------|
-| Actions | Create Sheet; view; resume file (S3 when key present); shortlist / reject (+ reason + history); schedule Sheet (Interview create in Wave 6) |
+| Actions | Create Sheet; view; resume file (S3 when key present); shortlist / reject (+ reason + history); schedule Sheet → creates Interview |
 | Stage vs status | `ApplicationStage` pipeline vs `ApplicationStatus` lifecycle |
 | Sources | Manual HRM entry; Resume Bank add-to-job; later Public Careers API |
 | Export | Server re-query with active filters |
@@ -292,17 +292,19 @@ All under `app/(dashboard)/(recruitment)/`.
 | Views | Table only; row selection + Compare CustomDialog (N ≥ 2) |
 | Status | `to_review` · `shortlisted` · `on_hold` · `rejected` |
 | Score bar | ≥80 green · 50–79 amber · &lt;50 red |
-| Actions | View, history, shortlist, hold, reject (+ reason), resume, schedule (Interview create in Wave 6) |
+| Actions | View, history, shortlist, hold, reject (+ reason), resume, schedule → creates Interview |
 | Service | `shortlisting.service.ts` + actions; shortlist/reject reuse Application service |
 | Footer | Resume Bank ← → Interview Schedule |
 
-### 6.6 Interview Schedule — `/interview-schedule`
+### 6.6 Interview Schedule — `/interview-schedule` (Wave 6 — dynamized)
 
 | Concern | Detail |
 |---------|--------|
+| Persistence | `Interview` model (`INT-*`); FK to Application; create sets Application stage → `interview` |
 | Views | Calendar (default) + List; Prev/Next week (Mon–Fri) |
 | Actions | Reschedule Sheet, cancel (+ reason), view, evaluation (star → `/evaluation?interviewId=`) |
-| Create | Header **+ Schedule Interview** Sheet |
+| Create | Header **+ Schedule Interview** Sheet; also from Applications / Shortlisting schedule sheets |
+| Service | `interview.service.ts` + `interview.actions.ts` |
 | Footer | Shortlisting ← → Evaluation |
 
 ### 6.7 Evaluation — `/evaluation`

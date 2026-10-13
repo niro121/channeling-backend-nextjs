@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
   CalendarClock,
@@ -21,6 +22,7 @@ import {
   Textarea,
   useToast
 } from '@archmage/ui';
+import { cancelInterviewAction } from '@/app/actions/recruitment-actions/interview.actions';
 import { usePermissions } from '@/components/hooks/use-permissions';
 import { buttonStyles } from '@/lib/utils/common-styles';
 import {
@@ -39,6 +41,7 @@ export default function InterviewRecordActions({
   record
 }: InterviewRecordActionsProps) {
   const { toast } = useToast();
+  const router = useRouter();
   const { has } = usePermissions();
   const { openView, openReschedule } = useInterviewScheduleUi();
 
@@ -57,6 +60,36 @@ export default function InterviewRecordActions({
     ) : (
       <Star className="h-4 w-4" />
     );
+
+  const handleCancel = async () => {
+    setLoading(true);
+    try {
+      const result = await cancelInterviewAction(
+        record.id,
+        cancelReason.trim() || undefined
+      );
+      if (result.isError) {
+        toast({
+          variant: 'destructive',
+          title: 'Cancel failed',
+          description:
+            (result.errors as { message?: string })?.message ??
+            'Unable to cancel interview.'
+        });
+        return;
+      }
+      toast({
+        variant: 'success',
+        title: 'Cancelled',
+        description: `${record.interviewCode} was cancelled.`
+      });
+      setCancelOpen(false);
+      setCancelReason('');
+      router.refresh();
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <>
@@ -164,20 +197,7 @@ export default function InterviewRecordActions({
               type="button"
               className={buttonStyles.delete.danger}
               disabled={loading}
-              onClick={() => {
-                setLoading(true);
-                toast({
-                  title: 'Not saved',
-                  description: `Cancel ${record.interviewCode}${
-                    cancelReason.trim()
-                      ? ` (${cancelReason.trim()})`
-                      : ''
-                  } will be wired in the workflow phase.`
-                });
-                setLoading(false);
-                setCancelOpen(false);
-                setCancelReason('');
-              }}
+              onClick={handleCancel}
             >
               Cancel Interview
             </Button>

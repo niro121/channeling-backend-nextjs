@@ -1,22 +1,25 @@
 import { redirect } from 'next/navigation';
 import { getServerSession } from 'next-auth';
+import { startOfWeek, format } from 'date-fns';
 import { checkRouteAccess } from '@/lib/server-permissions';
 import { authOptions } from '@/lib/auth';
 import { logActivityNonBlocking } from '@/lib/activity-log';
+import {
+  getInterviewFormOptionsAction,
+  getInterviewSummaryAction,
+  getInterviewsAction
+} from '@/app/actions/recruitment-actions/interview.actions';
 import type {
   InterviewFilters,
-  InterviewRecord
+  InterviewSummary,
+  VacancySelectOption
 } from '@/types/recruitment';
 import InterviewScheduleWorkspace from './interview-schedule-workspace';
-import {
-  SAMPLE_INTERVIEWS,
-  SAMPLE_INTERVIEW_SUMMARY,
-  SAMPLE_WEEK_START
-} from './sample-data';
 
 type SearchParams = {
   searchParams?: Promise<{
     page?: string;
+    view?: string;
     interviewDate?: string;
     interviewer?: string;
     department?: string;
@@ -34,55 +37,12 @@ function normalizeFilter(value?: string): string | undefined {
   return trimmed || undefined;
 }
 
-function filterInterviews(
-  records: InterviewRecord[],
-  filters: InterviewFilters
-): InterviewRecord[] {
-  const interviewer = filters.interviewer?.toLowerCase();
-  const department = filters.department?.toLowerCase();
-  const jobPostId = filters.jobPostId?.toLowerCase();
-  const interviewType = filters.interviewType?.toLowerCase();
-  const status = filters.status?.toLowerCase();
-  const search = filters.search?.toLowerCase();
-
-  return records.filter((row) => {
-    if (
-      filters.interviewDate &&
-      row.interviewDate !== filters.interviewDate
-    ) {
-      return false;
-    }
-    if (
-      interviewer &&
-      !row.interviewerPanel.toLowerCase().includes(interviewer)
-    ) {
-      return false;
-    }
-    if (department && row.department.toLowerCase() !== department) {
-      return false;
-    }
-    if (jobPostId && row.jobPostId.toLowerCase() !== jobPostId) return false;
-    if (interviewType && row.interviewType.toLowerCase() !== interviewType) {
-      return false;
-    }
-    if (status && row.status.toLowerCase() !== status) return false;
-    if (search) {
-      const haystack = [
-        row.interviewCode,
-        row.candidateName,
-        row.jobTitle,
-        row.department,
-        row.interviewerPanel,
-        row.location,
-        row.applicationId
-      ]
-        .join(' ')
-        .toLowerCase();
-      if (!haystack.includes(search)) return false;
-    }
-    return true;
-  });
-}
+const EMPTY_SUMMARY: InterviewSummary = {
+  thisWeek: 0,
+  confirmed: 0,
+  rescheduled: 0,
+  noShow: 0
+};
 
 export default async function InterviewSchedulePage({
   searchParams
@@ -97,7 +57,7 @@ export default async function InterviewSchedulePage({
     logActivityNonBlocking({
       userId: session.user.id,
       action: 'interview_schedule.visited',
-      entityType: 'InterviewSchedule',
+      entityType: 'Interview',
       importance: 'low'
     });
   }
@@ -113,16 +73,62 @@ export default async function InterviewSchedulePage({
     search: normalizeFilter(params?.search)
   };
 
-  const filtered = filterInterviews(SAMPLE_INTERVIEWS, filters);
+  const defaultWeekStart = format(
+    startOfWeek(new Date(), { weekStartsOn: 1 }),
+    'yyyy-MM-dd'
+  );
+  const weekStartIso = params?.weekStart ?? defaultWeekStart;
+  const viewMode = params?.view === 'list' ? 'list' : 'calendar';
+
+  // Calendar: load the full Mon–Fri week window.
+  // List: paginate within that same week (or interviewDate filter).
+  const listQuery =
+    viewMode === 'list'
+      ? {
+          page: params?.page,
+          limit: process.env.DEFAULT_PER_PAGE
+        }
+      : {
+          page: '1',
+          limit: process.env.DEFAULT_PAGE_SIZE ?? process.env.DEFAULT_PER_PAGE
+        };
+
+  const [listRes, summaryRes, optionsRes] = await Promise.all([
+    getInterviewsAction({
+      ...filters,
+      ...listQuery,
+      // Exact-day filter wins in the service; otherwise scope to the active week.
+      weekStart: filters.interviewDate ? undefined : weekStartIso
+    }),
+    getInterviewSummaryAction(),
+    getInterviewFormOptionsAction()
+  ]);
+
+  const records = listRes.isError ? [] : (listRes.data?.data ?? []);
+  const totalRecords = listRes.isError
+    ? 0
+    : (listRes.data?.totalRecords ?? 0);
+  const summary = summaryRes.isError
+    ? EMPTY_SUMMARY
+    : (summaryRes.data ?? EMPTY_SUMMARY);
+  const departmentOptions: VacancySelectOption[] =
+    optionsRes.data?.departments ?? [];
+  const jobPostOptions: VacancySelectOption[] =
+    optionsRes.data?.jobPosts ?? [];
+  const applicationOptions = optionsRes.data?.applications ?? [];
 
   return (
     <InterviewScheduleWorkspace
-      initialRecords={filtered}
-      totalRecords={filtered.length}
-      summary={SAMPLE_INTERVIEW_SUMMARY}
+      initialRecords={records}
+      totalRecords={totalRecords}
+      summary={summary}
       page={params?.page}
       initialFilters={filters}
-      weekStartIso={params?.weekStart ?? SAMPLE_WEEK_START}
+      weekStartIso={weekStartIso}
+      viewMode={viewMode}
+      departmentOptions={departmentOptions}
+      jobPostOptions={jobPostOptions}
+      applicationOptions={applicationOptions}
     />
   );
 }
