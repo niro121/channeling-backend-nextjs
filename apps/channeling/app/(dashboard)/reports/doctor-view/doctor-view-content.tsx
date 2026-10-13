@@ -87,6 +87,32 @@ export default function DoctorViewReportContent({
 
   const handlePrint = () => {
     if (!sessionData) return;
+    const styleId = 'doctor-view-print-page';
+    let el = document.getElementById(styleId) as HTMLStyleElement | null;
+    if (!el) {
+      el = document.createElement('style');
+      el.id = styleId;
+      document.head.appendChild(el);
+    }
+    el.textContent = `
+      @media print {
+        @page {
+          size: auto;
+          margin: 8mm 10mm;
+          @top-left { content: ""; }
+          @top-center { content: ""; }
+          @top-right { content: ""; }
+          @bottom-left { content: ""; }
+          @bottom-right { content: ""; }
+        }
+      }
+    `;
+    document.body.classList.add('print-doctor-view');
+    const cleanup = () => {
+      document.body.classList.remove('print-doctor-view');
+      el?.remove();
+    };
+    window.addEventListener('afterprint', cleanup, { once: true });
     window.print();
   };
 
@@ -197,16 +223,22 @@ export default function DoctorViewReportContent({
   return (
     <div className="doctor-view-print-root container mx-auto py-6 space-y-6 print:py-0">
       <style>{`
+        .doctor-view-dot-header { display: none; }
         @media print {
-          .doctor-view-print-root,
-          .doctor-view-print-root.container {
+          body.print-doctor-view .doctor-view-print-root,
+          body.print-doctor-view .doctor-view-print-root.container {
             width: 100% !important;
             max-width: none !important;
             margin: 0 !important;
-            padding: 0 !important;
+            padding: 2mm 4mm !important;
+            background: #fff !important;
+            color: #000 !important;
+            font-family: "Courier New", Courier, monospace !important;
+            font-size: 12px !important;
+            line-height: 1.3 !important;
           }
-          .doctor-view-print-root > .print\\:shadow-none,
-          .doctor-view-print-root [class*="p-6"] {
+          body.print-doctor-view .doctor-view-print-root > .print\\:shadow-none,
+          body.print-doctor-view .doctor-view-print-root [class*="p-6"] {
             width: 100% !important;
             max-width: none !important;
             margin: 0 !important;
@@ -215,58 +247,108 @@ export default function DoctorViewReportContent({
             box-shadow: none !important;
             background: #fff !important;
           }
-          .doctor-view-print-root .rpt-print-root,
-          .doctor-view-print-root .rpt-print-header,
-          .doctor-view-print-root .rpt-print-summary,
-          .doctor-view-print-root .rpt-print-body {
+          body.print-doctor-view .doctor-view-print-root .rpt-print-header {
+            display: none !important;
+          }
+          body.print-doctor-view .doctor-view-dot-header {
+            display: block !important;
+            margin: 0 0 6px !important;
+            color: #000 !important;
+            background: #fff !important;
+          }
+          body.print-doctor-view .doctor-view-dot-header .print-title {
+            text-align: center !important;
+            font-weight: 700 !important;
+            font-size: 16px !important;
+            letter-spacing: 0.04em !important;
+            margin: 0 0 4px !important;
+          }
+          body.print-doctor-view .doctor-view-dot-header p {
+            margin: 0 !important;
+          }
+          body.print-doctor-view .doctor-view-dot-header .dv-label {
+            display: inline-block !important;
+            width: 7.2rem !important;
+          }
+          body.print-doctor-view .doctor-view-print-root .rpt-print-root,
+          body.print-doctor-view .doctor-view-print-root .rpt-print-body {
             width: 100% !important;
             max-width: none !important;
-            margin-left: 0 !important;
-            margin-right: 0 !important;
+            margin: 0 !important;
+            color: #000 !important;
+            background: #fff !important;
+            font-family: "Courier New", Courier, monospace !important;
             box-sizing: border-box !important;
           }
-          .doctor-view-print-root .overflow-x-auto,
-          .doctor-view-print-root .rounded-md {
+          body.print-doctor-view .doctor-view-print-root .overflow-x-auto,
+          body.print-doctor-view .doctor-view-print-root .rounded-md {
             overflow: visible !important;
             width: 100% !important;
             max-width: none !important;
+            border: 0 !important;
             border-radius: 0 !important;
             box-shadow: none !important;
           }
-          .doctor-view-print-root .rpt-print-root table.dv-print-table {
+          body.print-doctor-view .doctor-view-print-root .rpt-print-root table.dv-print-table {
             width: 100% !important;
             max-width: 100% !important;
             table-layout: fixed !important;
             border-collapse: collapse !important;
           }
-          .doctor-view-print-root .rpt-print-root table.dv-print-table thead {
+          body.print-doctor-view .doctor-view-print-root .rpt-print-root table.dv-print-table thead {
             display: table-header-group !important;
           }
-          .doctor-view-print-root .rpt-print-root table.dv-print-table th,
-          .doctor-view-print-root .rpt-print-root table.dv-print-table td {
+          body.print-doctor-view .doctor-view-print-root .rpt-print-root table.dv-print-table th,
+          body.print-doctor-view .doctor-view-print-root .rpt-print-root table.dv-print-table td {
+            border: 0 !important;
+            border-top: 1px solid #000 !important;
+            background: #fff !important;
+            color: #000 !important;
+            padding: 1px 2px !important;
+            font-family: "Courier New", Courier, monospace !important;
+            font-size: 11px !important;
+            font-weight: 400 !important;
+            line-height: 1.3 !important;
             overflow: hidden !important;
             word-break: break-word !important;
             overflow-wrap: anywhere !important;
+            white-space: normal !important;
             box-sizing: border-box !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
           }
-          .doctor-view-print-root .rpt-print-root table.dv-print-table th:nth-child(1),
-          .doctor-view-print-root .rpt-print-root table.dv-print-table td:nth-child(1) { width: 7% !important; }
-          .doctor-view-print-root .rpt-print-root table.dv-print-table th:nth-child(2),
-          .doctor-view-print-root .rpt-print-root table.dv-print-table td:nth-child(2) { width: 18% !important; }
-          .doctor-view-print-root .rpt-print-root table.dv-print-table th:nth-child(3),
-          .doctor-view-print-root .rpt-print-root table.dv-print-table td:nth-child(3) { width: 12% !important; }
-          .doctor-view-print-root .rpt-print-root table.dv-print-table th:nth-child(4),
-          .doctor-view-print-root .rpt-print-root table.dv-print-table td:nth-child(4) { width: 18% !important; }
-          .doctor-view-print-root .rpt-print-root table.dv-print-table th:nth-child(5),
-          .doctor-view-print-root .rpt-print-root table.dv-print-table td:nth-child(5) { width: 10% !important; }
-          .doctor-view-print-root .rpt-print-root table.dv-print-table th:nth-child(6),
-          .doctor-view-print-root .rpt-print-root table.dv-print-table td:nth-child(6) { width: 6% !important; }
-          .doctor-view-print-root .rpt-print-root table.dv-print-table th:nth-child(7),
-          .doctor-view-print-root .rpt-print-root table.dv-print-table td:nth-child(7) { width: 7% !important; }
-          .doctor-view-print-root .rpt-print-root table.dv-print-table th:nth-child(8),
-          .doctor-view-print-root .rpt-print-root table.dv-print-table td:nth-child(8) { width: 11% !important; }
-          .doctor-view-print-root .rpt-print-root table.dv-print-table th:nth-child(9),
-          .doctor-view-print-root .rpt-print-root table.dv-print-table td:nth-child(9) { width: 11% !important; }
+          body.print-doctor-view .doctor-view-print-root .rpt-print-root table.dv-print-table thead th {
+            font-weight: 700 !important;
+            background: #fff !important;
+          }
+          body.print-doctor-view .doctor-view-print-root .rpt-print-root table.dv-print-table tbody tr:last-child td {
+            border-bottom: 1px solid #000 !important;
+          }
+          body.print-doctor-view .doctor-view-print-root .rpt-print-root table.dv-print-table th *,
+          body.print-doctor-view .doctor-view-print-root .rpt-print-root table.dv-print-table td * {
+            color: #000 !important;
+            font-family: inherit !important;
+            font-size: inherit !important;
+            line-height: inherit !important;
+          }
+          body.print-doctor-view .doctor-view-print-root .rpt-print-root table.dv-print-table th:nth-child(1),
+          body.print-doctor-view .doctor-view-print-root .rpt-print-root table.dv-print-table td:nth-child(1) { width: 7% !important; }
+          body.print-doctor-view .doctor-view-print-root .rpt-print-root table.dv-print-table th:nth-child(2),
+          body.print-doctor-view .doctor-view-print-root .rpt-print-root table.dv-print-table td:nth-child(2) { width: 18% !important; }
+          body.print-doctor-view .doctor-view-print-root .rpt-print-root table.dv-print-table th:nth-child(3),
+          body.print-doctor-view .doctor-view-print-root .rpt-print-root table.dv-print-table td:nth-child(3) { width: 12% !important; }
+          body.print-doctor-view .doctor-view-print-root .rpt-print-root table.dv-print-table th:nth-child(4),
+          body.print-doctor-view .doctor-view-print-root .rpt-print-root table.dv-print-table td:nth-child(4) { width: 18% !important; }
+          body.print-doctor-view .doctor-view-print-root .rpt-print-root table.dv-print-table th:nth-child(5),
+          body.print-doctor-view .doctor-view-print-root .rpt-print-root table.dv-print-table td:nth-child(5) { width: 10% !important; }
+          body.print-doctor-view .doctor-view-print-root .rpt-print-root table.dv-print-table th:nth-child(6),
+          body.print-doctor-view .doctor-view-print-root .rpt-print-root table.dv-print-table td:nth-child(6) { width: 6% !important; }
+          body.print-doctor-view .doctor-view-print-root .rpt-print-root table.dv-print-table th:nth-child(7),
+          body.print-doctor-view .doctor-view-print-root .rpt-print-root table.dv-print-table td:nth-child(7) { width: 7% !important; }
+          body.print-doctor-view .doctor-view-print-root .rpt-print-root table.dv-print-table th:nth-child(8),
+          body.print-doctor-view .doctor-view-print-root .rpt-print-root table.dv-print-table td:nth-child(8) { width: 11% !important; }
+          body.print-doctor-view .doctor-view-print-root .rpt-print-root table.dv-print-table th:nth-child(9),
+          body.print-doctor-view .doctor-view-print-root .rpt-print-root table.dv-print-table td:nth-child(9) { width: 11% !important; }
         }
       `}</style>
       <Card className="print:shadow-none print:border-none">
@@ -332,7 +414,7 @@ export default function DoctorViewReportContent({
           </div>
         </CardHeader>
         <CardContent className="print:p-0">
-          {/* Header Information (screen only — print uses ReportPrintLayout summary) */}
+          {/* Header stays on screen. Print uses the compact dot-matrix header. */}
           <div className="mb-6 space-y-2 text-center print:hidden">
             <div className="font-bold text-lg">
               {sessionData.location?.name || 'Ruhunu Hospital (Pvt) Ltd'}
@@ -369,6 +451,31 @@ export default function DoctorViewReportContent({
             generatedAt={new Date().toLocaleString()}
             summaryItems={printSummaryItems}
           >
+          <div className="doctor-view-dot-header font-mono text-[11px] leading-snug text-black">
+            <p className="print-title">DOCTOR VIEW REPORT</p>
+            <p>
+              <span className="dv-label">BRANCH</span>:{' '}
+              {sessionData.location?.name || 'Ruhunu Hospital (Pvt) Ltd'}
+            </p>
+            {sessionData.location?.address ? (
+              <p>
+                <span className="dv-label">ADDRESS</span>: {sessionData.location.address}
+              </p>
+            ) : null}
+            <p>
+              <span className="dv-label">CONSULTANT</span>:{' '}
+              {sessionData.doctor
+                ? `${sessionData.doctor.title} ${sessionData.doctor.name}`.trim()
+                : '-'}
+            </p>
+            <p>
+              <span className="dv-label">DATE</span>: {formatDate(sessionData.date)}
+            </p>
+            <p>
+              <span className="dv-label">SESSION</span>:{' '}
+              {formatSessionName(sessionData.date, sessionData.startTime)}
+            </p>
+          </div>
           <div className="mt-6 print:mt-0">
             <div className="rounded-md border overflow-x-auto">
               <table className="dv-print-table w-full border-collapse">
