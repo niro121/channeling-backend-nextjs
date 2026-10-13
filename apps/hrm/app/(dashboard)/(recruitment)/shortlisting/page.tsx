@@ -3,15 +3,23 @@ import { getServerSession } from 'next-auth';
 import { checkRouteAccess } from '@/lib/server-permissions';
 import { authOptions } from '@/lib/auth';
 import { logActivityNonBlocking } from '@/lib/activity-log';
-import type {
-  ShortlistingFilters,
-  ShortlistingRecord
+import { formatDate, formatDateTime } from '@/lib/utils/date';
+import {
+  getShortlistingAction,
+  getShortlistingExport,
+  getShortlistingFormOptionsAction,
+  getShortlistingSummaryAction
+} from '@/app/actions/recruitment-actions/shortlisting.actions';
+import {
+  APPLICATION_STAGE_LABELS,
+  SHORTLISTING_STATUS_LABELS,
+  type ApplicationStage,
+  type ShortlistingFilters,
+  type ShortlistingStatus,
+  type ShortlistingSummary,
+  type VacancySelectOption
 } from '@/types/recruitment';
 import ShortlistingWorkspace from './shortlisting-workspace';
-import {
-  SAMPLE_SHORTLISTING,
-  SAMPLE_SHORTLISTING_SUMMARY
-} from './sample-data';
 
 type SearchParams = {
   searchParams?: Promise<{
@@ -33,76 +41,12 @@ function normalizeFilter(value?: string): string | undefined {
   return trimmed || undefined;
 }
 
-function matchesExperience(years: number, experience?: string): boolean {
-  if (!experience) return true;
-  switch (experience) {
-    case '0-1':
-      return years >= 0 && years <= 1;
-    case '1-3':
-      return years > 1 && years <= 3;
-    case '3-5':
-      return years > 3 && years <= 5;
-    case '5+':
-      return years > 5;
-    default:
-      return true;
-  }
-}
-
-function filterShortlisting(
-  records: ShortlistingRecord[],
-  filters: ShortlistingFilters
-): ShortlistingRecord[] {
-  const jobPostId = filters.jobPostId?.toLowerCase();
-  const department = filters.department?.toLowerCase();
-  const designation = filters.designation?.toLowerCase();
-  const candidateName = filters.candidateName?.toLowerCase();
-  const status = filters.status?.toLowerCase();
-  const search = filters.search?.toLowerCase();
-
-  return records.filter((row) => {
-    if (jobPostId && row.jobPostId.toLowerCase() !== jobPostId) return false;
-    if (department && row.department.toLowerCase() !== department) {
-      return false;
-    }
-    if (designation && row.designation.toLowerCase() !== designation) {
-      return false;
-    }
-    if (
-      candidateName &&
-      !row.candidateName.toLowerCase().includes(candidateName)
-    ) {
-      return false;
-    }
-    if (
-      filters.applicationDate &&
-      row.appliedDate !== filters.applicationDate
-    ) {
-      return false;
-    }
-    if (!matchesExperience(row.experienceYears, filters.experience)) {
-      return false;
-    }
-    if (status && row.shortlistStatus.toLowerCase() !== status) return false;
-    if (search) {
-      const haystack = [
-        row.applicationId,
-        row.candidateName,
-        row.jobTitle,
-        row.department,
-        row.designation,
-        row.qualifications,
-        row.skills.join(' '),
-        row.shortlistStatus,
-        row.currentStage
-      ]
-        .join(' ')
-        .toLowerCase();
-      if (!haystack.includes(search)) return false;
-    }
-    return true;
-  });
-}
+const EMPTY_SUMMARY: ShortlistingSummary = {
+  toReview: 0,
+  shortlisted: 0,
+  onHold: 0,
+  avgScreeningScore: 0
+};
 
 export default async function ShortlistingPage({
   searchParams
@@ -117,7 +61,7 @@ export default async function ShortlistingPage({
     logActivityNonBlocking({
       userId: session.user.id,
       action: 'shortlisting.visited',
-      entityType: 'Shortlisting',
+      entityType: 'Application',
       importance: 'low'
     });
   }
@@ -134,21 +78,91 @@ export default async function ShortlistingPage({
     search: normalizeFilter(params?.search)
   };
 
-  const filtered = filterShortlisting(SAMPLE_SHORTLISTING, filters);
-  const pageSize = process.env.DEFAULT_PER_PAGE
-    ? Number(process.env.DEFAULT_PER_PAGE)
-    : 10;
-  const pageNumber = params?.page ? Math.max(1, Number(params.page) || 1) : 1;
-  const start = (pageNumber - 1) * pageSize;
-  const pageRecords = filtered.slice(start, start + pageSize);
+  const [listRes, summaryRes, optionsRes] = await Promise.all([
+    getShortlistingAction({
+      ...filters,
+      page: params?.page,
+      limit: process.env.DEFAULT_PER_PAGE
+    }),
+    getShortlistingSummaryAction(),
+    getShortlistingFormOptionsAction()
+  ]);
+
+  const records = listRes.isError ? [] : (listRes.data?.data ?? []);
+  const totalRecords = listRes.isError
+    ? 0
+    : (listRes.data?.totalRecords ?? 0);
+  const summary = summaryRes.isError
+    ? EMPTY_SUMMARY
+    : (summaryRes.data ?? EMPTY_SUMMARY);
+  const departmentOptions: VacancySelectOption[] =
+    optionsRes.data?.departments ?? [];
+  const designationOptions: VacancySelectOption[] =
+    optionsRes.data?.designations ?? [];
+  const jobPostOptions: VacancySelectOption[] =
+    optionsRes.data?.jobPosts ?? [];
+
+  const handleExport = async () => {
+    'use server';
+
+    const exportResponse = await getShortlistingExport({
+      jobPostId: filters.jobPostId,
+      department: filters.department,
+      designation: filters.designation,
+      candidateName: filters.candidateName,
+      applicationDate: filters.applicationDate,
+      experience: filters.experience,
+      status: filters.status,
+      search: filters.search
+    });
+
+    if (!exportResponse.success || !exportResponse.data?.length) {
+      return {
+        success: false,
+        message: exportResponse.success
+          ? 'No candidates found'
+          : exportResponse.message
+      };
+    }
+
+    return {
+      success: true,
+      data: exportResponse.data.map((row) => ({
+        candidateName: row.candidateName || '-',
+        applicationId: row.applicationId || '-',
+        jobTitle: row.jobTitle || '-',
+        qualifications: row.qualifications || '-',
+        experienceYears: `${row.experienceYears} yrs`,
+        skills: row.skills?.length ? row.skills.join(', ') : '-',
+        appliedDate: row.appliedDate ? formatDate(row.appliedDate) : '-',
+        screeningScore: row.screeningScore,
+        currentStage:
+          APPLICATION_STAGE_LABELS[row.currentStage as ApplicationStage] ??
+          row.currentStage ??
+          '-',
+        shortlistStatus:
+          SHORTLISTING_STATUS_LABELS[
+            row.shortlistStatus as ShortlistingStatus
+          ] ??
+          row.shortlistStatus ??
+          '-',
+        createdAt: row.createdAt ? formatDateTime(row.createdAt) : '-',
+        updatedAt: row.updatedAt ? formatDateTime(row.updatedAt) : '-'
+      }))
+    };
+  };
 
   return (
     <ShortlistingWorkspace
-      initialRecords={pageRecords}
-      totalRecords={filtered.length}
-      summary={SAMPLE_SHORTLISTING_SUMMARY}
+      initialRecords={records}
+      totalRecords={totalRecords}
+      summary={summary}
       page={params?.page}
       initialFilters={filters}
+      departmentOptions={departmentOptions}
+      designationOptions={designationOptions}
+      jobPostOptions={jobPostOptions}
+      onExport={handleExport}
     />
   );
 }

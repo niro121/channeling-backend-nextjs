@@ -421,6 +421,23 @@ export const APPLICATION_STATUS_LABELS: Record<ApplicationStatus, string> = {
   hired: 'Hired'
 };
 
+/** Shortlisting lane on Application (Wave 5) — distinct from pipeline stage. */
+export const SHORTLISTING_STATUSES = [
+  'to_review',
+  'shortlisted',
+  'on_hold',
+  'rejected'
+] as const;
+
+export type ShortlistingStatus = (typeof SHORTLISTING_STATUSES)[number];
+
+export const SHORTLISTING_STATUS_LABELS: Record<ShortlistingStatus, string> = {
+  to_review: 'To Review',
+  shortlisted: 'Shortlisted',
+  on_hold: 'On Hold',
+  rejected: 'Rejected'
+};
+
 export const APPLICATION_SOURCES = [
   'hospital_website',
   'newspaper',
@@ -475,16 +492,25 @@ export type ApplicationRecord = {
   jobPostCode: string;
   jobTitle: string;
   department: string;
+  designation: string;
+  /** Denormalized JobPost.designationId when present */
+  designationId?: string | null;
   appliedDate: string;
   experienceYears: number;
+  qualifications: string;
+  skills: string[];
   source: ApplicationSource;
   currentStage: ApplicationStage;
   status: ApplicationStatus;
+  /** Shortlisting lane — Wave 5 */
+  shortlistStatus: ShortlistingStatus;
+  screeningScore: number;
   resumeFileName: string;
   resumeFileKey?: string | null;
   resumeBankProfileId?: string | null;
   notes: string;
   rejectReason?: string;
+  holdReason?: string;
   history: ApplicationHistoryEntry[];
   createdAt: string;
   createdBy: string;
@@ -525,12 +551,15 @@ export type ApplicationPayload = {
   candidateEmail: string;
   candidatePhone?: string;
   experienceYears?: number | string;
+  qualifications?: string;
+  skills?: string[];
   jobPostId: string;
   source: ApplicationSource | string;
   notes?: string;
   resumeFileName?: string;
   resumeFileKey?: string | null;
   resumeBankProfileId?: string | null;
+  screeningScore?: number | string;
 };
 
 export type ApplicationFormValues = {
@@ -753,30 +782,8 @@ export function canMoveResumeToShortlisting(
 
 // ─── Shortlisting ────────────────────────────────────────────────────────────
 
-export const SHORTLISTING_STATUSES = [
-  'to_review',
-  'shortlisted',
-  'on_hold',
-  'rejected'
-] as const;
-
-export type ShortlistingStatus = (typeof SHORTLISTING_STATUSES)[number];
-
-export const SHORTLISTING_STATUS_LABELS: Record<ShortlistingStatus, string> = {
-  to_review: 'To Review',
-  shortlisted: 'Shortlisted',
-  on_hold: 'On Hold',
-  rejected: 'Rejected'
-};
-
-/** Application mid-pipeline row enriched for the Shortlisting register. */
-export type ShortlistingRecord = ApplicationRecord & {
-  qualifications: string;
-  skills: string[];
-  screeningScore: number;
-  shortlistStatus: ShortlistingStatus;
-  designation: string;
-};
+/** Application mid-pipeline row for the Shortlisting register (same persisted model). */
+export type ShortlistingRecord = ApplicationRecord;
 
 export type ShortlistingSummary = {
   toReview: number;
@@ -795,6 +802,14 @@ export type ShortlistingFilters = {
   status?: string;
   search?: string;
 };
+
+export type GetShortlistingParams = ShortlistingFilters & {
+  page?: string;
+  limit?: string;
+};
+
+/** Same buckets as Resume Bank experience filter. */
+export const SHORTLISTING_EXPERIENCE_OPTIONS = RESUME_BANK_EXPERIENCE_OPTIONS;
 
 export function canShortlistFromRegister(record: ShortlistingRecord): boolean {
   return (

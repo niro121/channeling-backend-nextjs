@@ -1520,6 +1520,7 @@ type ApplicationHistoryEntry {
 
 /// Candidate application against a JobPost. Optional link to ResumeBankProfile
 /// (add-to-job). Public careers apply (Wave 11) reuses the same create path.
+/// Shortlisting (Wave 5) is a mid-pipeline view over this model — no separate table.
 model Application {
   id            String @id @default(auto()) @map("_id") @db.ObjectId
   /// Human-readable code from Sequence, e.g. APP-1
@@ -1529,6 +1530,9 @@ model Application {
   candidateEmail String
   candidatePhone String @default("")
   experienceYears Int   @default(0)
+  /// Candidate qualifications snapshot (resume bank / apply form).
+  qualifications  String   @default("")
+  skills          String[] @default([])
 
   jobPostId   String @db.ObjectId
   /// Denormalized JobPost.jobPostId for list/filter display.
@@ -1537,6 +1541,9 @@ model Application {
   /// Denormalized department label from JobPost.
   departmentName String @default("")
   departmentId   String? @db.ObjectId
+  /// Denormalized JobPost designation for shortlisting filters / compare.
+  designationId   String? @db.ObjectId
+  designationName String  @default("")
 
   /// hospital_website | newspaper | resume_bank | referral | job_portal
   source String
@@ -1544,10 +1551,15 @@ model Application {
   currentStage String @default("applied")
   /// Lifecycle: active | rejected | withdrawn | hired
   status String @default("active")
+  /// Shortlisting lane: to_review | shortlisted | on_hold | rejected
+  shortlistStatus String @default("to_review")
+  /// Screening score 0–100 (manual / computed in Wave 5).
+  screeningScore  Int    @default(0)
 
   appliedDate DateTime @default(now())
   notes       String   @default("")
   rejectReason String?
+  holdReason   String?
 
   resumeFileName String @default("")
   /// Object storage key — populated when CV is uploaded (Resume Bank / Wave 10 / public apply).
@@ -1571,9 +1583,13 @@ model Application {
   @@index([candidateName])
   @@index([currentStage])
   @@index([status])
+  @@index([shortlistStatus])
+  @@index([screeningScore])
   @@index([source])
   @@index([departmentId])
   @@index([departmentName])
+  @@index([designationId])
+  @@index([designationName])
   @@index([appliedDate])
   @@index([resumeBankProfileId])
   @@index([createdAt(sort: Desc)])

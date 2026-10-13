@@ -219,7 +219,7 @@ AppointmentLetter *──1 Evaluation (or Application)
 | **VacancyRequest** | Status workflow; department / designation; openings; audit; `linkedJobPost` / `linkedJobPostId` |
 | **JobPost** | `vacancyRequestIds[]` + `linkedVacancies[]` snapshots; slug; short/full description; skills; publish / unpublish / close; public DTO source. Openings default to sum of linked vacancies. |
 | **ResumeBankProfile** | `profileId` (RB-*); contact + skills + preferred role/dept; `resumeFileName` / `resumeFileKey` (key in Wave 10); `linkedApplicationIds[]`; status `in_bank` \| `linked` \| `shortlisted` |
-| **Application** | `applicationId` (APP-*); FK `jobPostId` + denormalized `jobPostCode` / title / dept; optional `resumeBankProfileId`; `currentStage` vs `status`; embedded `history[]`; `source` (`hospital_website` \| `resume_bank` \| …); unique `(jobPostId, candidateEmail)`; CV `resumeFileName` / `resumeFileKey` |
+| **Application** | `applicationId` (APP-*); FK `jobPostId` + denormalized `jobPostCode` / title / dept / designation; optional `resumeBankProfileId`; `currentStage` vs `status`; Wave 5 shortlisting fields `shortlistStatus` (`to_review` \| `shortlisted` \| `on_hold` \| `rejected`), `screeningScore`, `qualifications` / `skills`, `holdReason`; embedded `history[]`; `source` (`hospital_website` \| `resume_bank` \| …); unique `(jobPostId, candidateEmail)`; CV `resumeFileName` / `resumeFileKey`. **No separate Shortlisting model** — `/shortlisting` is a mid-pipeline view over Application. |
 | **Interview** | `interviewCode`; date/time; panel; type; location; status |
 | **Evaluation** | `ratings` JSON; strengths/weaknesses/comments; recommendation / finalDecision; overallScore |
 | **AppointmentLetter** | `letterNumber`; salary; dates; `letterGenerated`; status; file refs |
@@ -284,14 +284,16 @@ All under `app/(dashboard)/(recruitment)/`.
 | Export | Server re-query with active filters |
 | Footer | Applications ← → Shortlisting |
 
-### 6.5 Shortlisting — `/shortlisting`
+### 6.5 Shortlisting — `/shortlisting` (Wave 5 — dynamized)
 
 | Concern | Detail |
 |---------|--------|
+| Persistence | Same `Application` model (`shortlistStatus`, `screeningScore`, …) — not a separate collection |
 | Views | Table only; row selection + Compare CustomDialog (N ≥ 2) |
 | Status | `to_review` · `shortlisted` · `on_hold` · `rejected` |
 | Score bar | ≥80 green · 50–79 amber · &lt;50 red |
-| Actions | View, history, shortlist, hold, reject (+ reason), resume, schedule |
+| Actions | View, history, shortlist, hold, reject (+ reason), resume, schedule (Interview create in Wave 6) |
+| Service | `shortlisting.service.ts` + actions; shortlist/reject reuse Application service |
 | Footer | Resume Bank ← → Interview Schedule |
 
 ### 6.6 Interview Schedule — `/interview-schedule`

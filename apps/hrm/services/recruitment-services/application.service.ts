@@ -19,7 +19,8 @@ import {
   type ApplicationStage,
   type ApplicationStatus,
   type ApplicationSummary,
-  type GetApplicationsParams
+  type GetApplicationsParams,
+  type ShortlistingStatus
 } from '@/types/recruitment';
 
 const MOBILE_VALIDATION_MESSAGE = 'Mobile Number Ex: 07x xxxxxxx';
@@ -47,6 +48,15 @@ const applicationPayloadSchema = z.object({
     .int('Enter a whole number of years')
     .min(0, 'Experience cannot be negative')
     .max(60, 'Experience looks too high')
+    .optional()
+    .default(0),
+  qualifications: z.string().trim().optional().default(''),
+  skills: z.array(z.string().trim()).optional().default([]),
+  screeningScore: z.coerce
+    .number()
+    .int()
+    .min(0)
+    .max(100)
     .optional()
     .default(0),
   jobPostId: z.string().min(1, 'Job post is required'),
@@ -98,7 +108,7 @@ function mapHistory(
   }));
 }
 
-function mapApplicationRecord(
+export function mapApplicationRecord(
   record: {
     id: string;
     applicationId: string;
@@ -109,16 +119,23 @@ function mapApplicationRecord(
     jobPostCode: string;
     jobTitle: string;
     departmentName: string;
+    designationId?: string | null;
+    designationName?: string;
     appliedDate: Date;
     experienceYears: number;
+    qualifications?: string;
+    skills?: string[];
     source: string;
     currentStage: string;
     status: string;
+    shortlistStatus?: string;
+    screeningScore?: number;
     resumeFileName: string;
     resumeFileKey: string | null;
     resumeBankProfileId: string | null;
     notes: string;
     rejectReason: string | null;
+    holdReason?: string | null;
     history: {
       id: string;
       title: string;
@@ -142,16 +159,24 @@ function mapApplicationRecord(
     jobPostCode: record.jobPostCode,
     jobTitle: record.jobTitle,
     department: record.departmentName,
+    designation: record.designationName ?? '',
+    designationId: record.designationId ?? null,
     appliedDate: toIso(record.appliedDate),
     experienceYears: record.experienceYears,
+    qualifications: record.qualifications ?? '',
+    skills: record.skills ?? [],
     source: record.source as ApplicationSource,
     currentStage: record.currentStage as ApplicationStage,
     status: record.status as ApplicationStatus,
+    shortlistStatus: (record.shortlistStatus ??
+      'to_review') as ShortlistingStatus,
+    screeningScore: record.screeningScore ?? 0,
     resumeFileName: record.resumeFileName,
     resumeFileKey: record.resumeFileKey,
     resumeBankProfileId: record.resumeBankProfileId,
     notes: record.notes,
     rejectReason: record.rejectReason ?? undefined,
+    holdReason: record.holdReason ?? undefined,
     history: mapHistory(record.history ?? []),
     createdAt: toIso(record.createdAt),
     createdBy: record.createdUser?.name ?? '',
@@ -523,10 +548,17 @@ export async function createApplication(
       };
     }
 
+    let qualifications = data.qualifications;
+    let skills = data.skills;
+
     if (data.resumeBankProfileId) {
       const profile = await prisma.resumeBankProfile.findUnique({
         where: { id: data.resumeBankProfileId },
-        select: { id: true }
+        select: {
+          id: true,
+          qualifications: true,
+          skills: true
+        }
       });
       if (!profile) {
         return {
@@ -539,6 +571,8 @@ export async function createApplication(
           }
         };
       }
+      if (!qualifications) qualifications = profile.qualifications ?? '';
+      if (!skills.length) skills = profile.skills ?? [];
     }
 
     const generated = await generateRecordCode(APPLICATION_CODE_PREFIX);
@@ -559,14 +593,20 @@ export async function createApplication(
         candidateEmail: email,
         candidatePhone: data.candidatePhone,
         experienceYears: data.experienceYears,
+        qualifications,
+        skills,
         jobPostId: jobPost.id,
         jobPostCode: jobPost.jobPostId,
         jobTitle: jobPost.jobTitle,
         departmentName: jobPost.departmentName,
         departmentId: jobPost.departmentId,
+        designationId: jobPost.designationId,
+        designationName: jobPost.designationName,
         source: data.source,
         currentStage: 'applied',
         status: 'active',
+        shortlistStatus: 'to_review',
+        screeningScore: data.screeningScore,
         appliedDate: new Date(),
         notes: data.notes,
         resumeFileName: data.resumeFileName,
@@ -662,10 +702,11 @@ export async function shortlistApplication(
         error: { message: 'Only active applications can be shortlisted' }
       };
     }
-    if (
-      existing.currentStage !== 'applied' &&
-      existing.currentStage !== 'screening'
-    ) {
+    const eligibleByStage =
+      existing.currentStage === 'applied' ||
+      existing.currentStage === 'screening';
+    const eligibleByLane = existing.shortlistStatus === 'to_review';
+    if (!eligibleByStage && !eligibleByLane) {
       return {
         success: false,
         error: {
@@ -679,6 +720,8 @@ export async function shortlistApplication(
       where: { id },
       data: {
         currentStage: 'shortlisted',
+        shortlistStatus: 'shortlisted',
+        holdReason: null,
         history: [
           ...(existing.history ?? []),
           historyEntry(
@@ -757,7 +800,9 @@ export async function rejectApplication(
       data: {
         currentStage: 'rejected',
         status: 'rejected',
+        shortlistStatus: 'rejected',
         rejectReason: rejectReason || null,
+        holdReason: null,
         history: [
           ...(existing.history ?? []),
           historyEntry(

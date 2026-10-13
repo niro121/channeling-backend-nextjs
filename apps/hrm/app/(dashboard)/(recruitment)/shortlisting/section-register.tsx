@@ -8,11 +8,10 @@ import {
   DataTableExportFeature,
   useCommonDataTableContext
 } from '@/components/common/common-data-table';
-import {
-  APPLICATION_STAGE_LABELS,
-  SHORTLISTING_STATUS_LABELS,
-  type ShortlistingFilters,
-  type ShortlistingRecord
+import type {
+  ShortlistingFilters,
+  ShortlistingRecord,
+  VacancySelectOption
 } from '@/types/recruitment';
 import {
   SHORTLISTING_EXPORT_COLUMNS,
@@ -22,11 +21,34 @@ import {
 import SectionFilters from './section-filters';
 import { useShortlistingUi } from './shortlisting-ui-context';
 
+type ShortlistingExportRow = {
+  candidateName: string;
+  applicationId: string;
+  jobTitle: string;
+  qualifications: string;
+  experienceYears: string;
+  skills: string;
+  appliedDate: string;
+  screeningScore: number;
+  currentStage: string;
+  shortlistStatus: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
 type SectionRegisterProps = {
   records?: ShortlistingRecord[];
   totalRecords?: number;
   page?: string;
   initialFilters?: ShortlistingFilters;
+  departmentOptions?: VacancySelectOption[];
+  designationOptions?: VacancySelectOption[];
+  jobPostOptions?: VacancySelectOption[];
+  onExport: () => Promise<{
+    success: boolean;
+    data?: ShortlistingExportRow[];
+    message?: string;
+  }>;
 };
 
 function SelectionSync() {
@@ -78,45 +100,20 @@ export default function SectionRegister({
   records = [],
   totalRecords = 0,
   page,
-  initialFilters = {}
+  initialFilters = {},
+  departmentOptions = [],
+  designationOptions = [],
+  jobPostOptions = [],
+  onExport
 }: SectionRegisterProps) {
-  const { toast } = useToast();
-
-  const handleExport = async () => {
-    if (!records.length) {
-      toast({
-        title: 'Export',
-        description: 'No candidates to export.'
-      });
-      return {
-        success: false,
-        message: 'No candidates found'
-      };
-    }
-
-    const data = records.map((row) => ({
-      candidateName: row.candidateName,
-      applicationId: row.applicationId,
-      jobTitle: row.jobTitle,
-      qualifications: row.qualifications,
-      experienceYears: `${row.experienceYears} yrs`,
-      skills: row.skills.join(', '),
-      appliedDate: row.appliedDate,
-      screeningScore: row.screeningScore,
-      currentStage:
-        APPLICATION_STAGE_LABELS[row.currentStage] ?? row.currentStage,
-      shortlistStatus:
-        SHORTLISTING_STATUS_LABELS[row.shortlistStatus] ?? row.shortlistStatus,
-      createdAt: row.createdAt,
-      updatedAt: row.updatedAt
-    }));
-
-    return { success: true, data };
-  };
-
   return (
     <div className="space-y-4">
-      <SectionFilters initial={initialFilters} />
+      <SectionFilters
+        initial={initialFilters}
+        departmentOptions={departmentOptions}
+        designationOptions={designationOptions}
+        jobPostOptions={jobPostOptions}
+      />
 
       <Suspense
         fallback={
@@ -139,7 +136,7 @@ export default function SectionRegister({
             <DataTableExportFeature
               showColumnToggle
               showPrintButton
-              serverData={handleExport}
+              serverData={onExport}
               columns={[...SHORTLISTING_EXPORT_COLUMNS]}
               keys={[...SHORTLISTING_EXPORT_KEYS]}
               title="Shortlisting"

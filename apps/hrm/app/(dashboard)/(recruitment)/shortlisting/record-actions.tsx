@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   CalendarPlus,
   Eye,
@@ -23,6 +24,11 @@ import {
   Textarea,
   useToast
 } from '@archmage/ui';
+import {
+  rejectApplicationAction,
+  shortlistApplicationAction
+} from '@/app/actions/recruitment-actions/application.actions';
+import { holdApplicationAction } from '@/app/actions/recruitment-actions/shortlisting.actions';
 import { usePermissions } from '@/components/hooks/use-permissions';
 import { buttonStyles } from '@/lib/utils/common-styles';
 import {
@@ -42,6 +48,7 @@ export default function ShortlistingRecordActions({
   record
 }: ShortlistingRecordActionsProps) {
   const { toast } = useToast();
+  const router = useRouter();
   const { has } = usePermissions();
   const { openView, openResume, openHistory, openSchedule } =
     useShortlistingUi();
@@ -55,17 +62,89 @@ export default function ShortlistingRecordActions({
   const [rejectReason, setRejectReason] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const finishUiOnly = (title: string, description: string) => {
+  if (!canView && !canEdit) return null;
+
+  const handleShortlist = async () => {
     setLoading(true);
-    toast({ title, description });
-    setLoading(false);
-    setShortlistOpen(false);
-    setHoldOpen(false);
-    setRejectOpen(false);
-    setRejectReason('');
+    try {
+      const result = await shortlistApplicationAction(record.id);
+      if (result.isError) {
+        toast({
+          variant: 'destructive',
+          title: 'Shortlist failed',
+          description:
+            (result.errors as { message?: string })?.message ??
+            'Unable to shortlist candidate.'
+        });
+        return;
+      }
+      toast({
+        variant: 'success',
+        title: 'Shortlisted',
+        description: `${record.candidateName} moved to shortlisted.`
+      });
+      setShortlistOpen(false);
+      router.refresh();
+    } finally {
+      setLoading(false);
+    }
   };
 
-  if (!canView && !canEdit) return null;
+  const handleHold = async () => {
+    setLoading(true);
+    try {
+      const result = await holdApplicationAction(record.id);
+      if (result.isError) {
+        toast({
+          variant: 'destructive',
+          title: 'Hold failed',
+          description:
+            (result.errors as { message?: string })?.message ??
+            'Unable to place candidate on hold.'
+        });
+        return;
+      }
+      toast({
+        variant: 'success',
+        title: 'On hold',
+        description: `${record.candidateName} placed on hold.`
+      });
+      setHoldOpen(false);
+      router.refresh();
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleReject = async () => {
+    setLoading(true);
+    try {
+      const result = await rejectApplicationAction(
+        record.id,
+        rejectReason.trim() || undefined
+      );
+      if (result.isError) {
+        toast({
+          variant: 'destructive',
+          title: 'Reject failed',
+          description:
+            (result.errors as { message?: string })?.message ??
+            'Unable to reject candidate.'
+        });
+        return;
+      }
+      toast({
+        variant: 'success',
+        title: 'Rejected',
+        description: `${record.candidateName}'s application was rejected.`
+      });
+      setRejectOpen(false);
+      setRejectReason('');
+      router.refresh();
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <>
@@ -168,12 +247,7 @@ export default function ShortlistingRecordActions({
         loading={loading}
         title="Shortlist?"
         description={`Shortlist ${record.candidateName} for interview?`}
-        handleContinue={() =>
-          finishUiOnly(
-            'Not saved',
-            `Shortlist for ${record.candidateName} will be wired in the workflow phase.`
-          )
-        }
+        handleContinue={handleShortlist}
         className={{
           actionButton:
             'bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground'
@@ -186,12 +260,7 @@ export default function ShortlistingRecordActions({
         loading={loading}
         title="Hold?"
         description={`Place ${record.candidateName} on hold?`}
-        handleContinue={() =>
-          finishUiOnly(
-            'Not saved',
-            `Hold for ${record.candidateName} will be wired in the workflow phase.`
-          )
-        }
+        handleContinue={handleHold}
         className={{
           actionButton:
             'bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground'
@@ -243,16 +312,7 @@ export default function ShortlistingRecordActions({
               type="button"
               className={buttonStyles.delete.danger}
               disabled={loading}
-              onClick={() =>
-                finishUiOnly(
-                  'Not saved',
-                  `Reject for ${record.candidateName}${
-                    rejectReason.trim()
-                      ? ` (${rejectReason.trim()})`
-                      : ''
-                  } will be wired in the workflow phase.`
-                )
-              }
+              onClick={handleReject}
             >
               Reject
             </Button>

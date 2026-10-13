@@ -10,19 +10,18 @@ import {
 } from '@archmage/ui';
 import { FilterWrapper } from '@/app/(dashboard)/filter-wrapper';
 import {
+  SHORTLISTING_EXPERIENCE_OPTIONS,
   SHORTLISTING_STATUS_LABELS,
   SHORTLISTING_STATUSES,
-  VACANCY_DEPARTMENT_OPTIONS,
-  VACANCY_DESIGNATION_OPTIONS,
-  type ShortlistingFilters
+  type ShortlistingFilters,
+  type VacancySelectOption
 } from '@/types/recruitment';
-import {
-  SAMPLE_SHORTLISTING_EXPERIENCE_OPTIONS,
-  SAMPLE_SHORTLISTING_JOB_POST_OPTIONS
-} from './sample-data';
 
 type SectionFiltersProps = {
   initial?: ShortlistingFilters;
+  departmentOptions?: VacancySelectOption[];
+  designationOptions?: VacancySelectOption[];
+  jobPostOptions?: VacancySelectOption[];
 };
 
 function parseFilterDate(value?: string): Date | null {
@@ -39,25 +38,16 @@ function toYmd(date?: Date): string {
   return `${y}-${m}-${d}`;
 }
 
-function SectionFiltersInner({ initial = {} }: SectionFiltersProps) {
-  const jobPostOptions = SAMPLE_SHORTLISTING_JOB_POST_OPTIONS.map((item) => ({
+function SectionFiltersInner({
+  initial = {},
+  departmentOptions = [],
+  designationOptions = [],
+  jobPostOptions = []
+}: SectionFiltersProps) {
+  const experienceOptions = SHORTLISTING_EXPERIENCE_OPTIONS.map((item) => ({
     id: item.id,
     name: item.name
   }));
-  const departmentOptions = VACANCY_DEPARTMENT_OPTIONS.map((item) => ({
-    id: item.id,
-    name: item.name
-  }));
-  const designationOptions = VACANCY_DESIGNATION_OPTIONS.map((item) => ({
-    id: item.id,
-    name: item.name
-  }));
-  const experienceOptions = SAMPLE_SHORTLISTING_EXPERIENCE_OPTIONS.map(
-    (item) => ({
-      id: item.id,
-      name: item.name
-    })
-  );
   const statusOptions = SHORTLISTING_STATUSES.map((id) => ({
     id,
     name: SHORTLISTING_STATUS_LABELS[id]

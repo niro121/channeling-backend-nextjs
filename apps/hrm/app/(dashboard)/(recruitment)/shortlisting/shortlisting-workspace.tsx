@@ -8,7 +8,8 @@ import { buttonStyles } from '@/lib/utils/common-styles';
 import type {
   ShortlistingFilters,
   ShortlistingRecord,
-  ShortlistingSummary
+  ShortlistingSummary,
+  VacancySelectOption
 } from '@/types/recruitment';
 import DialogApplicationResume from '../applications/dialog-application-resume';
 import DialogApplicationView from '../applications/dialog-application-view';
@@ -22,12 +23,35 @@ import {
   useShortlistingUi
 } from './shortlisting-ui-context';
 
+type ShortlistingExportRow = {
+  candidateName: string;
+  applicationId: string;
+  jobTitle: string;
+  qualifications: string;
+  experienceYears: string;
+  skills: string;
+  appliedDate: string;
+  screeningScore: number;
+  currentStage: string;
+  shortlistStatus: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
 type ShortlistingWorkspaceProps = {
   initialRecords: ShortlistingRecord[];
   totalRecords: number;
   summary: ShortlistingSummary;
   page?: string;
   initialFilters?: ShortlistingFilters;
+  departmentOptions: VacancySelectOption[];
+  designationOptions: VacancySelectOption[];
+  jobPostOptions: VacancySelectOption[];
+  onExport: () => Promise<{
+    success: boolean;
+    data?: ShortlistingExportRow[];
+    message?: string;
+  }>;
 };
 
 function ShortlistingWorkspaceInner({
@@ -35,7 +59,11 @@ function ShortlistingWorkspaceInner({
   totalRecords,
   summary,
   page,
-  initialFilters
+  initialFilters,
+  departmentOptions,
+  designationOptions,
+  jobPostOptions,
+  onExport
 }: ShortlistingWorkspaceProps) {
   const {
     viewRecord,
@@ -65,6 +93,10 @@ function ShortlistingWorkspaceInner({
         totalRecords={totalRecords}
         page={page}
         initialFilters={initialFilters}
+        departmentOptions={departmentOptions}
+        designationOptions={designationOptions}
+        jobPostOptions={jobPostOptions}
+        onExport={onExport}
       />
 
       <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
