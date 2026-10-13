@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   CalendarPlus,
   Eye,
@@ -22,6 +23,10 @@ import {
   Textarea,
   useToast
 } from '@archmage/ui';
+import {
+  rejectApplicationAction,
+  shortlistApplicationAction
+} from '@/app/actions/recruitment-actions/application.actions';
 import { usePermissions } from '@/components/hooks/use-permissions';
 import { buttonStyles } from '@/lib/utils/common-styles';
 import {
@@ -40,6 +45,7 @@ export default function ApplicationRecordActions({
   record
 }: ApplicationRecordActionsProps) {
   const { toast } = useToast();
+  const router = useRouter();
   const { has } = usePermissions();
   const { openView, openResume, openHistory, openSchedule } =
     useApplicationsUi();
@@ -52,16 +58,63 @@ export default function ApplicationRecordActions({
   const [rejectReason, setRejectReason] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const finishUiOnly = (title: string, description: string) => {
+  if (!canView && !canEdit) return null;
+
+  const handleShortlist = async () => {
     setLoading(true);
-    toast({ title, description });
-    setLoading(false);
-    setShortlistOpen(false);
-    setRejectOpen(false);
-    setRejectReason('');
+    try {
+      const result = await shortlistApplicationAction(record.id);
+      if (result.isError) {
+        toast({
+          variant: 'destructive',
+          title: 'Shortlist failed',
+          description:
+            (result.errors as { message?: string })?.message ??
+            'Unable to shortlist application.'
+        });
+        return;
+      }
+      toast({
+        variant: 'success',
+        title: 'Shortlisted',
+        description: `${record.candidateName} moved to shortlisted.`
+      });
+      setShortlistOpen(false);
+      router.refresh();
+    } finally {
+      setLoading(false);
+    }
   };
 
-  if (!canView && !canEdit) return null;
+  const handleReject = async () => {
+    setLoading(true);
+    try {
+      const result = await rejectApplicationAction(
+        record.id,
+        rejectReason.trim() || undefined
+      );
+      if (result.isError) {
+        toast({
+          variant: 'destructive',
+          title: 'Reject failed',
+          description:
+            (result.errors as { message?: string })?.message ??
+            'Unable to reject application.'
+        });
+        return;
+      }
+      toast({
+        variant: 'success',
+        title: 'Rejected',
+        description: `${record.candidateName}'s application was rejected.`
+      });
+      setRejectOpen(false);
+      setRejectReason('');
+      router.refresh();
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <>
@@ -151,12 +204,7 @@ export default function ApplicationRecordActions({
         loading={loading}
         title="Shortlist?"
         description={`Move ${record.candidateName} to Shortlisting?`}
-        handleContinue={() =>
-          finishUiOnly(
-            'Not saved',
-            `Shortlist for ${record.candidateName} will be wired in the workflow phase.`
-          )
-        }
+        handleContinue={() => void handleShortlist()}
         className={{
           actionButton:
             'bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground'
@@ -174,8 +222,7 @@ export default function ApplicationRecordActions({
           <DialogHeader>
             <DialogTitle>Reject?</DialogTitle>
             <DialogDescription>
-              Reject {record.candidateName}&apos;s application? The candidate
-              will be notified.
+              Reject {record.candidateName}&apos;s application?
             </DialogDescription>
           </DialogHeader>
 
@@ -209,16 +256,7 @@ export default function ApplicationRecordActions({
               type="button"
               className={buttonStyles.delete.danger}
               disabled={loading}
-              onClick={() =>
-                finishUiOnly(
-                  'Not saved',
-                  `Reject for ${record.candidateName}${
-                    rejectReason.trim()
-                      ? ` (${rejectReason.trim()})`
-                      : ''
-                  } will be wired in the workflow phase.`
-                )
-              }
+              onClick={() => void handleReject()}
             >
               Reject
             </Button>

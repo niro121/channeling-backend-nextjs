@@ -1,17 +1,14 @@
 'use client';
 
 import { Suspense } from 'react';
-import { useToast } from '@archmage/ui';
 import {
   CommonDataTable,
   DataTableExportFeature
 } from '@/components/common/common-data-table';
-import {
-  APPLICATION_SOURCE_LABELS,
-  APPLICATION_STAGE_LABELS,
-  APPLICATION_STATUS_LABELS,
-  type ApplicationFilters,
-  type ApplicationRecord
+import type {
+  ApplicationFilters,
+  ApplicationRecord,
+  VacancySelectOption
 } from '@/types/recruitment';
 import {
   APPLICATION_EXPORT_COLUMNS,
@@ -20,54 +17,51 @@ import {
 } from './columns';
 import SectionFilters from './section-filters';
 
+type ApplicationExportRow = {
+  applicationId: string;
+  candidateName: string;
+  jobPostCode: string;
+  jobTitle: string;
+  department: string;
+  appliedDate: string;
+  experienceYears: string;
+  source: string;
+  currentStage: string;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
 type SectionRegisterProps = {
   records?: ApplicationRecord[];
   totalRecords?: number;
   page?: string;
   initialFilters?: ApplicationFilters;
+  departmentOptions?: VacancySelectOption[];
+  jobPostOptions?: VacancySelectOption[];
+  onExport: () => Promise<{
+    success: boolean;
+    data?: ApplicationExportRow[];
+    message?: string;
+  }>;
 };
 
 export default function SectionRegister({
   records = [],
   totalRecords = 0,
   page,
-  initialFilters = {}
+  initialFilters = {},
+  departmentOptions = [],
+  jobPostOptions = [],
+  onExport
 }: SectionRegisterProps) {
-  const { toast } = useToast();
-
-  const handleExport = async () => {
-    if (!records.length) {
-      toast({
-        title: 'Export',
-        description: 'No applications to export.'
-      });
-      return {
-        success: false,
-        message: 'No applications found'
-      };
-    }
-
-    const data = records.map((row) => ({
-      applicationId: row.applicationId,
-      candidateName: row.candidateName,
-      jobTitle: row.jobTitle,
-      department: row.department,
-      appliedDate: row.appliedDate,
-      experienceYears: `${row.experienceYears} yrs`,
-      source: APPLICATION_SOURCE_LABELS[row.source] ?? row.source,
-      currentStage:
-        APPLICATION_STAGE_LABELS[row.currentStage] ?? row.currentStage,
-      status: APPLICATION_STATUS_LABELS[row.status] ?? row.status,
-      createdAt: row.createdAt,
-      updatedAt: row.updatedAt
-    }));
-
-    return { success: true, data };
-  };
-
   return (
     <div className="space-y-4">
-      <SectionFilters initial={initialFilters} />
+      <SectionFilters
+        initial={initialFilters}
+        departmentOptions={departmentOptions}
+        jobPostOptions={jobPostOptions}
+      />
 
       <Suspense
         fallback={
@@ -88,7 +82,7 @@ export default function SectionRegister({
             <DataTableExportFeature
               showColumnToggle
               showPrintButton
-              serverData={handleExport}
+              serverData={onExport}
               columns={[...APPLICATION_EXPORT_COLUMNS]}
               keys={[...APPLICATION_EXPORT_KEYS]}
               title="Applications"

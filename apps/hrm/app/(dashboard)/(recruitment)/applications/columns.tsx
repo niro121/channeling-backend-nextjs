@@ -35,6 +35,7 @@ const statusClassName: Record<ApplicationStatus, string> = {
 export const APPLICATION_EXPORT_COLUMNS = [
   'Application ID',
   'Candidate Name',
+  'Job Post ID',
   'Job Applied For',
   'Department',
   'Applied Date',
@@ -49,6 +50,7 @@ export const APPLICATION_EXPORT_COLUMNS = [
 export const APPLICATION_EXPORT_KEYS = [
   'applicationId',
   'candidateName',
+  'jobPostCode',
   'jobTitle',
   'department',
   'appliedDate',

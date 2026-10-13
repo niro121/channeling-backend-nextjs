@@ -1490,8 +1490,9 @@ model JobPost {
   /// Denormalized count; Wave 4+ keeps in sync with Application.
   applicationsCount Int @default(0)
 
-  designation Designation @relation(fields: [designationId], references: [id])
-  department  Department? @relation(fields: [departmentId], references: [id])
+  designation  Designation   @relation(fields: [designationId], references: [id])
+  department   Department?   @relation(fields: [departmentId], references: [id])
+  applications Application[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1506,6 +1507,77 @@ model JobPost {
   @@index([postedDate])
   @@index([vacancyRequestIds])
   @@index([createdAt(sort: Desc)])
+}
+
+/// Embedded timeline row for Application stage / status changes.
+type ApplicationHistoryEntry {
+  id        String
+  title     String
+  detail    String   @default("")
+  userLabel String   @default("")
+  at        DateTime
+}
+
+/// Candidate application against a JobPost. Optional link to ResumeBankProfile
+/// (add-to-job). Public careers apply (Wave 11) reuses the same create path.
+model Application {
+  id            String @id @default(auto()) @map("_id") @db.ObjectId
+  /// Human-readable code from Sequence, e.g. APP-1
+  applicationId String @unique
+
+  candidateName  String
+  candidateEmail String
+  candidatePhone String @default("")
+  experienceYears Int   @default(0)
+
+  jobPostId   String @db.ObjectId
+  /// Denormalized JobPost.jobPostId for list/filter display.
+  jobPostCode String @default("")
+  jobTitle    String @default("")
+  /// Denormalized department label from JobPost.
+  departmentName String @default("")
+  departmentId   String? @db.ObjectId
+
+  /// hospital_website | newspaper | resume_bank | referral | job_portal
+  source String
+  /// Pipeline: applied | screening | shortlisted | interview | selected | offer | hired | rejected
+  currentStage String @default("applied")
+  /// Lifecycle: active | rejected | withdrawn | hired
+  status String @default("active")
+
+  appliedDate DateTime @default(now())
+  notes       String   @default("")
+  rejectReason String?
+
+  resumeFileName String @default("")
+  /// Object storage key — populated when CV is uploaded (Resume Bank / Wave 10 / public apply).
+  resumeFileKey  String?
+
+  /// Optional ResumeBankProfile ObjectId when created via add-to-job.
+  resumeBankProfileId String? @db.ObjectId
+
+  history ApplicationHistoryEntry[]
+
+  jobPost JobPost @relation(fields: [jobPostId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy String?  @db.ObjectId // Auth User.id
+  updatedBy String?  @db.ObjectId // Auth User.id
+
+  @@index([jobPostId])
+  @@index([jobPostCode])
+  @@index([candidateEmail])
+  @@index([candidateName])
+  @@index([currentStage])
+  @@index([status])
+  @@index([source])
+  @@index([departmentId])
+  @@index([departmentName])
+  @@index([appliedDate])
+  @@index([resumeBankProfileId])
+  @@index([createdAt(sort: Desc)])
+  @@unique([jobPostId, candidateEmail])
 }
 
 /// Talent pool profile; independent of JobPost. Wave 4 “add to job” creates Application

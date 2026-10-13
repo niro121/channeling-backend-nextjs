@@ -23,13 +23,14 @@ import {
   INTERVIEW_TYPE_LABELS,
   INTERVIEW_TYPES,
   type ApplicationRecord,
-  type ScheduleInterviewFormValues
+  type ScheduleInterviewFormValues,
+  type VacancySelectOption
 } from '@/types/recruitment';
-import { SAMPLE_JOB_POST_OPTIONS } from './sample-data';
 
 type SheetScheduleInterviewProps = {
   open: boolean;
   record: ApplicationRecord | null;
+  jobPostOptions: VacancySelectOption[];
   onOpenChange: (open: boolean) => void;
 };
 
@@ -58,18 +59,28 @@ const interviewTypeOptions = INTERVIEW_TYPES.map((id) => ({
   name: INTERVIEW_TYPE_LABELS[id]
 }));
 
-const jobPositionOptions = SAMPLE_JOB_POST_OPTIONS.map((item) => ({
-  id: item.id,
-  name: item.name
-}));
-
 export default function SheetScheduleInterview({
   open,
   record,
+  jobPostOptions,
   onOpenChange
 }: SheetScheduleInterviewProps) {
   const { toast } = useToast();
   const [saving, setSaving] = useState(false);
+
+  const jobPositionOptions = useMemo(() => {
+    const options = [...jobPostOptions];
+    if (
+      record?.jobPostId &&
+      !options.some((item) => item.id === record.jobPostId)
+    ) {
+      options.unshift({
+        id: record.jobPostId,
+        name: `${record.jobPostCode || record.jobPostId} — ${record.jobTitle}`
+      });
+    }
+    return options;
+  }, [jobPostOptions, record]);
 
   const initialValues = useMemo<ScheduleInterviewFormValues>(() => {
     if (!record) return EMPTY_SCHEDULE_INTERVIEW_FORM;
@@ -89,9 +100,10 @@ export default function SheetScheduleInterview({
     setSaving(true);
     try {
       toast({
-        title: 'Not saved',
+        variant: 'default',
+        title: 'Interview Schedule next',
         description:
-          'Schedule interview will be wired in the workflow phase.'
+          'Interview create will be available in Wave 6 (Interview Schedule).'
       });
       handleClose();
     } finally {

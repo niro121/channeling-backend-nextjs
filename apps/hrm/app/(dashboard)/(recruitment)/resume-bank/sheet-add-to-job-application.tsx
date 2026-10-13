@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Form, Formik, type FormikHelpers } from 'formik';
 import * as Yup from 'yup';
 import { FilePlus2, X } from 'lucide-react';
@@ -16,6 +17,7 @@ import {
   SheetTitle,
   useToast
 } from '@archmage/ui';
+import { createApplicationAction } from '@/app/actions/recruitment-actions/application.actions';
 import { buttonStyles } from '@/lib/utils/common-styles';
 import {
   EMPTY_ADD_TO_JOB_FORM,
@@ -42,6 +44,21 @@ const validationSchema = Yup.object({
   jobPostId: Yup.string().required('Job post is required')
 });
 
+function firstErrorMessage(errors: unknown): string {
+  if (!errors || typeof errors !== 'object') {
+    return 'Something went wrong. Please try again later';
+  }
+  const record = errors as Record<string, unknown>;
+  if (typeof record.message === 'string' && record.message) {
+    return record.message;
+  }
+  for (const value of Object.values(record)) {
+    if (Array.isArray(value) && typeof value[0] === 'string') return value[0];
+    if (typeof value === 'string' && value) return value;
+  }
+  return 'Something went wrong. Please try again later';
+}
+
 export default function SheetAddToJobApplication({
   open,
   record,
@@ -49,6 +66,7 @@ export default function SheetAddToJobApplication({
   onOpenChange
 }: SheetAddToJobApplicationProps) {
   const { toast } = useToast();
+  const router = useRouter();
   const [saving, setSaving] = useState(false);
 
   const initialValues = useMemo<AddToJobApplicationFormValues>(() => {
@@ -65,17 +83,40 @@ export default function SheetAddToJobApplication({
     values: AddToJobApplicationFormValues,
     _helpers: FormikHelpers<AddToJobApplicationFormValues>
   ) => {
+    if (!record) return;
     setSaving(true);
     try {
-      const jobLabel =
-        jobPostOptions.find((o) => o.id === values.jobPostId)?.name ??
-        values.jobPostId;
+      const result = await createApplicationAction({
+        candidateName: record.candidateName,
+        candidateEmail: record.email,
+        candidatePhone: record.phone,
+        experienceYears: record.experienceYears,
+        jobPostId: values.jobPostId,
+        source: 'resume_bank',
+        notes: record.notes,
+        resumeFileName: record.resumeFileName,
+        resumeFileKey: record.resumeFileKey ?? null,
+        resumeBankProfileId: record.id
+      });
+
+      if (result.isError) {
+        toast({
+          variant: 'destructive',
+          title: 'Create failed',
+          description: firstErrorMessage(result.errors)
+        });
+        return;
+      }
+
       toast({
-        variant: 'default',
-        title: 'Applications module next',
-        description: `Creating an application for ${values.candidateName} on ${jobLabel} will be available in Wave 4 (Applications).`
+        variant: 'success',
+        title: 'Application created',
+        description: result.data?.applicationId
+          ? `${result.data.applicationId} linked from resume bank.`
+          : 'Application created from resume bank.'
       });
       handleClose();
+      router.refresh();
     } finally {
       setSaving(false);
     }
@@ -96,8 +137,7 @@ export default function SheetAddToJobApplication({
         <SheetHeader className="shrink-0 space-y-1 border-b border-border bg-background px-6 py-4 pr-14 text-left">
           <SheetTitle>Add to Job Application</SheetTitle>
           <SheetDescription>
-            Link this candidate to a published job post. Application create is
-            wired in Wave 4.
+            Create an application for this candidate on a published job post.
           </SheetDescription>
         </SheetHeader>
 

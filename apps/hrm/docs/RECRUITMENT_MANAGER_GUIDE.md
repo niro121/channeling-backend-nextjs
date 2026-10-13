@@ -219,7 +219,7 @@ AppointmentLetter *──1 Evaluation (or Application)
 | **VacancyRequest** | Status workflow; department / designation; openings; audit; `linkedJobPost` / `linkedJobPostId` |
 | **JobPost** | `vacancyRequestIds[]` + `linkedVacancies[]` snapshots; slug; short/full description; skills; publish / unpublish / close; public DTO source. Openings default to sum of linked vacancies. |
 | **ResumeBankProfile** | `profileId` (RB-*); contact + skills + preferred role/dept; `resumeFileName` / `resumeFileKey` (key in Wave 10); `linkedApplicationIds[]`; status `in_bank` \| `linked` \| `shortlisted` |
-| **Application** | `applicationId` code; `currentStage` vs `status`; history embeds; `source` (`hrm` \| `website` \| `resume_bank` \| …) |
+| **Application** | `applicationId` (APP-*); FK `jobPostId` + denormalized `jobPostCode` / title / dept; optional `resumeBankProfileId`; `currentStage` vs `status`; embedded `history[]`; `source` (`hospital_website` \| `resume_bank` \| …); unique `(jobPostId, candidateEmail)`; CV `resumeFileName` / `resumeFileKey` |
 | **Interview** | `interviewCode`; date/time; panel; type; location; status |
 | **Evaluation** | `ratings` JSON; strengths/weaknesses/comments; recommendation / finalDecision; overallScore |
 | **AppointmentLetter** | `letterNumber`; salary; dates; `letterGenerated`; status; file refs |
@@ -264,13 +264,15 @@ All under `app/(dashboard)/(recruitment)/`.
 | Export | Server re-query with active filters (same pattern as Vacancy Requests / user-groups) |
 | Footer | Vacancy Requests ← → Applications |
 
-### 6.3 Applications — `/applications`
+### 6.3 Applications — `/applications` (Wave 4 — dynamized)
 
 | Concern | Detail |
 |---------|--------|
-| Actions | View, resume dialog, shortlist, reject (+ reason), history Sheet, schedule Sheet |
+| Actions | Create Sheet; view; resume file (S3 when key present); shortlist / reject (+ reason + history); schedule Sheet (Interview create in Wave 6) |
 | Stage vs status | `ApplicationStage` pipeline vs `ApplicationStatus` lifecycle |
 | Sources | Manual HRM entry; Resume Bank add-to-job; later Public Careers API |
+| Export | Server re-query with active filters |
+| Unique | One application per `(jobPostId, candidateEmail)` |
 | Footer | Job Posts ← → Resume Bank |
 
 ### 6.4 Resume Bank — `/resume-bank` (Wave 3 — dynamized)
@@ -278,7 +280,7 @@ All under `app/(dashboard)/(recruitment)/`.
 | Concern | Detail |
 |---------|--------|
 | Views | Table + Cards; create/edit Sheet (`RB-*` codes) |
-| Actions | View, edit, resume file (metadata until Wave 10), add-to-job Sheet (published Job Posts; Application create in Wave 4), shortlist status |
+| Actions | View, edit, resume file (S3), add-to-job Sheet → creates Application + marks profile linked, shortlist status |
 | Export | Server re-query with active filters |
 | Footer | Applications ← → Shortlisting |
 

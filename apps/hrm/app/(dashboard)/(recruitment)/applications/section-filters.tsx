@@ -14,13 +14,14 @@ import {
   APPLICATION_SOURCES,
   APPLICATION_STATUS_LABELS,
   APPLICATION_STATUSES,
-  VACANCY_DEPARTMENT_OPTIONS,
-  type ApplicationFilters
+  type ApplicationFilters,
+  type VacancySelectOption
 } from '@/types/recruitment';
-import { SAMPLE_JOB_POST_OPTIONS } from './sample-data';
 
 type SectionFiltersProps = {
   initial?: ApplicationFilters;
+  departmentOptions?: VacancySelectOption[];
+  jobPostOptions?: VacancySelectOption[];
 };
 
 function parseFilterDate(value?: string): Date | null {
@@ -37,15 +38,11 @@ function toYmd(date?: Date): string {
   return `${y}-${m}-${d}`;
 }
 
-function SectionFiltersInner({ initial = {} }: SectionFiltersProps) {
-  const jobPostOptions = SAMPLE_JOB_POST_OPTIONS.map((item) => ({
-    id: item.id,
-    name: item.name
-  }));
-  const departmentOptions = VACANCY_DEPARTMENT_OPTIONS.map((item) => ({
-    id: item.id,
-    name: item.name
-  }));
+function SectionFiltersInner({
+  initial = {},
+  departmentOptions = [],
+  jobPostOptions = []
+}: SectionFiltersProps) {
   const statusOptions = APPLICATION_STATUSES.map((id) => ({
     id,
     name: APPLICATION_STATUS_LABELS[id]

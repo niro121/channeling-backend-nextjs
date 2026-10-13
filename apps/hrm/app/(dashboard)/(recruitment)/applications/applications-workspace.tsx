@@ -8,7 +8,8 @@ import { buttonStyles } from '@/lib/utils/common-styles';
 import type {
   ApplicationFilters,
   ApplicationRecord,
-  ApplicationSummary
+  ApplicationSummary,
+  VacancySelectOption
 } from '@/types/recruitment';
 import {
   ApplicationsUiProvider,
@@ -16,10 +17,27 @@ import {
 } from './applications-ui-context';
 import DialogApplicationResume from './dialog-application-resume';
 import DialogApplicationView from './dialog-application-view';
+import { ApplicationsHeaderActions } from './header-actions';
 import SectionRegister from './section-register';
 import SectionSummary from './section-summary';
+import SheetApplicationForm from './sheet-application-form';
 import SheetApplicationHistory from './sheet-application-history';
 import SheetScheduleInterview from './sheet-schedule-interview';
+
+type ApplicationExportRow = {
+  applicationId: string;
+  candidateName: string;
+  jobPostCode: string;
+  jobTitle: string;
+  department: string;
+  appliedDate: string;
+  experienceYears: string;
+  source: string;
+  currentStage: string;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+};
 
 type ApplicationsWorkspaceProps = {
   initialRecords: ApplicationRecord[];
@@ -27,6 +45,14 @@ type ApplicationsWorkspaceProps = {
   summary: ApplicationSummary;
   page?: string;
   initialFilters?: ApplicationFilters;
+  departmentOptions: VacancySelectOption[];
+  jobPostOptions: VacancySelectOption[];
+  publishedJobPosts: VacancySelectOption[];
+  onExport: () => Promise<{
+    success: boolean;
+    data?: ApplicationExportRow[];
+    message?: string;
+  }>;
 };
 
 function ApplicationsWorkspaceInner({
@@ -34,13 +60,19 @@ function ApplicationsWorkspaceInner({
   totalRecords,
   summary,
   page,
-  initialFilters
+  initialFilters,
+  departmentOptions,
+  jobPostOptions,
+  publishedJobPosts,
+  onExport
 }: ApplicationsWorkspaceProps) {
   const {
+    formSheet,
     viewRecord,
     resumeRecord,
     historyRecord,
     scheduleRecord,
+    closeFormSheet,
     closeView,
     closeResume,
     closeHistory,
@@ -52,6 +84,7 @@ function ApplicationsWorkspaceInner({
       <CommonManagerHeader
         title="Applications"
         description="Track every candidate application through the recruitment stages."
+        actions={<ApplicationsHeaderActions />}
       />
 
       <SectionSummary summary={summary} />
@@ -61,6 +94,9 @@ function ApplicationsWorkspaceInner({
         totalRecords={totalRecords}
         page={page}
         initialFilters={initialFilters}
+        departmentOptions={departmentOptions}
+        jobPostOptions={jobPostOptions}
+        onExport={onExport}
       />
 
       <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
@@ -86,6 +122,14 @@ function ApplicationsWorkspaceInner({
           </Link>
         </Button>
       </div>
+
+      <SheetApplicationForm
+        open={formSheet != null}
+        jobPostOptions={jobPostOptions}
+        onOpenChange={(open) => {
+          if (!open) closeFormSheet();
+        }}
+      />
 
       <DialogApplicationView
         open={viewRecord != null}
@@ -114,6 +158,7 @@ function ApplicationsWorkspaceInner({
       <SheetScheduleInterview
         open={scheduleRecord != null}
         record={scheduleRecord}
+        jobPostOptions={jobPostOptions.length ? jobPostOptions : publishedJobPosts}
         onOpenChange={(open) => {
           if (!open) closeSchedule();
         }}

@@ -373,6 +373,9 @@ export function isJobPostEditable(status: JobPostStatus): boolean {
 
 // ─── Applications ────────────────────────────────────────────────────────────
 
+/** Sequence / record-code prefix → codes like APP-1 (see generateRecordCode). */
+export const APPLICATION_CODE_PREFIX = 'APP';
+
 /** Pipeline position in recruitment. */
 export const APPLICATION_STAGES = [
   'applied',
@@ -466,7 +469,10 @@ export type ApplicationRecord = {
   candidateName: string;
   candidateEmail: string;
   candidatePhone: string;
+  /** JobPost Mongo ObjectId */
   jobPostId: string;
+  /** Denormalized JobPost.jobPostId, e.g. JP-1 */
+  jobPostCode: string;
   jobTitle: string;
   department: string;
   appliedDate: string;
@@ -475,7 +481,10 @@ export type ApplicationRecord = {
   currentStage: ApplicationStage;
   status: ApplicationStatus;
   resumeFileName: string;
+  resumeFileKey?: string | null;
+  resumeBankProfileId?: string | null;
   notes: string;
+  rejectReason?: string;
   history: ApplicationHistoryEntry[];
   createdAt: string;
   createdBy: string;
@@ -504,6 +513,48 @@ export type ApplicationFilters = {
   status?: string;
   source?: string;
   search?: string;
+};
+
+export type GetApplicationsParams = ApplicationFilters & {
+  page?: string;
+  limit?: string;
+};
+
+export type ApplicationPayload = {
+  candidateName: string;
+  candidateEmail: string;
+  candidatePhone?: string;
+  experienceYears?: number | string;
+  jobPostId: string;
+  source: ApplicationSource | string;
+  notes?: string;
+  resumeFileName?: string;
+  resumeFileKey?: string | null;
+  resumeBankProfileId?: string | null;
+};
+
+export type ApplicationFormValues = {
+  candidateName: string;
+  candidateEmail: string;
+  candidatePhone: string;
+  experienceYears: string;
+  jobPostId: string;
+  source: ApplicationSource | '';
+  notes: string;
+  resumeFileName: string;
+  resumeFileKey: string | null;
+};
+
+export const EMPTY_APPLICATION_FORM: ApplicationFormValues = {
+  candidateName: '',
+  candidateEmail: '',
+  candidatePhone: '',
+  experienceYears: '0',
+  jobPostId: '',
+  source: 'referral',
+  notes: '',
+  resumeFileName: '',
+  resumeFileKey: null
 };
 
 export type ScheduleInterviewFormValues = {

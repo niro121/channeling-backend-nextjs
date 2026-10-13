@@ -64,7 +64,10 @@ export default function DialogApplicationView({
           value: APPLICATION_STAGE_LABELS[record.currentStage]
         },
         { label: 'Job Applied For', value: record.jobTitle },
-        { label: 'Job Post ID', value: record.jobPostId },
+        {
+          label: 'Job Post ID',
+          value: record.jobPostCode || record.jobPostId
+        },
         { label: 'Department', value: record.department },
         {
           label: 'Applied Date',
