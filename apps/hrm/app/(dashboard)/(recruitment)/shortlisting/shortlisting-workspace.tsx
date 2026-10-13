@@ -150,6 +150,7 @@ function ShortlistingWorkspaceInner({
       <SheetScheduleInterview
         open={scheduleRecord != null}
         record={scheduleRecord}
+        jobPostOptions={jobPostOptions}
         onOpenChange={(open) => {
           if (!open) closeSchedule();
         }}

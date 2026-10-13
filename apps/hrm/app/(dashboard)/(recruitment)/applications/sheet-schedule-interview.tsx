@@ -62,14 +62,14 @@ const interviewTypeOptions = INTERVIEW_TYPES.map((id) => ({
 export default function SheetScheduleInterview({
   open,
   record,
-  jobPostOptions,
+  jobPostOptions = [],
   onOpenChange
 }: SheetScheduleInterviewProps) {
   const { toast } = useToast();
   const [saving, setSaving] = useState(false);
 
   const jobPositionOptions = useMemo(() => {
-    const options = [...jobPostOptions];
+    const options = [...(jobPostOptions ?? [])];
     if (
       record?.jobPostId &&
       !options.some((item) => item.id === record.jobPostId)
