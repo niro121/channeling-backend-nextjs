@@ -12,7 +12,7 @@ import {
   type ShortlistingRecord,
   type ShortlistingSummary
 } from '@/types/recruitment';
-import { mapApplicationRecord } from '@/services/recruitment-services/application.service';
+import { mapApplicationRecord } from '@/lib/mappers/application.mapper';
 
 function dayRange(ymd: string): { gte: Date; lt: Date } | null {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(ymd.trim());
