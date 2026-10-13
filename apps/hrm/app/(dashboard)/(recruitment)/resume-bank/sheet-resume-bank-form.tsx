@@ -27,6 +27,7 @@ import { BadgeInput } from '@/components/custom/badge-input';
 import { CustomFileUpload } from '@/components/custom/custom-file-upload';
 import { commitPendingUpload } from '@/lib/helpers/s3';
 import { buttonStyles } from '@/lib/utils/common-styles';
+import { MOBILE_NUMBER_REGEX } from '@/lib/validations/phone-mobile';
 import {
   APPLICATION_SOURCE_LABELS,
   APPLICATION_SOURCES,
@@ -58,7 +59,13 @@ const fieldStyleClasses = {
 const validationSchema = Yup.object({
   candidateName: Yup.string().trim().required('Candidate name is required'),
   email: Yup.string().trim().email('Enter a valid email').required('Email is required'),
-  phone: Yup.string().trim(),
+  phone: Yup.string()
+    .trim()
+    .test(
+      'mobile',
+      'Mobile Number Ex: 07x xxxxxxx',
+      (v) => !v || MOBILE_NUMBER_REGEX.test(v)
+    ),
   qualifications: Yup.string().trim(),
   experienceYears: Yup.string()
     .required('Experience is required')

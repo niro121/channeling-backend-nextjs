@@ -6,6 +6,7 @@ import type { AuditUser } from '@/lib/audit-user';
 import { toAuditUser } from '@/lib/audit-user';
 import { generateRecordCode } from '@/lib/conventions/record-code-generator';
 import { resolveAuthUsers } from '@/lib/helpers/resolve-auth-users.helper';
+import { MOBILE_NUMBER_REGEX } from '@/lib/validations/phone-mobile';
 import {
   APPLICATION_SOURCES,
   RESUME_BANK_CODE_PREFIX,
@@ -18,6 +19,8 @@ import {
   type ResumeBankSummary
 } from '@/types/recruitment';
 
+const MOBILE_VALIDATION_MESSAGE = 'Mobile Number Ex: 07x xxxxxxx';
+
 const sourceSchema = z.enum(APPLICATION_SOURCES);
 const statusSchema = z.enum(RESUME_BANK_STATUSES);
 
@@ -28,7 +31,15 @@ const resumeBankPayloadSchema = z.object({
     .trim()
     .email('Enter a valid email')
     .max(200),
-  phone: z.string().trim().optional().default(''),
+  phone: z
+    .string()
+    .trim()
+    .optional()
+    .default('')
+    .refine(
+      (v) => v === '' || MOBILE_NUMBER_REGEX.test(v),
+      MOBILE_VALIDATION_MESSAGE
+    ),
   qualifications: z.string().trim().optional().default(''),
   experienceYears: z.coerce
     .number()
