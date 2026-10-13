@@ -39,6 +39,7 @@ export type getRoomParam = {
   limit?: string;
   keyword?: string;
   locationId?: string;
+  occupancy?: string;
 }
 
 export type getRoomQuery = {
@@ -46,4 +47,5 @@ export type getRoomQuery = {
   limit: number;
   keyword: string;
   locationId?: string;
+  occupancy?: string;
 }

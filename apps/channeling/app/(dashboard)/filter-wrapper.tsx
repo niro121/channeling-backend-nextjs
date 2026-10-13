@@ -25,6 +25,7 @@ interface FilterWrapperProps {
     values: FilterValues;
     setValue: (key: string, value?: string) => void;
   }) => React.ReactNode;
+  className?: string;
   searchButton?: {
     variant?: "link" | "default" | "destructive" | "outline" | "secondary" | "ghost" | null | undefined
     className?: string
@@ -40,6 +41,7 @@ export function FilterWrapper({
   onApplyClick,
   onValuesChange,
   children,
+  className,
   searchButton
 }: FilterWrapperProps) {
   const router = useRouter();
@@ -147,7 +149,7 @@ export function FilterWrapper({
   };
 
   return (
-    <div className="flex flex-wrap items-center gap-3">
+    <div className={className ? `flex items-center gap-3 ${className}` : 'flex flex-wrap items-center gap-3'}>
       {children({ values, setValue })}
 
       {showApplyButton && (

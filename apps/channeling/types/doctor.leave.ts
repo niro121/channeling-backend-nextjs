@@ -5,8 +5,6 @@ export type Session = {
   locationId?: string;
   startTime: string;
   endTime: string;
-  /** Set when mapping from API; used for “session already started” UI. */
-  startAt?: Date;
 };
 
 type Doctor = {
