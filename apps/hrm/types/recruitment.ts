@@ -557,6 +557,9 @@ export function canScheduleInterview(record: ApplicationRecord): boolean {
 
 // ─── Resume Bank ─────────────────────────────────────────────────────────────
 
+/** Sequence / record-code prefix → codes like RB-1 (see generateRecordCode). */
+export const RESUME_BANK_CODE_PREFIX = 'RB';
+
 export const RESUME_BANK_STATUSES = [
   'in_bank',
   'linked',
@@ -573,8 +576,12 @@ export const RESUME_BANK_STATUS_LABELS: Record<ResumeBankStatus, string> = {
 
 export type ResumeBankRecord = {
   id: string;
+  /** Human-readable code, e.g. RB-1 */
+  profileId: string;
   candidateName: string;
   resumeFileName: string;
+  /** Present when a CV file key is stored (Wave 10). */
+  resumeFileKey?: string | null;
   email: string;
   phone: string;
   qualifications: string;
@@ -587,6 +594,7 @@ export type ResumeBankRecord = {
   dateAdded: string;
   status: ResumeBankStatus;
   notes: string;
+  linkedApplicationIds: string[];
   createdAt: string;
   createdBy: string;
   updatedAt: string;
@@ -612,6 +620,70 @@ export type ResumeBankFilters = {
   search?: string;
 };
 
+export type GetResumeBankParams = ResumeBankFilters & {
+  page?: string;
+  limit?: string;
+};
+
+export const RESUME_BANK_EXPERIENCE_OPTIONS = [
+  { id: '0-1', name: '0–1 years' },
+  { id: '1-3', name: '1–3 years' },
+  { id: '3-5', name: '3–5 years' },
+  { id: '5+', name: '5+ years' }
+] as const;
+
+export type ResumeBankPayload = {
+  candidateName: string;
+  email: string;
+  phone?: string;
+  qualifications?: string;
+  experienceYears: number | string;
+  skills?: string[];
+  preferredPosition?: string;
+  preferredDepartment?: string;
+  location?: string;
+  source: ApplicationSource | string;
+  status?: ResumeBankStatus | string;
+  notes?: string;
+  resumeFileName?: string;
+  /** S3 object key after upload (Wave 10 document storage). */
+  resumeFileKey?: string | null;
+};
+
+export type ResumeBankFormValues = {
+  candidateName: string;
+  email: string;
+  phone: string;
+  qualifications: string;
+  experienceYears: string;
+  skills: string[];
+  preferredPosition: string;
+  preferredDepartment: string;
+  location: string;
+  source: ApplicationSource | '';
+  status: ResumeBankStatus | '';
+  notes: string;
+  resumeFileName: string;
+  resumeFileKey: string | null;
+};
+
+export const EMPTY_RESUME_BANK_FORM: ResumeBankFormValues = {
+  candidateName: '',
+  email: '',
+  phone: '',
+  qualifications: '',
+  experienceYears: '0',
+  skills: [],
+  preferredPosition: '',
+  preferredDepartment: '',
+  location: '',
+  source: 'resume_bank',
+  status: 'in_bank',
+  notes: '',
+  resumeFileName: '',
+  resumeFileKey: null
+};
+
 export type AddToJobApplicationFormValues = {
   candidateName: string;
   jobPostId: string;
@@ -621,6 +693,12 @@ export const EMPTY_ADD_TO_JOB_FORM: AddToJobApplicationFormValues = {
   candidateName: '',
   jobPostId: ''
 };
+
+export function canMoveResumeToShortlisting(
+  status: ResumeBankStatus
+): boolean {
+  return status === 'in_bank' || status === 'linked';
+}
 
 // ─── Shortlisting ────────────────────────────────────────────────────────────
 

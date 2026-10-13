@@ -218,7 +218,7 @@ AppointmentLetter *──1 Evaluation (or Application)
 |-------|--------|
 | **VacancyRequest** | Status workflow; department / designation; openings; audit; `linkedJobPost` / `linkedJobPostId` |
 | **JobPost** | `vacancyRequestIds[]` + `linkedVacancies[]` snapshots; slug; short/full description; skills; publish / unpublish / close; public DTO source. Openings default to sum of linked vacancies. |
-| **ResumeBankProfile** | Contact + skills + preferred role; file ref for CV |
+| **ResumeBankProfile** | `profileId` (RB-*); contact + skills + preferred role/dept; `resumeFileName` / `resumeFileKey` (key in Wave 10); `linkedApplicationIds[]`; status `in_bank` \| `linked` \| `shortlisted` |
 | **Application** | `applicationId` code; `currentStage` vs `status`; history embeds; `source` (`hrm` \| `website` \| `resume_bank` \| …) |
 | **Interview** | `interviewCode`; date/time; panel; type; location; status |
 | **Evaluation** | `ratings` JSON; strengths/weaknesses/comments; recommendation / finalDecision; overallScore |
@@ -226,7 +226,7 @@ AppointmentLetter *──1 Evaluation (or Application)
 
 ### Codes / sequences
 
-Use existing Sequence pattern (like Staff / Leave): e.g. `VR-…`, `JP-…`, `APP-…`, `INT-…`, `LETTER-…`.
+Use existing Sequence pattern (like Staff / Leave): e.g. `VR-…`, `JP-…`, `RB-…`, `APP-…`, `INT-…`, `LETTER-…`.
 
 ### Evaluation criteria
 
@@ -273,12 +273,13 @@ All under `app/(dashboard)/(recruitment)/`.
 | Sources | Manual HRM entry; Resume Bank add-to-job; later Public Careers API |
 | Footer | Job Posts ← → Resume Bank |
 
-### 6.4 Resume Bank — `/resume-bank`
+### 6.4 Resume Bank — `/resume-bank` (Wave 3 — dynamized)
 
 | Concern | Detail |
 |---------|--------|
-| Views | Table + Cards |
-| Actions | View, resume file, add-to-job Sheet, shortlist confirm |
+| Views | Table + Cards; create/edit Sheet (`RB-*` codes) |
+| Actions | View, edit, resume file (metadata until Wave 10), add-to-job Sheet (published Job Posts; Application create in Wave 4), shortlist status |
+| Export | Server re-query with active filters |
 | Footer | Applications ← → Shortlisting |
 
 ### 6.5 Shortlisting — `/shortlisting`

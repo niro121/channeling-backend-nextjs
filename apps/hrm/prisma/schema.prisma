@@ -1508,6 +1508,58 @@ model JobPost {
   @@index([createdAt(sort: Desc)])
 }
 
+/// Talent pool profile; independent of JobPost. Wave 4 “add to job” creates Application
+/// and may set status to linked / shortlisted.
+model ResumeBankProfile {
+  id        String @id @default(auto()) @map("_id") @db.ObjectId
+  /// Human-readable code from Sequence, e.g. RB-1
+  profileId String @unique
+
+  candidateName  String
+  email          String
+  phone          String   @default("")
+  qualifications String   @default("")
+  experienceYears Int     @default(0)
+  skills         String[] @default([])
+
+  /// Preferred role / designation label (free text for search).
+  preferredPosition   String @default("")
+  /// Preferred department label (free text for search).
+  preferredDepartment String @default("")
+  location            String @default("")
+
+  /// hospital_website | newspaper | resume_bank | referral | job_portal
+  source String
+  /// in_bank | linked | shortlisted
+  status String @default("in_bank")
+  notes  String @default("")
+
+  /// Original CV file name shown in UI.
+  resumeFileName String @default("")
+  /// Object storage key — populated in Wave 10 document storage.
+  resumeFileKey  String?
+
+  /// Application ObjectIds once Wave 4+ links this profile (add-to-job).
+  linkedApplicationIds String[] @default([])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy String?  @db.ObjectId // Auth User.id
+  updatedBy String?  @db.ObjectId // Auth User.id
+
+  @@index([email])
+  @@index([phone])
+  @@index([status])
+  @@index([source])
+  @@index([preferredPosition])
+  @@index([preferredDepartment])
+  @@index([location])
+  @@index([experienceYears])
+  @@index([skills])
+  @@index([linkedApplicationIds])
+  @@index([createdAt(sort: Desc)])
+}
+
 /* ---------------------------------
 SEQUENCE TABLE
 --------------------------------- */

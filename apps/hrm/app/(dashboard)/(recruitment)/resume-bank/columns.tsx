@@ -19,6 +19,7 @@ const statusClassName: Record<ResumeBankStatus, string> = {
 };
 
 export const RESUME_BANK_EXPORT_COLUMNS = [
+  'Profile ID',
   'Candidate Name',
   'Resume/CV',
   'Email',
@@ -37,6 +38,7 @@ export const RESUME_BANK_EXPORT_COLUMNS = [
 ] as const;
 
 export const RESUME_BANK_EXPORT_KEYS = [
+  'profileId',
   'candidateName',
   'resumeFileName',
   'email',
@@ -55,6 +57,15 @@ export const RESUME_BANK_EXPORT_KEYS = [
 ] as const;
 
 export const resumeBankColumns: ColumnDef<ResumeBankRecord>[] = [
+  {
+    accessorKey: 'profileId',
+    header: () => <div className="whitespace-nowrap">Profile ID</div>,
+    cell: ({ row }) => (
+      <span className="font-medium whitespace-nowrap text-primary">
+        {row.original.profileId}
+      </span>
+    )
+  },
   {
     accessorKey: 'candidateName',
     header: 'Candidate Name',

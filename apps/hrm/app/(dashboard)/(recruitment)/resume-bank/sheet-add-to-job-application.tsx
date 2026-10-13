@@ -20,13 +20,14 @@ import { buttonStyles } from '@/lib/utils/common-styles';
 import {
   EMPTY_ADD_TO_JOB_FORM,
   type AddToJobApplicationFormValues,
-  type ResumeBankRecord
+  type ResumeBankRecord,
+  type VacancySelectOption
 } from '@/types/recruitment';
-import { SAMPLE_RESUME_JOB_POST_OPTIONS } from './sample-data';
 
 type SheetAddToJobApplicationProps = {
   open: boolean;
   record: ResumeBankRecord | null;
+  jobPostOptions: VacancySelectOption[];
   onOpenChange: (open: boolean) => void;
 };
 
@@ -41,14 +42,10 @@ const validationSchema = Yup.object({
   jobPostId: Yup.string().required('Job post is required')
 });
 
-const jobPostOptions = SAMPLE_RESUME_JOB_POST_OPTIONS.map((item) => ({
-  id: item.id,
-  name: item.name
-}));
-
 export default function SheetAddToJobApplication({
   open,
   record,
+  jobPostOptions,
   onOpenChange
 }: SheetAddToJobApplicationProps) {
   const { toast } = useToast();
@@ -70,9 +67,13 @@ export default function SheetAddToJobApplication({
   ) => {
     setSaving(true);
     try {
+      const jobLabel =
+        jobPostOptions.find((o) => o.id === values.jobPostId)?.name ??
+        values.jobPostId;
       toast({
-        title: 'Not saved',
-        description: `Create application for ${values.candidateName} on ${values.jobPostId} will be wired in the workflow phase.`
+        variant: 'default',
+        title: 'Applications module next',
+        description: `Creating an application for ${values.candidateName} on ${jobLabel} will be available in Wave 4 (Applications).`
       });
       handleClose();
     } finally {
@@ -95,7 +96,8 @@ export default function SheetAddToJobApplication({
         <SheetHeader className="shrink-0 space-y-1 border-b border-border bg-background px-6 py-4 pr-14 text-left">
           <SheetTitle>Add to Job Application</SheetTitle>
           <SheetDescription>
-            Link this candidate to a published job post.
+            Link this candidate to a published job post. Application create is
+            wired in Wave 4.
           </SheetDescription>
         </SheetHeader>
 
@@ -132,6 +134,12 @@ export default function SheetAddToJobApplication({
                   options={jobPostOptions}
                   styleClasses={fieldStyleClasses}
                 />
+
+                {!jobPostOptions.length ? (
+                  <p className="text-sm text-muted-foreground">
+                    No published job posts available. Publish a job post first.
+                  </p>
+                ) : null}
               </div>
 
               <SheetFooter className="shrink-0 flex-row justify-end gap-2 border-t border-border bg-background px-6 py-4 sm:space-x-0">
@@ -148,7 +156,7 @@ export default function SheetAddToJobApplication({
                 <Button
                   type="submit"
                   className={buttonStyles.save}
-                  disabled={saving}
+                  disabled={saving || !jobPostOptions.length}
                 >
                   <FilePlus2 className="h-4 w-4" />
                   {saving ? 'Creating…' : 'Create Application'}

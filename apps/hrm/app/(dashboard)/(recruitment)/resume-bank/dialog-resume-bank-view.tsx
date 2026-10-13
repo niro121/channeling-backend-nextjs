@@ -50,11 +50,12 @@ export default function DialogResumeBankView({
 
   const rows: DetailRow[] = record
     ? [
-        { label: 'Candidate Name', value: record.candidateName },
+        { label: 'Profile ID', value: record.profileId },
         {
           label: 'Status',
           value: RESUME_BANK_STATUS_LABELS[record.status]
         },
+        { label: 'Candidate Name', value: record.candidateName },
         { label: 'Email', value: record.email },
         { label: 'Phone', value: record.phone },
         { label: 'Qualifications', value: record.qualifications },

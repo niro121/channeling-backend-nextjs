@@ -1,33 +1,65 @@
 'use client';
 
 import { useState } from 'react';
-import { Briefcase, Eye, FileText, UserCheck } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { Briefcase, Eye, FileText, Pencil, UserCheck } from 'lucide-react';
 import { Button, CustomAlertDialog, useToast } from '@archmage/ui';
+import { markResumeBankShortlistedAction } from '@/app/actions/recruitment-actions/resume-bank.actions';
 import { usePermissions } from '@/components/hooks/use-permissions';
-import type { ResumeBankRecord } from '@/types/recruitment';
+import { buttonStyles } from '@/lib/utils/common-styles';
+import {
+  canMoveResumeToShortlisting,
+  type ResumeBankRecord
+} from '@/types/recruitment';
 import { useResumeBankUi } from './resume-bank-ui-context';
 
 type ResumeBankRecordActionsProps = {
   record: ResumeBankRecord;
-  /** Compact icon buttons for card layout */
-  compact?: boolean;
 };
 
 export default function ResumeBankRecordActions({
   record
 }: ResumeBankRecordActionsProps) {
   const { toast } = useToast();
+  const router = useRouter();
   const { has } = usePermissions();
-  const { openView, openResume, openAddToJob } = useResumeBankUi();
+  const { openView, openResume, openAddToJob, openEdit } = useResumeBankUi();
 
   const canView = has('recruitment', 'view');
   const canEdit = has('recruitment', 'edit');
   const canAdd = has('recruitment', 'add');
+  const canShortlist = canEdit && canMoveResumeToShortlisting(record.status);
 
   const [shortlistOpen, setShortlistOpen] = useState(false);
   const [loading, setLoading] = useState(false);
 
   if (!canView && !canEdit && !canAdd) return null;
+
+  const handleShortlist = async () => {
+    setLoading(true);
+    try {
+      const result = await markResumeBankShortlistedAction(record.id);
+      if (result.isError) {
+        toast({
+          variant: 'destructive',
+          title: 'Shortlist failed',
+          description:
+            (result.errors as { message?: string })?.message ??
+            'Unable to update profile status.'
+        });
+        return;
+      }
+      toast({
+        variant: 'success',
+        title: 'Shortlisted',
+        description: `${record.candidateName} marked shortlisted.`
+      });
+      setShortlistOpen(false);
+      router.refresh();
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <>
@@ -42,6 +74,19 @@ export default function ResumeBankRecordActions({
             onClick={() => openView(record)}
           >
             <Eye className="h-4 w-4" />
+          </Button>
+        ) : null}
+
+        {canEdit ? (
+          <Button
+            type="button"
+            size="icon"
+            variant="ghost"
+            className="h-8 w-8 text-muted-foreground hover:text-foreground"
+            aria-label={`Edit ${record.candidateName}`}
+            onClick={() => openEdit(record)}
+          >
+            <Pencil className="h-4 w-4" />
           </Button>
         ) : null}
 
@@ -71,7 +116,7 @@ export default function ResumeBankRecordActions({
           </Button>
         ) : null}
 
-        {canEdit ? (
+        {canShortlist ? (
           <Button
             type="button"
             size="icon"
@@ -90,19 +135,10 @@ export default function ResumeBankRecordActions({
         handleVisibilityChange={setShortlistOpen}
         loading={loading}
         title="Move to Shortlisting?"
-        description={`Move ${record.candidateName} to Shortlisting?`}
-        handleContinue={() => {
-          setLoading(true);
-          toast({
-            title: 'Not saved',
-            description: `Move ${record.candidateName} to Shortlisting will be wired in the workflow phase.`
-          });
-          setLoading(false);
-          setShortlistOpen(false);
-        }}
+        description={`Mark ${record.candidateName} as shortlisted in the resume bank? Full Shortlisting register actions arrive in Wave 5.`}
+        handleContinue={() => void handleShortlist()}
         className={{
-          actionButton:
-            'bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground'
+          actionButton: `${buttonStyles.save} gap-1.5`
         }}
       />
     </>

@@ -2,17 +2,17 @@
 
 import { Suspense, useState } from 'react';
 import { LayoutGrid, Table2 } from 'lucide-react';
-import { Badge, Button, Card, CardContent, useToast } from '@archmage/ui';
+import { Badge, Button, Card, CardContent } from '@archmage/ui';
 import {
   CommonDataTable,
   DataTableExportFeature
 } from '@/components/common/common-data-table';
 import { cn } from '@/lib/utils';
 import {
-  APPLICATION_SOURCE_LABELS,
   RESUME_BANK_STATUS_LABELS,
   type ResumeBankFilters,
-  type ResumeBankRecord
+  type ResumeBankRecord,
+  type VacancySelectOption
 } from '@/types/recruitment';
 import {
   RESUME_BANK_EXPORT_COLUMNS,
@@ -24,54 +24,49 @@ import SectionFilters from './section-filters';
 
 type ViewMode = 'table' | 'cards';
 
+type ResumeBankExportRow = {
+  profileId: string;
+  candidateName: string;
+  resumeFileName: string;
+  email: string;
+  phone: string;
+  qualifications: string;
+  experienceYears: string;
+  skills: string;
+  preferredPosition: string;
+  preferredDepartment: string;
+  location: string;
+  source: string;
+  dateAdded: string;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
 type SectionRegisterProps = {
   records?: ResumeBankRecord[];
   totalRecords?: number;
   page?: string;
   initialFilters?: ResumeBankFilters;
+  departmentOptions?: VacancySelectOption[];
+  designationOptions?: VacancySelectOption[];
+  onExport: () => Promise<{
+    success: boolean;
+    data?: ResumeBankExportRow[];
+    message?: string;
+  }>;
 };
 
 export default function SectionRegister({
   records = [],
   totalRecords = 0,
   page,
-  initialFilters = {}
+  initialFilters = {},
+  departmentOptions = [],
+  designationOptions = [],
+  onExport
 }: SectionRegisterProps) {
-  const { toast } = useToast();
   const [viewMode, setViewMode] = useState<ViewMode>('table');
-
-  const handleExport = async () => {
-    if (!records.length) {
-      toast({
-        title: 'Export',
-        description: 'No candidates to export.'
-      });
-      return {
-        success: false,
-        message: 'No candidates found'
-      };
-    }
-
-    const data = records.map((row) => ({
-      candidateName: row.candidateName,
-      resumeFileName: row.resumeFileName,
-      email: row.email,
-      phone: row.phone,
-      qualifications: row.qualifications,
-      experienceYears: `${row.experienceYears} yrs`,
-      skills: row.skills.join(', '),
-      preferredPosition: row.preferredPosition,
-      preferredDepartment: row.preferredDepartment,
-      location: row.location,
-      source: APPLICATION_SOURCE_LABELS[row.source] ?? row.source,
-      dateAdded: row.dateAdded,
-      status: RESUME_BANK_STATUS_LABELS[row.status] ?? row.status,
-      createdAt: row.createdAt,
-      updatedAt: row.updatedAt
-    }));
-
-    return { success: true, data };
-  };
 
   const viewToggle = (
     <div className="flex items-center gap-1 rounded-md border border-border p-0.5">
@@ -100,7 +95,11 @@ export default function SectionRegister({
 
   return (
     <div className="space-y-4">
-      <SectionFilters initial={initialFilters} />
+      <SectionFilters
+        initial={initialFilters}
+        departmentOptions={departmentOptions}
+        designationOptions={designationOptions}
+      />
 
       <Suspense
         fallback={
@@ -124,7 +123,7 @@ export default function SectionRegister({
                 <DataTableExportFeature
                   showColumnToggle
                   showPrintButton
-                  serverData={handleExport}
+                  serverData={onExport}
                   columns={[...RESUME_BANK_EXPORT_COLUMNS]}
                   keys={[...RESUME_BANK_EXPORT_KEYS]}
                   title="Resume Bank"
@@ -147,7 +146,7 @@ export default function SectionRegister({
                 <DataTableExportFeature
                   showColumnToggle={false}
                   showPrintButton
-                  serverData={handleExport}
+                  serverData={onExport}
                   columns={[...RESUME_BANK_EXPORT_COLUMNS]}
                   keys={[...RESUME_BANK_EXPORT_KEYS]}
                   title="Resume Bank"
@@ -164,9 +163,14 @@ export default function SectionRegister({
                 >
                   <CardContent className="space-y-3 p-4">
                     <div className="flex items-start justify-between gap-2">
-                      <p className="font-semibold text-foreground">
-                        {record.candidateName}
-                      </p>
+                      <div>
+                        <p className="text-xs text-muted-foreground">
+                          {record.profileId}
+                        </p>
+                        <p className="font-semibold text-foreground">
+                          {record.candidateName}
+                        </p>
+                      </div>
                       <Badge
                         variant="secondary"
                         className={cn(
@@ -186,7 +190,7 @@ export default function SectionRegister({
                       {record.qualifications} · {record.experienceYears} yrs
                     </p>
                     <p className="text-sm text-muted-foreground">
-                      Prefers {record.preferredPosition}
+                      Prefers {record.preferredPosition || '—'}
                       {record.preferredDepartment
                         ? ` · ${record.preferredDepartment}`
                         : ''}

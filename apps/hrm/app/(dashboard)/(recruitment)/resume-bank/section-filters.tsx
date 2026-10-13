@@ -7,26 +7,23 @@ import { FilterWrapper } from '@/app/(dashboard)/filter-wrapper';
 import {
   APPLICATION_SOURCE_LABELS,
   APPLICATION_SOURCES,
-  VACANCY_DEPARTMENT_OPTIONS,
-  VACANCY_DESIGNATION_OPTIONS,
-  type ResumeBankFilters
+  RESUME_BANK_EXPERIENCE_OPTIONS,
+  type ResumeBankFilters,
+  type VacancySelectOption
 } from '@/types/recruitment';
-import { SAMPLE_EXPERIENCE_OPTIONS } from './sample-data';
 
 type SectionFiltersProps = {
   initial?: ResumeBankFilters;
+  departmentOptions?: VacancySelectOption[];
+  designationOptions?: VacancySelectOption[];
 };
 
-function SectionFiltersInner({ initial = {} }: SectionFiltersProps) {
-  const experienceOptions = SAMPLE_EXPERIENCE_OPTIONS.map((item) => ({
-    id: item.id,
-    name: item.name
-  }));
-  const designationOptions = VACANCY_DESIGNATION_OPTIONS.map((item) => ({
-    id: item.id,
-    name: item.name
-  }));
-  const departmentOptions = VACANCY_DEPARTMENT_OPTIONS.map((item) => ({
+function SectionFiltersInner({
+  initial = {},
+  departmentOptions = [],
+  designationOptions = []
+}: SectionFiltersProps) {
+  const experienceOptions = RESUME_BANK_EXPERIENCE_OPTIONS.map((item) => ({
     id: item.id,
     name: item.name
   }));
