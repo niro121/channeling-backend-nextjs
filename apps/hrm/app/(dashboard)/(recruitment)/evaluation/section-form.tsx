@@ -412,8 +412,7 @@ export default function SectionForm({ record }: SectionFormProps) {
         description="Submitted evaluations are locked and shared with the hiring panel."
         handleContinue={handleSubmitConfirm}
         className={{
-          actionButton:
-            'bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground'
+          actionButton: buttonStyles.save
         }}
       />
     </>
