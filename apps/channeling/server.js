@@ -22,9 +22,11 @@ async function attachRedisAdapter(io) {
   }
   const { createClient } = require('redis')
   const { createAdapter } = require('@socket.io/redis-adapter')
-  // Heroku Redis uses self-signed certs on rediss:// URLs
+  // Heroku Redis uses self-signed certs on rediss:// URLs. pingInterval keeps the connection
+  // active so Redis' idle timeout (300s on Heroku) doesn't drop it between emits.
   const pubClient = createClient({
     url,
+    pingInterval: 60000,
     socket: url.startsWith('rediss://') ? { tls: true, rejectUnauthorized: false } : undefined,
   })
   const subClient = pubClient.duplicate()
