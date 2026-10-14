@@ -5,11 +5,12 @@ import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { visibleNavItems, isNavActive } from './nav-items';
 import { useTaskPerms } from '@/components/tasks/task-perms';
+import { useAiPerms } from '@/components/ai/ai-perms';
 
 /** App-style tab bar for phones and iPad portrait, clear of the home indicator. */
 export function BottomTabBar() {
   const pathname = usePathname();
-  const items = visibleNavItems(useTaskPerms());
+  const items = visibleNavItems({ tasks: useTaskPerms(), ai: useAiPerms() }, 'tabs');
   return (
     <nav
       className="fixed inset-x-0 bottom-0 z-40 border-t border-border/60 bg-background/95 pb-safe backdrop-blur supports-[backdrop-filter]:bg-background/80 lg:hidden"

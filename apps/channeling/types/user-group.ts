@@ -189,6 +189,17 @@ export const RESOURCES: ResourceWithOptionalActions[] = [
     ],
   },
   {
+    // Management app AI assistants (Ayu). Assistants are set up in the management app;
+    // a Staff assistant needs chat-staff, a Public one (e.g. patient Ayu) needs chat.
+    id: "management-ai",
+    name: "Management App AI Assistants",
+    customActions: [
+      { id: "chat", name: "Chat with public assistants (Ayu)" },
+      { id: "chat-staff", name: "Chat with staff assistants (Ayu for Management)" },
+      { id: "manage", name: "Set up assistants" },
+    ],
+  },
+  {
     // Management app Overview (apps/management) — one switch per channel-insights module.
     id: "management-overview",
     name: "Management App Overview",

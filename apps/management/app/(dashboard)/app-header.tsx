@@ -11,6 +11,9 @@ import { NAV_ITEMS, isNavActive } from './nav-items';
 import { HEADER_ACTIONS_ID } from './header-actions';
 import { AppMenu } from './app-menu';
 import { TaskBell } from '@/components/tasks/task-bell';
+import { Sparkles } from 'lucide-react';
+import { useAiPerms } from '@/components/ai/ai-perms';
+import { canUseAi } from '@/lib/ai/constants';
 
 function initialOf(name?: string | null, email?: string | null): string {
   return (name?.trim() || email?.trim() || 'U').charAt(0).toUpperCase();
@@ -20,6 +23,7 @@ function initialOf(name?: string | null, email?: string | null): string {
 export function AppHeader() {
   const pathname = usePathname();
   const { data: session } = useSession();
+  const showAyu = canUseAi(useAiPerms()) && !isNavActive(pathname, '/ayu');
   const title = NAV_ITEMS.find((item) => isNavActive(pathname, item.href))?.label ?? 'Management';
 
   return (
@@ -33,6 +37,16 @@ export function AppHeader() {
           <DashboardBreadcrumb />
         </div>
         <div id={HEADER_ACTIONS_ID} className="flex shrink-0 items-center gap-2" />
+        {showAyu && (
+          <Link
+            href="/ayu"
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-primary active:bg-muted lg:hover:bg-muted"
+            aria-label="Ask Ayu"
+            title="Ask Ayu"
+          >
+            <Sparkles className="h-5 w-5" />
+          </Link>
+        )}
         <TaskBell />
         <Link href="/account" className="shrink-0 lg:hidden" aria-label="Account">
           <Avatar className="h-9 w-9">

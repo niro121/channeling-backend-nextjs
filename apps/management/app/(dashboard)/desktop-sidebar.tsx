@@ -6,9 +6,10 @@ import Image from "next/image";
 import { cn } from "@/lib/utils";
 import { visibleNavItems } from "./nav-items";
 import { useTaskPerms } from "@/components/tasks/task-perms";
+import { useAiPerms } from "@/components/ai/ai-perms";
 
 export function DesktopSidebar({ className }: { className?: string }) {
-  const items = visibleNavItems(useTaskPerms());
+  const items = visibleNavItems({ tasks: useTaskPerms(), ai: useAiPerms() });
   return (
     <aside className={cn("fixed inset-y-0 left-0 z-50 flex w-52 flex-col border-r border-primary/20 bg-secondary overflow-hidden", className)}>
       <div className="flex h-14 shrink-0 items-center border-b border-primary/20 bg-secondary px-3">

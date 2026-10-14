@@ -7,7 +7,9 @@ import { usePathname } from 'next/navigation';
 
 const PATH_NAMES: { path: string; name: string }[] = [
   { path: 'tasks', name: 'Tasks' },
-  { path: 'recurring', name: 'Recurring' }
+  { path: 'recurring', name: 'Recurring' },
+  { path: 'ayu', name: 'Ayu' },
+  { path: 'assistants', name: 'Assistants' }
 ];
 
 function isDynamicId(segment: string): boolean {

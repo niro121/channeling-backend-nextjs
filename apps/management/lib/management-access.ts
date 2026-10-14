@@ -2,6 +2,7 @@ import 'server-only';
 import { cache } from 'react';
 import { channelingUserFetch, ChannelingUserApiError } from '@/lib/channeling-user-api';
 import { NO_TASK_PERMISSIONS, type TaskPermissions } from '@/lib/tasks/constants';
+import { NO_AI_PERMISSIONS, type AiPermissions } from '@/lib/ai/constants';
 
 /**
  * Whether the signed-in user may use this app: admin, or management-app.access in their
@@ -17,10 +18,18 @@ export type ManagementMe = {
   userId: string | null;
   /** Task Manager privileges (channeling group `management-tasks`) */
   tasks: TaskPermissions;
+  /** AI assistant privileges (channeling group `management-ai`) */
+  ai: AiPermissions;
 };
 
 export const getManagementMe = cache(async (): Promise<ManagementMe> => {
-  const denied = (access: ManagementAccess): ManagementMe => ({ access, isAdmin: false, userId: null, tasks: NO_TASK_PERMISSIONS });
+  const denied = (access: ManagementAccess): ManagementMe => ({
+    access,
+    isAdmin: false,
+    userId: null,
+    tasks: NO_TASK_PERMISSIONS,
+    ai: NO_AI_PERMISSIONS
+  });
   try {
     const res = await channelingUserFetch('/api/management/me');
     if (res.ok) {
@@ -28,13 +37,15 @@ export const getManagementMe = cache(async (): Promise<ManagementMe> => {
         isAdmin?: boolean;
         userId?: string;
         tasks?: Partial<TaskPermissions>;
+        ai?: Partial<AiPermissions>;
       } | null;
       return {
         access: 'allowed',
         isAdmin: data?.isAdmin === true,
         userId: data?.userId ?? null,
         // Older channeling (no tasks field) → no task access rather than guessing
-        tasks: { ...NO_TASK_PERMISSIONS, ...(data?.tasks ?? {}) }
+        tasks: { ...NO_TASK_PERMISSIONS, ...(data?.tasks ?? {}) },
+        ai: { ...NO_AI_PERMISSIONS, ...(data?.ai ?? {}) }
       };
     }
     // 401: no matching active channeling user; 403: no management-app.access

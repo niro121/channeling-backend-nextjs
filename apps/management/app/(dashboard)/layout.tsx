@@ -6,6 +6,7 @@ import { PushSync } from '@/components/pwa/notifications';
 import { NoAccessScreen } from '@/components/no-access-screen';
 import { getManagementMe } from '@/lib/management-access';
 import { TaskPermsProvider } from '@/components/tasks/task-perms';
+import { AiPermsProvider } from '@/components/ai/ai-perms';
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const session = await fetchServerSession();
@@ -28,16 +29,18 @@ export default async function DashboardLayout({ children }: { children: React.Re
   return (
     <Providers session={session}>
       <TaskPermsProvider value={me.tasks}>
-        <PushSync />
-        <div className="flex min-h-dvh w-full flex-col bg-background">
-          <SidebarLayoutClient>
-            <AppHeader />
-            {/* Room for the bottom tab bar (and the home indicator) below lg */}
-            <main className="min-w-0 flex-1 p-4 pb-[calc(5.5rem+env(safe-area-inset-bottom))] sm:p-6 sm:pb-[calc(6rem+env(safe-area-inset-bottom))] lg:pb-6">
-              {children}
-            </main>
-          </SidebarLayoutClient>
-        </div>
+        <AiPermsProvider value={me.ai}>
+          <PushSync />
+          <div className="flex min-h-dvh w-full flex-col bg-background">
+            <SidebarLayoutClient>
+              <AppHeader />
+              {/* Room for the bottom tab bar (and the home indicator) below lg */}
+              <main className="min-w-0 flex-1 p-4 pb-[calc(5.5rem+env(safe-area-inset-bottom))] sm:p-6 sm:pb-[calc(6rem+env(safe-area-inset-bottom))] lg:pb-6">
+                {children}
+              </main>
+            </SidebarLayoutClient>
+          </div>
+        </AiPermsProvider>
       </TaskPermsProvider>
     </Providers>
   );

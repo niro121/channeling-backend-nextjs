@@ -136,3 +136,47 @@ model Counter {
   id    String @id @map("_id")
   value Int
 }
+
+/// An AI assistant on an ADK server (RuhunuAI: "ayu", "ayu_management"). Browsers never reach the
+/// ADK server — every chat goes through this app, which sends ADK_SERVICE_KEY. Who may chat is
+/// decided by channeling's `management-ai` privileges: STAFF needs chat-staff, PUBLIC needs chat.
+model Assistant {
+  id          String  @id @default(auto()) @map("_id") @db.ObjectId
+  name        String
+  description String?
+  /// e.g. https://ruhunuai-xxxx.run.app (no trailing slash)
+  adkBaseUrl  String
+  /// ADK app name on that server, e.g. "ayu_management"
+  adkAppName  String
+  /// STAFF | PUBLIC (lib/ai/constants.ts)
+  audience    String  @default("STAFF")
+  /// First line shown in an empty chat
+  greeting    String?
+  active      Boolean @default(true)
+  sortOrder   Int     @default(0)
+
+  createdById String @db.ObjectId
+  chats       AssistantChat[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([active, sortOrder])
+}
+
+/// One conversation. The messages themselves live in the ADK server's session store
+/// (adkSessionId); this row is the user's chat list.
+model AssistantChat {
+  id            String    @id @default(auto()) @map("_id") @db.ObjectId
+  assistantId   String    @db.ObjectId
+  assistant     Assistant @relation(fields: [assistantId], references: [id], onDelete: Cascade)
+  /// Channeling/auth user id — also the ADK user_id
+  userId        String    @db.ObjectId
+  adkSessionId  String    @unique
+  title         String    @default("New chat")
+  messageCount  Int       @default(0)
+  lastMessageAt DateTime  @default(now())
+  createdAt     DateTime  @default(now())
+
+  @@index([userId, assistantId, lastMessageAt])
+}

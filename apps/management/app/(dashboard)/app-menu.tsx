@@ -6,9 +6,10 @@ import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@archmage/ui';
-import { Eye, Inbox, ListChecks, Menu, Plus, Repeat, UserPen, Users } from 'lucide-react';
+import { Bot, Eye, Inbox, ListChecks, Menu, Plus, Repeat, UserPen, Users } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useTaskPerms } from '@/components/tasks/task-perms';
+import { useAiPerms } from '@/components/ai/ai-perms';
 import { myTaskCountsAction } from '@/app/actions/tasks.actions';
 import { isNavActive, visibleNavItems } from './nav-items';
 
@@ -58,6 +59,7 @@ export function AppMenu() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const perms = useTaskPerms();
+  const aiPerms = useAiPerms();
   const { data: session } = useSession();
   const close = () => setOpen(false);
 
@@ -99,8 +101,15 @@ export function AppMenu() {
           </SheetHeader>
 
           <nav className="flex-1 overflow-y-auto px-2 py-3 pb-safe" aria-label="Menu">
-            {visibleNavItems(perms).map(({ href, label, icon }) => (
-              <MenuLink key={href} href={href} icon={icon} label={label} active={isNavActive(pathname, href) && href !== '/tasks'} onNavigate={close} />
+            {visibleNavItems({ tasks: perms, ai: aiPerms }).map(({ href, label, icon }) => (
+              <MenuLink
+                key={href}
+                href={href}
+                icon={icon}
+                label={label}
+                active={isNavActive(pathname, href) && href !== '/tasks' && pathname !== '/ayu/assistants'}
+                onNavigate={close}
+              />
             ))}
 
             {perms.view && (
@@ -122,6 +131,13 @@ export function AppMenu() {
                 {!perms.create && taskLinks.length === 0 && (
                   <MenuLink href="/tasks" icon={ListChecks} label="Tasks" active={onTasks} onNavigate={close} />
                 )}
+              </>
+            )}
+
+            {aiPerms.manage && (
+              <>
+                <p className="mt-4 px-3 pb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">AI</p>
+                <MenuLink href="/ayu/assistants" icon={Bot} label="Set up assistants" active={pathname === '/ayu/assistants'} onNavigate={close} />
               </>
             )}
           </nav>
