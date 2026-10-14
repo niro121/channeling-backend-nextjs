@@ -15,7 +15,7 @@ export default function EvaluationRecordActions({
   record
 }: EvaluationRecordActionsProps) {
   const { has } = usePermissions();
-  const { openView, setActiveRecord } = useEvaluationUi();
+  const { openView, editRecord } = useEvaluationUi();
 
   const canView = has('recruitment', 'view');
   const canEdit = has('recruitment', 'edit');
@@ -31,12 +31,7 @@ export default function EvaluationRecordActions({
           variant="ghost"
           className="h-8 w-8 text-muted-foreground hover:text-foreground"
           aria-label={`View evaluation for ${record.candidateName}`}
-          onClick={() => {
-            openView(record);
-            if (canEdit && record.status === 'draft') {
-              setActiveRecord(record);
-            }
-          }}
+          onClick={() => openView(record)}
         >
           <Eye className="h-4 w-4" />
         </Button>
@@ -66,7 +61,7 @@ export default function EvaluationRecordActions({
           variant="ghost"
           className="h-8 w-8 text-primary hover:bg-primary/10 hover:text-primary"
           aria-label={`Edit evaluation for ${record.candidateName}`}
-          onClick={() => setActiveRecord(record)}
+          onClick={() => editRecord(record)}
         >
           <Pencil className="h-4 w-4" />
         </Button>
