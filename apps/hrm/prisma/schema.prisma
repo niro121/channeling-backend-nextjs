@@ -1687,7 +1687,8 @@ model Evaluation {
   /// draft | submitted
   status String @default("draft")
 
-  interview Interview @relation(fields: [interviewId], references: [id])
+  interview          Interview           @relation(fields: [interviewId], references: [id])
+  appointmentLetter  AppointmentLetter?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1705,6 +1706,68 @@ model Evaluation {
   @@index([overallScore])
   @@index([recommendation])
   @@index([finalDecision])
+  @@index([createdAt(sort: Desc)])
+}
+
+/// Offer / appointment letter for a submitted Evaluation. Wave 8 Appointment Letters.
+model AppointmentLetter {
+  id           String @id @default(auto()) @map("_id") @db.ObjectId
+  /// Human-readable code from Sequence, e.g. LETTER-1
+  letterNumber String @unique
+
+  evaluationId String @unique @db.ObjectId
+  /// Denormalized Evaluation.evaluationCode (EVAL-*).
+  evaluationCode String @default("")
+
+  /// Denormalized from Evaluation / Application for list + form.
+  applicationId   String @db.ObjectId
+  applicationCode String @default("")
+  candidateName   String
+  /// Job / designation title (UI: position).
+  position        String @default("")
+  department      String @default("")
+
+  /// permanent | contract | temporary | casual
+  employmentType String @default("")
+  /// Reporting / joining date.
+  appointmentDate DateTime?
+  salary          String @default("")
+  letterDate      DateTime?
+
+  reportingLocation String @default("")
+  reportingManager  String @default("")
+  /// 3_months | 6_months | 12_months | none | free text
+  probationPeriod   String @default("")
+  benefits            String @default("")
+  termsAndConditions  String @default("")
+
+  /// draft | pending_approval | issued | accepted | declined
+  status String @default("draft")
+  /// True once letter content has been generated for preview/PDF.
+  letterGenerated Boolean @default(false)
+  declineReason   String?
+
+  /// Object storage key — populated in Wave 10 document storage.
+  letterFileKey String?
+
+  evaluation Evaluation @relation(fields: [evaluationId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy String?  @db.ObjectId // Auth User.id
+  updatedBy String?  @db.ObjectId // Auth User.id
+
+  @@index([evaluationCode])
+  @@index([applicationId])
+  @@index([applicationCode])
+  @@index([candidateName])
+  @@index([position])
+  @@index([department])
+  @@index([employmentType])
+  @@index([appointmentDate])
+  @@index([letterDate])
+  @@index([status])
+  @@index([letterGenerated])
   @@index([createdAt(sort: Desc)])
 }
 

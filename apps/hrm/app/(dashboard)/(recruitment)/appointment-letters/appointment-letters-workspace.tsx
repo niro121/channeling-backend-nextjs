@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 import { Button } from '@archmage/ui';
@@ -8,12 +9,12 @@ import { buttonStyles } from '@/lib/utils/common-styles';
 import type {
   AppointmentLetterFilters,
   AppointmentLetterRecord,
-  AppointmentLetterSummary
+  AppointmentLetterSummary,
+  VacancySelectOption
 } from '@/types/recruitment';
 import {
   AppointmentLettersUiProvider,
-  useAppointmentLettersUi,
-  withGeneratedFlag
+  useAppointmentLettersUi
 } from './appointment-letters-ui-context';
 import DialogAppointmentLetterView from './dialog-appointment-letter-view';
 import DialogLetterPreview from './dialog-letter-preview';
@@ -28,6 +29,8 @@ type AppointmentLettersWorkspaceProps = {
   summary: AppointmentLetterSummary;
   page?: string;
   initialFilters?: AppointmentLetterFilters;
+  evaluationOptions?: VacancySelectOption[];
+  createPrefill?: Partial<AppointmentLetterRecord> | null;
 };
 
 function AppointmentLettersWorkspaceInner({
@@ -35,21 +38,27 @@ function AppointmentLettersWorkspaceInner({
   totalRecords,
   summary,
   page,
-  initialFilters
+  initialFilters,
+  evaluationOptions = [],
+  createPrefill
 }: AppointmentLettersWorkspaceProps) {
   const {
     formSheet,
     viewRecord,
     letterPreviewRecord,
-    generatedIds,
+    openCreate,
     closeFormSheet,
     closeView,
     closeLetterPreview
   } = useAppointmentLettersUi();
 
-  const previewRecord = letterPreviewRecord
-    ? withGeneratedFlag(letterPreviewRecord, generatedIds)
-    : null;
+  const openedPrefill = useRef(false);
+  useEffect(() => {
+    if (createPrefill?.evaluationId && !openedPrefill.current) {
+      openedPrefill.current = true;
+      openCreate(createPrefill);
+    }
+  }, [createPrefill, openCreate]);
 
   return (
     <div className="space-y-6">
@@ -86,6 +95,7 @@ function AppointmentLettersWorkspaceInner({
         open={formSheet != null}
         mode={formSheet?.mode ?? 'create'}
         record={formSheet?.record ?? null}
+        evaluationOptions={evaluationOptions}
         onOpenChange={(open) => {
           if (!open) closeFormSheet();
         }}
@@ -100,11 +110,11 @@ function AppointmentLettersWorkspaceInner({
       />
 
       <DialogLetterPreview
-        open={previewRecord != null}
+        open={letterPreviewRecord != null}
         setOpen={(open) => {
           if (!open) closeLetterPreview();
         }}
-        record={previewRecord}
+        record={letterPreviewRecord}
       />
     </div>
   );

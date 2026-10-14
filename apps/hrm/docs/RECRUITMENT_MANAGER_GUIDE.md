@@ -222,7 +222,7 @@ AppointmentLetter *──1 Evaluation (or Application)
 | **Application** | `applicationId` (APP-*); FK `jobPostId` + denormalized `jobPostCode` / title / dept / designation; optional `resumeBankProfileId`; `currentStage` vs `status`; Wave 5 shortlisting fields `shortlistStatus` (`to_review` \| `shortlisted` \| `on_hold` \| `rejected`), `screeningScore`, `qualifications` / `skills`, `holdReason`; embedded `history[]`; `source` (`hospital_website` \| `resume_bank` \| …); unique `(jobPostId, candidateEmail)`; CV `resumeFileName` / `resumeFileKey`. **No separate Shortlisting model** — `/shortlisting` is a mid-pipeline view over Application. |
 | **Interview** | `interviewCode` (INT-*); FK `applicationId` + denormalized APP/JP codes; date + start/end time; panel; type; location; notes; status (`scheduled` \| `confirmed` \| `rescheduled` \| `completed` \| `no_show` \| `cancelled`); `cancelReason` |
 | **Evaluation** | `evaluationCode` (EVAL-*); 1:1 FK `interviewId`; denormalized interview/application snapshot; `ratings` JSON; strengths/weaknesses/comments; recommendation / finalDecision; cached `overallScore`; status `draft` \| `submitted` |
-| **AppointmentLetter** | `letterNumber`; salary; dates; `letterGenerated`; status; file refs |
+| **AppointmentLetter** | `letterNumber` (LETTER-*); 1:1 FK `evaluationId`; denormalized evaluation/application snapshot; salary; dates; `letterGenerated`; status `draft` \| `pending_approval` \| `issued` \| `accepted` \| `declined`; optional `declineReason` / `letterFileKey` (Wave 10) |
 
 ### Codes / sequences
 
@@ -323,9 +323,14 @@ All under `app/(dashboard)/(recruitment)/`.
 
 | Concern | Detail |
 |---------|--------|
-| Create/Edit | Sheet; Save Draft |
-| Generate | Paper icon + View dialog → letter preview dialog |
-| Other | PDF/Print toast; Send confirm; Accept confirm; Decline (+ reason); Staff onboarding link |
+| Persistence | `AppointmentLetter` model (`LETTER-*`); 1:1 FK to Evaluation; Sequence prefix `LETTER` |
+| Create/Edit | Sheet; Save Draft (candidate = submitted Evaluation without a letter) |
+| Generate | Paper icon + View dialog → sets `letterGenerated`, status → `pending_approval` when from draft; preview dialog |
+| Send | Email (`lib/helpers/email`) + SMS (`lib/helpers/sms`) using Application contact; status → `issued`; Application stage → `offer` |
+| Accept / Decline | Accept → `accepted` + Application `hired`; Decline (+ reason) → `declined` |
+| Other | PDF/Print deferred to Wave 10; Staff onboarding link when accepted |
+| Load UX | `?evaluationId=` opens create sheet when no letter yet |
+| Service | `appointment-letter.service.ts` + `appointment-letter.actions.ts` |
 | Status gating | See helpers in `types/recruitment.ts` (`canGenerate…`, `canSend…`, etc.) |
 | Footer | Evaluation ← (end of recruitment chain) |
 

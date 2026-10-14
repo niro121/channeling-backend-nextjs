@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import {
   CheckCircle2,
   Download,
@@ -26,6 +27,12 @@ import {
   Textarea,
   useToast
 } from '@archmage/ui';
+import {
+  acceptAppointmentLetterAction,
+  declineAppointmentLetterAction,
+  generateAppointmentLetterAction,
+  sendAppointmentLetterAction
+} from '@/app/actions/recruitment-actions/appointment-letter.actions';
 import { usePermissions } from '@/components/hooks/use-permissions';
 import { buttonStyles } from '@/lib/utils/common-styles';
 import {
@@ -38,29 +45,20 @@ import {
   canSendAppointmentLetter,
   type AppointmentLetterRecord
 } from '@/types/recruitment';
-import {
-  useAppointmentLettersUi,
-  withGeneratedFlag
-} from './appointment-letters-ui-context';
+import { useAppointmentLettersUi } from './appointment-letters-ui-context';
 
 type AppointmentLetterRecordActionsProps = {
   record: AppointmentLetterRecord;
 };
 
 export default function AppointmentLetterRecordActions({
-  record: rawRecord
+  record
 }: AppointmentLetterRecordActionsProps) {
   const { toast } = useToast();
+  const router = useRouter();
   const { has } = usePermissions();
-  const {
-    openView,
-    openEdit,
-    openLetterPreview,
-    markGenerated,
-    generatedIds
-  } = useAppointmentLettersUi();
+  const { openView, openEdit, openLetterPreview } = useAppointmentLettersUi();
 
-  const record = withGeneratedFlag(rawRecord, generatedIds);
   const canView = has('recruitment', 'view');
   const canEdit = has('recruitment', 'edit');
   const canAdd = has('recruitment', 'add');
@@ -73,13 +71,102 @@ export default function AppointmentLetterRecordActions({
 
   if (!canView && !canEdit && !canAdd) return null;
 
-  const handleGenerate = () => {
-    markGenerated(record.id);
+  const handleGenerate = async () => {
+    setLoading(true);
+    const result = await generateAppointmentLetterAction(record.id);
+    setLoading(false);
+    if (result.isError || !result.data?.record) {
+      toast({
+        variant: 'destructive',
+        title: 'Could not generate',
+        description:
+          (result.errors as { message?: string })?.message ??
+          'Please try again.'
+      });
+      return;
+    }
     toast({
+      variant: 'success',
       title: 'Letter generated',
-      description: `Appointment letter for ${record.candidateName} is ready to preview.`
+      description: `Appointment letter for ${result.data.record.candidateName} is ready to preview.`
     });
-    openLetterPreview({ ...record, letterGenerated: true });
+    openLetterPreview(result.data.record);
+    router.refresh();
+  };
+
+  const handleSend = async () => {
+    setLoading(true);
+    const result = await sendAppointmentLetterAction(record.id);
+    setLoading(false);
+    if (result.isError) {
+      toast({
+        variant: 'destructive',
+        title: 'Could not send',
+        description:
+          (result.errors as { message?: string })?.message ??
+          'Please try again.'
+      });
+      return;
+    }
+    toast({
+      variant: 'success',
+      title: 'Letter sent',
+      description:
+        result.data?.message ??
+        `${record.letterNumber} issued to ${record.candidateName}.`
+    });
+    setSendOpen(false);
+    router.refresh();
+  };
+
+  const handleAccept = async () => {
+    setLoading(true);
+    const result = await acceptAppointmentLetterAction(record.id);
+    setLoading(false);
+    if (result.isError) {
+      toast({
+        variant: 'destructive',
+        title: 'Could not accept',
+        description:
+          (result.errors as { message?: string })?.message ??
+          'Please try again.'
+      });
+      return;
+    }
+    toast({
+      variant: 'success',
+      title: 'Offer accepted',
+      description: `${record.letterNumber} marked as accepted.`
+    });
+    setAcceptOpen(false);
+    router.refresh();
+  };
+
+  const handleDecline = async () => {
+    setLoading(true);
+    const result = await declineAppointmentLetterAction(
+      record.id,
+      declineReason
+    );
+    setLoading(false);
+    if (result.isError) {
+      toast({
+        variant: 'destructive',
+        title: 'Could not decline',
+        description:
+          (result.errors as { message?: string })?.message ??
+          'Please try again.'
+      });
+      return;
+    }
+    toast({
+      variant: 'success',
+      title: 'Offer declined',
+      description: `${record.letterNumber} marked as declined.`
+    });
+    setDeclineOpen(false);
+    setDeclineReason('');
+    router.refresh();
   };
 
   return (
@@ -118,7 +205,8 @@ export default function AppointmentLetterRecordActions({
             variant="ghost"
             className="h-8 w-8 text-muted-foreground hover:text-foreground"
             aria-label={`Generate letter for ${record.candidateName}`}
-            onClick={handleGenerate}
+            disabled={loading}
+            onClick={() => void handleGenerate()}
           >
             <FileText className="h-4 w-4" />
           </Button>
@@ -221,19 +309,10 @@ export default function AppointmentLetterRecordActions({
         handleVisibilityChange={setSendOpen}
         loading={loading}
         title="Send?"
-        description={`Email this letter to ${record.candidateName}?`}
-        handleContinue={() => {
-          setLoading(true);
-          toast({
-            title: 'Not saved',
-            description: `Send ${record.letterNumber} will be wired in the workflow phase.`
-          });
-          setLoading(false);
-          setSendOpen(false);
-        }}
+        description={`Email and/or SMS this letter to ${record.candidateName}?`}
+        handleContinue={() => void handleSend()}
         className={{
-          actionButton:
-            'bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground'
+          actionButton: buttonStyles.save
         }}
       />
 
@@ -243,18 +322,9 @@ export default function AppointmentLetterRecordActions({
         loading={loading}
         title="Mark as Accepted?"
         description={`Record ${record.candidateName}'s acceptance? Staff onboarding can then begin.`}
-        handleContinue={() => {
-          setLoading(true);
-          toast({
-            title: 'Not saved',
-            description: `Accept ${record.letterNumber} will be wired in the workflow phase.`
-          });
-          setLoading(false);
-          setAcceptOpen(false);
-        }}
+        handleContinue={() => void handleAccept()}
         className={{
-          actionButton:
-            'bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground'
+          actionButton: buttonStyles.save
         }}
       />
 
@@ -303,20 +373,7 @@ export default function AppointmentLetterRecordActions({
               type="button"
               className={buttonStyles.delete.danger}
               disabled={loading}
-              onClick={() => {
-                setLoading(true);
-                toast({
-                  title: 'Not saved',
-                  description: `Decline ${record.letterNumber}${
-                    declineReason.trim()
-                      ? ` (${declineReason.trim()})`
-                      : ''
-                  } will be wired in the workflow phase.`
-                });
-                setLoading(false);
-                setDeclineOpen(false);
-                setDeclineReason('');
-              }}
+              onClick={() => void handleDecline()}
             >
               Mark as Declined
             </Button>
