@@ -964,7 +964,10 @@ export function canEvaluateInterview(record: InterviewRecord): boolean {
 
 // ─── Evaluation ──────────────────────────────────────────────────────────────
 
-/** Phase 0 static criteria — store as JSON / master later. */
+/** Sequence / record-code prefix → codes like EVAL-1 (see generateRecordCode). */
+export const EVALUATION_CODE_PREFIX = 'EVAL';
+
+/** Criteria keys stored in Evaluation.ratings JSON. */
 export const EVALUATION_CRITERIA = [
   'technical_knowledge',
   'communication',
@@ -1055,10 +1058,16 @@ export type EvaluationPreviousEntry = {
 
 export type EvaluationRecord = {
   id: string;
+  evaluationCode: string;
   interviewId: string;
   interviewCode: string;
+  /** Application Mongo ObjectId */
+  applicationRefId: string;
+  /** Denormalized Application.applicationId, e.g. APP-1 */
+  applicationId: string;
   candidateName: string;
   jobTitle: string;
+  /** yyyy-MM-dd */
   interviewDate: string;
   interviewer: string;
   interviewType: InterviewType;
@@ -1071,6 +1080,7 @@ export type EvaluationRecord = {
   finalDecision: EvaluationDecision | '';
   overallScore: number;
   status: EvaluationStatus;
+  /** Prior submitted evaluations for the same application (derived). */
   previousEvaluations: EvaluationPreviousEntry[];
   createdAt: string;
   createdBy: string;
@@ -1087,6 +1097,27 @@ export type EvaluationFormValues = {
   finalDecision: string;
 };
 
+export type EvaluationFilters = {
+  status?: string;
+  search?: string;
+  interviewType?: string;
+  decision?: string;
+};
+
+export type GetEvaluationsParams = EvaluationFilters & {
+  page?: string;
+  limit?: string;
+};
+
+export type EvaluationPayload = {
+  ratings: EvaluationRatingsMap;
+  strengths?: string;
+  weaknesses?: string;
+  interviewComments?: string;
+  recommendation?: string;
+  finalDecision?: string;
+};
+
 export const EMPTY_EVALUATION_FORM: EvaluationFormValues = {
   ratings: {},
   strengths: '',
@@ -1094,6 +1125,35 @@ export const EMPTY_EVALUATION_FORM: EvaluationFormValues = {
   interviewComments: '',
   recommendation: '',
   finalDecision: ''
+};
+
+/** Placeholder when register is empty and no interviewId is provided. */
+export const EMPTY_EVALUATION_RECORD: EvaluationRecord = {
+  id: '',
+  evaluationCode: '',
+  interviewId: '',
+  interviewCode: '',
+  applicationRefId: '',
+  applicationId: '',
+  candidateName: '',
+  jobTitle: '',
+  interviewDate: '',
+  interviewer: '',
+  interviewType: 'panel',
+  interviewStage: '',
+  ratings: {},
+  strengths: '',
+  weaknesses: '',
+  interviewComments: '',
+  recommendation: '',
+  finalDecision: '',
+  overallScore: 0,
+  status: 'draft',
+  previousEvaluations: [],
+  createdAt: '',
+  createdBy: '',
+  updatedAt: '',
+  updatedBy: ''
 };
 
 export function computeEvaluationScore(

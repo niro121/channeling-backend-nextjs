@@ -221,17 +221,16 @@ AppointmentLetter *──1 Evaluation (or Application)
 | **ResumeBankProfile** | `profileId` (RB-*); contact + skills + preferred role/dept; `resumeFileName` / `resumeFileKey` (key in Wave 10); `linkedApplicationIds[]`; status `in_bank` \| `linked` \| `shortlisted` |
 | **Application** | `applicationId` (APP-*); FK `jobPostId` + denormalized `jobPostCode` / title / dept / designation; optional `resumeBankProfileId`; `currentStage` vs `status`; Wave 5 shortlisting fields `shortlistStatus` (`to_review` \| `shortlisted` \| `on_hold` \| `rejected`), `screeningScore`, `qualifications` / `skills`, `holdReason`; embedded `history[]`; `source` (`hospital_website` \| `resume_bank` \| …); unique `(jobPostId, candidateEmail)`; CV `resumeFileName` / `resumeFileKey`. **No separate Shortlisting model** — `/shortlisting` is a mid-pipeline view over Application. |
 | **Interview** | `interviewCode` (INT-*); FK `applicationId` + denormalized APP/JP codes; date + start/end time; panel; type; location; notes; status (`scheduled` \| `confirmed` \| `rescheduled` \| `completed` \| `no_show` \| `cancelled`); `cancelReason` |
-| **Evaluation** | `ratings` JSON; strengths/weaknesses/comments; recommendation / finalDecision; overallScore |
+| **Evaluation** | `evaluationCode` (EVAL-*); 1:1 FK `interviewId`; denormalized interview/application snapshot; `ratings` JSON; strengths/weaknesses/comments; recommendation / finalDecision; cached `overallScore`; status `draft` \| `submitted` |
 | **AppointmentLetter** | `letterNumber`; salary; dates; `letterGenerated`; status; file refs |
 
 ### Codes / sequences
 
-Use existing Sequence pattern (like Staff / Leave): e.g. `VR-…`, `JP-…`, `RB-…`, `APP-…`, `INT-…`, `LETTER-…`.
+Use existing Sequence pattern (like Staff / Leave): e.g. `VR-…`, `JP-…`, `RB-…`, `APP-…`, `INT-…`, `EVAL-…`, `LETTER-…`.
 
 ### Evaluation criteria
 
-Phase 0: `EVALUATION_CRITERIA` / ratings / scores in `types/recruitment.ts`.  
-Phase 7+: persist ratings as JSON on `Evaluation`. Optional later: criteria master table — **not required for v1**.
+`EVALUATION_CRITERIA` / ratings / scores in `types/recruitment.ts`; Wave 7 persists ratings as JSON on `Evaluation`. Optional later: criteria master table — **not required for v1**.
 
 ### Documents
 
@@ -311,10 +310,13 @@ All under `app/(dashboard)/(recruitment)/`.
 
 | Concern | Detail |
 |---------|--------|
+| Persistence | `Evaluation` model (`EVAL-*`); 1:1 FK to Interview; ratings JSON (`EVALUATION_CRITERIA`); Sequence prefix `EVAL` |
 | Layout | Form (top) + register (below) on one page |
-| Criteria | 8 consts; live overall score |
+| Criteria | 8 consts; live overall score; cached `overallScore` on save/submit |
 | Actions | Save draft, submit confirm, preview; register View / Edit (pencil) / Mail → appointment letters |
-| Load UX | `?interviewId=` / `?evaluationId=`; else first draft |
+| Load UX | `?interviewId=` get-or-create draft from Interview; `?evaluationId=`; else first draft |
+| Submit side-effects | Interview → `completed`; Application history entry; positive decision may set Application stage → `selected` |
+| Service | `evaluation.service.ts` + `evaluation.actions.ts` |
 | Footer | Interview Schedule ← → Appointment Letters |
 
 ### 6.8 Appointment Letters — `/appointment-letters`

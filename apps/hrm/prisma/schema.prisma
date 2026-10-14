@@ -1629,6 +1629,7 @@ model Interview {
   cancelReason String?
 
   application Application @relation(fields: [applicationId], references: [id])
+  evaluation  Evaluation?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1645,6 +1646,65 @@ model Interview {
   @@index([interviewType])
   @@index([status])
   @@index([interviewerPanel])
+  @@index([createdAt(sort: Desc)])
+}
+
+/// Panel evaluation against an Interview. Wave 7 Evaluation — one eval per interview.
+model Evaluation {
+  id             String @id @default(auto()) @map("_id") @db.ObjectId
+  /// Human-readable code from Sequence, e.g. EVAL-1
+  evaluationCode String @unique
+
+  interviewId String @unique @db.ObjectId
+  /// Denormalized Interview.interviewCode (INT-*).
+  interviewCode String @default("")
+
+  /// Denormalized from Interview / Application for list + form header.
+  applicationId   String @db.ObjectId
+  applicationCode String @default("")
+  candidateName   String
+  jobTitle        String @default("")
+  interviewDate   DateTime
+  interviewer     String @default("")
+  /// phone | video | in_person | panel
+  interviewType   String
+  interviewStage  String @default("")
+
+  /// Criterion id → rating (excellent|good|average|poor). Keys from EVALUATION_CRITERIA.
+  ratings Json
+
+  strengths         String @default("")
+  weaknesses        String @default("")
+  interviewComments String @default("")
+
+  /// recommended | recommended_with_conditions | hold | not_recommended | ""
+  recommendation String @default("")
+  finalDecision  String @default("")
+
+  /// Cached 0–100 from computeEvaluationScore(ratings).
+  overallScore Int @default(0)
+
+  /// draft | submitted
+  status String @default("draft")
+
+  interview Interview @relation(fields: [interviewId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy String?  @db.ObjectId // Auth User.id
+  updatedBy String?  @db.ObjectId // Auth User.id
+
+  @@index([interviewCode])
+  @@index([applicationId])
+  @@index([applicationCode])
+  @@index([candidateName])
+  @@index([jobTitle])
+  @@index([interviewDate])
+  @@index([interviewType])
+  @@index([status])
+  @@index([overallScore])
+  @@index([recommendation])
+  @@index([finalDecision])
   @@index([createdAt(sort: Desc)])
 }
 
