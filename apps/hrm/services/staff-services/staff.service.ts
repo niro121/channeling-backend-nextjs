@@ -474,7 +474,7 @@ export async function getStaff(params: GetStaffParams): Promise<{
   }
 }
 
-export const STAFF_EXPORT_LIMIT = 1000;
+const STAFF_EXPORT_LIMIT = 1000;
 
 /** Staff matching the search, capped for Excel/PDF export. */
 export async function getAllStaffForExport(keyword: string = ''): Promise<{
