@@ -16,6 +16,8 @@ export type AgencyStatementCompactRow = {
   particulars: string;
   receiptNo: string;
   appointment: string;
+  bookNo: string;
+  leafNo: string;
   docFee: string;
   hosFee: string;
   discount: string;
@@ -58,6 +60,8 @@ export function mapAgencyStatementCompactFromRow(
     particulars: dash(row.particulars),
     receiptNo: dash(row.receiptNo),
     appointment: dash(row.appointmentDateTime),
+    bookNo: dash(row.bookNo),
+    leafNo: dash(row.leafNo),
     docFee: formatAgencyStatementMoney(row.docFee),
     hosFee: formatAgencyStatementMoney(row.hosFee),
     discount: formatAgencyStatementMoney(row.discount),
@@ -81,6 +85,8 @@ export function buildAgencyStatementCompactRows(
       particulars: 'Opening Balance',
       receiptNo: '-',
       appointment: 'Balance as of period start',
+      bookNo: '-',
+      leafNo: '-',
       docFee: '-',
       hosFee: '-',
       discount: '-',
@@ -98,6 +104,8 @@ export function buildAgencyStatementCompactRows(
       particulars: 'Closing Balance',
       receiptNo: '-',
       appointment: '-',
+      bookNo: '-',
+      leafNo: '-',
       docFee: '-',
       hosFee: '-',
       discount: '-',
@@ -116,7 +124,7 @@ export const AGENCY_STATEMENT_PDF_HEADERS = [
   'Detail',
   'Fees',
   'Balance',
-  'Meta',
+  'Comments & Create By',
 ] as const;
 
 export const AGENCY_STATEMENT_PDF_COL_PERCENTS = [6, 12, 28, 22, 12, 20] as const;
@@ -135,11 +143,16 @@ export function agencyStatementPdfCompactRow(row: AgencyStatementCompactRow): st
   if (row.isClosing) {
     return ['', '', row.particulars, '', row.balance, ''];
   }
+  const fees =
+    row.particulars === 'Agency Deposit'
+      ? `Amt ${row.amount}`
+      : `Doc ${row.docFee}\nHos ${row.hosFee}\nDisc ${row.discount}\nAmt ${row.amount}`;
+
   return [
     row.no,
     `${row.date}\n${row.time}`,
     `${row.particulars}\nRcpt ${row.receiptNo}\nAppt ${row.appointment}`,
-    `Doc ${row.docFee}\nHos ${row.hosFee}\nDisc ${row.discount}\nAmt ${row.amount}`,
+    fees,
     row.balance,
     `${row.comments}\nBy ${row.createdBy}`,
   ];

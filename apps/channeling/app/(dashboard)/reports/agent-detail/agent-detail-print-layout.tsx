@@ -25,62 +25,26 @@ export function AgentDetailPrintLayout({ rows }: Props) {
         @media print {
           @page {
             size: A4 portrait;
-            margin: 6mm 7mm 11mm;
+            margin: 6mm 5mm 18mm;
           }
-          .agent-detail-report-root .rpt-print-header {
-            margin-bottom: 1mm !important;
+          .agent-detail-report-root,
+          .agent-detail-report-root.container {
+            width: 100% !important;
+            max-width: none !important;
+            margin-left: 0 !important;
+            margin-right: 0 !important;
+            padding-left: 0 !important;
+            padding-right: 0 !important;
           }
-          .agent-detail-report-root .rpt-print-brand-row {
-            height: 9mm !important;
-            gap: 4mm !important;
-          }
-          .agent-detail-report-root .rpt-print-logo {
-            height: 9mm !important;
-            max-width: 36mm !important;
-          }
-          .agent-detail-report-root .rpt-print-titles {
-            height: 9mm !important;
-            padding: 1.2mm 0 0.2mm !important;
-          }
-          .agent-detail-report-root .rpt-print-org {
-            height: 3.4mm !important;
-            font-size: 11pt !important;
-          }
-          .agent-detail-report-root .rpt-print-title-gap {
-            height: 0.5mm !important;
-          }
-          .agent-detail-report-root .rpt-print-report-name {
-            height: 3.4mm !important;
-            font-size: 9pt !important;
-          }
-          .agent-detail-report-root .rpt-print-rule {
-            margin-top: 1mm !important;
-          }
-          .agent-detail-report-root .rpt-print-summary {
-            margin-top: 1mm !important;
-          }
-          .agent-detail-report-root .rpt-print-summary-bar {
-            padding: 0.5mm 1.5mm !important;
-            font-size: 6.5pt !important;
-            letter-spacing: 0.08em !important;
-          }
-          .agent-detail-report-root .rpt-print-summary-grid {
-            grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
-            gap: 0.6mm 2mm !important;
-            padding: 0.8mm 1.5mm !important;
-          }
-          .agent-detail-report-root .rpt-print-label {
-            margin: 0 0 0.15mm !important;
-            font-size: 5.5pt !important;
-            letter-spacing: 0.04em !important;
-          }
-          .agent-detail-report-root .rpt-print-value {
-            font-size: 6.5pt !important;
-            line-height: 1.08 !important;
-            font-weight: 600 !important;
-          }
-          .agent-detail-report-root .rpt-print-body {
-            margin-top: 1mm !important;
+          .agent-detail-report-root .rpt-print-root,
+          .agent-detail-report-root .rpt-print-body,
+          .agent-detail-report-root .rpt-print-header,
+          .agent-detail-report-root .rpt-print-summary,
+          .agent-detail-report-root .ad-print-root,
+          .agent-detail-report-root .ad-print-table {
+            width: 100% !important;
+            max-width: none !important;
+            box-sizing: border-box !important;
           }
 
           .ad-print-root {
@@ -100,29 +64,29 @@ export function AgentDetailPrintLayout({ rows }: Props) {
           .ad-print-table th {
             font-size: 5.75pt;
             font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 0.03em;
             text-align: left;
             padding: 0.5mm 0.7mm;
-            border: 0.45pt solid #000;
+            border: 0.4pt solid #999;
             background: #f3f3f3;
             color: #000 !important;
-            line-height: 1.1;
+            line-height: 1.15;
+            white-space: normal;
+            word-break: normal;
+            overflow-wrap: break-word;
             -webkit-print-color-adjust: exact;
             print-color-adjust: exact;
           }
           .ad-print-table td {
             vertical-align: top;
-            padding: 0.55mm 0.7mm;
-            border-left: 0.45pt solid #bbb;
-            border-right: 0.45pt solid #bbb;
-            border-bottom: 0.4pt solid #999;
-            border-top: 0;
-            font-size: 6.5pt;
-            line-height: 1.12;
+            padding: 0.5mm 0.7mm;
+            border: 0.4pt solid #999;
+            font-size: 6pt;
+            font-weight: 400;
+            line-height: 1.15;
             color: #000 !important;
-            word-break: break-word;
-            overflow-wrap: anywhere;
+            white-space: normal;
+            word-break: normal;
+            overflow-wrap: break-word;
           }
           .ad-print-table tbody tr {
             break-inside: avoid !important;
@@ -137,6 +101,11 @@ export function AgentDetailPrintLayout({ rows }: Props) {
           .ad-print-table col.ad-col-reach { width: 22%; }
           .ad-print-table col.ad-col-contact { width: 20%; }
           .ad-print-table col.ad-col-credit { width: 22%; }
+          .ad-print-status {
+            white-space: nowrap !important;
+            word-break: keep-all !important;
+            overflow-wrap: normal !important;
+          }
           .ad-print-line {
             display: block;
           }
@@ -219,7 +188,7 @@ export function AgentDetailPrintLayout({ rows }: Props) {
           <tr>
             <th>Created</th>
             <th>Agent</th>
-            <th>Status</th>
+            <th className="ad-print-status">Status</th>
             <th>Address / Reach</th>
             <th>Contact</th>
             <th>Credit Limits</th>
@@ -231,70 +200,36 @@ export function AgentDetailPrintLayout({ rows }: Props) {
             return (
               <tr key={row.id ?? `${a.code}-${a.name}`}>
                 <td>
-                  <span className="ad-print-line ad-print-nums ad-print-strong">
-                    {a.createdDate}
-                  </span>
-                  <span className="ad-print-line ad-print-nums ad-print-muted">
-                    {a.createdTime}
-                  </span>
+                  <span className="ad-print-line">{a.createdDate}</span>
+                  <span className="ad-print-line">{a.createdTime}</span>
                 </td>
                 <td>
-                  <span className="ad-print-line ad-print-strong">{a.code}</span>
+                  <span className="ad-print-line">{a.code}</span>
                   <span className="ad-print-line">{a.name}</span>
                 </td>
-                <td>
-                  <span className="ad-print-line ad-print-strong">{a.status}</span>
+                <td className="ad-print-status">
+                  <span className="ad-print-line">{a.status}</span>
                 </td>
                 <td>
                   {a.addressLines.map((line, i) => (
-                    <span
-                      key={`addr-${i}`}
-                      className={`ad-print-line ${i === 0 ? 'ad-print-strong' : 'ad-print-muted'}`}
-                    >
+                    <span key={`addr-${i}`} className="ad-print-line">
                       {line}
                     </span>
                   ))}
-                  <span className="ad-print-line">
-                    <span className="ad-print-k">Ph</span>
-                    {a.phone}
-                  </span>
-                  <span className="ad-print-line ad-print-muted">
-                    <span className="ad-print-k">Fax</span>
-                    {a.fax}
-                  </span>
-                  <span className="ad-print-line ad-print-muted">
-                    <span className="ad-print-k">Mail</span>
-                    {a.email}
-                  </span>
+                  <span className="ad-print-line">Ph {a.phone}</span>
+                  <span className="ad-print-line">Fax {a.fax}</span>
+                  <span className="ad-print-line">Mail {a.email}</span>
                 </td>
                 <td>
-                  <span className="ad-print-line ad-print-strong">{a.contactName}</span>
-                  <span className="ad-print-line">
-                    <span className="ad-print-k">Ph</span>
-                    {a.contactPhone}
-                  </span>
-                  <span className="ad-print-line ad-print-muted">
-                    <span className="ad-print-k">Mail</span>
-                    {a.contactEmail}
-                  </span>
+                  <span className="ad-print-line">{a.contactName}</span>
+                  <span className="ad-print-line">Ph {a.contactPhone}</span>
+                  <span className="ad-print-line">Mail {a.contactEmail}</span>
                 </td>
                 <td>
-                  <span className="ad-print-line ad-print-nums">
-                    <span className="ad-print-k">Allowed</span>
-                    {a.allowedCredit}
-                  </span>
-                  <span className="ad-print-line ad-print-nums ad-print-muted">
-                    <span className="ad-print-k">Max</span>
-                    {a.maxCredit}
-                  </span>
-                  <span className="ad-print-line ad-print-nums ad-print-muted">
-                    <span className="ad-print-k">Std</span>
-                    {a.standardCredit}
-                  </span>
-                  <span className="ad-print-line ad-print-nums ad-print-strong">
-                    <span className="ad-print-k">Bal</span>
-                    {a.balance}
-                  </span>
+                  <span className="ad-print-line">Allowed {a.allowedCredit}</span>
+                  <span className="ad-print-line">Max {a.maxCredit}</span>
+                  <span className="ad-print-line">Std {a.standardCredit}</span>
+                  <span className="ad-print-line">Bal {a.balance}</span>
                 </td>
               </tr>
             );

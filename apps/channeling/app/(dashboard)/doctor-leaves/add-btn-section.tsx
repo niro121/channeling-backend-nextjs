@@ -14,6 +14,8 @@ import AddDoctorLeaveDialog from './add-doctor-leave-dialog';
 type AddBtnSectionProps = {
   doctorId?: string | undefined;
   doctorName?: string | undefined;
+  branchId?: string;
+  branchOptions?: { id: string; name: string }[];
   /** When false, filters were changed but not applied - disable Add to avoid adding for wrong doctor */
   filtersApplied?: boolean;
 };
@@ -21,6 +23,8 @@ type AddBtnSectionProps = {
 export default function AddBtnSection({
   doctorId,
   doctorName,
+  branchId,
+  branchOptions,
   filtersApplied = true
 }: AddBtnSectionProps) {
   const [addDialogOpen, setAddDialogOpen] = React.useState(false);
@@ -67,6 +71,8 @@ export default function AddBtnSection({
         onOpenChange={setAddDialogOpen}
         doctorId={doctorId ?? ''}
         doctorName={doctorName ?? ''}
+        branchOptions={branchOptions}
+        defaultBranchId={branchId}
       />
     </>
   );

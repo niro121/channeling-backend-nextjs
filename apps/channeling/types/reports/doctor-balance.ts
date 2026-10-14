@@ -29,5 +29,5 @@ export type DoctorBalanceReportExportRow = {
   speciality: string;
   doctorPhoneNo: string;
   doctorAddress: string;
-  doctorBalance: string;
+  doctorBalance: number;
 };

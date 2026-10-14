@@ -1,7 +1,7 @@
 "use server"
 
 import prisma from "@/lib/prisma"
-import { requirePermission } from "@/lib/server-permissions"
+import { requireReport } from "@/lib/server-permissions"
 import moment from "moment"
 
 export type ChannelTransferSessionOption = {
@@ -27,7 +27,7 @@ export async function getChannelTransferSessionOptionsAction(args: {
   dateTo: string
   doctorId?: string
 }): Promise<{ success: boolean; data?: ChannelTransferSessionOption[]; message?: string }> {
-  await requirePermission("reports", "view")
+  await requireReport("channel-transfer")
   const from = parseDateTime(args.dateFrom, false)
   const to = parseDateTime(args.dateTo, true)
   if (!from || !to) {

@@ -1,6 +1,7 @@
 "use server";
 
 import prisma from "@/lib/prisma";
+import { getReportMax } from "@/lib/report-limits";
 
 export type ReceiptListItem = {
   id: string;
@@ -114,15 +115,17 @@ export async function getReceiptListService(
   return { data: items, totalRecords };
 }
 
-/** Max records for export (audit). */
-const EXPORT_LIMIT = 10000;
-
 /**
- * Fetch receipts for export (same filters as list, up to EXPORT_LIMIT).
+ * Fetch receipts for export (same filters as the list, capped by REPORT_MAX).
  */
 export async function getReceiptListExportService(
   params: Omit<GetReceiptListParams, "page" | "limit">
-): Promise<ReceiptListItem[]> {
+): Promise<{
+  items: ReceiptListItem[];
+  totalRecords: number;
+  exportLimit: number;
+  limited: boolean;
+}> {
   const where: Record<string, unknown> = {};
   if (params.method != null) where.method = params.method;
   if (params.locationId) where.locationId = params.locationId;
@@ -142,42 +145,51 @@ export async function getReceiptListExportService(
     where.receiptNoString = { contains: params.keyword.trim(), mode: "insensitive" };
   }
 
-  const data = await prisma.receipt.findMany({
-    where,
-    orderBy: { createdAt: "desc" },
-    take: EXPORT_LIMIT,
-    select: {
-      id: true,
-      receiptNo: true,
-      receiptNoString: true,
-      method: true,
-      type: true,
-      paymentMethod: true,
-      amount: true,
-      whd: true,
-      remarks: true,
-      locationId: true,
-      createdAt: true,
-      createdBy: true,
-      bookingId: true,
-      location: { select: { name: true } },
-    },
-  });
+  const exportLimit = getReportMax();
+  const [data, totalRecords] = await Promise.all([
+    prisma.receipt.findMany({
+      where,
+      orderBy: { createdAt: "desc" },
+      take: exportLimit,
+      select: {
+        id: true,
+        receiptNo: true,
+        receiptNoString: true,
+        method: true,
+        type: true,
+        paymentMethod: true,
+        amount: true,
+        whd: true,
+        remarks: true,
+        locationId: true,
+        createdAt: true,
+        createdBy: true,
+        bookingId: true,
+        location: { select: { name: true } },
+      },
+    }),
+    prisma.receipt.count({ where }),
+  ]);
 
-  return data.map((r) => ({
-    id: r.id,
-    receiptNo: r.receiptNo,
-    receiptNoString: r.receiptNoString,
-    method: r.method,
-    type: r.type,
-    paymentMethod: r.paymentMethod,
-    amount: r.amount,
-    whd: r.whd,
-    remarks: r.remarks,
-    locationId: r.locationId,
-    locationName: r.location?.name ?? null,
-    createdAt: r.createdAt,
-    createdBy: r.createdBy,
-    bookingId: r.bookingId,
-  }));
+  return {
+    totalRecords,
+    exportLimit,
+    limited: totalRecords > exportLimit,
+    items: data.map((r) => ({
+      id: r.id,
+      receiptNo: r.receiptNo,
+      receiptNoString: r.receiptNoString,
+      method: r.method,
+      type: r.type,
+      paymentMethod: r.paymentMethod,
+      amount: r.amount,
+      whd: r.whd,
+      remarks: r.remarks,
+      locationId: r.locationId,
+      locationName: r.location?.name ?? null,
+      createdAt: r.createdAt,
+      createdBy: r.createdBy,
+      bookingId: r.bookingId,
+    })),
+  };
 }

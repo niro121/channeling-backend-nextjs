@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { DateTimeRangePicker } from '@/components/common/date-time-range-picker';
 import { Combobox } from '@/components/common/combobox';
 import { Selector } from '@/components/common/selector';
-import { Download, FileSpreadsheet, FileText, Loader2, Printer, SearchIcon } from 'lucide-react';
+import { FileSpreadsheet, FileText, Loader2, Printer, SearchIcon } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useToast } from '@/components/hooks/use-toast';
 import { getChannelIncomeAccountingWiseData } from '@/app/actions/reports/channel-income-accounting-wise.report.action';
@@ -152,52 +152,6 @@ export default function ChannelIncomeAccountingWiseReportContent({
 
   const handlePrint = () => window.print();
 
-  const handleDownloadCsv = () => {
-    if (rows.length === 0) {
-      toast({ variant: 'destructive', title: 'No data', description: 'Run a search first to download CSV.' });
-      return;
-    }
-    const lines: string[] = [];
-    lines.push('Channel Income Report (Accounting Wise)');
-    lines.push(['Booking Type', 'Total Channel', 'Discount', 'Cancel', 'Refund', 'Nett Amount'].join(','));
-    for (const r of rows) {
-      lines.push(
-        [
-          r.bookingType,
-          money(r.totalChannel),
-          money(r.discount),
-          money(r.cancel),
-          money(r.refund),
-          money(r.nettAmount),
-        ]
-          .map((v) => `"${String(v).replace(/"/g, '""')}"`)
-          .join(',')
-      );
-    }
-    if (totals) {
-      lines.push(
-        [
-          totals.bookingType,
-          money(totals.totalChannel),
-          money(totals.discount),
-          money(totals.cancel),
-          money(totals.refund),
-          money(totals.nettAmount),
-        ]
-          .map((v) => `"${String(v).replace(/"/g, '""')}"`)
-          .join(',')
-      );
-    }
-
-    const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `channel-income-accounting-wise-${moment().format('YYYY-MM-DD')}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-
   const handleDownloadPdf = async () => {
     if (rows.length === 0) {
       toast({ variant: 'destructive', title: 'No data', description: 'Run a search first to download PDF.' });
@@ -261,34 +215,34 @@ export default function ChannelIncomeAccountingWiseReportContent({
     setLoadingExcel(true);
     try {
       type ExcelRow = {
-        no: string;
+        no: number | null;
         bookingType: string;
-        totalChannel: string;
-        discount: string;
-        cancel: string;
-        refund: string;
-        nettAmount: string;
+        totalChannel: number;
+        discount: number;
+        cancel: number;
+        refund: number;
+        nettAmount: number;
       };
       const data: ExcelRow[] = [
         ...rows.map((r, idx) => ({
-          no: String(idx + 1),
+          no: idx + 1,
           bookingType: r.bookingType,
-          totalChannel: money(r.totalChannel),
-          discount: money(r.discount),
-          cancel: money(r.cancel),
-          refund: money(r.refund),
-          nettAmount: money(r.nettAmount),
+          totalChannel: r.totalChannel,
+          discount: r.discount,
+          cancel: r.cancel,
+          refund: r.refund,
+          nettAmount: r.nettAmount,
         })),
         ...(totals
           ? [
               {
-                no: '',
+                no: null,
                 bookingType: totals.bookingType,
-                totalChannel: money(totals.totalChannel),
-                discount: money(totals.discount),
-                cancel: money(totals.cancel),
-                refund: money(totals.refund),
-                nettAmount: money(totals.nettAmount),
+                totalChannel: totals.totalChannel,
+                discount: totals.discount,
+                cancel: totals.cancel,
+                refund: totals.refund,
+                nettAmount: totals.nettAmount,
               },
             ]
           : []),
@@ -300,6 +254,15 @@ export default function ChannelIncomeAccountingWiseReportContent({
         data,
         columns: ['#', 'Booking Type', 'Total Channel', 'Discount', 'Cancel', 'Refund', 'Nett Amount'],
         keys: ['no', 'bookingType', 'totalChannel', 'discount', 'cancel', 'refund', 'nettAmount'],
+        columnNumberFormats: [
+          '0', // #
+          undefined, // Booking Type
+          '#,##0.00', // Total Channel
+          '#,##0.00', // Discount
+          '#,##0.00', // Cancel
+          '#,##0.00', // Refund
+          '#,##0.00', // Nett Amount
+        ],
         fileName: `${formatExportFileName('channel-income-accounting-wise')}.xlsx`,
         sheetName: 'Channel Income',
         orientation: 'portrait',
@@ -320,24 +283,85 @@ export default function ChannelIncomeAccountingWiseReportContent({
     <div className="w-full py-2 space-y-3 channel-income-print-root">
       <style>{`
         @media print {
-          .channel-income-print-root .overflow-x-auto,
-          .channel-income-print-root .overflow-auto {
-            overflow: visible !important;
+          .channel-income-print-root {
+            width: 100% !important;
+            max-width: none !important;
+            margin-left: 0 !important;
+            margin-right: 0 !important;
+            padding-left: 0 !important;
+            padding-right: 0 !important;
           }
-          .channel-income-print-root .rpt-print-root table {
+          .channel-income-print-root .rpt-print-root,
+          .channel-income-print-root .rpt-print-body,
+          .channel-income-print-root .rpt-print-header,
+          .channel-income-print-root .rpt-print-summary {
+            width: 100% !important;
+            max-width: none !important;
+            box-sizing: border-box !important;
+          }
+          .channel-income-print-root > div {
+            width: 100% !important;
+            max-width: none !important;
+            margin-left: 0 !important;
+            margin-right: 0 !important;
+          }
+          /* Table wrappers only — do not strip the shared print header / summary box */
+          .channel-income-print-root .rpt-print-body .overflow-x-auto,
+          .channel-income-print-root .rpt-print-body .overflow-auto,
+          .channel-income-print-root .rpt-print-body .overflow-hidden,
+          .channel-income-print-root .rpt-print-body .rounded-md {
+            overflow: visible !important;
+            width: 100% !important;
+            max-width: none !important;
+            border: none !important;
+            border-radius: 0 !important;
+            box-shadow: none !important;
+          }
+
+          /* Body matches branded PDF compact table */
+          .channel-income-print-root .rpt-print-root table.cin-print-table {
             table-layout: fixed !important;
             width: 100% !important;
+            max-width: 100% !important;
+            border-collapse: collapse !important;
+            border: 0.5pt solid #000 !important;
           }
-          .channel-income-print-root .rpt-print-root th,
-          .channel-income-print-root .rpt-print-root td {
-            font-size: 8pt !important;
-            padding: 1mm 0.8mm !important;
-            line-height: 1.2 !important;
+          .channel-income-print-root .rpt-print-root table.cin-print-table th,
+          .channel-income-print-root .rpt-print-root table.cin-print-table td {
+            width: auto !important;
+            font-size: 5.5pt !important;
+            font-weight: 400 !important;
+            padding: 0.7mm !important;
+            line-height: 1.15 !important;
+            text-align: left !important;
             white-space: normal !important;
             word-break: break-word !important;
+            overflow-wrap: anywhere !important;
+            overflow: hidden !important;
+            border: 0.5pt solid #000 !important;
+            color: #000 !important;
+            background: #fff !important;
+            vertical-align: middle !important;
+            box-sizing: border-box !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
           }
-          .channel-income-print-root .rpt-print-root thead th {
-            font-size: 7.5pt !important;
+          .channel-income-print-root .rpt-print-root table.cin-print-table thead th {
+            font-size: 5pt !important;
+            font-weight: 700 !important;
+            background: #e8e8e8 !important;
+          }
+          .channel-income-print-root .rpt-print-root table.cin-print-table th:first-child,
+          .channel-income-print-root .rpt-print-root table.cin-print-table td:first-child {
+            border-left: 0.7pt solid #000 !important;
+          }
+          .channel-income-print-root .rpt-print-root table.cin-print-table th:last-child,
+          .channel-income-print-root .rpt-print-root table.cin-print-table td:last-child {
+            border-right: 0.7pt solid #000 !important;
+          }
+          .channel-income-print-root .rpt-print-root table.cin-print-table tr.rpt-print-total td {
+            font-weight: 700 !important;
+            background: #f3f3f3 !important;
           }
           .channel-income-print-root .rpt-print-root tr {
             break-inside: avoid !important;
@@ -378,10 +402,6 @@ export default function ChannelIncomeAccountingWiseReportContent({
                   <FileSpreadsheet className="h-4 w-4" />
                 )}
                 Excel
-              </Button>
-              <Button variant="outline" size="sm" onClick={handleDownloadCsv} className="gap-2">
-                <Download />
-                Download CSV
               </Button>
             </div>
           </div>
@@ -448,13 +468,14 @@ export default function ChannelIncomeAccountingWiseReportContent({
             <ReportPrintLayout
               reportName="Channel Income Report (Accounting Wise)"
               pageSize="A4 portrait"
+              pageMargins="7mm 5mm 18mm"
               generatedAt={reportMeta.generatedAt}
               summaryItems={buildSummaryItems(reportMeta)}
             >
               <div className="space-y-3">
                 <div className="print:hidden">{renderReportMetaCard()}</div>
                 <div className="rounded-md border overflow-x-auto">
-                  <Table className="text-[11px] [&_th]:px-1.5 [&_td]:px-1.5 [&_th]:border-r [&_th:last-child]:border-r-0 [&_td]:border-r [&_td:last-child]:border-r-0">
+                  <Table className="cin-print-table text-[11px] [&_th]:px-1.5 [&_td]:px-1.5 [&_th]:border-r [&_th:last-child]:border-r-0 [&_td]:border-r [&_td:last-child]:border-r-0">
                     <TableHeader>
                       <TableRow className="bg-muted/40 text-muted-foreground">
                         <TableHead className="text-center font-semibold w-10">#</TableHead>

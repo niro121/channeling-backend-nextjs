@@ -1,5 +1,6 @@
 import { formatCents } from "@/lib/format-money"
 import { FLOAT_REQUEST_STATUS } from "@/types/float-request"
+import { RECONCILIATION_STATUS } from "@/types/handover"
 
 export const HANDOVER_AMOUNT_METHOD_KEYS = [
   "cashCents",
@@ -11,6 +12,11 @@ export const HANDOVER_AMOUNT_METHOD_KEYS = [
 ] as const
 
 export type HandoverMethodAmountKey = (typeof HANDOVER_AMOUNT_METHOD_KEYS)[number]
+
+/** Shorts are allowed on cash only. Every other method must be handed over in full. */
+export const HANDOVER_NON_CASH_METHOD_KEYS = HANDOVER_AMOUNT_METHOD_KEYS.filter(
+  (key): key is Exclude<HandoverMethodAmountKey, "cashCents"> => key !== "cashCents"
+)
 
 export type HandoverMethodAmounts = Record<HandoverMethodAmountKey, number>
 
@@ -66,6 +72,37 @@ export function getHandoverAmountOvers(
   return overs
 }
 
+/** Cash counted above the till. This is the short settlement; the client cannot choose a different amount. */
+export function handoverCashOverTillCents(
+  enteredCashCents: number,
+  availableCashCents: number
+): number {
+  return Math.max(0, enteredCashCents - availableCashCents)
+}
+
+/** Cash may exceed the till by the open short. Other methods may not. */
+export function handoverOversBeyondCashSettlement(
+  entered: HandoverMethodAmounts,
+  available: HandoverMethodAmounts,
+  openShortCents: number
+): HandoverAmountOver[] {
+  const allowedCashOver = Math.max(0, openShortCents)
+  return getHandoverAmountOvers(entered, available).filter((over) => {
+    if (over.key !== "cashCents") return true
+    return over.enteredCents - over.availableCents > allowedCashOver
+  })
+}
+
+export function formatHandoverCashAboveShortError(opts: {
+  enteredCashCents: number
+  availableCashCents: number
+  openShortCents: number
+}): string {
+  const openShortCents = Math.max(0, opts.openShortCents)
+  const maxCents = opts.availableCashCents + openShortCents
+  return `Cash cannot be more than the till plus the open short. Till ${formatCents(opts.availableCashCents)} + short ${formatCents(openShortCents)} = ${formatCents(maxCents)}. Entered ${formatCents(opts.enteredCashCents)}.`
+}
+
 /** 1 LKR: ignore tiny rounding when deciding if collection excess needs a reason. */
 export const HANDOVER_EXCESS_THRESHOLD_CENTS = 100
 
@@ -74,6 +111,8 @@ export type HandoverExpectedCollectionParts = {
   floatsOutCents: number
   summaryCents: number
   previousHandoversCents: number
+  /** Non-cash on handovers already sent to reconciliation. Stays with this cashier. */
+  sentToReconciliationCents?: number
 }
 
 export type ExpectedHandoverCollectionSourceRow = {
@@ -85,17 +124,138 @@ export type ExpectedHandoverCollectionSourceRow = {
 export type ExpectedHandoverCollection = HandoverExpectedCollectionParts & {
   expectedCents: number
   previousHandovers: ExpectedHandoverCollectionSourceRow[]
+  sentToReconciliation: ExpectedHandoverCollectionSourceRow[]
   floatsIn: ExpectedHandoverCollectionSourceRow[]
   floatsOut: ExpectedHandoverCollectionSourceRow[]
 }
 
-/** Total Collection on the handover page: floats in + Summary + previous handovers − floats out. */
+/**
+ * Non-cash already with reconciliation is not handed to the next cashier.
+ * Cash from that handover stays in the till and is still handed over.
+ */
+export function isHandoverHeldForReconciliation(reconciliationStatus: number | null | undefined): boolean {
+  const status = Number(reconciliationStatus ?? RECONCILIATION_STATUS.PENDING)
+  return (
+    status === RECONCILIATION_STATUS.IN_RECONCILIATION ||
+    status === RECONCILIATION_STATUS.RECONCILED_APPROVED
+  )
+}
+
+export function handoverNonCashHeldCents(handover: {
+  reconciliationStatus?: number | null
+  cardCents?: number | null
+  slipCents?: number | null
+  checkCents?: number | null
+  eWalletCents?: number | null
+}): number {
+  if (!isHandoverHeldForReconciliation(handover.reconciliationStatus)) return 0
+  return (
+    (handover.cardCents ?? 0) +
+    (handover.slipCents ?? 0) +
+    (handover.checkCents ?? 0) +
+    (handover.eWalletCents ?? 0)
+  )
+}
+
+/** Total Collection: floats in + summary + previous handovers − sent to reconciliation − floats out. */
 export function expectedHandoverCollectionCents(parts: HandoverExpectedCollectionParts): number {
-  return parts.floatsInCents + parts.summaryCents + parts.previousHandoversCents - parts.floatsOutCents
+  return (
+    parts.floatsInCents +
+    parts.summaryCents +
+    parts.previousHandoversCents -
+    (parts.sentToReconciliationCents ?? 0) -
+    parts.floatsOutCents
+  )
 }
 
 export function handoverAmountsTotalCents(amounts: HandoverMethodAmounts): number {
   return HANDOVER_AMOUNT_METHOD_KEYS.reduce((sum, key) => sum + (amounts[key] ?? 0), 0)
+}
+
+export const EMPTY_HANDOVER_AMOUNTS: HandoverMethodAmounts = {
+  cashCents: 0,
+  cardCents: 0,
+  slipCents: 0,
+  checkCents: 0,
+  creditCents: 0,
+  eWalletCents: 0,
+}
+
+/** How much of each method was not handed over and is still on the till. */
+export function handoverTillGaps(
+  entered: HandoverMethodAmounts,
+  available: HandoverMethodAmounts
+): HandoverMethodAmounts {
+  const gaps = { ...EMPTY_HANDOVER_AMOUNTS }
+  for (const key of HANDOVER_AMOUNT_METHOD_KEYS) {
+    gaps[key] = Math.max(0, (available[key] ?? 0) - (entered[key] ?? 0))
+  }
+  return gaps
+}
+
+/** Non-cash methods left in the till. Cash short is allowed; these are not. */
+export function handoverNonCashShorts(
+  entered: HandoverMethodAmounts,
+  available: HandoverMethodAmounts
+): HandoverAmountOver[] {
+  const gaps = handoverTillGaps(entered, available)
+  const shorts: HandoverAmountOver[] = []
+  for (const key of HANDOVER_NON_CASH_METHOD_KEYS) {
+    const shortCents = gaps[key] ?? 0
+    if (shortCents <= 0) continue
+    shorts.push({
+      key,
+      label: HANDOVER_AMOUNT_METHOD_LABELS[key],
+      enteredCents: entered[key] ?? 0,
+      availableCents: available[key] ?? 0,
+    })
+  }
+  return shorts
+}
+
+export function formatHandoverNonCashShortError(shorts: HandoverAmountOver[]): string {
+  if (shorts.length === 0) return ""
+  const details = shorts
+    .map(
+      (m) =>
+        `${m.label}: entered ${formatCents(m.enteredCents)}, available ${formatCents(m.availableCents)}`
+    )
+    .join("; ")
+  return `Only cash can be short. Card, slips, cheques, credit, and e-wallet must be handed over in full. ${details}.`
+}
+
+/** A marked short cannot be more than the amount left in the till for that method. */
+export function handoverShortsExceedingTillGap(
+  shorts: HandoverMethodAmounts,
+  entered: HandoverMethodAmounts,
+  available: HandoverMethodAmounts
+): HandoverAmountOver[] {
+  const gaps = handoverTillGaps(entered, available)
+  const overs: HandoverAmountOver[] = []
+  for (const key of HANDOVER_AMOUNT_METHOD_KEYS) {
+    const enteredCents = shorts[key] ?? 0
+    const availableCents = gaps[key] ?? 0
+    if (enteredCents > availableCents) {
+      overs.push({
+        key,
+        label: HANDOVER_AMOUNT_METHOD_LABELS[key],
+        enteredCents,
+        availableCents,
+      })
+    }
+  }
+  return overs
+}
+
+export function formatHandoverShortExceedsGapError(overs: HandoverAmountOver[]): string {
+  if (overs.length === 0) return ""
+  const details = overs
+    .map(
+      (m) =>
+        `${m.label}: short ${formatCents(m.enteredCents)}, left in till ${formatCents(m.availableCents)}`
+    )
+    .join("; ")
+  return `A short cannot be more than the amount left in the till. ${details}.`
 }
 
 /** Entered handover total minus expected Total Collection. Positive = excess, negative = short. */
@@ -158,7 +318,7 @@ export function formatHandoverOverAmountError(
     )
     .join("; ")
   if (context === "submit") {
-    return `Cannot hand over more than the till holds. ${details}. You may hand over less than available, but not more.`
+    return `Cannot hand over more than the till holds. ${details}. You may hand over less cash than available, but not more.`
   }
   return `Cannot approve this handover: amounts exceed the sender's available till. ${details}. Reject the handover so the sender can resubmit with amounts that do not exceed the till.`
 }

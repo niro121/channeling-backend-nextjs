@@ -37,7 +37,8 @@ export const getAllRoomsService = async ({
   page,
   limit,
   keyword,
-  locationId
+  locationId,
+  occupancy
 }: getRoomQuery): Promise<{
   success: boolean;
   data?: Room[];
@@ -54,7 +55,19 @@ export const getAllRoomsService = async ({
         count: (args: object) => Promise<number>
       }
     }).room;
-    const whereClause: Prisma.RoomWhereInput | undefined =
+    const occupancyFilter: Prisma.RoomWhereInput | undefined =
+      occupancy === 'occupied'
+        ? { currentOccupiedSessionId: { not: null } }
+        : occupancy === 'available'
+          ? {
+              OR: [
+                { currentOccupiedSessionId: null },
+                { currentOccupiedSessionId: { isSet: false } }
+              ]
+            }
+          : undefined;
+
+    const keywordFilter: Prisma.RoomWhereInput | undefined =
       keyword && keyword.trim() !== ''
         ? {
             OR: [
@@ -74,12 +87,18 @@ export const getAllRoomsService = async ({
                   }
                 }
               }
-            ],
-            ...(locationId ? { locationId } : {})
+            ]
           }
-        : locationId
-          ? { locationId: locationId }
-          : undefined;
+        : undefined;
+
+    const filters = [
+      keywordFilter,
+      locationId ? { locationId } : undefined,
+      occupancyFilter
+    ].filter((filter): filter is Prisma.RoomWhereInput => filter != null);
+
+    const whereClause: Prisma.RoomWhereInput =
+      filters.length > 0 ? { AND: filters } : {};
 
     const skip = page * limit;
 

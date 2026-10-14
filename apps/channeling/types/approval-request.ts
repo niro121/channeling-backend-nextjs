@@ -2,6 +2,7 @@ export const APPROVAL_REQUEST_TYPE = {
   CHANNEL_CANCEL: "channel_cancel",
   CHANNEL_REFUND: "channel_refund",
   BANK_DEPOSIT: "bank_deposit",
+  CASH_VOUCHER: "cash_voucher",
 } as const
 
 export type ApprovalRequestType =
@@ -72,6 +73,81 @@ export type BankDepositSnapshot = {
   slip_image_name?: string
 }
 
+/** Non-cash types a cash voucher can move off a reconciled account into till cash. */
+export const CASH_VOUCHER_PAYMENT_METHODS = [1, 2, 3, 6] as const
+
+export type CashVoucherLineSnapshot = {
+  payment_method: number
+  amount: number
+}
+
+export type CashVoucherSnapshot = {
+  reconciled_account_id: string
+  reconciled_account_name: string
+  reconciled_account_code?: string
+  branch_name?: string
+  location_id: string
+  lines: CashVoucherLineSnapshot[]
+}
+
+export function parseCashVoucherSnapshot(raw: unknown): CashVoucherSnapshot | null {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null
+  const obj = raw as Record<string, unknown>
+  const accountId = typeof obj.reconciled_account_id === "string" ? obj.reconciled_account_id.trim() : ""
+  const locationId = typeof obj.location_id === "string" ? obj.location_id.trim() : ""
+  if (!accountId || !locationId || !Array.isArray(obj.lines)) return null
+  const lines: CashVoucherLineSnapshot[] = []
+  for (const line of obj.lines) {
+    if (!line || typeof line !== "object") return null
+    const row = line as Record<string, unknown>
+    if (typeof row.payment_method !== "number" || typeof row.amount !== "number") return null
+    lines.push({ payment_method: row.payment_method, amount: row.amount })
+  }
+  if (lines.length === 0) return null
+  return {
+    reconciled_account_id: accountId,
+    reconciled_account_name:
+      typeof obj.reconciled_account_name === "string" ? obj.reconciled_account_name : "",
+    reconciled_account_code:
+      typeof obj.reconciled_account_code === "string" ? obj.reconciled_account_code : undefined,
+    branch_name: typeof obj.branch_name === "string" ? obj.branch_name : undefined,
+    location_id: locationId,
+    lines,
+  }
+}
+
+export const CHANNEL_APPROVAL_CONFIRMATIONS = [
+  { id: "bill", label: "Original bill and copy are available.", required: true },
+  { id: "session", label: "Session or appointment time has not lapsed.", required: false },
+  { id: "requirements", label: "All other refund or cancellation requirements have been satisfied.", required: false },
+] as const
+
+export type ChannelApprovalConfirmationId = (typeof CHANNEL_APPROVAL_CONFIRMATIONS)[number]["id"]
+
+export type ChannelApprovalConfirmations = Record<ChannelApprovalConfirmationId, boolean>
+
+export function emptyChannelApprovalConfirmations(): ChannelApprovalConfirmations {
+  return { bill: false, session: false, requirements: false }
+}
+
+export function parseChannelApprovalConfirmations(raw: unknown): ChannelApprovalConfirmations | null {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null
+  const obj = raw as Record<string, unknown>
+  const parsed = emptyChannelApprovalConfirmations()
+  for (const item of CHANNEL_APPROVAL_CONFIRMATIONS) {
+    const value = obj[item.id]
+    if (typeof value !== "boolean") return null
+    parsed[item.id] = value
+  }
+  return parsed
+}
+
+export function checkedChannelApprovalLabels(raw: unknown): string[] {
+  const parsed = parseChannelApprovalConfirmations(raw)
+  if (!parsed) return []
+  return CHANNEL_APPROVAL_CONFIRMATIONS.filter((item) => parsed[item.id]).map((item) => item.label)
+}
+
 export type BookingApprovalSummary = {
   id: string
   type: ApprovalRequestType
@@ -96,6 +172,14 @@ export type ApprovalRequestListItem = BookingApprovalSummary & {
   sessionLabel: string
   detailTitle: string
   detailSub: string
+  /** Booking.method: POS, On-Call, Agent, Staff, API. */
+  paymentMethodName: string
+  /** Booking.receiptPaymentMethod: Cash, Credit Card, Slip, and so on. */
+  paymentTypeName: string
+  /** Requested refund method for cancel/refund (Cash, Credit Card, and so on). */
+  refundMethodName: string
+  /** Labels of checklist items the requester ticked. */
+  checkedConfirmations: string[]
   receiptId: string | null
   receiptNoString: string | null
   slipImageUrl: string | null
@@ -111,4 +195,5 @@ export const APPROVAL_ACTION = {
   APPROVE_CHANNEL_CANCEL: "approve-channel-cancel",
   APPROVE_CHANNEL_REFUND: "approve-channel-refund",
   APPROVE_BANK_DEPOSIT: "approve-bank-deposit",
+  APPROVE_CASH_VOUCHER: "approve-cash-voucher",
 } as const

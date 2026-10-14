@@ -16,6 +16,11 @@ import type { AgencyDetailsForChannelBooking } from "@/services/channel-booking/
 import type { AgencyBookLeafUsage } from "@/services/channel-booking/reference/get-agency-book-leaf-usage.service"
 import type { DiscountForBookingOption } from "@/services/channel-booking/reference/get-discounts-for-booking.service"
 import { useChannelBooking, type ChannelBookingRecord } from "../../context/channel-booking-context"
+import {
+  MIXED_PAYMENT_LINE_METHODS,
+  canUseBookingPaymentMethod,
+  pickAllowedBookingPaymentMethodId,
+} from "@/lib/booking-payment-permissions"
 import { usePermissions } from "@/components/hooks/use-permissions"
 import { useToast } from "@/components/hooks/use-toast"
 import {
@@ -127,6 +132,9 @@ const DEFAULT_MIXED_LINES: MixedLine[] = [
   { payment_method: 1, amount: "", bank_id: "", card: "", slip_ref: "", slip_date: "", ewallet_ref: "" },
 ]
 
+/** Temporary: hide Credit Customer (PAYMENT_METHODS id 6) on new channel only. */
+const NEW_CHANNEL_PAYMENT_METHODS = PAYMENT_METHODS.filter((method) => method.id !== 6)
+
 /**
  * New Booking Details tab: payment, discount, patient fields, remarks, Book Now.
  */
@@ -150,8 +158,25 @@ export function NewBookingDetailsTab() {
     setReferredStaffId,
   } = useChannelBooking()
   const { toast } = useToast()
-  const { has } = usePermissions()
+  const { has, permissions, isAdmin } = usePermissions()
   const canForcedBooking = has("channel-booking-forced-booking", "view")
+  const allowedPaymentMethods = useMemo(() => {
+    const serverAllowedIds = initialData?.allowedBookingPaymentMethodIds
+    return NEW_CHANNEL_PAYMENT_METHODS.filter((method) => {
+      if (serverAllowedIds != null) return serverAllowedIds.includes(method.id)
+      return canUseBookingPaymentMethod(permissions, method.id, isAdmin)
+    })
+  }, [initialData?.allowedBookingPaymentMethodIds, permissions, isAdmin])
+  const allowedPaymentMethodIds = useMemo(
+    () => allowedPaymentMethods.map((method) => method.id),
+    [allowedPaymentMethods]
+  )
+  const mixedLineMethods = useMemo(
+    () => MIXED_PAYMENT_LINE_METHODS.filter((line) => allowedPaymentMethodIds.includes(line.uiId)),
+    [allowedPaymentMethodIds]
+  )
+  const allowedPaymentMethodIdsRef = useRef(allowedPaymentMethodIds)
+  allowedPaymentMethodIdsRef.current = allowedPaymentMethodIds
   const appliedDefaultBookingMethod = useRef(false)
   const [paymentMethodId, setPaymentMethodId] = useState<string>("0")
   const [discountSchemeId, setDiscountSchemeId] = useState<string>("")
@@ -174,6 +199,8 @@ export function NewBookingDetailsTab() {
   const [areaOpen, setAreaOpen] = useState(false)
   const [agencyOpen, setAgencyOpen] = useState(false)
   const agencyListRef = useRef<HTMLDivElement | null>(null)
+  const [staffOpen, setStaffOpen] = useState(false)
+  const staffListRef = useRef<HTMLDivElement | null>(null)
   const [agentBookingSuccess, setAgentBookingSuccess] = useState<AgentBookingSuccessInfo | null>(null)
   const [saving, setSaving] = useState(false)
   const [mixedDialogOpen, setMixedDialogOpen] = useState(false)
@@ -334,21 +361,21 @@ export function NewBookingDetailsTab() {
   // Apply user's default preferred booking method once when initial data is loaded
   useEffect(() => {
     if (initialDataLoading || appliedDefaultBookingMethod.current) return
-    const defaultId = initialData?.defaultBookingMethod
-    if (defaultId != null && defaultId >= 0 && defaultId <= 8) {
-      setPaymentMethodId(String(defaultId))
-      appliedDefaultBookingMethod.current = true
-    }
-  }, [initialDataLoading, initialData?.defaultBookingMethod])
+    const nextId = pickAllowedBookingPaymentMethodId(
+      initialData?.defaultBookingMethod,
+      allowedPaymentMethodIds
+    )
+    if (nextId != null) setPaymentMethodId(String(nextId))
+    appliedDefaultBookingMethod.current = true
+  }, [initialDataLoading, initialData?.defaultBookingMethod, allowedPaymentMethodIds])
 
   // Reset reservation form whenever session, doctor, specialty, or reservation details change (including when reservation is cleared)
   useEffect(() => {
-    const defaultId = initialData?.defaultBookingMethod
-    setPaymentMethodId(
-      defaultId != null && defaultId >= 0 && defaultId <= 8
-        ? String(defaultId)
-        : "0"
+    const nextId = pickAllowedBookingPaymentMethodId(
+      initialData?.defaultBookingMethod,
+      allowedPaymentMethodIdsRef.current
     )
+    setPaymentMethodId(nextId == null ? "" : String(nextId))
     setDiscountSchemeId("")
     setVoucherCode("")
     setVoucherValid(null)
@@ -384,6 +411,18 @@ export function NewBookingDetailsTab() {
     setForcedBookingExpanded(false)
     setInvalidFields({})
   }, [selectedSession?.id, selectedDoctor?.id, selectedSpecialityId, reservationDetails, setSelectedAgencyId, setReferredDoctorId, setReferredAgencyId, setReferredStaffId])
+
+  useEffect(() => {
+    setPaymentMethodId((current) => {
+      const currentId = Number(current)
+      if (current !== "" && allowedPaymentMethodIds.includes(currentId)) return current
+      const nextId = pickAllowedBookingPaymentMethodId(
+        initialData?.defaultBookingMethod,
+        allowedPaymentMethodIds
+      )
+      return nextId == null ? "" : String(nextId)
+    })
+  }, [allowedPaymentMethodIds, initialData?.defaultBookingMethod])
 
   // Reset booking-type–specific fields when payment method changes
   useEffect(() => {
@@ -527,7 +566,7 @@ export function NewBookingDetailsTab() {
           : undefined,
         credit_customer: isCreditCustomer && selectedCreditCustomer ? { id: selectedCreditCustomer.id } : undefined,
         staff: isStaff && selectedStaff ? { id: selectedStaff.id } : undefined,
-        bank: (isCard || isSlip) && selectedBank ? { id: selectedBank.id, name: selectedBank.name } : undefined,
+        bank: (isCard || isSlip || isEWallet) && selectedBank ? { id: selectedBank.id, name: selectedBank.name } : undefined,
         card: isCard ? cardLast4.replace(/\D/g, "").slice(-4) : undefined,
         slip_ref: isSlip ? slipRef.trim() : undefined,
         slip_date: isSlip ? slipDate.trim() : undefined,
@@ -645,6 +684,14 @@ export function NewBookingDetailsTab() {
 
   async function handleBookNow() {
     if (!selectedSession || !selectedDoctor) return
+    if (paymentMethodId === "" || !allowedPaymentMethodIds.includes(Number(paymentMethodId))) {
+      toast({
+        title: "Payment method not allowed",
+        description: "Your group is not allowed to book with this payment method.",
+        variant: "destructive",
+      })
+      return
+    }
     const missingPatient = !patientName.trim() || !titleId || !sexId || !isPhoneValid
     if (missingPatient || !selectedArea) {
       setInvalidFields({
@@ -691,7 +738,10 @@ export function NewBookingDetailsTab() {
       if (!slipDate.trim()) typeErrors.slip_date = true
       if (!bankId || !selectedBank) typeErrors.bank = true
     }
-    if (isEWallet && !ewalletRef.trim()) typeErrors.ewallet_ref = true
+    if (isEWallet) {
+      if (!ewalletRef.trim()) typeErrors.ewallet_ref = true
+      if (!bankId || !selectedBank) typeErrors.bank = true
+    }
     if (isVoucherScheme && !voucherCode.trim()) {
       setInvalidFields((prev) => ({ ...prev, voucher_code: true }))
       toast({
@@ -714,7 +764,7 @@ export function NewBookingDetailsTab() {
               : isCard
                 ? "Please enter Last 4 Digits and select Bank."
                 : isEWallet
-                  ? "Please enter E-wallet reference."
+                  ? "Please enter E-wallet reference and select Bank."
                   : "Please enter Bank Reference, Slip Date, and select Bank.",
         variant: "destructive",
       })
@@ -722,6 +772,31 @@ export function NewBookingDetailsTab() {
     }
     setInvalidFields({})
     if (isMixed) {
+      if (mixedLineMethods.length < 2) {
+        toast({
+          title: "Mixed payment not available",
+          description: "Mixed payment needs at least two allowed methods: Cash, Card, Slip, or E-wallet.",
+          variant: "destructive",
+        })
+        return
+      }
+      const allowedLineValues = mixedLineMethods.map((line) => line.value)
+      setMixedLines((prev) =>
+        prev.map((line, idx) => {
+          if (allowedLineValues.some((value) => value === line.payment_method)) return line
+          const fallback = allowedLineValues[Math.min(idx, Math.max(allowedLineValues.length - 1, 0))]
+          if (fallback == null) return line
+          return {
+            ...line,
+            payment_method: fallback,
+            bank_id: "",
+            card: "",
+            slip_ref: "",
+            slip_date: "",
+            ewallet_ref: "",
+          }
+        })
+      )
       setMixedDialogOpen(true)
       return
     }
@@ -770,6 +845,14 @@ export function NewBookingDetailsTab() {
       return
     }
     for (const [idx, line] of lines.entries()) {
+      if (!mixedLineMethods.some((method) => method.value === line.payment_method)) {
+        toast({
+          title: "Payment method not allowed",
+          description: `Mixed payment line ${idx + 1} uses a method this group cannot book with.`,
+          variant: "destructive",
+        })
+        return
+      }
       if (line.payment_method === SAVE_PAYMENT_TYPE_CREDIT_CARD) {
         if (!line.bank?.id) {
           toast({
@@ -814,13 +897,23 @@ export function NewBookingDetailsTab() {
           return
         }
       }
-      if (line.payment_method === SAVE_PAYMENT_TYPE_E_WALLET && !line.ewallet_ref?.trim()) {
-        toast({
-          title: "E-wallet reference required",
-          description: `Please enter e-wallet reference for mixed payment line ${idx + 1}.`,
-          variant: "destructive",
-        })
-        return
+      if (line.payment_method === SAVE_PAYMENT_TYPE_E_WALLET) {
+        if (!line.bank?.id) {
+          toast({
+            title: "Bank required",
+            description: `Please select a bank for mixed payment line ${idx + 1} (E-Wallet).`,
+            variant: "destructive",
+          })
+          return
+        }
+        if (!line.ewallet_ref?.trim()) {
+          toast({
+            title: "E-wallet reference required",
+            description: `Please enter e-wallet reference for mixed payment line ${idx + 1}.`,
+            variant: "destructive",
+          })
+          return
+        }
       }
     }
     await submitBooking(lines)
@@ -863,19 +956,24 @@ export function NewBookingDetailsTab() {
       {/* Row 1: Payment | Discount Scheme (booking method) */}
       <div className="grid grid-cols-2 gap-x-3">
         <Select
-          value={paymentMethodId}
+          value={
+            paymentMethodId !== "" && allowedPaymentMethodIds.includes(Number(paymentMethodId))
+              ? paymentMethodId
+              : undefined
+          }
           onValueChange={(value) => {
             setPaymentMethodId(value)
             setDiscountSchemeId("")
           }}
+          disabled={allowedPaymentMethods.length === 0}
         >
           <SelectTrigger className={fieldClass}>
             <span className="flex items-center gap-2 min-w-0 flex-1">
-              <SelectValue placeholder="Payment" />
+              <SelectValue placeholder={allowedPaymentMethods.length === 0 ? "No payment methods" : "Payment"} />
             </span>
           </SelectTrigger>
           <SelectContent>
-            {PAYMENT_METHODS.map((m) => {
+            {allowedPaymentMethods.map((m) => {
               const Icon = PAYMENT_ICON_MAP[m.icon]
               return (
                 <SelectItem key={m.id} value={String(m.id)} className="text-xs">
@@ -940,6 +1038,11 @@ export function NewBookingDetailsTab() {
           </div>
         )}
       </div>
+      {allowedPaymentMethods.length === 0 ? (
+        <p className="text-[11px] text-muted-foreground">
+          This group has no payment methods for a new booking. Turn them on under User Groups, Channel Booking – Payment methods.
+        </p>
+      ) : null}
 
       {/* Voucher code input: shown when selected discount scheme is voucher-based */}
       {isVoucherScheme && (
@@ -1178,23 +1281,90 @@ export function NewBookingDetailsTab() {
       )}
       {isStaff && (
         <div className="space-y-0.5">
-          <Select
-            value={staffId || undefined}
-            onValueChange={setStaffId}
-          >
-            <SelectTrigger
-              className={`${fieldClass} ${staffError ? errorClass : ""} ${!staffId ? "text-placeholder" : ""}`}
+          <Popover open={staffOpen} onOpenChange={setStaffOpen}>
+            <PopoverTrigger asChild>
+              <Button
+                type="button"
+                variant="outline"
+                role="combobox"
+                aria-expanded={staffOpen}
+                className={cn(
+                  fieldClass,
+                  "w-full justify-between font-normal",
+                  staffError && errorClass,
+                  !staffId && "text-placeholder"
+                )}
+              >
+                <span className="min-w-0 truncate">
+                  {selectedStaff
+                    ? selectedStaff.code
+                      ? `${selectedStaff.name} (${selectedStaff.code})`
+                      : selectedStaff.name
+                    : "Select Staff Member"}
+                </span>
+                <ChevronsUpDown className="ml-2 h-3.5 w-3.5 shrink-0 opacity-50" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent
+              className="w-[var(--radix-popover-trigger-width)] p-0 overflow-hidden"
+              align="start"
             >
-              <SelectValue placeholder="Select Staff Member" />
-            </SelectTrigger>
-            <SelectContent>
-              {staffOptions.map((s) => (
-                <SelectItem key={s.id} value={s.id} className="text-xs">
-                  {s.name} {s.code ? `(${s.code})` : ""}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+              <Command
+                className="h-auto overflow-hidden rounded-md"
+                filter={(value, search, keywords) => {
+                  const query = search.trim().toLowerCase()
+                  if (!query) return 1
+                  const haystack = [value, ...(keywords ?? [])].join(" ").toLowerCase()
+                  return haystack.includes(query) ? 1 : 0
+                }}
+              >
+                <CommandInput
+                  placeholder="Search staff name or code..."
+                  className="h-8 text-xs"
+                  onValueChange={() => {
+                    requestAnimationFrame(() => {
+                      setTimeout(() => {
+                        staffListRef.current?.scrollTo({ top: 0 })
+                      }, 0)
+                    })
+                  }}
+                />
+                <CommandList
+                  ref={staffListRef}
+                  className="max-h-[240px] overflow-y-auto overscroll-contain"
+                >
+                  <CommandEmpty className="text-xs py-4 text-center text-muted-foreground">
+                    No staff found.
+                  </CommandEmpty>
+                  <CommandGroup className="overflow-visible">
+                    {staffOptions.map((s) => {
+                      const label = s.code ? `${s.name} (${s.code})` : s.name
+                      return (
+                        <CommandItem
+                          key={s.id}
+                          value={`${label} ${s.id}`}
+                          keywords={[s.name, s.code, label].filter(Boolean)}
+                          className="text-xs scroll-mt-0"
+                          onSelect={() => {
+                            setStaffId(s.id)
+                            setStaffOpen(false)
+                          }}
+                        >
+                          <Check
+                            className={cn(
+                              "mr-2 h-3.5 w-3.5",
+                              staffId === s.id ? "opacity-100" : "opacity-0"
+                            )}
+                          />
+                          {label}
+                        </CommandItem>
+                      )
+                    })}
+                  </CommandGroup>
+                </CommandList>
+              </Command>
+            </PopoverContent>
+          </Popover>
         </div>
       )}
       {isCard && (
@@ -1277,14 +1447,35 @@ export function NewBookingDetailsTab() {
         </div>
       )}
       {isEWallet && (
-        <div className="space-y-0.5">
-          <Input
-            className={`${fieldClass} ${ewalletRefError ? errorClass : ""}`}
-            placeholder="E-wallet reference *"
-            value={ewalletRef}
-            onChange={(e) => setEwalletRef(e.target.value)}
-            required
-          />
+        <div className="grid grid-cols-2 gap-x-3">
+          <div className="space-y-0.5">
+            <Input
+              className={`${fieldClass} ${ewalletRefError ? errorClass : ""}`}
+              placeholder="E-wallet reference *"
+              value={ewalletRef}
+              onChange={(e) => setEwalletRef(e.target.value)}
+              required
+            />
+          </div>
+          <div className="space-y-0.5">
+            <Select
+              value={bankId || undefined}
+              onValueChange={setBankId}
+            >
+              <SelectTrigger
+                className={`${fieldClass} ${bankError ? errorClass : ""} ${!bankId ? "text-placeholder" : ""}`}
+              >
+                <SelectValue placeholder="Select Bank *" />
+              </SelectTrigger>
+              <SelectContent>
+                {banks.map((b) => (
+                  <SelectItem key={b.id} value={b.id} className="text-xs">
+                    {b.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
       )}
 
@@ -1606,7 +1797,7 @@ export function NewBookingDetailsTab() {
             (isStaff && !staffId) ||
             (isCard && (cardLast4.replace(/\D/g, "").length !== 4 || !bankId)) ||
             (isSlip && (!slipRef.trim() || !slipDate.trim() || !bankId)) ||
-            (isEWallet && !ewalletRef.trim())
+            (isEWallet && (!ewalletRef.trim() || !bankId))
           }
           onClick={handleBookNow}
           className="h-8 bg-primary text-primary-foreground hover:bg-primary/90 text-xs shrink-0 gap-1.5 disabled:opacity-50 disabled:pointer-events-none"
@@ -1829,10 +2020,11 @@ export function NewBookingDetailsTab() {
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="0" className="text-xs">Cash</SelectItem>
-                          <SelectItem value="1" className="text-xs">Credit Card</SelectItem>
-                          <SelectItem value="2" className="text-xs">Slip</SelectItem>
-                          <SelectItem value="6" className="text-xs">E-Wallet</SelectItem>
+                          {mixedLineMethods.map((method) => (
+                            <SelectItem key={method.value} value={String(method.value)} className="text-xs">
+                              {method.label}
+                            </SelectItem>
+                          ))}
                         </SelectContent>
                       </Select>
                     </div>
@@ -1965,23 +2157,51 @@ export function NewBookingDetailsTab() {
                   </div>
                 )}
                 {line.payment_method === SAVE_PAYMENT_TYPE_E_WALLET && (
-                  <div className="space-y-1">
-                    <p className="text-[11px] text-muted-foreground">
-                      E-wallet reference <span className="text-destructive">*</span>
-                    </p>
-                    <Input
-                      className={fieldClass}
-                      placeholder="E-wallet reference"
-                      required
-                      value={line.ewallet_ref}
-                      onChange={(e) =>
-                        setMixedLines((prev) =>
-                          prev.map((row, rowIdx) =>
-                            rowIdx === idx ? { ...row, ewallet_ref: e.target.value } : row
+                  <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_220px] gap-2">
+                    <div className="space-y-1">
+                      <p className="text-[11px] text-muted-foreground">
+                        Bank <span className="text-destructive">*</span>
+                      </p>
+                      <Select
+                        value={line.bank_id || undefined}
+                        onValueChange={(v) =>
+                          setMixedLines((prev) =>
+                            prev.map((row, rowIdx) =>
+                              rowIdx === idx ? { ...row, bank_id: v } : row
+                            )
                           )
-                        )
-                      }
-                    />
+                        }
+                      >
+                        <SelectTrigger className={fieldClass}>
+                          <SelectValue placeholder="Select Bank" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {banks.map((b) => (
+                            <SelectItem key={b.id} value={b.id} className="text-xs">
+                              {b.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-[11px] text-muted-foreground text-right">
+                        E-wallet reference <span className="text-destructive">*</span>
+                      </p>
+                      <Input
+                        className={fieldClass}
+                        placeholder="E-wallet reference"
+                        required
+                        value={line.ewallet_ref}
+                        onChange={(e) =>
+                          setMixedLines((prev) =>
+                            prev.map((row, rowIdx) =>
+                              rowIdx === idx ? { ...row, ewallet_ref: e.target.value } : row
+                            )
+                          )
+                        }
+                      />
+                    </div>
                   </div>
                 )}
                 <Button

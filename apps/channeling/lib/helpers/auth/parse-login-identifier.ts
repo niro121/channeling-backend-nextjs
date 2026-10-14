@@ -11,3 +11,12 @@ export function parseLoginIdentifier(body: {
   }
   return ""
 }
+
+/** Match stored email or username without regard to letter case. Password stays case-sensitive. */
+export function loginIdentifierOr(identifier: string) {
+  const value = identifier.trim()
+  return [
+    { email: { equals: value, mode: "insensitive" as const } },
+    { username: { equals: value, mode: "insensitive" as const } },
+  ]
+}

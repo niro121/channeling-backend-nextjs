@@ -1,10 +1,14 @@
 export type AgentHistoryCreditLimitUpdateReportQuery = {
   /** '__all__' or agency id */
   agencyId?: string;
-  /** '__all__' | 'soft' | 'hard' */
+  /** '__all__' | 'soft' | 'hard' | 'credit' */
   limitType?: string;
   /** '__all__' or user id */
   changedByUserId?: string;
+  /** Optional datetime-local start (`YYYY-MM-DDTHH:mm`). Empty means no start bound. */
+  fromDateTime?: string;
+  /** Optional datetime-local end (`YYYY-MM-DDTHH:mm`). Empty means no end bound. */
+  toDateTime?: string;
 };
 
 export type AgentHistoryCreditLimitUpdateReportRow = {
@@ -12,7 +16,7 @@ export type AgentHistoryCreditLimitUpdateReportRow = {
   createdAt: Date;
   changedByUserId: string;
   changedByUserName: string | null;
-  limitType: 'soft' | 'hard';
+  limitType: 'soft' | 'hard' | 'credit';
   agencyId: string | null;
   agencyName: string | null;
   agencyCode: string | null;
@@ -32,10 +36,11 @@ export type AgentHistoryCreditLimitUpdateReportExportRow = {
   agentCode: string;
   limitType: string;
   hardLimitField: string;
-  beforeValue: string;
-  updatedValue: string;
-  delta: string;
+  beforeValue: number | null;
+  updatedValue: number | null;
+  delta: number | null;
   changedBy: string;
+  remark: string;
   dateTime: string;
 };
 

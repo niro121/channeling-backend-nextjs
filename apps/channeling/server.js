@@ -5,11 +5,58 @@ const { Server } = require('socket.io')
 
 const port = parseInt(process.env.PORT || '3000', 10)
 const dev = process.env.NODE_ENV !== 'production'
-// turbo: true enables Turbopack in dev for faster incremental compilation (Next.js 15+)
-const app = next({ dev, turbo: true })
+// turbo: true enables Turbopack in dev for faster incremental compilation (Next.js 15+); dev-only
+const app = next({ dev, turbo: dev })
 const handle = app.getRequestHandler()
 
-app.prepare().then(() => {
+/**
+ * With more than one web dyno, an emit from one dyno only reaches sockets connected to that dyno.
+ * The Redis adapter relays emits to every dyno. Without REDIS_URL (local dev, single dyno) the
+ * default in-memory adapter is used. A Redis failure must never stop the web server from starting.
+ */
+async function attachRedisAdapter(io) {
+  const url = process.env.REDIS_URL
+  if (!url) {
+    console.log('[socket] REDIS_URL not set; using in-memory adapter (single instance only)')
+    return
+  }
+  const { createClient } = require('redis')
+  const { createAdapter } = require('@socket.io/redis-adapter')
+  // Heroku Redis uses self-signed certs on rediss:// URLs. pingInterval keeps the connection
+  // active so Redis' idle timeout (300s on Heroku) doesn't drop it between emits.
+  const pubClient = createClient({
+    url,
+    pingInterval: 60000,
+    socket: url.startsWith('rediss://') ? { tls: true, rejectUnauthorized: false } : undefined,
+  })
+  const subClient = pubClient.duplicate()
+  for (const [name, client] of [['pub', pubClient], ['sub', subClient]]) {
+    client.on('error', (err) => console.error(`[socket] redis ${name} error:`, err.message))
+  }
+  let timer
+  try {
+    // Heroku kills a dyno that hasn't bound $PORT within 60s, so don't wait on Redis forever
+    const timeout = new Promise((_, reject) => {
+      timer = setTimeout(() => reject(new Error('connect timed out after 10s')), 10000)
+    })
+    await Promise.race([Promise.all([pubClient.connect(), subClient.connect()]), timeout])
+    io.adapter(createAdapter(pubClient, subClient))
+    console.log('[socket] Redis adapter attached')
+  } catch (err) {
+    console.error('[socket] Redis adapter failed; falling back to in-memory adapter:', err.message)
+    for (const client of [pubClient, subClient]) {
+      try {
+        client.destroy()
+      } catch {
+        // already closed
+      }
+    }
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+app.prepare().then(async () => {
   const server = http.createServer((req, res) => {
     const parsedUrl = parse(req.url, true)
     handle(req, res, parsedUrl)
@@ -19,6 +66,7 @@ app.prepare().then(() => {
     path: '/socket.io',
     addTrailingSlash: false,
   })
+  await attachRedisAdapter(io)
 
   const CHANNEL_BOOKING_PREFIX = 'channel-booking:'
   const CHANNEL_ROOM_PREFIX = 'channel-room:'

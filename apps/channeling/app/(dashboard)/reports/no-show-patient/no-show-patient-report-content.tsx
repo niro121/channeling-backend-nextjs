@@ -7,17 +7,18 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { DateTimeRangePicker } from '@/components/common/date-time-range-picker';
 import { Combobox } from '@/components/common/combobox';
 import { Selector } from '@/components/common/selector';
-import { Download, FileSpreadsheet, FileText, Loader2, Printer, SearchIcon } from 'lucide-react';
+import { FileSpreadsheet, FileText, Loader2, Printer, SearchIcon } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useToast } from '@/components/hooks/use-toast';
 import { ReportEmptyStateCard } from '@/components/common/report-empty-state';
 import { ReportGenerationDetailsCard } from '@/components/common/report-generation-details';
 import {
   ReportPrintLayout,
-  downloadBrandedReportExcel,
-  downloadBrandedReportPdf,
   toBrandedPdfSummaryItems,
 } from '@/components/common/report-print';
+import { downloadNoShowPatientReportExcel } from './no-show-patient-excel';
+import { downloadNoShowPatientReportPdf } from './no-show-patient-pdf';
+import NoShowPatientPrintBody from './no-show-patient-print-body';
 import type { ReportPrintSummaryItem } from '@/components/common/report-print';
 import { formatReportRangeLabel } from '@/lib/format-report-range-label';
 import { withAllBranchesOptions } from '@/lib/report-branch-options';
@@ -177,37 +178,6 @@ export default function NoShowPatientReportContent({
 
   const handlePrint = () => window.print();
 
-  const handleDownloadCsv = async () => {
-    if (!hasSearched) {
-      toast({ variant: 'destructive', title: 'No data', description: 'Run a search first to download CSV.' });
-      return;
-    }
-    const result = await exportNoShowPatientReportData(buildQuery());
-    if (!result.success || !result.data?.length) {
-      toast({ variant: 'destructive', title: 'No data', description: result.message || 'No data available.' });
-      return;
-    }
-
-    const dynamicHeaderKeys = periodKeys.map((k) => periodLabels[k] ?? k);
-    const headerKeys = ['speciality', 'doctorName', ...dynamicHeaderKeys, 'total'];
-    const headers = ['Speciality', 'Doctor Name', ...dynamicHeaderKeys, 'Total'];
-    const lines: string[] = [];
-    lines.push(headers.map((h) => `"${h.replace(/"/g, '""')}"`).join(','));
-
-    for (const row of result.data) {
-      const rowVals = headerKeys.map((k) => String(row[k] ?? ''));
-      lines.push(rowVals.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(','));
-    }
-
-    const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `no-show-patient-report-${moment().format('YYYY-MM-DD')}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-
   const handleDownloadPdf = async () => {
     if (!hasSearched) {
       toast({ variant: 'destructive', title: 'No data', description: 'Run a search first to download PDF.' });
@@ -234,7 +204,7 @@ export default function NoShowPatientReportContent({
       for (const k of periodKeys) out[k] = String(row[k] ?? '');
       return out;
     });
-    await downloadBrandedReportPdf({
+    await downloadNoShowPatientReportPdf({
       reportName: 'No Show Patient Report',
       summaryItems: toBrandedPdfSummaryItems(buildSummaryItems(reportMeta)),
       generatedAt: reportMeta.generatedAt,
@@ -269,7 +239,7 @@ export default function NoShowPatientReportContent({
         for (const k of periodKeys) out[k] = String(row[k] ?? '');
         return out;
       });
-      await downloadBrandedReportExcel({
+      await downloadNoShowPatientReportExcel({
         reportName: 'No Show Patient Report',
         summaryItems: toBrandedPdfSummaryItems(buildSummaryItems(reportMeta)),
         generatedAt: reportMeta.generatedAt,
@@ -340,7 +310,79 @@ export default function NoShowPatientReportContent({
   ];
 
   return (
-    <div className="container mx-auto py-3 space-y-4">
+    <div className="container mx-auto py-3 space-y-4 no-show-patient-print-root">
+      <style>{`
+        .no-show-print-tables { display: none; }
+        @media print {
+          .no-show-print-tables { display: block !important; }
+          .no-show-patient-print-root,
+          .no-show-patient-print-root.container {
+            width: 100% !important;
+            max-width: none !important;
+            margin-left: 0 !important;
+            margin-right: 0 !important;
+            padding-left: 0 !important;
+            padding-right: 0 !important;
+          }
+          /* Keep the shared header and its summary on page 1. */
+          .no-show-patient-print-root .rpt-print-header {
+            break-after: auto !important;
+            page-break-after: auto !important;
+            break-inside: avoid !important;
+            page-break-inside: avoid !important;
+          }
+          .no-show-patient-print-root .rpt-print-summary,
+          .no-show-patient-print-root .rpt-print-summary-grid {
+            overflow: visible !important;
+            height: auto !important;
+            break-inside: avoid !important;
+            page-break-inside: avoid !important;
+          }
+          .no-show-patient-print-root .no-show-print-tables table {
+            table-layout: fixed !important;
+            width: 100% !important;
+            border-collapse: collapse !important;
+            margin: 0 0 4mm !important;
+            break-inside: auto !important;
+            page-break-inside: auto !important;
+          }
+          .no-show-patient-print-root .no-show-print-tables th,
+          .no-show-patient-print-root .no-show-print-tables td {
+            font-size: 8pt !important;
+            font-weight: 400 !important;
+            padding: 1.1mm 0.45mm !important;
+            line-height: 1.2 !important;
+            text-align: center !important;
+            white-space: nowrap !important;
+            word-break: normal !important;
+            overflow-wrap: normal !important;
+            overflow: hidden !important;
+            border: 0.4pt solid #000 !important;
+            color: #000 !important;
+            vertical-align: middle !important;
+          }
+          .no-show-patient-print-root .no-show-print-tables thead th {
+            font-size: 8pt !important;
+            font-weight: 700 !important;
+            background: #e8e8e8 !important;
+          }
+          .no-show-patient-print-root .no-show-print-tables .ns-name {
+            text-align: left !important;
+            white-space: normal !important;
+            overflow-wrap: break-word !important;
+            padding-left: 1.4mm !important;
+            padding-right: 1.4mm !important;
+          }
+          .no-show-patient-print-root .no-show-print-tables tr.ns-total td {
+            font-weight: 700 !important;
+            background: #ececec !important;
+          }
+          .no-show-patient-print-root .no-show-print-tables tr {
+            break-inside: avoid !important;
+            page-break-inside: avoid !important;
+          }
+        }
+      `}</style>
       <Card className="print:shadow-none print:border-0 print:bg-white">
         <CardHeader className="pb-2 print:hidden">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
@@ -374,10 +416,6 @@ export default function NoShowPatientReportContent({
                   <FileSpreadsheet className="h-4 w-4" />
                 )}
                 Excel
-              </Button>
-              <Button variant="outline" size="sm" onClick={handleDownloadCsv} className="gap-2">
-                <Download />
-                Download CSV
               </Button>
             </div>
           </div>
@@ -464,12 +502,20 @@ export default function NoShowPatientReportContent({
             <ReportPrintLayout
               reportName="No Show Patient Report"
               pageSize="A4 landscape"
+              pageMargins="7mm 5mm 18mm"
               generatedAt={reportMeta.generatedAt}
               summaryItems={buildSummaryItems(reportMeta)}
             >
               <div className="space-y-3">
                 <div className="print:hidden">{renderReportMetaCard()}</div>
-                <div className="rounded-md border overflow-x-auto">
+                <NoShowPatientPrintBody
+                  rows={rows}
+                  periodKeys={periodKeys}
+                  periodLabels={periodLabels}
+                  columnTotals={columnTotals}
+                  grandTotal={grandTotal}
+                />
+                <div className="rounded-md border overflow-x-auto print:hidden">
                   <Table className="text-[11px] [&_th]:px-1.5 [&_td]:px-1.5 [&_th]:border-r [&_th:last-child]:border-r-0 [&_td]:border-r [&_td:last-child]:border-r-0">
                     <TableHeader>
                       <TableRow className="border-b">

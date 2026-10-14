@@ -11,6 +11,8 @@ export const RECEIPT_METHOD = {
   BRANCH_EXPENSE: 9,
   BANK_DEPOSIT: 10,
   BANK_WITHDRAW: 11,
+  CASH_VOUCHER: 12,
+  CASH_VOUCHER_CANCEL: 13,
 } as const;
 
 export type ReceiptMethod = (typeof RECEIPT_METHOD)[keyof typeof RECEIPT_METHOD];
@@ -52,4 +54,6 @@ export const RECEIPT_METHOD_NAMES: Record<number, string> = {
   [RECEIPT_METHOD.BRANCH_EXPENSE]: "Branch Expense",
   [RECEIPT_METHOD.BANK_DEPOSIT]: "Bank Deposit",
   [RECEIPT_METHOD.BANK_WITHDRAW]: "Bank Withdraw",
+  [RECEIPT_METHOD.CASH_VOUCHER]: "Cash Voucher",
+  [RECEIPT_METHOD.CASH_VOUCHER_CANCEL]: "Cash Voucher Cancel",
 };

@@ -2,6 +2,9 @@
 
 import Link from 'next/link';
 import { ColumnDef } from '@tanstack/react-table';
+import { REPORT_CATEGORIES, type ReportCategory } from '@/lib/report-privileges';
+
+export { REPORT_CATEGORIES, type ReportCategory };
 
 export type ReportListItem = {
   id: string;
@@ -9,6 +12,7 @@ export type ReportListItem = {
   masterData: string;
   description: string;
   route: string;
+  category: ReportCategory;
 };
 
 export const reportColumns: ColumnDef<ReportListItem>[] = [

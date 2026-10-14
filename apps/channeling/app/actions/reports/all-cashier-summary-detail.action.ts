@@ -1,6 +1,6 @@
 'use server';
 
-import { requirePermission } from '@/lib/server-permissions';
+import { requireReport } from '@/lib/server-permissions';
 import { getAllCashierSummaryDetailReportService } from '@/services/reports/all-cashier-summary-detail.service';
 import type { AllCashierSummaryDetailReportQuery, AllCashierSummaryDetailReportResponse } from '@/types/report';
 
@@ -17,7 +17,7 @@ const ZERO_AMOUNTS = {
 export async function getAllCashierSummaryDetailReportData(
   query: AllCashierSummaryDetailReportQuery
 ): Promise<AllCashierSummaryDetailReportResponse> {
-  await requirePermission('reports', 'view');
+  await requireReport('all-cashier-summary-detail');
   try {
     return await getAllCashierSummaryDetailReportService({
       userId: query.userId === '__all__' || !query.userId ? undefined : query.userId,

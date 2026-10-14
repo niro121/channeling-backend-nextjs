@@ -14,13 +14,13 @@ import {
   getHandoversReceivedByShift,
   getLinkedHandoversForShift,
   getIncludableHandoversForSender,
-  getPreviousHandoversForHandoverDetail,
+  getDirectIncludedHandovers,
   getNonCashHeldInReconciliation,
   countPendingIncomingHandovers,
   getExpectedHandoverCollection,
 } from "@/services/shift-handover.service"
 import { getTillBalanceBreakdown } from "@/services/accounting/balance.service"
-import { getReceivedFloatsForHandover, getOpenFloatsBlockingShiftEnd, openFloatsBlockingTotal } from "@/services/float-request.service"
+import { getBulkCashierUsers, getReceivedFloatsForHandover, getOpenFloatsBlockingShiftEnd, openFloatsBlockingTotal } from "@/services/float-request.service"
 import { getAccountBalance } from "@/services/accounting/balance-calc.service"
 import prisma from "@/lib/prisma"
 import { getServerSession } from "next-auth"
@@ -107,7 +107,7 @@ export async function endShiftAction(shiftId: string) {
   return result
 }
 
-/** Whether the current user can end their shift with no handover (empty till, nothing to forward). */
+/** Whether the current user can end their shift with no handover (empty till, no receipts, nothing to forward). */
 export async function canEndShiftWithoutHandoverAction(): Promise<{
   success: true
   allowed: boolean
@@ -129,6 +129,36 @@ export async function getHandoverUserOptionsAction() {
   return { success: true, data: options }
 }
 
+/**
+ * People who can receive a shift handover (Float Approve), excluding the current user.
+ * Shift view is enough. Float Request is only required when requesting float.
+ */
+export async function getHandoverRecipientOptionsAction(): Promise<{
+  success: boolean
+  data: Awaited<ReturnType<typeof getBulkCashierUsers>>
+  message?: string
+}> {
+  try {
+    await requirePermission(SHIFT_RESOURCE, "view")
+  } catch (err) {
+    return { success: false, data: [], message: err instanceof Error ? err.message : "Access denied." }
+  }
+  const session = await getServerSession(authOptions)
+  const currentUserId = session?.user?.id ?? null
+  if (!currentUserId) return { success: false, data: [], message: "Unauthorized" }
+  try {
+    const users = await getBulkCashierUsers(currentUserId)
+    return { success: true, data: users }
+  } catch (e) {
+    console.error("getHandoverRecipientOptionsAction error:", e)
+    return {
+      success: false,
+      data: [],
+      message: e instanceof Error ? e.message : "Failed to load handover recipients",
+    }
+  }
+}
+
 /** Single payload for submit shift handover (one arg = no serialization drop). */
 export type SubmitShiftHandoverPayload = {
   shiftId: string
@@ -141,6 +171,17 @@ export type SubmitShiftHandoverPayload = {
     creditCents: number
     eWalletCents: number
   }
+  /** Missing money, per method. Cannot exceed the amount left in the till. */
+  shortAmounts?: {
+    cashCents: number
+    cardCents: number
+    slipCents: number
+    checkCents: number
+    creditCents: number
+    eWalletCents: number
+  }
+  /** Cash brought in to pay down the existing branch short. */
+  settlementCents?: number
   discrepancyReason?: string
   enteredBreakdown?: {
     cashDenominations?: { value: number; count: number }[]
@@ -181,7 +222,7 @@ export async function getExpectedHandoverCollectionAction(shiftId: string) {
 
 /** Submit shift handover: create PENDING handover, set shift to handover pending. Journal created only when recipient approves. */
 export async function submitShiftHandoverAction(payload: SubmitShiftHandoverPayload) {
-  const { shiftId, toUserId, amounts, discrepancyReason, enteredBreakdown, includedHandoverIds, attachmentIds } = payload
+  const { shiftId, toUserId, amounts, discrepancyReason, enteredBreakdown, includedHandoverIds, attachmentIds, shortAmounts, settlementCents } = payload
   console.log("[submitShiftHandoverAction] payload.includedHandoverIds:", includedHandoverIds, "length:", includedHandoverIds?.length)
   await requirePermission(SHIFT_RESOURCE, "view")
   const session = await getServerSession(authOptions)
@@ -194,12 +235,15 @@ export async function submitShiftHandoverAction(payload: SubmitShiftHandoverPayl
     discrepancyReason,
     enteredBreakdown,
     includedHandoverIds,
-    attachmentIds
+    attachmentIds,
+    shortAmounts,
+    settlementCents
   )
   if (!result.success) throw new Error(result.error)
   revalidatePath("/channel-booking")
   revalidatePath("/shifts")
   revalidatePath("/handovers")
+  revalidatePath("/my-till")
   return result
 }
 
@@ -214,6 +258,7 @@ export async function approveHandoverAction(handoverId: string, approvalComments
   revalidatePath("/shifts")
   revalidatePath("/handovers")
   revalidatePath("/reconciliation")
+  revalidatePath("/my-till")
   return result
 }
 
@@ -499,7 +544,7 @@ export async function getHandoverDetailAction(handoverId: string) {
           ...expectedHandoverAvailableFromTill(till, held),
         }))
       : Promise.resolve(null),
-    getPreviousHandoversForHandoverDetail({
+    getDirectIncludedHandovers({
       handoverId: handover.id,
       shiftId: handover.shiftId,
       includedHandoverIds: (handover as { includedHandoverIds?: unknown }).includedHandoverIds,

@@ -1,7 +1,5 @@
 import { NextResponse } from "next/server"
-import { getServerSession } from "next-auth"
-import { authOptions } from "@/lib/auth"
-import { userTypes } from "@/lib/roles"
+import { routeDenied } from "@/lib/api-privilege"
 import { getIO } from "@/lib/socket-server"
 
 /** Thresholds for status (adjust as needed for your server size). */
@@ -22,14 +20,8 @@ function toStatus(value: number, warning: number, danger: number): Status {
 
 export async function GET() {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
-    const userType = (session.user as { userType?: number }).userType
-    if (userType !== userTypes.admin) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 })
-    }
+    const denied = await routeDenied("/admin/monitor")
+    if (denied) return denied
 
     const io = getIO()
     const socketCount = io?.engine?.clientsCount ?? 0

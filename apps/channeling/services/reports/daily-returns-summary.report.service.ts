@@ -7,7 +7,7 @@ import { RECEIPT_METHOD, RECEIPT_METHOD_NAMES } from '@/types/receipt';
 import {
   CASHIER_SUMMARY_ZERO_AMOUNTS,
   addCashierSummaryAmounts,
-  receiptToAmounts,
+  receiptAmountsForCashierSummary,
   receiptToAmountsDoctorPaymentNet,
 } from '@/lib/cashier-summary-amounts';
 import { dailyReturnsFloatTotal, rowFromAmounts } from '@/lib/daily-returns-summary-amounts';
@@ -109,7 +109,7 @@ export async function getDailyReturnsSummaryReportService(
     const amounts =
       r.method === RECEIPT_METHOD.DOCTOR_PAYMENT || r.method === RECEIPT_METHOD.DOCTOR_CANCEL
         ? receiptToAmountsDoctorPaymentNet(r.paymentMethod, r.amount, r.type, r.whd, r.paymentLines)
-        : receiptToAmounts(r.paymentMethod, r.amount, r.type, r.paymentLines);
+        : receiptAmountsForCashierSummary(r.method, r.paymentMethod, r.amount, r.type, r.paymentLines);
 
     bucketCounts.set(bucket, (bucketCounts.get(bucket) ?? 0) + 1);
     bucketAmounts.set(bucket, addCashierSummaryAmounts(bucketAmounts.get(bucket)!, amounts));

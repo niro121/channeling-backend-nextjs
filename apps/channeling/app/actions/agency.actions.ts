@@ -290,6 +290,26 @@ export const createAgency = async (
           }
         });
       }
+
+      const newCredit = Number(result.data?.creditLimit ?? 0);
+      if (newAgencyId && newCredit !== 0) {
+        logActivityNonBlocking({
+          userId: session.user.id,
+          action: 'agencies.limit.credit_changed',
+          entityType: 'Agency',
+          entityId: newAgencyId,
+          importance: 'high',
+          metadata: {
+            agencyName: result.data?.name,
+            agencyCode: result.data?.code,
+            field: 'creditLimit',
+            oldValue: 0,
+            newValue: newCredit,
+            delta: newCredit,
+            source: 'agency_created'
+          }
+        });
+      }
     }
     revalidatePath('/agencies');
 
@@ -348,12 +368,19 @@ export const updateAgency = async (
       };
     }
 
-    const shouldTrackSoftLimitChange =
-      'allowedCreditLimit' in payload && payload.allowedCreditLimit !== undefined;
-    const beforeSoftLimit = shouldTrackSoftLimitChange
+    const shouldTrackLimitChange =
+      ('allowedCreditLimit' in payload && payload.allowedCreditLimit !== undefined) ||
+      ('creditLimit' in payload && payload.creditLimit !== undefined);
+    const beforeLimits = shouldTrackLimitChange
       ? await prisma.agency.findUnique({
           where: { id },
-          select: { id: true, name: true, code: true, allowedCreditLimit: true },
+          select: {
+            id: true,
+            name: true,
+            code: true,
+            allowedCreditLimit: true,
+            creditLimit: true,
+          },
         })
       : null;
 
@@ -379,10 +406,10 @@ export const updateAgency = async (
         metadata: result.data ? { name: result.data.name, code: result.data.code } : undefined,
       });
 
-      if (shouldTrackSoftLimitChange && beforeSoftLimit) {
-        const oldValue = Number(beforeSoftLimit.allowedCreditLimit ?? 0);
-        const newValue = Number(result.data?.allowedCreditLimit ?? oldValue);
-        if (Number.isFinite(oldValue) && Number.isFinite(newValue) && oldValue !== newValue) {
+      if (beforeLimits) {
+        const oldSoft = Number(beforeLimits.allowedCreditLimit ?? 0);
+        const newSoft = Number(result.data?.allowedCreditLimit ?? oldSoft);
+        if (Number.isFinite(oldSoft) && Number.isFinite(newSoft) && oldSoft !== newSoft) {
           logActivityNonBlocking({
             userId: session.user.id,
             action: 'agencies.limit.soft_changed',
@@ -390,12 +417,33 @@ export const updateAgency = async (
             entityId: id,
             importance: 'high',
             metadata: {
-              agencyName: beforeSoftLimit.name,
-              agencyCode: beforeSoftLimit.code,
+              agencyName: beforeLimits.name,
+              agencyCode: beforeLimits.code,
               field: 'allowedCreditLimit',
-              oldValue,
-              newValue,
-              delta: newValue - oldValue,
+              oldValue: oldSoft,
+              newValue: newSoft,
+              delta: newSoft - oldSoft,
+              source: 'agency_edit'
+            },
+          });
+        }
+
+        const oldCredit = Number(beforeLimits.creditLimit ?? 0);
+        const newCredit = Number(result.data?.creditLimit ?? oldCredit);
+        if (Number.isFinite(oldCredit) && Number.isFinite(newCredit) && oldCredit !== newCredit) {
+          logActivityNonBlocking({
+            userId: session.user.id,
+            action: 'agencies.limit.credit_changed',
+            entityType: 'Agency',
+            entityId: id,
+            importance: 'high',
+            metadata: {
+              agencyName: beforeLimits.name,
+              agencyCode: beforeLimits.code,
+              field: 'creditLimit',
+              oldValue: oldCredit,
+              newValue: newCredit,
+              delta: newCredit - oldCredit,
               source: 'agency_edit'
             },
           });
@@ -853,7 +901,7 @@ export const updateAgencyAllowedCreditLimit = async (
 
     const beforeSoftLimit = await prisma.agency.findUnique({
       where: { id: agencyId },
-      select: { id: true, name: true, code: true, allowedCreditLimit: true }
+      select: { id: true, name: true, code: true, allowedCreditLimit: true, creditLimit: true }
     });
     if (!beforeSoftLimit) {
       return {
@@ -922,6 +970,27 @@ export const updateAgencyAllowedCreditLimit = async (
             delta: newValue - oldValue,
             source: 'agency_allowed_credit_limits_page',
             formalAcknowledgementAgencyRequestDepositBelowCreditLimitResponsibility: true
+          }
+        });
+      }
+
+      const oldCredit = Number(beforeSoftLimit.creditLimit ?? 0);
+      const newCredit = Number(result.data?.creditLimit ?? oldCredit);
+      if (Number.isFinite(oldCredit) && Number.isFinite(newCredit) && oldCredit !== newCredit) {
+        logActivityNonBlocking({
+          userId: session.user.id,
+          action: 'agencies.limit.credit_changed',
+          entityType: 'Agency',
+          entityId: agencyId,
+          importance: 'high',
+          metadata: {
+            agencyName: beforeSoftLimit.name,
+            agencyCode: beforeSoftLimit.code,
+            field: 'creditLimit',
+            oldValue: oldCredit,
+            newValue: newCredit,
+            delta: newCredit - oldCredit,
+            source: 'agency_allowed_credit_limits_page'
           }
         });
       }

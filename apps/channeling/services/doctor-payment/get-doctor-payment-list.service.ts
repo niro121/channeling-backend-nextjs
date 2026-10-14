@@ -31,7 +31,7 @@ export type DoctorPaymentListItem = {
 export type GetDoctorPaymentListParams = {
   page?: number;
   limit?: number;
-  keyword?: string; // patient name or bill no
+  keyword?: string; // patient name, patient bill no, or doctor payment bill no
   doctorPaymentNo?: string; // receipt number filter
   cancelInvoiceNo?: string;
   locationId?: string | null;
@@ -104,19 +104,33 @@ export async function getDoctorPaymentListService(
 
   if (params.keyword?.trim()) {
     const kw = params.keyword.trim();
-    const matchingBookings = await prisma.booking.findMany({
-      where: {
-        doctorPaymentReceiptId: { not: null },
-        OR: [
-          { name: { contains: kw, mode: "insensitive" } },
-          { title: { contains: kw, mode: "insensitive" } },
-          { bookingid_string: { contains: kw, mode: "insensitive" } },
-          { receiptNoString: { contains: kw, mode: "insensitive" } },
-        ],
-      },
-      select: { doctorPaymentReceiptId: true },
-    });
-    const ids = [...new Set(matchingBookings.map((b) => b.doctorPaymentReceiptId).filter(Boolean))] as string[];
+    const [matchingBookings, matchingPayments] = await Promise.all([
+      prisma.booking.findMany({
+        where: {
+          doctorPaymentReceiptId: { not: null },
+          OR: [
+            { name: { contains: kw, mode: "insensitive" } },
+            { title: { contains: kw, mode: "insensitive" } },
+            { bookingid_string: { contains: kw, mode: "insensitive" } },
+            { receiptNoString: { contains: kw, mode: "insensitive" } },
+          ],
+        },
+        select: { doctorPaymentReceiptId: true },
+      }),
+      prisma.receipt.findMany({
+        where: {
+          method: RECEIPT_METHOD.DOCTOR_PAYMENT,
+          receiptNoString: { contains: kw, mode: "insensitive" },
+        },
+        select: { id: true },
+      }),
+    ]);
+    const ids = [
+      ...new Set([
+        ...matchingBookings.map((b) => b.doctorPaymentReceiptId).filter(Boolean),
+        ...matchingPayments.map((r) => r.id),
+      ]),
+    ] as string[];
     if (!applyReceiptIdFilter(ids)) {
       return { data: [], totalRecords: 0 };
     }

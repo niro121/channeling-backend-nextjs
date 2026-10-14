@@ -72,6 +72,7 @@ export default async function ReconciliationDocumentPage({ params }: Props) {
       reconciliationStatus={result.reconciliationStatus}
       reconciliationRejectReason={result.reconciliationRejectReason}
       handoverNoString={result.handoverNoString}
+      reconciliationNoString={result.reconciliationNoString}
       hasReconciliationIssues={result.hasReconciliationIssues}
     />
   )

@@ -45,7 +45,11 @@ export const getAllRooms = async (sort: getRoomParam) => {
         ? parseInt(sort.limit)
         : parseInt(process.env.DEFAULT_PER_PAGE ?? '10'),
       keyword: sort.keyword ?? '',
-      locationId: sort.locationId ? sort.locationId : undefined
+      locationId: sort.locationId ? sort.locationId : undefined,
+      occupancy:
+        sort.occupancy === 'occupied' || sort.occupancy === 'available'
+          ? sort.occupancy
+          : undefined
     };
 
     const response = await getAllRoomsService(newFilter);
@@ -342,13 +346,14 @@ export const getAllZonesByLocaionID = async (
 };
 
 // ==== ROOMS EXPORT ==== //
-export const getRoomsExport = async (params: { keyword?: string; locationId?: string }) => {
+export const getRoomsExport = async (params: { keyword?: string; locationId?: string; occupancy?: string }) => {
   try {
     const response = await getAllRooms({
       page: "0",
       limit: "10000", // Get all records
       keyword: params.keyword ?? "",
-      locationId: params.locationId
+      locationId: params.locationId,
+      occupancy: params.occupancy
     });
 
     if (!response.success || !response.data?.length) {

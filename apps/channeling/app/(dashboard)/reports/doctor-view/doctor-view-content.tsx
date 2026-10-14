@@ -13,11 +13,25 @@ import {
 import { useToast } from '@/components/hooks/use-toast';
 import { Printer } from 'lucide-react';
 import moment from 'moment';
-import { printPdfUtilWithHeader } from '@/lib/utils';
+import { ReportPrintLayout, toBrandedPdfSummaryItems, downloadBrandedReportPdf } from '@/components/common/report-print';
+import type { ReportPrintSummaryItem } from '@/components/common/report-print';
+import { ExportWrapper } from '@/app/(dashboard)/export-wrapper';
 import Loading from '@/app/(dashboard)/loading';
 
 type DoctorViewReportContentProps = {
   sessionId: string;
+};
+
+type DoctorViewExportRow = {
+  appNo: string;
+  patientName: string;
+  billNo: string;
+  agent: string;
+  paidOrNot: string;
+  cOrR: string;
+  pOrA: string;
+  doctorFee: string;
+  total: string;
 };
 
 export default function DoctorViewReportContent({
@@ -73,81 +87,51 @@ export default function DoctorViewReportContent({
 
   const handlePrint = () => {
     if (!sessionData) return;
-
-    type DoctorViewPrintRow = {
-      appNo: string;
-      patientName: string;
-      billNo: string;
-      agent: string;
-      paidOrNot: string;
-      cOrR: string;
-      pOrA: string;
-      doctorFee: string;
-      total: string;
+    const styleId = 'doctor-view-print-page';
+    let el = document.getElementById(styleId) as HTMLStyleElement | null;
+    if (!el) {
+      el = document.createElement('style');
+      el.id = styleId;
+      document.head.appendChild(el);
+    }
+    el.textContent = `
+      @media print {
+        @page {
+          size: auto;
+          margin: 8mm 10mm;
+          @top-left { content: ""; }
+          @top-center { content: ""; }
+          @top-right { content: ""; }
+          @bottom-left { content: ""; }
+          @bottom-right { content: ""; }
+        }
+      }
+    `;
+    document.body.classList.add('print-doctor-view');
+    const cleanup = () => {
+      document.body.classList.remove('print-doctor-view');
+      el?.remove();
     };
+    window.addEventListener('afterprint', cleanup, { once: true });
+    window.print();
+  };
 
-    const headerLines = [
-      `Branch: ${sessionData.location?.name || 'Ruhunu Hospital (Pvt) Ltd'}`,
-      sessionData.location?.address
-        ? `Address: ${sessionData.location.address}`
-        : '',
-      `Consultant: ${
-        sessionData.doctor
-          ? `${sessionData.doctor.title} ${sessionData.doctor.name}`.trim()
-          : '-'
-      }`,
-      `Date: ${formatDate(sessionData.date)}`,
-      `Session Name: ${formatSessionName(
-        sessionData.date,
-        sessionData.startTime
-      )}`
-    ].filter(Boolean);
-
-    const data: DoctorViewPrintRow[] = (sessionData.bookings ?? []).map(
-      (booking) => ({
-        appNo: String(booking.appointmentNo ?? '-'),
-        patientName: `${booking.title ?? ''} ${booking.name ?? ''}`.trim() || '-',
-        billNo: booking.receiptNoString || '-',
-        agent: getAgentName(booking),
-        paidOrNot: getPaymentStatus(booking.status),
-        cOrR: getCancelRefundStatus(booking),
-        pOrA: getPresentAbsentStatus(booking.status),
-        doctorFee: formatCurrency(booking.professionalFee),
-        total: formatCurrency(booking.amount)
-      })
-    );
-
-    const columns = [
-      'App No.',
-      'Patient Name',
-      'Bill No',
-      'Agent/ Staff/ Credit Customer',
-      'Paid or Not',
-      'C / R',
-      'P/A',
-      'Doctor Fee',
-      'Total'
-    ];
-
-    const keys = [
-      'appNo',
-      'patientName',
-      'billNo',
-      'agent',
-      'paidOrNot',
-      'cOrR',
-      'pOrA',
-      'doctorFee',
-      'total'
-    ] as (keyof DoctorViewPrintRow)[];
-
-    printPdfUtilWithHeader<DoctorViewPrintRow>({
-      title: 'Doctor View Report',
-      headerLines,
-      data,
-      columns,
-      keys
-    });
+  const handleExport = async () => {
+    if (!sessionData) {
+      return { success: false, message: 'No session data available' };
+    }
+    const data: DoctorViewExportRow[] = (sessionData.bookings ?? []).map((booking) => ({
+      appNo: String(booking.appointmentNo ?? '-'),
+      patientName: `${booking.title ?? ''} ${booking.name ?? ''}`.trim() || '-',
+      billNo: booking.receiptNoString || '-',
+      agent: getAgentName(booking),
+      paidOrNot: getPaymentStatus(booking.status),
+      cOrR: getCancelRefundStatus(booking),
+      pOrA: getPresentAbsentStatus(booking.status),
+      doctorFee: formatCurrency(booking.professionalFee),
+      total: formatCurrency(booking.amount),
+    }));
+    return { success: true, data };
   };
 
   const formatTime = (date: Date) => {
@@ -214,8 +198,159 @@ export default function DoctorViewReportContent({
     );
   }
 
+  const printSummaryItems = [
+    {
+      label: 'Branch',
+      value: sessionData.location?.name || 'Ruhunu Hospital (Pvt) Ltd',
+    },
+    ...(sessionData.location?.address
+      ? [{ label: 'Address', value: sessionData.location.address, fullWidth: true }]
+      : []),
+    {
+      label: 'Consultant',
+      value: sessionData.doctor
+        ? `${sessionData.doctor.title} ${sessionData.doctor.name}`.trim()
+        : '-',
+    },
+    { label: 'Date', value: formatDate(sessionData.date) },
+    {
+      label: 'Session',
+      value: formatSessionName(sessionData.date, sessionData.startTime),
+      fullWidth: true,
+    },
+  ] satisfies ReportPrintSummaryItem[];
+
   return (
-    <div className="container mx-auto py-6 space-y-6 print:py-2">
+    <div className="doctor-view-print-root container mx-auto py-6 space-y-6 print:py-0">
+      <style>{`
+        .doctor-view-dot-header { display: none; }
+        @media print {
+          body.print-doctor-view .doctor-view-print-root,
+          body.print-doctor-view .doctor-view-print-root.container {
+            width: 100% !important;
+            max-width: none !important;
+            margin: 0 !important;
+            padding: 2mm 4mm !important;
+            background: #fff !important;
+            color: #000 !important;
+            font-family: "Courier New", Courier, monospace !important;
+            font-size: 12px !important;
+            line-height: 1.3 !important;
+          }
+          body.print-doctor-view .doctor-view-print-root > .print\\:shadow-none,
+          body.print-doctor-view .doctor-view-print-root [class*="p-6"] {
+            width: 100% !important;
+            max-width: none !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            border: none !important;
+            box-shadow: none !important;
+            background: #fff !important;
+          }
+          body.print-doctor-view .doctor-view-print-root .rpt-print-header {
+            display: none !important;
+          }
+          body.print-doctor-view .doctor-view-dot-header {
+            display: block !important;
+            margin: 0 0 6px !important;
+            color: #000 !important;
+            background: #fff !important;
+          }
+          body.print-doctor-view .doctor-view-dot-header .print-title {
+            text-align: center !important;
+            font-weight: 700 !important;
+            font-size: 16px !important;
+            letter-spacing: 0.04em !important;
+            margin: 0 0 4px !important;
+          }
+          body.print-doctor-view .doctor-view-dot-header p {
+            margin: 0 !important;
+          }
+          body.print-doctor-view .doctor-view-dot-header .dv-label {
+            display: inline-block !important;
+            width: 7.2rem !important;
+          }
+          body.print-doctor-view .doctor-view-print-root .rpt-print-root,
+          body.print-doctor-view .doctor-view-print-root .rpt-print-body {
+            width: 100% !important;
+            max-width: none !important;
+            margin: 0 !important;
+            color: #000 !important;
+            background: #fff !important;
+            font-family: "Courier New", Courier, monospace !important;
+            box-sizing: border-box !important;
+          }
+          body.print-doctor-view .doctor-view-print-root .overflow-x-auto,
+          body.print-doctor-view .doctor-view-print-root .rounded-md {
+            overflow: visible !important;
+            width: 100% !important;
+            max-width: none !important;
+            border: 0 !important;
+            border-radius: 0 !important;
+            box-shadow: none !important;
+          }
+          body.print-doctor-view .doctor-view-print-root .rpt-print-root table.dv-print-table {
+            width: 100% !important;
+            max-width: 100% !important;
+            table-layout: fixed !important;
+            border-collapse: collapse !important;
+          }
+          body.print-doctor-view .doctor-view-print-root .rpt-print-root table.dv-print-table thead {
+            display: table-header-group !important;
+          }
+          body.print-doctor-view .doctor-view-print-root .rpt-print-root table.dv-print-table th,
+          body.print-doctor-view .doctor-view-print-root .rpt-print-root table.dv-print-table td {
+            border: 0 !important;
+            border-top: 1px solid #000 !important;
+            background: #fff !important;
+            color: #000 !important;
+            padding: 1px 2px !important;
+            font-family: "Courier New", Courier, monospace !important;
+            font-size: 11px !important;
+            font-weight: 400 !important;
+            line-height: 1.3 !important;
+            overflow: hidden !important;
+            word-break: break-word !important;
+            overflow-wrap: anywhere !important;
+            white-space: normal !important;
+            box-sizing: border-box !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+          body.print-doctor-view .doctor-view-print-root .rpt-print-root table.dv-print-table thead th {
+            font-weight: 700 !important;
+            background: #fff !important;
+          }
+          body.print-doctor-view .doctor-view-print-root .rpt-print-root table.dv-print-table tbody tr:last-child td {
+            border-bottom: 1px solid #000 !important;
+          }
+          body.print-doctor-view .doctor-view-print-root .rpt-print-root table.dv-print-table th *,
+          body.print-doctor-view .doctor-view-print-root .rpt-print-root table.dv-print-table td * {
+            color: #000 !important;
+            font-family: inherit !important;
+            font-size: inherit !important;
+            line-height: inherit !important;
+          }
+          body.print-doctor-view .doctor-view-print-root .rpt-print-root table.dv-print-table th:nth-child(1),
+          body.print-doctor-view .doctor-view-print-root .rpt-print-root table.dv-print-table td:nth-child(1) { width: 7% !important; }
+          body.print-doctor-view .doctor-view-print-root .rpt-print-root table.dv-print-table th:nth-child(2),
+          body.print-doctor-view .doctor-view-print-root .rpt-print-root table.dv-print-table td:nth-child(2) { width: 18% !important; }
+          body.print-doctor-view .doctor-view-print-root .rpt-print-root table.dv-print-table th:nth-child(3),
+          body.print-doctor-view .doctor-view-print-root .rpt-print-root table.dv-print-table td:nth-child(3) { width: 12% !important; }
+          body.print-doctor-view .doctor-view-print-root .rpt-print-root table.dv-print-table th:nth-child(4),
+          body.print-doctor-view .doctor-view-print-root .rpt-print-root table.dv-print-table td:nth-child(4) { width: 18% !important; }
+          body.print-doctor-view .doctor-view-print-root .rpt-print-root table.dv-print-table th:nth-child(5),
+          body.print-doctor-view .doctor-view-print-root .rpt-print-root table.dv-print-table td:nth-child(5) { width: 10% !important; }
+          body.print-doctor-view .doctor-view-print-root .rpt-print-root table.dv-print-table th:nth-child(6),
+          body.print-doctor-view .doctor-view-print-root .rpt-print-root table.dv-print-table td:nth-child(6) { width: 6% !important; }
+          body.print-doctor-view .doctor-view-print-root .rpt-print-root table.dv-print-table th:nth-child(7),
+          body.print-doctor-view .doctor-view-print-root .rpt-print-root table.dv-print-table td:nth-child(7) { width: 7% !important; }
+          body.print-doctor-view .doctor-view-print-root .rpt-print-root table.dv-print-table th:nth-child(8),
+          body.print-doctor-view .doctor-view-print-root .rpt-print-root table.dv-print-table td:nth-child(8) { width: 11% !important; }
+          body.print-doctor-view .doctor-view-print-root .rpt-print-root table.dv-print-table th:nth-child(9),
+          body.print-doctor-view .doctor-view-print-root .rpt-print-root table.dv-print-table td:nth-child(9) { width: 11% !important; }
+        }
+      `}</style>
       <Card className="print:shadow-none print:border-none">
         <CardHeader className="print:hidden">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -223,6 +358,49 @@ export default function DoctorViewReportContent({
               <CardTitle className="text-2xl font-bold">Doctor View</CardTitle>
             </div>
             <div className="flex gap-2">
+              <ExportWrapper<DoctorViewExportRow>
+                serverData={handleExport}
+                columns={[
+                  'App No.',
+                  'Patient Name',
+                  'Bill No',
+                  'Agent/ Staff/ Credit Customer',
+                  'Paid or Not',
+                  'C / R',
+                  'P/A',
+                  'Doctor Fee',
+                  'Total',
+                ]}
+                keys={[
+                  'appNo',
+                  'patientName',
+                  'billNo',
+                  'agent',
+                  'paidOrNot',
+                  'cOrR',
+                  'pOrA',
+                  'doctorFee',
+                  'total',
+                ]}
+                title="Doctor View Report"
+                fileName="doctor-view-report"
+                exportOrientation="portrait"
+                pdfSummaryItems={toBrandedPdfSummaryItems(printSummaryItems)}
+                customDownloadPdf={async (args) => {
+                  await downloadBrandedReportPdf({
+                    reportName: args.title,
+                    summaryItems: toBrandedPdfSummaryItems(printSummaryItems),
+                    generatedAt: new Date().toLocaleString(),
+                    data: args.data,
+                    columns: args.columns,
+                    keys: args.keys,
+                    fileName: args.fileName,
+                    orientation: 'portrait',
+                    compactTable: true,
+                    pageMarginMm: 5,
+                  });
+                }}
+              />
               <Button
                 variant="outline"
                 size="sm"
@@ -235,9 +413,9 @@ export default function DoctorViewReportContent({
             </div>
           </div>
         </CardHeader>
-        <CardContent>
-          {/* Header Information */}
-          <div className="mb-6 space-y-2 text-center print:text-left">
+        <CardContent className="print:p-0">
+          {/* Header stays on screen. Print uses the compact dot-matrix header. */}
+          <div className="mb-6 space-y-2 text-center print:hidden">
             <div className="font-bold text-lg">
               {sessionData.location?.name || 'Ruhunu Hospital (Pvt) Ltd'}
             </div>
@@ -266,9 +444,41 @@ export default function DoctorViewReportContent({
           </div>
 
           {/* Patient List Table */}
-          <div className="mt-6">
+          <ReportPrintLayout
+            reportName="Doctor View Report"
+            pageSize="A4 portrait"
+            pageMargins="7mm 5mm 18mm"
+            generatedAt={new Date().toLocaleString()}
+            summaryItems={printSummaryItems}
+          >
+          <div className="doctor-view-dot-header font-mono text-[11px] leading-snug text-black">
+            <p className="print-title">DOCTOR VIEW REPORT</p>
+            <p>
+              <span className="dv-label">BRANCH</span>:{' '}
+              {sessionData.location?.name || 'Ruhunu Hospital (Pvt) Ltd'}
+            </p>
+            {sessionData.location?.address ? (
+              <p>
+                <span className="dv-label">ADDRESS</span>: {sessionData.location.address}
+              </p>
+            ) : null}
+            <p>
+              <span className="dv-label">CONSULTANT</span>:{' '}
+              {sessionData.doctor
+                ? `${sessionData.doctor.title} ${sessionData.doctor.name}`.trim()
+                : '-'}
+            </p>
+            <p>
+              <span className="dv-label">DATE</span>: {formatDate(sessionData.date)}
+            </p>
+            <p>
+              <span className="dv-label">SESSION</span>:{' '}
+              {formatSessionName(sessionData.date, sessionData.startTime)}
+            </p>
+          </div>
+          <div className="mt-6 print:mt-0">
             <div className="rounded-md border overflow-x-auto">
-              <table className="w-full border-collapse">
+              <table className="dv-print-table w-full border-collapse">
                 <thead>
                   <tr className="bg-muted">
                     <th className="border p-2 text-left font-semibold">App No.</th>
@@ -318,6 +528,7 @@ export default function DoctorViewReportContent({
               </table>
             </div>
           </div>
+          </ReportPrintLayout>
         </CardContent>
       </Card>
     </div>

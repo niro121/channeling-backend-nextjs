@@ -2,8 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { BackButton } from "@/components/common/back-button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { fetchServerSession } from "@/lib/session";
-import { userTypes } from "@/lib/roles";
+import { checkRouteAccess } from "@/lib/server-permissions";
 import type { ReactNode } from "react";
 
 type Scenario = {
@@ -63,13 +62,13 @@ const SCENARIOS: Scenario[] = [
     when: "Ledger receipt method = DEBIT_NOTE",
     example: "Charge LKR 1,000 to agency payable balance.",
     debit: ["Agent PAYABLE"],
-    credit: ["Branch CASH book"],
+    credit: ["Expense Adjustment"],
   },
   {
     title: "Agency Credit Note",
     when: "Ledger receipt method = CREDIT_NOTE",
     example: "Reverse prior agency charge by LKR 1,000.",
-    debit: ["Branch CASH book"],
+    debit: ["Expense Adjustment"],
     credit: ["Agent PAYABLE"],
   },
   {
@@ -123,6 +122,7 @@ const ACCOUNT_NAME_PATTERNS = [
   "Doctor PAYABLE",
   "Branch EXPENSE",
   "Branch CASH book",
+  "Expense Adjustment",
   "Agent Opening Balances (control RECEIVABLE)",
 ] as const;
 
@@ -144,12 +144,8 @@ function renderAccountLine(line: string): ReactNode {
 }
 
 export default async function AdminAccountingTransactionsKnowledgePage() {
-  const session = await fetchServerSession();
-  if (!session?.user) {
-    redirect("/login");
-  }
-  const userType = (session.user as { userType?: number }).userType;
-  if (userType !== userTypes.admin) {
+  const canView = await checkRouteAccess("/admin/knowledge-hub");
+  if (!canView) {
     redirect("/unauthorized-access");
   }
 

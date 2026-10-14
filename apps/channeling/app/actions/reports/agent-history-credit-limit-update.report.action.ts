@@ -2,7 +2,7 @@
 
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { requirePermission } from '@/lib/server-permissions';
+import { requireReport } from '@/lib/server-permissions';
 import { logActivityNonBlocking } from '@/lib/activity-log';
 import moment from 'moment';
 import type {
@@ -11,6 +11,7 @@ import type {
   AgentHistoryCreditLimitUpdateReportRow,
 } from '@/types/reports/agent-history-credit-limit-update';
 import { getAgentHistoryCreditLimitUpdateReportService } from '@/services/reports/agent-history-credit-limit-update.report.service';
+import { creditLimitChangeRemark } from '@/lib/credit-limit-change-remark';
 
 export async function getAgentHistoryCreditLimitUpdateReportData(
   query: AgentHistoryCreditLimitUpdateReportQuery
@@ -20,7 +21,7 @@ export async function getAgentHistoryCreditLimitUpdateReportData(
   totalRecords: number;
   message?: string;
 }> {
-  await requirePermission('reports', 'view');
+  await requireReport('agent-history-credit-limit-update');
   try {
     return await getAgentHistoryCreditLimitUpdateReportService(query);
   } catch (error: unknown) {
@@ -32,7 +33,7 @@ export async function getAgentHistoryCreditLimitUpdateReportData(
 export async function exportAgentHistoryCreditLimitUpdateReportData(
   query: AgentHistoryCreditLimitUpdateReportQuery
 ): Promise<{ success: boolean; data?: AgentHistoryCreditLimitUpdateReportExportRow[]; message?: string }> {
-  await requirePermission('reports', 'view');
+  await requireReport('agent-history-credit-limit-update');
   try {
     const result = await getAgentHistoryCreditLimitUpdateReportService(query);
     if (!result.success || !result.data?.length) {
@@ -43,7 +44,12 @@ export async function exportAgentHistoryCreditLimitUpdateReportData(
       no: String(idx + 1),
       agent: r.agencyName ?? '-',
       agentCode: r.agencyCode ?? '-',
-      limitType: r.limitType === 'soft' ? 'Soft limit' : 'Hard limit',
+      limitType:
+        r.limitType === 'soft'
+          ? 'Soft limit'
+          : r.limitType === 'credit'
+            ? 'Credit limit'
+            : 'Hard limit',
       hardLimitField:
         r.limitType !== 'hard'
           ? '-'
@@ -52,10 +58,11 @@ export async function exportAgentHistoryCreditLimitUpdateReportData(
             : r.hardLimitField === 'maxBalanceAllowed'
               ? 'Maximum balance'
               : 'Hard limit',
-      beforeValue: r.oldValue == null ? '-' : String(r.oldValue.toFixed(2)),
-      updatedValue: r.newValue == null ? '-' : String(r.newValue.toFixed(2)),
-      delta: r.delta == null ? '-' : String(r.delta.toFixed(2)),
+      beforeValue: r.oldValue == null ? null : r.oldValue,
+      updatedValue: r.newValue == null ? null : r.newValue,
+      delta: r.delta == null ? null : r.delta,
       changedBy: r.changedByUserName ?? r.changedByUserId ?? '-',
+      remark: creditLimitChangeRemark(r.metadata, '-'),
       dateTime: moment(r.createdAt).format('YYYY-MM-DD HH:mm:ss'),
     }));
 

@@ -10,7 +10,7 @@ import { deleteUserGroup } from "@/app/actions/user-group.actions"
 import { useRouter } from "next/navigation"
 import { usePermissions } from "@/components/hooks/use-permissions"
 import { Button } from "@/components/ui/button"
-import { Pencil, Trash2 } from "lucide-react"
+import { Copy, Pencil, Trash2 } from "lucide-react"
 
 interface UserGroupActionsProps<TData extends UserGroup> {
   row: Row<TData>
@@ -64,7 +64,7 @@ const UserGroupRecordActions = <TData extends UserGroup>({
   return (
     <>
       <DataTableRowActions>
-        {has("users", "edit") && (
+        {has("user-groups", "edit") && (
           <Button
             variant="ghost"
             size="icon"
@@ -76,7 +76,22 @@ const UserGroupRecordActions = <TData extends UserGroup>({
           </Button>
         )}
 
-        {has("users", "delete") && (
+        {has("user-groups", "add") && userGroup.id && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 text-muted-foreground hover:text-foreground"
+            title="Copy and create"
+            onClick={() =>
+              router.push(`/user-groups/add?copyFrom=${userGroup.id}`)
+            }
+          >
+            <Copy className="h-4 w-4" />
+            <span className="sr-only">Copy and create</span>
+          </Button>
+        )}
+
+        {has("user-groups", "delete") && (
           <Button
             variant="ghost"
             size="icon"

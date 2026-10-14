@@ -24,6 +24,7 @@ import {
 import type { NotificationListItem } from '@/services/notification.service';
 import { NOTIFICATION_TYPES } from '@/types/notification';
 import { UserCircle, Wallet, Bell, FileText, Loader2, CheckSquare } from 'lucide-react';
+import { usePermissions } from '@/components/hooks/use-permissions';
 import { io, type Socket } from 'socket.io-client';
 
 function getInitial(name?: string | null, email?: string | null): string {
@@ -56,6 +57,7 @@ function getNotificationIcon(type: string) {
 
 export function Profile() {
   const { data: session } = useSession();
+  const { canAccess } = usePermissions();
   const user = session?.user;
   const initial = getInitial(user?.name ?? null, user?.email ?? null);
   const [profileDialogOpen, setProfileDialogOpen] = useState(false);
@@ -266,12 +268,14 @@ export function Profile() {
               <UserCircle className="h-4 w-4" />
               Profile & 2FA
             </DropdownMenuItem>
-            <DropdownMenuItem asChild>
-              <Link href="/my-till" className="gap-2 cursor-pointer">
-                <Wallet className="h-4 w-4" />
-                My Till
-              </Link>
-            </DropdownMenuItem>
+            {canAccess('/my-till') && (
+              <DropdownMenuItem asChild>
+                <Link href="/my-till" className="gap-2 cursor-pointer">
+                  <Wallet className="h-4 w-4" />
+                  My Till
+                </Link>
+              </DropdownMenuItem>
+            )}
             <DropdownMenuItem asChild>
               <Link href="/notifications" className="gap-2 cursor-pointer">
                 <Bell className="h-4 w-4" />

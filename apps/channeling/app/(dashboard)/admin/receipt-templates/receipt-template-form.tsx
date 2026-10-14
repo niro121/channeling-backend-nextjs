@@ -95,7 +95,7 @@ export function ReceiptTemplateForm({ template, headers, footers }: ReceiptTempl
           value={formik.values.name}
           onChange={formik.handleChange}
           onBlur={formik.handleBlur}
-          placeholder="e.g. Ledger Receipt - Custom"
+          placeholder="e.g. Agent Receipt – Dot matrix"
         />
         {formik.touched.name && formik.errors.name && (
           <p className="text-sm text-destructive">{formik.errors.name}</p>

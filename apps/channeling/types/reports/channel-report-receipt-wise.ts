@@ -24,7 +24,7 @@ export type ChannelReportReceiptWiseRow = {
   agency: string;
   creditCustomer: string;
   creator: string;
-  handoverPerson: string;
+  handedToStaff: string;
   cancelReason: string;
   reversedReceiptNo: string;
   whdAmount: number;
@@ -37,7 +37,7 @@ export type ChannelReportReceiptWiseExportRow = {
   receiptDate: string;
   receiptMethod: string;
   transactionType: string;
-  receiptAmount: string;
+  receiptAmount: number;
   bookingNo: string;
   appointmentNo: string;
   sessionDate: string;
@@ -48,11 +48,11 @@ export type ChannelReportReceiptWiseExportRow = {
   agency: string;
   creditCustomer: string;
   creator: string;
-  handoverPerson: string;
+  handedToStaff: string;
   cancelReason: string;
   reversedReceiptNo: string;
-  whdAmount: string;
-  netAmount: string;
+  whdAmount: number;
+  netAmount: number;
 };
 
 export const RECEIPT_SCOPE_OPTIONS = [
@@ -72,6 +72,9 @@ export const RECEIPT_CATEGORY_OPTIONS = [
   { id: 'bank_ledger', name: 'Bank Ledger (Deposit/Withdraw)' },
   { id: 'bank_deposit', name: 'Bank Deposit' },
   { id: 'bank_withdraw', name: 'Bank Withdraw' },
+  { id: 'cash_voucher_ledger', name: 'Cash Voucher (Convert/Cancel)' },
+  { id: 'cash_voucher', name: 'Cash Voucher' },
+  { id: 'cash_voucher_cancel', name: 'Cash Voucher Cancel' },
   { id: 'doctor_payments', name: 'Doctor Ledger (Payment/Cancel)' },
   { id: 'doctor_payment', name: 'Doctor Payment' },
   { id: 'doctor_cancel', name: 'Doctor Cancel' },

@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { DateTimeRangePicker } from '@/components/common/date-time-range-picker';
 import { Combobox } from '@/components/common/combobox';
 import { Selector } from '@/components/common/selector';
-import { Download, FileSpreadsheet, FileText, Loader2, Printer, SearchIcon } from 'lucide-react';
+import { FileSpreadsheet, FileText, Loader2, Printer, SearchIcon } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useToast } from '@/components/hooks/use-toast';
 import { getChannelPatientCountAccountingWiseData } from '@/app/actions/reports/channel-patient-count-accounting-wise.report.action';
@@ -162,175 +162,45 @@ export default function ChannelPatientCountAccountingWiseReportContent({
   ];
 
   const handlePrint = () => window.print();
-  const handleDownloadCsv = () => {
-    if (rows.length === 0) {
-      toast({ variant: 'destructive', title: 'No data', description: 'Run a search first to download CSV.' });
-      return;
-    }
-    const lines: string[] = [];
-    lines.push('Channel Counts');
-    lines.push([
-      'Booking Type',
-      'Paid Bill Count - Paid',
-      'Paid Bill Count - Pending',
-      'Paid Bill Count - Net',
-      'Cancel Bill Count - Paid',
-      'Cancel Bill Count - Pending',
-      'Cancel Bill Count - Net',
-      'Refund Bill Count - Hos Refund',
-      'Refund Bill Count - Pro Refund',
-      'Total Count - Paid',
-      'Total Count - Pending',
-      'Total Count - Net',
-    ].join(','));
-    for (const r of rows) {
-      lines.push([
-        r.bookingType,
-        String(r.paidBillPaid),
-        String(r.paidBillPending),
-        String(r.paidBillNet),
-        String(r.cancelBillPaid),
-        String(r.cancelBillPending),
-        String(r.cancelBillNet),
-        String(r.refundBillHos),
-        String(r.refundBillPro),
-        String(r.totalCountPaid),
-        String(r.totalCountPending),
-        String(r.totalCountNet),
-      ].map((v) => `"${String(v).replace(/"/g, '""')}"`).join(','));
-    }
-    if (totals) {
-      lines.push([
-        totals.bookingType,
-        String(totals.paidBillPaid),
-        String(totals.paidBillPending),
-        String(totals.paidBillNet),
-        String(totals.cancelBillPaid),
-        String(totals.cancelBillPending),
-        String(totals.cancelBillNet),
-        String(totals.refundBillHos),
-        String(totals.refundBillPro),
-        String(totals.totalCountPaid),
-        String(totals.totalCountPending),
-        String(totals.totalCountNet),
-      ].map((v) => `"${String(v).replace(/"/g, '""')}"`).join(','));
-    }
 
-    lines.push('');
-    lines.push('Revenue Breakdown');
-    lines.push([
-      'Booking Type',
-      'Paid Revenue - Hos Fee',
-      'Paid Revenue - Hos Dis',
-      'Paid Revenue - Pro Fee',
-      'Paid Revenue - Pro Dis',
-      'Paid Revenue - Hos Total',
-      'Cancel Revenue - Hos Fee',
-      'Cancel Revenue - Hos Dis',
-      'Cancel Revenue - Pro Fee',
-      'Cancel Revenue - Pro Dis',
-      'Cancel Revenue - Hos Total',
-      'Refund Revenue - Hos Refund',
-      'Refund Revenue - Pro Refund',
-      'Nett Revenue - Hos Fee',
-      'Nett Revenue - Hos Dis',
-      'Nett Revenue - Pro Fee',
-      'Nett Revenue - Pro Dis',
-      'Nett Revenue - Hos Total',
-      'Pending Revenue - Hos Fee',
-      'Pending Revenue - Pro Fee',
-    ].join(','));
-    for (const r of rows) {
-      lines.push([
-        r.bookingType,
-        money(r.paidRevenueHosFee),
-        money(r.paidRevenueHosDis),
-        money(r.paidRevenueProFee),
-        money(r.paidRevenueProDis),
-        money(r.paidRevenueTotal),
-        money(r.cancelRevenueHosFee),
-        money(r.cancelRevenueHosDis),
-        money(r.cancelRevenueProFee),
-        money(r.cancelRevenueProDis),
-        money(r.cancelRevenueTotal),
-        money(r.refundRevenueHosRefund),
-        money(r.refundRevenueProRefund),
-        money(r.nettRevenueHosFee),
-        money(r.nettRevenueHosDis),
-        money(r.nettRevenueProFee),
-        money(r.nettRevenueProDis),
-        money(r.nettRevenueTotal),
-        money(r.pendingRevenueHosFee),
-        money(r.pendingRevenueProFee),
-      ].map((v) => `"${String(v).replace(/"/g, '""')}"`).join(','));
-    }
-    if (totals) {
-      lines.push([
-        totals.bookingType,
-        money(totals.paidRevenueHosFee),
-        money(totals.paidRevenueHosDis),
-        money(totals.paidRevenueProFee),
-        money(totals.paidRevenueProDis),
-        money(totals.paidRevenueTotal),
-        money(totals.cancelRevenueHosFee),
-        money(totals.cancelRevenueHosDis),
-        money(totals.cancelRevenueProFee),
-        money(totals.cancelRevenueProDis),
-        money(totals.cancelRevenueTotal),
-        money(totals.refundRevenueHosRefund),
-        money(totals.refundRevenueProRefund),
-        money(totals.nettRevenueHosFee),
-        money(totals.nettRevenueHosDis),
-        money(totals.nettRevenueProFee),
-        money(totals.nettRevenueProDis),
-        money(totals.nettRevenueTotal),
-        money(totals.pendingRevenueHosFee),
-        money(totals.pendingRevenueProFee),
-      ].map((v) => `"${String(v).replace(/"/g, '""')}"`).join(','));
-    }
+  const buildBrandedExportSections = (mode: 'display' | 'excel' = 'display') => {
+    const forExcel = mode === 'excel';
+    const fmtCount = (n: number): string | number => (forExcel ? n : String(n));
+    const fmtMoney = (n: number): string | number => (forExcel ? n : money(n));
+    const fmtNo = (idx: number): string | number | null => (forExcel ? idx + 1 : String(idx + 1));
 
-    const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `channel-patient-count-accounting-wise-${moment().format('YYYY-MM-DD')}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-
-  const buildBrandedExportSections = () => {
     const countRows = [
       ...rows.map((r, idx) => [
-        String(idx + 1),
+        fmtNo(idx),
         r.bookingType,
-        String(r.paidBillPaid),
-        String(r.paidBillPending),
-        String(r.paidBillNet),
-        String(r.cancelBillPaid),
-        String(r.cancelBillPending),
-        String(r.cancelBillNet),
-        String(r.refundBillHos),
-        String(r.refundBillPro),
-        String(r.totalCountPaid),
-        String(r.totalCountPending),
-        String(r.totalCountNet),
+        fmtCount(r.paidBillPaid),
+        fmtCount(r.paidBillPending),
+        fmtCount(r.paidBillNet),
+        fmtCount(r.cancelBillPaid),
+        fmtCount(r.cancelBillPending),
+        fmtCount(r.cancelBillNet),
+        fmtCount(r.refundBillHos),
+        fmtCount(r.refundBillPro),
+        fmtCount(r.totalCountPaid),
+        fmtCount(r.totalCountPending),
+        fmtCount(r.totalCountNet),
       ]),
       ...(totals
         ? [
             [
-              '',
+              forExcel ? null : '',
               totals.bookingType,
-              String(totals.paidBillPaid),
-              String(totals.paidBillPending),
-              String(totals.paidBillNet),
-              String(totals.cancelBillPaid),
-              String(totals.cancelBillPending),
-              String(totals.cancelBillNet),
-              String(totals.refundBillHos),
-              String(totals.refundBillPro),
-              String(totals.totalCountPaid),
-              String(totals.totalCountPending),
-              String(totals.totalCountNet),
+              fmtCount(totals.paidBillPaid),
+              fmtCount(totals.paidBillPending),
+              fmtCount(totals.paidBillNet),
+              fmtCount(totals.cancelBillPaid),
+              fmtCount(totals.cancelBillPending),
+              fmtCount(totals.cancelBillNet),
+              fmtCount(totals.refundBillHos),
+              fmtCount(totals.refundBillPro),
+              fmtCount(totals.totalCountPaid),
+              fmtCount(totals.totalCountPending),
+              fmtCount(totals.totalCountNet),
             ],
           ]
         : []),
@@ -338,56 +208,100 @@ export default function ChannelPatientCountAccountingWiseReportContent({
 
     const revenueRows = [
       ...rows.map((r, idx) => [
-        String(idx + 1),
+        fmtNo(idx),
         r.bookingType,
-        money(r.paidRevenueHosFee),
-        money(r.paidRevenueHosDis),
-        money(r.paidRevenueProFee),
-        money(r.paidRevenueProDis),
-        money(r.paidRevenueTotal),
-        money(r.cancelRevenueHosFee),
-        money(r.cancelRevenueHosDis),
-        money(r.cancelRevenueProFee),
-        money(r.cancelRevenueProDis),
-        money(r.cancelRevenueTotal),
-        money(r.refundRevenueHosRefund),
-        money(r.refundRevenueProRefund),
-        money(r.nettRevenueHosFee),
-        money(r.nettRevenueHosDis),
-        money(r.nettRevenueProFee),
-        money(r.nettRevenueProDis),
-        money(r.nettRevenueTotal),
-        money(r.pendingRevenueHosFee),
-        money(r.pendingRevenueProFee),
+        fmtMoney(r.paidRevenueHosFee),
+        fmtMoney(r.paidRevenueHosDis),
+        fmtMoney(r.paidRevenueProFee),
+        fmtMoney(r.paidRevenueProDis),
+        fmtMoney(r.paidRevenueTotal),
+        fmtMoney(r.cancelRevenueHosFee),
+        fmtMoney(r.cancelRevenueHosDis),
+        fmtMoney(r.cancelRevenueProFee),
+        fmtMoney(r.cancelRevenueProDis),
+        fmtMoney(r.cancelRevenueTotal),
+        fmtMoney(r.refundRevenueHosRefund),
+        fmtMoney(r.refundRevenueProRefund),
+        fmtMoney(r.nettRevenueHosFee),
+        fmtMoney(r.nettRevenueHosDis),
+        fmtMoney(r.nettRevenueProFee),
+        fmtMoney(r.nettRevenueProDis),
+        fmtMoney(r.nettRevenueTotal),
+        fmtMoney(r.pendingRevenueHosFee),
+        fmtMoney(r.pendingRevenueProFee),
       ]),
       ...(totals
         ? [
             [
-              '',
+              forExcel ? null : '',
               totals.bookingType,
-              money(totals.paidRevenueHosFee),
-              money(totals.paidRevenueHosDis),
-              money(totals.paidRevenueProFee),
-              money(totals.paidRevenueProDis),
-              money(totals.paidRevenueTotal),
-              money(totals.cancelRevenueHosFee),
-              money(totals.cancelRevenueHosDis),
-              money(totals.cancelRevenueProFee),
-              money(totals.cancelRevenueProDis),
-              money(totals.cancelRevenueTotal),
-              money(totals.refundRevenueHosRefund),
-              money(totals.refundRevenueProRefund),
-              money(totals.nettRevenueHosFee),
-              money(totals.nettRevenueHosDis),
-              money(totals.nettRevenueProFee),
-              money(totals.nettRevenueProDis),
-              money(totals.nettRevenueTotal),
-              money(totals.pendingRevenueHosFee),
-              money(totals.pendingRevenueProFee),
+              fmtMoney(totals.paidRevenueHosFee),
+              fmtMoney(totals.paidRevenueHosDis),
+              fmtMoney(totals.paidRevenueProFee),
+              fmtMoney(totals.paidRevenueProDis),
+              fmtMoney(totals.paidRevenueTotal),
+              fmtMoney(totals.cancelRevenueHosFee),
+              fmtMoney(totals.cancelRevenueHosDis),
+              fmtMoney(totals.cancelRevenueProFee),
+              fmtMoney(totals.cancelRevenueProDis),
+              fmtMoney(totals.cancelRevenueTotal),
+              fmtMoney(totals.refundRevenueHosRefund),
+              fmtMoney(totals.refundRevenueProRefund),
+              fmtMoney(totals.nettRevenueHosFee),
+              fmtMoney(totals.nettRevenueHosDis),
+              fmtMoney(totals.nettRevenueProFee),
+              fmtMoney(totals.nettRevenueProDis),
+              fmtMoney(totals.nettRevenueTotal),
+              fmtMoney(totals.pendingRevenueHosFee),
+              fmtMoney(totals.pendingRevenueProFee),
             ],
           ]
         : []),
     ];
+
+    const countNumberFormats = forExcel
+      ? [
+          '0',
+          undefined,
+          '0',
+          '0',
+          '0',
+          '0',
+          '0',
+          '0',
+          '0',
+          '0',
+          '0',
+          '0',
+          '0',
+        ]
+      : undefined;
+
+    const revenueNumberFormats = forExcel
+      ? [
+          '0',
+          undefined,
+          '#,##0.00',
+          '#,##0.00',
+          '#,##0.00',
+          '#,##0.00',
+          '#,##0.00',
+          '#,##0.00',
+          '#,##0.00',
+          '#,##0.00',
+          '#,##0.00',
+          '#,##0.00',
+          '#,##0.00',
+          '#,##0.00',
+          '#,##0.00',
+          '#,##0.00',
+          '#,##0.00',
+          '#,##0.00',
+          '#,##0.00',
+          '#,##0.00',
+          '#,##0.00',
+        ]
+      : undefined;
 
     return [
       {
@@ -408,6 +322,7 @@ export default function ChannelPatientCountAccountingWiseReportContent({
           'Total-Net',
         ],
         body: countRows,
+        ...(countNumberFormats ? { numberFormats: countNumberFormats } : {}),
       },
       {
         title: 'Revenue Breakdown',
@@ -435,6 +350,7 @@ export default function ChannelPatientCountAccountingWiseReportContent({
           'Pending Pro',
         ],
         body: revenueRows,
+        ...(revenueNumberFormats ? { numberFormats: revenueNumberFormats } : {}),
       },
     ];
   };
@@ -456,7 +372,13 @@ export default function ChannelPatientCountAccountingWiseReportContent({
       fileName: `${formatExportFileName('channel-patient-count-accounting-wise')}.pdf`,
       orientation: 'portrait',
       compactTable: true,
-      sections: buildBrandedExportSections(),
+      sections: buildBrandedExportSections('display').map(({ title, columns, body }) => ({
+        title,
+        columns,
+        body: body.map((row) =>
+          row.map((cell) => (cell == null ? '' : cell))
+        ),
+      })),
     });
   };
 
@@ -475,7 +397,7 @@ export default function ChannelPatientCountAccountingWiseReportContent({
         sheetName: 'Patient Count',
         orientation: 'portrait',
         compactTable: true,
-        sections: buildBrandedExportSections(),
+        sections: buildBrandedExportSections('excel'),
       });
     } catch (error: unknown) {
       toast({
@@ -492,28 +414,161 @@ export default function ChannelPatientCountAccountingWiseReportContent({
     <div className="w-full py-2 space-y-3 channel-patient-count-print-root">
       <style>{`
         @media print {
-          .channel-patient-count-print-root .overflow-x-auto,
-          .channel-patient-count-print-root .overflow-auto {
-            overflow: visible !important;
+          /* Full page — print only */
+          .channel-patient-count-print-root {
+            width: 100% !important;
+            max-width: none !important;
+            margin-left: 0 !important;
+            margin-right: 0 !important;
+            padding-left: 0 !important;
+            padding-right: 0 !important;
           }
+          .channel-patient-count-print-root .rpt-print-root,
+          .channel-patient-count-print-root .rpt-print-body,
+          .channel-patient-count-print-root .rpt-print-header,
+          .channel-patient-count-print-root .rpt-print-summary {
+            width: 100% !important;
+            max-width: none !important;
+            box-sizing: border-box !important;
+          }
+          .channel-patient-count-print-root > div {
+            width: 100% !important;
+            max-width: none !important;
+            margin-left: 0 !important;
+            margin-right: 0 !important;
+          }
+          /* Table wrappers only — do not strip the shared print header / summary box */
+          .channel-patient-count-print-root .rpt-print-body .overflow-x-auto,
+          .channel-patient-count-print-root .rpt-print-body .overflow-auto,
+          .channel-patient-count-print-root .rpt-print-body .overflow-hidden,
+          .channel-patient-count-print-root .rpt-print-body .rounded-md {
+            overflow: visible !important;
+            width: 100% !important;
+            max-width: none !important;
+            border: none !important;
+            border-radius: 0 !important;
+            box-shadow: none !important;
+          }
+
+          .channel-patient-count-print-root .cpc-section-title {
+            display: block !important;
+            margin: 2mm 0 1mm !important;
+            font-size: 8pt !important;
+            font-weight: 700 !important;
+            color: #000 !important;
+            background: transparent !important;
+            border: none !important;
+            padding: 0 !important;
+          }
+
           .channel-patient-count-print-root .rpt-print-root table {
             table-layout: fixed !important;
             width: 100% !important;
+            max-width: 100% !important;
+            border-collapse: collapse !important;
+            border: 0.5pt solid #000 !important;
           }
           .channel-patient-count-print-root .rpt-print-root th,
           .channel-patient-count-print-root .rpt-print-root td {
-            font-size: 6pt !important;
-            padding: 0.6mm 0.4mm !important;
-            line-height: 1.1 !important;
+            font-size: 5.5pt !important;
+            padding: 0.7mm 0.4mm !important;
+            line-height: 1.15 !important;
             white-space: normal !important;
             word-break: break-word !important;
+            overflow-wrap: break-word !important;
+            overflow: hidden !important;
+            border: 0.5pt solid #000 !important;
+            color: #000 !important;
+            background: #fff !important;
+            vertical-align: middle !important;
+            box-sizing: border-box !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
           }
           .channel-patient-count-print-root .rpt-print-root thead th {
-            font-size: 5.5pt !important;
+            font-size: 5pt !important;
+            font-weight: 700 !important;
+            background: #e8e8e8 !important;
+          }
+          .channel-patient-count-print-root .rpt-print-root th:first-child,
+          .channel-patient-count-print-root .rpt-print-root td:first-child {
+            border-left: 0.7pt solid #000 !important;
+          }
+          .channel-patient-count-print-root .rpt-print-root th:last-child,
+          .channel-patient-count-print-root .rpt-print-root td:last-child {
+            border-right: 0.7pt solid #000 !important;
+          }
+          .channel-patient-count-print-root .rpt-print-root .text-muted-foreground {
+            color: #000 !important;
+          }
+          .channel-patient-count-print-root .rpt-print-root tr.rpt-print-total td {
+            font-weight: 700 !important;
+            background: #f3f3f3 !important;
           }
           .channel-patient-count-print-root .rpt-print-root tr {
             break-inside: avoid !important;
             page-break-inside: avoid !important;
+          }
+
+          /* Bill Counts — headers wrap; counts stay one line */
+          .channel-patient-count-print-root .cpc-count-table th,
+          .channel-patient-count-print-root .cpc-count-table td {
+            overflow: hidden !important;
+            white-space: normal !important;
+            word-break: break-word !important;
+          }
+          .channel-patient-count-print-root .cpc-count-table th:nth-child(1),
+          .channel-patient-count-print-root .cpc-count-table td:nth-child(1) {
+            width: 4% !important;
+            text-align: center !important;
+          }
+          .channel-patient-count-print-root .cpc-count-table th:nth-child(2),
+          .channel-patient-count-print-root .cpc-count-table td:nth-child(2) {
+            width: 16% !important;
+            text-align: left !important;
+          }
+          .channel-patient-count-print-root .cpc-count-table th:nth-child(n+3),
+          .channel-patient-count-print-root .cpc-count-table td:nth-child(n+3) {
+            width: 7.27% !important;
+            text-align: center !important;
+            font-variant-numeric: tabular-nums !important;
+          }
+
+          /*
+            Revenue: 21 columns. Headers wrap so the full name shows.
+            Amounts use a smaller size and may wrap so digits are not cut off.
+          */
+          .channel-patient-count-print-root .cpc-rev-table th,
+          .channel-patient-count-print-root .cpc-rev-table td {
+            font-size: 4.5pt !important;
+            padding: 0.5mm 0.25mm !important;
+            line-height: 1.1 !important;
+            overflow: hidden !important;
+            white-space: normal !important;
+            word-break: break-word !important;
+            overflow-wrap: anywhere !important;
+          }
+          .channel-patient-count-print-root .cpc-rev-table thead th {
+            font-size: 4pt !important;
+            line-height: 1.05 !important;
+            font-weight: 700 !important;
+          }
+          .channel-patient-count-print-root .cpc-rev-table th:nth-child(1),
+          .channel-patient-count-print-root .cpc-rev-table td:nth-child(1) {
+            width: 3% !important;
+            text-align: center !important;
+          }
+          .channel-patient-count-print-root .cpc-rev-table th:nth-child(2),
+          .channel-patient-count-print-root .cpc-rev-table td:nth-child(2) {
+            width: 10% !important;
+            text-align: left !important;
+            overflow-wrap: break-word !important;
+          }
+          .channel-patient-count-print-root .cpc-rev-table th:nth-child(n+3),
+          .channel-patient-count-print-root .cpc-rev-table td:nth-child(n+3) {
+            width: 4.58% !important;
+            text-align: right !important;
+            font-variant-numeric: tabular-nums !important;
           }
         }
       `}</style>
@@ -550,10 +605,6 @@ export default function ChannelPatientCountAccountingWiseReportContent({
                   <FileSpreadsheet className="h-4 w-4" />
                 )}
                 Excel
-              </Button>
-              <Button variant="outline" size="sm" onClick={handleDownloadCsv} className="gap-2">
-                <Download />
-                Download CSV
               </Button>
             </div>
           </div>
@@ -620,15 +671,32 @@ export default function ChannelPatientCountAccountingWiseReportContent({
             <ReportPrintLayout
               reportName="Channel Patient Count (Accounting Wise)"
               pageSize="A4 portrait"
+              pageMargins="7mm 5mm 18mm"
               generatedAt={reportMeta.generatedAt}
               summaryItems={buildSummaryItems(reportMeta)}
             >
               <div className="space-y-3">
                 <div className="print:hidden">{renderReportMetaCard()}</div>
+                <div className="cpc-section-title hidden">Bill Counts</div>
                 <div className="rounded-md border overflow-x-auto">
-                  <Table className="text-[11px] [&_th]:px-1.5 [&_td]:px-1.5 [&_th]:border-r [&_th:last-child]:border-r-0 [&_td]:border-r [&_td:last-child]:border-r-0">
+                  <Table className="cpc-count-table text-[11px] [&_th]:px-1.5 [&_td]:px-1.5 [&_th]:border-r [&_th:last-child]:border-r-0 [&_td]:border-r [&_td:last-child]:border-r-0">
                     <TableHeader>
-                      <TableRow className="bg-muted/40 text-muted-foreground">
+                      <TableRow className="hidden print:table-row">
+                        <TableHead>#</TableHead>
+                        <TableHead>Booking Type</TableHead>
+                        <TableHead>Paid-Paid</TableHead>
+                        <TableHead>Paid-Pending</TableHead>
+                        <TableHead>Paid-Net</TableHead>
+                        <TableHead>Cancel-Paid</TableHead>
+                        <TableHead>Cancel-Pending</TableHead>
+                        <TableHead>Cancel-Net</TableHead>
+                        <TableHead>Refund-Hos</TableHead>
+                        <TableHead>Refund-Pro</TableHead>
+                        <TableHead>Total-Paid</TableHead>
+                        <TableHead>Total-Pending</TableHead>
+                        <TableHead>Total-Net</TableHead>
+                      </TableRow>
+                      <TableRow className="bg-muted/40 text-muted-foreground print:hidden">
                         <TableHead rowSpan={2} className="text-center font-semibold">#</TableHead>
                         <TableHead rowSpan={2} className="font-semibold">Booking Type</TableHead>
                         <TableHead colSpan={3} className="text-center font-semibold">Paid Bill Count</TableHead>
@@ -636,7 +704,7 @@ export default function ChannelPatientCountAccountingWiseReportContent({
                         <TableHead colSpan={2} className="text-center font-semibold">Refund Bill Count</TableHead>
                         <TableHead colSpan={3} className="text-center font-semibold">Total Count</TableHead>
                       </TableRow>
-                      <TableRow className="bg-muted/30 text-muted-foreground">
+                      <TableRow className="bg-muted/30 text-muted-foreground print:hidden">
                         <TableHead className="text-center font-medium">Paid</TableHead>
                         <TableHead className="text-center font-medium">Pending</TableHead>
                         <TableHead className="text-center font-medium">Net</TableHead>
@@ -690,12 +758,35 @@ export default function ChannelPatientCountAccountingWiseReportContent({
                 </div>
 
                 <div className="rounded-md border overflow-x-auto">
-                  <div className="px-3 py-2 border-b bg-muted/40 text-sm font-semibold text-foreground">
+                  <div className="cpc-section-title px-3 py-2 border-b bg-muted/40 text-sm font-semibold text-foreground">
                     Revenue Breakdown
                   </div>
-                  <Table className="text-[11px] [&_th]:px-1.5 [&_td]:px-1.5 [&_th]:border-r [&_th:last-child]:border-r-0 [&_td]:border-r [&_td:last-child]:border-r-0">
+                  <Table className="cpc-rev-table text-[11px] [&_th]:px-1.5 [&_td]:px-1.5 [&_th]:border-r [&_th:last-child]:border-r-0 [&_td]:border-r [&_td:last-child]:border-r-0">
                     <TableHeader>
-                      <TableRow className="bg-muted/40 text-muted-foreground">
+                      <TableRow className="hidden print:table-row">
+                        <TableHead>#</TableHead>
+                        <TableHead>Booking Type</TableHead>
+                        <TableHead>Paid Hos Fee</TableHead>
+                        <TableHead>Paid Hos Dis</TableHead>
+                        <TableHead>Paid Pro Fee</TableHead>
+                        <TableHead>Paid Pro Dis</TableHead>
+                        <TableHead>Paid Hos Total</TableHead>
+                        <TableHead>Cancel Hos Fee</TableHead>
+                        <TableHead>Cancel Hos Dis</TableHead>
+                        <TableHead>Cancel Pro Fee</TableHead>
+                        <TableHead>Cancel Pro Dis</TableHead>
+                        <TableHead>Cancel Hos Total</TableHead>
+                        <TableHead>Refund Hos</TableHead>
+                        <TableHead>Refund Pro</TableHead>
+                        <TableHead>Nett Hos Fee</TableHead>
+                        <TableHead>Nett Hos Dis</TableHead>
+                        <TableHead>Nett Pro Fee</TableHead>
+                        <TableHead>Nett Pro Dis</TableHead>
+                        <TableHead>Nett Hos Total</TableHead>
+                        <TableHead>Pending Hos</TableHead>
+                        <TableHead>Pending Pro</TableHead>
+                      </TableRow>
+                      <TableRow className="bg-muted/40 text-muted-foreground print:hidden">
                         <TableHead rowSpan={2} className="text-center font-semibold">#</TableHead>
                         <TableHead rowSpan={2} className="font-semibold">Booking Type</TableHead>
                         <TableHead colSpan={5} className="text-center font-semibold">Paid Revenue</TableHead>
@@ -704,7 +795,7 @@ export default function ChannelPatientCountAccountingWiseReportContent({
                         <TableHead colSpan={5} className="text-center font-semibold">Nett Revenue</TableHead>
                         <TableHead colSpan={2} className="text-center font-semibold">Pending Revenue</TableHead>
                       </TableRow>
-                      <TableRow className="bg-muted/30 text-muted-foreground">
+                      <TableRow className="bg-muted/30 text-muted-foreground print:hidden">
                         <TableHead className="text-right font-medium">Hos Fee</TableHead>
                         <TableHead className="text-right font-medium">Hos Dis</TableHead>
                         <TableHead className="text-right font-medium">Pro Fee</TableHead>

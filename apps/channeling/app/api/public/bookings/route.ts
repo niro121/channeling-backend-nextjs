@@ -1,3 +1,4 @@
+import { withPublicApiLog } from "@/lib/public-api-log"
 import { NextRequest, NextResponse } from "next/server"
 import { publicApiCorsHeaders } from "@/lib/public-api-cors"
 import { getPublicApiClient } from "@/lib/public-api-auth"
@@ -21,7 +22,7 @@ export async function OPTIONS() {
   return withCors(new NextResponse(null, { status: 204 }))
 }
 
-export async function GET(request: NextRequest) {
+export const GET = withPublicApiLog(async function GET(request: NextRequest) {
   const client = await getPublicApiClient(request.headers, { recheckBlocked: true })
   if (!client) {
     return withCors(
@@ -71,7 +72,7 @@ export async function GET(request: NextRequest) {
   }
 
   return withCors(NextResponse.json({ bookings: result.data }))
-}
+})
 
 type CreateBookingBody = {
   sessionId?: string
@@ -100,7 +101,7 @@ type CreateBookingBody = {
  * Paid → API booking (settled against agency). `amount` is required and must match session total.
  * Unpaid advance → On-Call pending (createdBy = acting user).
  */
-export async function POST(request: NextRequest) {
+export const POST = withPublicApiLog(async function POST(request: NextRequest) {
   const client = await getPublicApiClient(request.headers, { recheckBlocked: true })
   if (!client) {
     return withCors(
@@ -187,4 +188,4 @@ export async function POST(request: NextRequest) {
   }
 
   return withCors(NextResponse.json({ booking: result.data }, { status: 201 }))
-}
+})

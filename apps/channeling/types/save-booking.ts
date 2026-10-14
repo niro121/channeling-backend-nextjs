@@ -10,6 +10,11 @@ export const SAVE_BOOKING_METHOD_AGENT = 2
 export const SAVE_BOOKING_METHOD_STAFF = 3
 export const SAVE_BOOKING_METHOD_API = 4
 
+/** True Agent-channel bookings only (method 2). API / On-Call may tag an agency without this. */
+export function isAgentBookingMethod(method: number | null | undefined): boolean {
+  return method === SAVE_BOOKING_METHOD_AGENT
+}
+
 /** Spec: payment_type 0=Cash, 1=Credit Card, 2=Slip, 3=Cheque, 4=Agent, 5=Credit Customer, 6=E-wallet, 7=Mixed */
 export const SAVE_PAYMENT_TYPE_CASH = 0
 export const SAVE_PAYMENT_TYPE_CREDIT_CARD = 1

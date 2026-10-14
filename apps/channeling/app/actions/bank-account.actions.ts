@@ -1,6 +1,6 @@
 'use server';
 
-import { requirePermission } from '@/lib/server-permissions';
+import { checkPermission, getAllowedLedgerTransactionTypes, requirePermission } from '@/lib/server-permissions';
 import {
   getAllBankAccountsService,
   getBankAccountByIdService,
@@ -86,7 +86,11 @@ export async function getCashAccountOptions() {
 }
 
 export async function getActiveBankAccountOptionsForLedger() {
-  await requirePermission('ledger', 'add');
+  const canView = await checkPermission('ledger', 'view');
+  const allowedTypes = await getAllowedLedgerTransactionTypes();
+  if (!canView && allowedTypes.length === 0) {
+    throw new Error("Access denied: You don't have permission to view ledger");
+  }
   return getActiveBankAccountOptionsForLedgerService();
 }
 

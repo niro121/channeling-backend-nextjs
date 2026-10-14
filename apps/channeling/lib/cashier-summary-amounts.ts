@@ -1,4 +1,4 @@
-import { RECEIPT_PAYMENT_METHOD } from '@/types/receipt';
+import { RECEIPT_METHOD, RECEIPT_PAYMENT_METHOD } from '@/types/receipt';
 import type { CashierSummaryPaymentAmounts } from '@/types/report';
 
 export const CASHIER_SUMMARY_ZERO_AMOUNTS: CashierSummaryPaymentAmounts = {
@@ -44,6 +44,20 @@ export function receiptToAmounts(
     result[key] += sign * Math.abs(line.amount);
   }
   return result;
+}
+
+/** Cash vouchers land as till cash. Source types stay on the reconciled account, not in these columns. */
+export function receiptAmountsForCashierSummary(
+  method: number,
+  paymentMethod: number,
+  amount: number,
+  type: number,
+  paymentLines?: Array<{ paymentMethod: number; amount: number }>
+): CashierSummaryPaymentAmounts {
+  if (method === RECEIPT_METHOD.CASH_VOUCHER || method === RECEIPT_METHOD.CASH_VOUCHER_CANCEL) {
+    return receiptToAmounts(RECEIPT_PAYMENT_METHOD.CASH, amount, type);
+  }
+  return receiptToAmounts(paymentMethod, amount, type, paymentLines);
 }
 
 /**
@@ -112,6 +126,27 @@ export function cashierSummaryGrandTotalRupees(t: CashierSummaryPaymentAmounts):
 
 export function cashierSummaryGrandTotalCents(t: CashierSummaryPaymentAmounts): number {
   return Math.round(cashierSummaryGrandTotalRupees(t) * 100)
+}
+
+/**
+ * Sections that stay line-by-line in Summary, the same way Channel Refund Bills does.
+ * Other sections collapse to totals only until the user switches to Detail.
+ */
+export const CASHIER_SUMMARY_DETAIL_IN_SUMMARY_KEYS = new Set([
+  'channelRefund',
+  'channelCancel',
+  'agentRefunded',
+  'agentCanceled',
+  'agentDeposit',
+  'agentDepositCanceled',
+  'doctorPayment',
+]);
+
+export function cashierSummarySectionShowsDetailRows(
+  format: 'summary' | 'detail',
+  sectionKey: string
+): boolean {
+  return format === 'detail' || CASHIER_SUMMARY_DETAIL_IN_SUMMARY_KEYS.has(sectionKey);
 }
 
 export function addCashierSummaryAmounts(

@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useEffect, useRef, useState } from "react"
+import React, { useEffect, useMemo, useRef, useState } from "react"
 import { Form, Formik, FormikHelpers } from "formik"
 import * as Yup from "yup"
 import { useToast } from "@/components/hooks/use-toast"
@@ -17,6 +17,11 @@ import {
 import { ReferenceSelect } from "@/components/common/reference-select"
 import type { ReferenceSelectOption } from "@/types/reference"
 import { addLedgerTransaction } from "@/app/actions/ledger/add-ledger-transaction.action"
+import {
+  getCashVoucherBalancesAction,
+  listCashVoucherAccountsAction,
+} from "@/app/actions/ledger/cash-voucher.actions"
+import { formatCents } from "@/lib/format-money"
 import { requestBankDepositSlipUploadAction, listShiftBillsForBankDepositAction } from "@/app/actions/ledger/bank-deposit-slip.actions"
 import {
   LEDGER_TRANSACTION_TYPES,
@@ -43,12 +48,20 @@ const AGENCY_TYPES_FOR_VALIDATION: string[] = [
   "AGENCY_WITHDRAW",
 ]
 const BANK_DEPOSIT_TYPE = "BANK_DEPOSIT"
+const CASH_VOUCHER_TYPE = "CASH_VOUCHER"
 const BRANCH_INCOME_EXPENSE_TYPES: string[] = ["BRANCH_INCOME", "BRANCH_EXPENSE"]
+const CASH_VOUCHER_TYPES = [
+  RECEIPT_PAYMENT_METHOD.CREDIT_CARD,
+  RECEIPT_PAYMENT_METHOD.SLIP,
+  RECEIPT_PAYMENT_METHOD.CHECK,
+  RECEIPT_PAYMENT_METHOD.E_WALLET,
+] as const
 
 function usesAssignedUserLocation(type: string): boolean {
   return (
     AGENCY_TYPES_FOR_VALIDATION.includes(type) ||
     type === BANK_DEPOSIT_TYPE ||
+    type === CASH_VOUCHER_TYPE ||
     BRANCH_INCOME_EXPENSE_TYPES.includes(type)
   )
 }
@@ -58,6 +71,7 @@ type LedgerFormValues = {
   branchId: string
   agencyId: string
   bankAccountId: string
+  reconciledAccountId: string
   amount: string
   remarks: string
   paymentMethod: number
@@ -86,13 +100,21 @@ const validationSchema = Yup.object({
     then: (schema) => schema.required("Please select a bank account."),
     otherwise: (schema) => schema,
   }),
-  amount: Yup.string()
-    .required("Amount is required")
-    .test("positive", "Enter a valid positive amount.", (val) => {
-      if (!val?.trim()) return false
-      const n = parseFloat(val)
-      return !Number.isNaN(n) && n > 0
-    }),
+  reconciledAccountId: Yup.string().when("transactionType", {
+    is: (type: string) => type === "CASH_VOUCHER",
+    then: (schema) => schema.required("Please select a reconciliation account."),
+    otherwise: (schema) => schema,
+  }),
+  amount: Yup.string().when("transactionType", {
+    is: (type: string) => type === "CASH_VOUCHER",
+    then: (schema) => schema,
+    otherwise: (schema) =>
+      schema.required("Amount is required").test("positive", "Enter a valid positive amount.", (val) => {
+        if (!val?.trim()) return false
+        const n = parseFloat(val)
+        return !Number.isNaN(n) && n > 0
+      }),
+  }),
   remarks: Yup.string().required("Remarks are required").trim(),
   paymentMethod: Yup.number().required(),
   bankId: Yup.string().when(["transactionType", "paymentMethod"], {
@@ -168,6 +190,7 @@ const TRANSACTION_TYPE_LABELS: Record<LedgerTransactionType, string> = {
   AGENCY_DEPOSIT: "Agency Deposit",
   AGENCY_WITHDRAW: "Agency Withdraw",
   BANK_DEPOSIT: "Bank Deposit",
+  CASH_VOUCHER: "Cash Voucher",
 }
 
 const AGENCY_TYPES: LedgerTransactionType[] = [
@@ -229,6 +252,8 @@ type LedgerTransactionFormProps = {
   onSuccess?: () => void
   /** If provided, called with receiptId when user submitted via "Add transaction and print" (after onSuccess). Use to open print view. */
   onSuccessWithReceiptId?: (receiptId: string) => void | Promise<void>
+  /** Types this user is allowed to record. Others are omitted from the list. */
+  allowedTransactionTypes: LedgerTransactionType[]
 }
 
 export function LedgerTransactionForm({
@@ -240,6 +265,7 @@ export function LedgerTransactionForm({
   userLocationName = null,
   onSuccess,
   onSuccessWithReceiptId,
+  allowedTransactionTypes,
 }: LedgerTransactionFormProps) {
   const { toast } = useToast()
   const [lastReceiptNo, setLastReceiptNo] = useState<string | null>(null)
@@ -254,6 +280,55 @@ export function LedgerTransactionForm({
   const [shiftBills, setShiftBills] = useState<ShiftBillAttachmentDto[]>([])
   const [shiftBillsLoading, setShiftBillsLoading] = useState(false)
   const [shiftBillsError, setShiftBillsError] = useState<string | null>(null)
+  const [slipRequiredError, setSlipRequiredError] = useState<string | null>(null)
+  const [voucherAccounts, setVoucherAccounts] = useState<
+    Array<{ id: string; name: string; branchName: string }>
+  >([])
+  const [voucherBalances, setVoucherBalances] = useState<
+    Array<{
+      paymentMethod: number
+      label: string
+      postedCents: number
+      pendingCents: number
+      availableCents: number
+    }>
+  >([])
+  const [voucherBalancesLoading, setVoucherBalancesLoading] = useState(false)
+  const [voucherLineAmounts, setVoucherLineAmounts] = useState<Record<number, string>>({})
+  const canAddCashVoucher = allowedTransactionTypes.includes("CASH_VOUCHER")
+
+  useEffect(() => {
+    if (!canAddCashVoucher) return
+    void listCashVoucherAccountsAction().then((result) => {
+      if (result.success) setVoucherAccounts(result.accounts)
+    })
+  }, [canAddCashVoucher])
+
+  async function loadVoucherBalances(accountId: string) {
+    setVoucherLineAmounts({})
+    if (!accountId) {
+      setVoucherBalances([])
+      return
+    }
+    setVoucherBalancesLoading(true)
+    const result = await getCashVoucherBalancesAction(accountId)
+    setVoucherBalancesLoading(false)
+    if (!result.success) {
+      setVoucherBalances([])
+      toast({ title: "Could not load balances", description: result.message, variant: "destructive" })
+      return
+    }
+    setVoucherBalances(result.balances)
+  }
+  const formSchema = useMemo(
+    () =>
+      validationSchema.shape({
+        transactionType: Yup.string()
+          .oneOf([...allowedTransactionTypes])
+          .required("Transaction type is required"),
+      }),
+    [allowedTransactionTypes]
+  )
 
   useEffect(() => {
     return () => {
@@ -274,6 +349,7 @@ export function LedgerTransactionForm({
     setSlipPreviewUrl(null)
     setSelectedShiftBill(null)
     setShiftPickerOpen(false)
+    setSlipRequiredError(null)
     if (slipInputRef.current) slipInputRef.current.value = ""
     if (slipCameraInputRef.current) slipCameraInputRef.current.value = ""
   }
@@ -284,6 +360,7 @@ export function LedgerTransactionForm({
       toast({ title: "Please choose an image.", variant: "destructive" })
       return
     }
+    setSlipRequiredError(null)
     revokeSlipObjectUrl()
     const url = URL.createObjectURL(file)
     setSlipPreviewObjectUrl(url)
@@ -294,6 +371,7 @@ export function LedgerTransactionForm({
   }
 
   function handleSelectShiftBill(item: ShiftBillAttachmentDto) {
+    setSlipRequiredError(null)
     revokeSlipObjectUrl()
     setSlipFile(null)
     setSelectedShiftBill(item)
@@ -323,10 +401,11 @@ export function LedgerTransactionForm({
   }
 
   const initialValues: LedgerFormValues = {
-    transactionType: "BRANCH_INCOME",
+    transactionType: allowedTransactionTypes[0] ?? "BRANCH_INCOME",
     branchId: "",
     agencyId: "",
     bankAccountId: "",
+    reconciledAccountId: "",
     amount: "",
     remarks: "",
     paymentMethod: RECEIPT_PAYMENT_METHOD.CASH,
@@ -341,7 +420,17 @@ export function LedgerTransactionForm({
     { setSubmitting, setValues, setErrors, setTouched }: FormikHelpers<LedgerFormValues>
   ) {
     const isAgencyType = AGENCY_TYPES.includes(values.transactionType)
+    if (!allowedTransactionTypes.includes(values.transactionType)) {
+      toast({
+        title: "Not allowed",
+        description: "You don't have permission to record this transaction type.",
+        variant: "destructive",
+      })
+      setSubmitting(false)
+      return
+    }
     const isBankDeposit = values.transactionType === BANK_DEPOSIT_TYPE
+    const isCashVoucher = values.transactionType === CASH_VOUCHER_TYPE
     const isBranchIncomeOrExpense = BRANCH_INCOME_EXPENSE_TYPES.includes(values.transactionType)
     const effectiveBranchId = usesAssignedUserLocation(values.transactionType)
       ? (userLocationId ?? "")
@@ -351,7 +440,9 @@ export function LedgerTransactionForm({
         title: "Validation",
         description: isBankDeposit
           ? "You must have a branch assigned to record bank deposits."
-          : isBranchIncomeOrExpense
+          : isCashVoucher
+            ? "You must have a branch assigned to record cash vouchers."
+            : isBranchIncomeOrExpense
             ? "You must have a branch assigned to record branch income or expense."
             : "You must have a branch assigned to record agency transactions.",
         variant: "destructive",
@@ -360,7 +451,37 @@ export function LedgerTransactionForm({
       return
     }
 
-    const amountNum = parseFloat(values.amount)
+    const cashVoucherLines = isCashVoucher
+      ? CASH_VOUCHER_TYPES.flatMap((paymentMethod) => {
+          const raw = voucherLineAmounts[paymentMethod]?.trim() ?? ""
+          if (!raw) return []
+          const amount = parseFloat(raw)
+          if (!Number.isFinite(amount) || amount <= 0) return []
+          return [{ paymentMethod, amount }]
+        })
+      : undefined
+    if (isCashVoucher && (!cashVoucherLines || cashVoucherLines.length === 0)) {
+      toast({
+        title: "Validation",
+        description: "Enter an amount for at least one non-cash type.",
+        variant: "destructive",
+      })
+      setSubmitting(false)
+      return
+    }
+    const amountNum = isCashVoucher
+      ? (cashVoucherLines ?? []).reduce((sum, line) => sum + line.amount, 0)
+      : parseFloat(values.amount)
+    if (isBankDeposit && !slipFile && !selectedShiftBill) {
+      setSlipRequiredError("A deposit slip photo is required.")
+      toast({
+        title: "Validation",
+        description: "Attach a deposit slip photo before requesting a bank deposit.",
+        variant: "destructive",
+      })
+      setSubmitting(false)
+      return
+    }
     try {
       let slipImageKey: string | undefined
       if (isBankDeposit && slipFile) {
@@ -448,19 +569,24 @@ export function LedgerTransactionForm({
         slipImageName: slipImageKey ? slipFile?.name : undefined,
         shiftBillAttachmentId:
           isBankDeposit && !slipImageKey && selectedShiftBill ? selectedShiftBill.id : undefined,
+        cashVoucherAccountId: isCashVoucher ? values.reconciledAccountId || undefined : undefined,
+        cashVoucherLines,
       })
 
       if (result.success) {
         if ("pendingApproval" in result && result.pendingApproval) {
           toast({
-            title: "Deposit requested",
+            title: isCashVoucher ? "Voucher requested" : "Deposit requested",
             description: "Waiting for approval. Nothing has been posted to the ledger yet.",
           })
+          setVoucherLineAmounts({})
+          setVoucherBalances([])
           setValues({
             ...values,
             amount: "",
             remarks: "",
             bankAccountId: "",
+            reconciledAccountId: "",
             cardReference: "",
             slipReference: "",
             slipDate: "",
@@ -536,7 +662,7 @@ export function LedgerTransactionForm({
   return (
     <Formik
       initialValues={initialValues}
-      validationSchema={validationSchema}
+      validationSchema={formSchema}
       onSubmit={handleSubmit}
       enableReinitialize
     >
@@ -544,6 +670,7 @@ export function LedgerTransactionForm({
         const isAgencyType = AGENCY_TYPES.includes(formik.values.transactionType)
         const isAgencyDeposit = formik.values.transactionType === "AGENCY_DEPOSIT"
         const isBankDeposit = formik.values.transactionType === "BANK_DEPOSIT"
+        const isCashVoucher = formik.values.transactionType === CASH_VOUCHER_TYPE
         const isBranchIncomeOrExpense = BRANCH_INCOME_EXPENSE_TYPES.includes(
           formik.values.transactionType
         )
@@ -570,7 +697,7 @@ export function LedgerTransactionForm({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {LEDGER_TRANSACTION_TYPES.map((t) => (
+                  {allowedTransactionTypes.map((t) => (
                     <SelectItem key={t} value={t}>
                       {TRANSACTION_TYPE_LABELS[t]}
                     </SelectItem>
@@ -579,7 +706,7 @@ export function LedgerTransactionForm({
               </Select>
             </div>
 
-            {!isAgencyType && !isBankDeposit && !isBranchIncomeOrExpense && (
+            {!isAgencyType && !isBankDeposit && !isCashVoucher && !isBranchIncomeOrExpense && (
               <div className="space-y-2">
                 <Label htmlFor="branchId">Branch</Label>
                 <ReferenceSelect
@@ -814,6 +941,81 @@ export function LedgerTransactionForm({
               </>
             )}
 
+            {isCashVoucher && (
+              <div className="space-y-3">
+                <div className="space-y-2">
+                  <Label htmlFor="reconciledAccountId">Reconciliation account</Label>
+                  <Select
+                    value={formik.values.reconciledAccountId}
+                    onValueChange={(v) => {
+                      formik.setFieldValue("reconciledAccountId", v)
+                      void loadVoucherBalances(v)
+                    }}
+                  >
+                    <SelectTrigger id="reconciledAccountId">
+                      <SelectValue placeholder="Select reconciliation account" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {voucherAccounts.map((account) => (
+                        <SelectItem key={account.id} value={account.id}>
+                          {account.branchName} — {account.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {formik.errors.reconciledAccountId && (
+                    <p className="text-sm text-destructive">{formik.errors.reconciledAccountId}</p>
+                  )}
+                </div>
+                {formik.values.reconciledAccountId && (
+                  <div className="space-y-2 rounded-md border p-3">
+                    <p className="text-sm font-medium">Convert to cash in your till</p>
+                    {voucherBalancesLoading ? (
+                      <p className="text-sm text-muted-foreground">Loading balances…</p>
+                    ) : (
+                      voucherBalances.map((row) => {
+                        const available = row.availableCents / 100
+                        const disabled = row.availableCents <= 0
+                        return (
+                          <div key={row.paymentMethod} className="grid gap-2 sm:grid-cols-[1fr_8rem] sm:items-center">
+                            <div>
+                              <p className="text-sm font-medium">{row.label}</p>
+                              <p className="text-xs text-muted-foreground">
+                                Posted {formatCents(row.postedCents)} · Pending {formatCents(row.pendingCents)} · Available{" "}
+                                {formatCents(row.availableCents)}
+                              </p>
+                            </div>
+                            <Input
+                              inputMode="decimal"
+                              disabled={disabled}
+                              value={voucherLineAmounts[row.paymentMethod] ?? ""}
+                              placeholder={disabled ? "No balance" : "0.00"}
+                              onChange={(e) => {
+                                const next = formatAmountInput(e.target.value)
+                                const entered = parseFloat(next)
+                                if (next && Number.isFinite(entered) && entered > available + 0.001) {
+                                  setVoucherLineAmounts((current) => ({
+                                    ...current,
+                                    [row.paymentMethod]: available.toFixed(2),
+                                  }))
+                                  return
+                                }
+                                setVoucherLineAmounts((current) => ({
+                                  ...current,
+                                  [row.paymentMethod]: next,
+                                }))
+                              }}
+                            />
+                          </div>
+                        )
+                      })
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {!isCashVoucher && (
             <div className="space-y-2">
               <Label htmlFor="amount">Amount (LKR)</Label>
               <Input
@@ -836,6 +1038,7 @@ export function LedgerTransactionForm({
                 <p className="text-sm text-destructive">{formik.errors.amount}</p>
               )}
             </div>
+            )}
 
             <div className="space-y-2">
               <Label htmlFor="remarks">Remarks <span className="text-destructive">*</span></Label>
@@ -853,7 +1056,9 @@ export function LedgerTransactionForm({
 
             {isBankDeposit && (
               <div className="space-y-2">
-                <Label htmlFor="depositSlip">Deposit slip (optional)</Label>
+                <Label htmlFor="depositSlip">
+                  Deposit slip <span className="text-destructive">*</span>
+                </Label>
                 <input
                   ref={slipInputRef}
                   id="depositSlip"
@@ -992,14 +1197,25 @@ export function LedgerTransactionForm({
                     )}
                   </div>
                 )}
+                {slipRequiredError && (
+                  <p className="text-sm text-destructive">{slipRequiredError}</p>
+                )}
                 <p className="text-xs text-muted-foreground">
-                  Upload a photo of the bank slip, or attach one already captured on this shift. JPEG, PNG, or WebP, up to 2 MB.
+                  A photo of the bank slip is required. Take one, choose a file, or attach a photo already captured on this shift. JPEG, PNG, or WebP, up to 2 MB.
                 </p>
               </div>
             )}
             {isBankDeposit && (
               <p className="text-sm text-muted-foreground">
                 Bank deposits are sent for approval. The ledger receipt and till deduction happen only after a manager approves.{" "}
+                <Link href="/approvals" className="underline font-medium hover:no-underline">
+                  Open Approval Center
+                </Link>
+              </p>
+            )}
+            {isCashVoucher && (
+              <p className="text-sm text-muted-foreground">
+                Cash vouchers are sent for approval. Non-cash on the reconciliation account becomes cash in your till only after a manager approves.{" "}
                 <Link href="/approvals" className="underline font-medium hover:no-underline">
                   Open Approval Center
                 </Link>
@@ -1017,11 +1233,13 @@ export function LedgerTransactionForm({
                   ? isBankDeposit && (slipFile || selectedShiftBill)
                     ? "Attaching slip…"
                     : "Saving…"
-                  : isBankDeposit
-                    ? "Request deposit"
-                    : "Add transaction"}
+                  : isCashVoucher
+                    ? "Request voucher"
+                    : isBankDeposit
+                      ? "Request deposit"
+                      : "Add transaction"}
               </Button>
-              {onSuccessWithReceiptId && !isBankDeposit && (
+              {onSuccessWithReceiptId && !isBankDeposit && !isCashVoucher && (
                 <Button
                   type="button"
                   variant="outline"

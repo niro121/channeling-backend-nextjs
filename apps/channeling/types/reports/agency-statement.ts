@@ -10,6 +10,8 @@ export type AgencyStatementRow = {
   particulars: string;
   appointmentDateTime: string | null;
   receiptNo: string;
+  bookNo: string | null;
+  leafNo: string | null;
   docFee: number;
   hosFee: number;
   discount: number;

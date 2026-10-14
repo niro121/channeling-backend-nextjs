@@ -32,6 +32,10 @@ export type Location = {
   expenseAccountId?: string | null;
   expenseAccountName?: string | null;
   expenseAccountCode?: string | null;
+  /** Linked expense adjustment account (agency debit/credit note contra) */
+  expenseAdjustmentAccountId?: string | null;
+  expenseAdjustmentAccountName?: string | null;
+  expenseAdjustmentAccountCode?: string | null;
 };
 
 export type LocationFormValues = {

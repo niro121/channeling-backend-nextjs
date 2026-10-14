@@ -2,7 +2,7 @@
 
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { requirePermission } from '@/lib/server-permissions';
+import { requireReport } from '@/lib/server-permissions';
 import { logActivityNonBlocking } from '@/lib/activity-log';
 import { getAgentWiseAppointmentsReportService } from '@/services/reports/agent-wise-appointments.report.service';
 import type {
@@ -13,7 +13,7 @@ import type {
 export async function getAgentWiseAppointmentsReportData(
   query: AgentWiseAppointmentsReportQuery
 ): Promise<AgentWiseAppointmentsReportResult> {
-  await requirePermission('reports', 'view');
+  await requireReport('agent-wise-appointments');
   try {
     const result = await getAgentWiseAppointmentsReportService(query);
     const session = await getServerSession(authOptions);

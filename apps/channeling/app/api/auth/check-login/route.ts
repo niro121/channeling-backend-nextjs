@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import * as argon2 from "argon2";
+import { loginIdentifierOr } from "@/lib/helpers/auth/parse-login-identifier";
 
 /**
  * POST /api/auth/check-login
@@ -28,7 +29,7 @@ export async function POST(request: Request) {
 
     const user = await prisma.user.findFirst({
       where: {
-        OR: [{ email: identifier }, { username: identifier }],
+        OR: loginIdentifierOr(identifier),
         status: 1
       },
       include: { userGroup: true }

@@ -19,7 +19,7 @@ export default async function AllDoctorViewReportPage({
   searchParams: Promise<SearchParams>;
 }) {
   // Check if user can access reports
-  const canView = await checkRouteAccess('/reports');
+  const canView = await checkRouteAccess('/reports/all-doctor-view');
   if (!canView) {
     redirect('/unauthorized-access');
   }

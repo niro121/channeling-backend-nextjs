@@ -149,6 +149,7 @@ function ChannelScheduleWithChargesReportContentInner(
       description="View doctor sessions with charge breakdown, filtered by institution, branch, department, speciality, doctor, and report type."
       filterButtonLabel="Search"
       printPageSize="A4 portrait"
+      printPageMargins="6mm 5mm 18mm"
       containerClassName="container mx-auto py-3 space-y-4 channel-schedule-charges-report-root"
       renderPrintContent={(rows) => <ChannelScheduleWithChargesPrintLayout rows={rows} />}
       customDownloadPdf={handlePdfDownload}
@@ -243,6 +244,8 @@ function ChannelScheduleWithChargesReportContentInner(
               onChange={(v) => setValue('reportType', v)}
               className={{ trigger: 'self-end!' }}
             />
+            {/* Keeps the URL non-empty when every dropdown is "All", so Search is not treated as "not yet run". */}
+            <input type="hidden" name="searched" value="1" readOnly data-filter-include="" />
           {/* </div> */}
         </>
       )}

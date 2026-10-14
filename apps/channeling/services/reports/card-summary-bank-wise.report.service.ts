@@ -9,6 +9,8 @@ import { formatUserDisplayName } from '@/lib/helpers/user-display.helper';
 const MAX_RANGE_DAYS = getReportMaxRangeDays('card_summary_bank_wise', 31);
 const MAX_RECORDS = getReportMaxRecords('card_summary_bank_wise', 20000);
 const CARD_PAYMENT_METHOD = 1; // Receipt.paymentMethod: 1 = Credit Card
+const E_WALLET_PAYMENT_METHOD = 6; // Receipt.paymentMethod: 6 = E-Wallet
+const BANK_SUMMARY_PAYMENT_METHODS = new Set([CARD_PAYMENT_METHOD, E_WALLET_PAYMENT_METHOD]);
 
 const SRI_LANKA_UTC_OFFSET_MINUTES = 330;
 function parseSriLankaDay(dateStr: string): { start: Date; end: Date } | null {
@@ -62,9 +64,11 @@ function getCardLinesForReceipt<T extends {
   cardReference?: string | null;
 }>(receipt: T): CardLineLike[] {
   if (receipt.paymentLines.length > 0) {
-    return receipt.paymentLines.filter((line) => line.paymentMethod === CARD_PAYMENT_METHOD);
+    return receipt.paymentLines.filter((line) =>
+      BANK_SUMMARY_PAYMENT_METHODS.has(line.paymentMethod ?? -1)
+    );
   }
-  return receipt.paymentMethod === CARD_PAYMENT_METHOD
+  return BANK_SUMMARY_PAYMENT_METHODS.has(receipt.paymentMethod ?? -1)
     ? [
         {
           amount: receipt.amount ?? 0,

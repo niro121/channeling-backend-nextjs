@@ -9,7 +9,7 @@ import CompletedHandoversReportContent from './completed-handovers-report-conten
 export const dynamic = 'force-dynamic';
 
 export default async function CompletedHandoversReportPage() {
-  const canView = await checkRouteAccess('/reports');
+  const canView = await checkRouteAccess('/reports/completed-handovers');
   if (!canView) redirect('/unauthorized-access');
 
   const session = await fetchServerSession();

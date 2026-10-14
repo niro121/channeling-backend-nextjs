@@ -37,6 +37,14 @@ import {
 import { Ban, Banknote, CreditCard, Receipt, Wallet } from "lucide-react"
 import { CancelRefundDetailsCard } from "./cancel-refund-details-card"
 import {
+  RefundCancelConfirmations,
+  requiredRefundCancelConfirmationChecked,
+  type RefundCancelConfirmationId,
+  type RefundCancelConfirmationsState,
+} from "./refund-cancel-confirmations"
+import { emptyChannelApprovalConfirmations } from "@/types/approval-request"
+import {
+  SAVE_PAYMENT_TYPE_AGENT,
   SAVE_PAYMENT_TYPE_CASH,
   SAVE_PAYMENT_TYPE_CREDIT_CARD,
   SAVE_PAYMENT_TYPE_E_WALLET,
@@ -50,7 +58,7 @@ function getRefundToOptionsForCancel(
   includeMixed: boolean
 ): { value: number; label: string }[] {
   const cash = { value: 0, label: "Refund as CASH" }
-  if (paymentMethod === 4) return [cash, { value: 4, label: "Refund to Agent" }]
+  if (paymentMethod === SAVE_PAYMENT_TYPE_AGENT) return [cash, { value: SAVE_PAYMENT_TYPE_AGENT, label: "Refund to Agent" }]
   if (paymentMethod === 5) return [cash, { value: 5, label: "Refund to Credit Customer" }]
   if (paymentMethod === 6) return [cash, { value: 6, label: "Refund as E-WALLET" }]
   if (paymentMethod === 1) return [cash, { value: 1, label: "Refund as CREDIT CARD" }]
@@ -111,6 +119,7 @@ export function CancelTab({ onCancelSuccess }: { onCancelSuccess?: () => void })
   const [mixedDialogOpen, setMixedDialogOpen] = useState(false)
   const [mixedLines, setMixedLines] = useState<MixedLine[]>(DEFAULT_MIXED_LINES)
   const [voidConfirmed, setVoidConfirmed] = useState(false)
+  const [confirmations, setConfirmations] = useState<RefundCancelConfirmationsState>(emptyChannelApprovalConfirmations)
   const [submitting, setSubmitting] = useState(false)
 
   function resetMixedDialog() {
@@ -135,6 +144,7 @@ export function CancelTab({ onCancelSuccess }: { onCancelSuccess?: () => void })
           setError(null)
           setRefundTo(0)
           setRemarks("")
+          setConfirmations(emptyChannelApprovalConfirmations())
         } else {
           setDetails(null)
           setError(res.message ?? "Failed to load")
@@ -292,9 +302,18 @@ export function CancelTab({ onCancelSuccess }: { onCancelSuccess?: () => void })
       toast({ title: "Remarks required", description: "Please enter a reason for cancellation.", variant: "destructive" })
       return
     }
+    const needsApproval = isPaid && refundTo !== SAVE_PAYMENT_TYPE_AGENT
+    if (needsApproval && !requiredRefundCancelConfirmationChecked(confirmations)) {
+      toast({
+        title: "Confirmation required",
+        description: "Confirm that the original bill and copy are available.",
+        variant: "destructive",
+      })
+      return
+    }
     setSubmitting(true)
     try {
-      if (!isPaid) {
+      if (!needsApproval) {
         const result = await refundChannelAction({
           booking_id: selectedBooking.id,
           refund_type: 0,
@@ -321,12 +340,14 @@ export function CancelTab({ onCancelSuccess }: { onCancelSuccess?: () => void })
           hospital_fee: 0,
           payment_lines: mixedPaymentLines,
           remarks: remarks.trim(),
+          confirmations,
         })
         if (result?.success) {
           toast({
             title: "Cancellation requested",
             description: "A manager must approve this before you can cancel and refund.",
           })
+          setConfirmations(emptyChannelApprovalConfirmations())
           await refreshBooking()
         } else {
           toast({ title: "Error", description: actionError(result), variant: "destructive" })
@@ -484,6 +505,15 @@ export function CancelTab({ onCancelSuccess }: { onCancelSuccess?: () => void })
           </Select>
         </div>
       )}
+      {isPaid && refundTo !== SAVE_PAYMENT_TYPE_AGENT && (
+        <RefundCancelConfirmations
+          idPrefix="cancel"
+          value={confirmations}
+          onChange={(id: RefundCancelConfirmationId, checked) =>
+            setConfirmations((current) => ({ ...current, [id]: checked }))
+          }
+        />
+      )}
       <Button
         className="w-full bg-red-600 hover:bg-red-700 text-white"
         onClick={() => {
@@ -515,9 +545,23 @@ export function CancelTab({ onCancelSuccess }: { onCancelSuccess?: () => void })
           }
           void handleCancel()
         }}
-        disabled={submitting || !remarks.trim()}
+        disabled={
+          submitting ||
+          !remarks.trim() ||
+          (isPaid &&
+            refundTo !== SAVE_PAYMENT_TYPE_AGENT &&
+            !requiredRefundCancelConfirmationChecked(confirmations))
+        }
       >
-        {submitting ? "Requesting…" : isPaid ? `Request cancellation - ${formatRs(refundAmount)}` : "Cancel Booking"}
+        {submitting
+          ? isPaid && refundTo !== SAVE_PAYMENT_TYPE_AGENT
+            ? "Requesting…"
+            : "Canceling…"
+          : isPaid && refundTo !== SAVE_PAYMENT_TYPE_AGENT
+            ? `Request cancellation - ${formatRs(refundAmount)}`
+            : isPaid
+              ? `Cancel Booking - ${formatRs(refundAmount)}`
+              : "Cancel Booking"}
       </Button>
       </>
       )}

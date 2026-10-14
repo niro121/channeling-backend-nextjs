@@ -44,7 +44,7 @@ export function ReceiptTemplatesContent({
         </CardHeader>
         <CardContent>
           <p className="text-sm text-muted-foreground mb-4">
-            Main templates: type (e.g. Ledger), variant (slip printer or custom size), body content with placeholders, optional header/footer, paper size.
+            Main templates: type (e.g. Ledger, Agent Receipt), variant (slip printer or A5), body content with placeholders, optional header/footer, paper size. Ledger print uses the active A5 template.
           </p>
           {initialTemplates.length === 0 ? (
             <p className="text-sm text-muted-foreground">No receipt templates yet. Add one to override the default print layout.</p>

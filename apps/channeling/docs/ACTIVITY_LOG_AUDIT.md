@@ -243,6 +243,7 @@ This document lists all user activities recorded in the application’s activity
 | `agencies.agency.created` | High | User creates an agency |
 | `agencies.agency.updated` | High | User updates an agency |
 | `agencies.limit.soft_changed` | High | User updates an agency soft credit limit (`Agency.allowedCreditLimit`) |
+| `agencies.limit.credit_changed` | High | User updates an agency credit limit (`Agency.creditLimit`) |
 | `agencies.limit.hard_changed` | High | User updates an agent hard credit limit (linked `Account.maxBalanceAllowed`) |
 | `agencies.agency.deleted` | High | User deletes an agency |
 | `agencies.agencies.bulkDeleted` | High | User bulk-deletes agencies |
@@ -349,9 +350,11 @@ This document lists all user activities recorded in the application’s activity
 | `reports.channel-agent-reference-book.exported` | Medium | User exports Channel Agent Reference Book report |
 | `reports.doctor-arrivals.exported` | Medium | User exports Doctor Arrivals report |
 | `reports.user-activity.exported` | Medium | User exports User Activity report (capped at 10k; note if more exist) |
+| `reports.approval-requests.exported` | Medium | User exports Approval Requests report |
 | `reports.agent-history-credit-limit-update.exported` | Medium | User exports Agent History(Credit Limit Update) report |
 | `reports.channel-transfer.exported` | Medium | User exports Channel Transfer Report |
 | `reports.cashier-drawer-balance.exported` | Medium | User exports Cashier Drawer Balance report |
+| `reports.cashier-short-balance.exported` | Medium | User exports Cashier Short Balance report |
 | `reports.card-summary-bank-wise.exported` | Medium | User exports Card Summary - Bank Wise report |
 | `reports.agent-collection-receipt.exported` | Medium | User exports Agent Collection Receipt report |
 

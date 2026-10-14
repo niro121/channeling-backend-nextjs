@@ -12,7 +12,8 @@ import {
   getBanksForSelectService,
 } from "@/services/reference/reference-data.service"
 import type { ReferenceSelectOption } from "@/types/reference"
-import { requirePermission } from "@/lib/server-permissions"
+import { REPORTS_WITH_USER_OPTIONS } from "@/lib/report-privileges"
+import { requireAnyReport } from "@/lib/server-permissions"
 
 export type GetReferenceDataParams = {
   agencies?: boolean
@@ -58,7 +59,7 @@ export async function getReferenceData(
     } = params
 
     if (wantUsers) {
-      await requirePermission("reports", "view")
+      await requireAnyReport([...REPORTS_WITH_USER_OPTIONS])
     }
     const results = await Promise.all([
       wantAgencies ? getAgenciesForSelectService() : Promise.resolve([]),

@@ -1,6 +1,7 @@
 import * as argon2 from "argon2"
 import prisma from "@/lib/prisma"
 import { MIN_PASSWORD_LENGTH, PASSWORD_REGEX } from "@/lib/validations/password"
+import { loginIdentifierOr } from "@/lib/helpers/auth/parse-login-identifier"
 
 export type ChangeInitialPasswordInput = {
   identifier: string
@@ -72,7 +73,7 @@ export async function changeInitialPassword(
 
   const user = await prisma.user.findFirst({
     where: {
-      OR: [{ email: identifier }, { username: identifier }],
+      OR: loginIdentifierOr(identifier),
       status: 1,
       ...(input.userType !== undefined ? { userType: input.userType } : {}),
     },

@@ -1,16 +1,17 @@
 'use server';
 
 import moment from 'moment';
+import { headers } from 'next/headers';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { requirePermission } from '@/lib/server-permissions';
+import { requireReport } from '@/lib/server-permissions';
 import { logActivityNonBlocking } from '@/lib/activity-log';
 import { formatReceiptAmount } from '@/lib/format-money';
 import { getBankDepositsReportService } from '@/services/reports/bank-deposits.report.service';
 import type { BankDepositsReportExportRow, BankDepositsReportQuery } from '@/types/reports/bank-deposits';
 
 export async function getBankDepositsReportData(query: BankDepositsReportQuery) {
-  await requirePermission('reports', 'view');
+  await requireReport('bank-deposits');
   try {
     return await getBankDepositsReportService(query);
   } catch (error: unknown) {
@@ -22,12 +23,17 @@ export async function getBankDepositsReportData(query: BankDepositsReportQuery) 
 export async function exportBankDepositsReportData(
   query: BankDepositsReportQuery
 ): Promise<{ success: boolean; data?: BankDepositsReportExportRow[]; message?: string }> {
-  await requirePermission('reports', 'view');
+  await requireReport('bank-deposits');
   try {
     const result = await getBankDepositsReportService(query);
     if (!result.success || !result.data?.length) {
       return { success: false, message: result.message ?? 'No data available' };
     }
+
+    const h = await headers();
+    const host = h.get('x-forwarded-host') ?? h.get('host') ?? '';
+    const proto = h.get('x-forwarded-proto') ?? 'https';
+    const origin = host ? `${proto}://${host}` : '';
 
     const mapped: BankDepositsReportExportRow[] = result.data.map((r, index) => ({
       no: String(index + 1),
@@ -37,7 +43,14 @@ export async function exportBankDepositsReportData(
       userLocation: r.userLocation ?? '-',
       user: r.user ?? '-',
       createdAt: r.createdAt ? moment(r.createdAt).format('YYYY-MM-DD HH:mm:ss') : '-',
+      requestedBy: [r.requestedBy, r.requestedAt ? moment(r.requestedAt).format('YYYY-MM-DD HH:mm:ss') : null]
+        .filter(Boolean)
+        .join('\n') || '-',
+      approvedBy: [r.approvedBy, r.approvedAt ? moment(r.approvedAt).format('YYYY-MM-DD HH:mm:ss') : null]
+        .filter(Boolean)
+        .join('\n') || '-',
       bankAccount: r.bankAccountName ?? '-',
+      attachment: r.attachmentUrl ? `${origin}${r.attachmentUrl}` : '-',
       total: formatReceiptAmount(r.totalAmount ?? 0),
     }));
 

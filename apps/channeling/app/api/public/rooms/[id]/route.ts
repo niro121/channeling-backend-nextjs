@@ -1,3 +1,4 @@
+import { withPublicApiLog } from "@/lib/public-api-log"
 import { NextRequest, NextResponse } from "next/server"
 import { publicApiCorsHeaders } from "@/lib/public-api-cors"
 import { getPublicApiClient } from "@/lib/public-api-auth"
@@ -39,7 +40,7 @@ export async function OPTIONS() {
   return withCors(new NextResponse(null, { status: 204 }))
 }
 
-export async function GET(
+export const GET = withPublicApiLog(async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
@@ -65,9 +66,9 @@ export async function GET(
   }
 
   return withCors(NextResponse.json({ room: result.data }))
-}
+})
 
-export async function PATCH(
+export const PATCH = withPublicApiLog(async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
@@ -113,9 +114,9 @@ export async function PATCH(
   }
 
   return withCors(NextResponse.json({ room: result.data }))
-}
+})
 
-export async function DELETE(
+export const DELETE = withPublicApiLog(async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
@@ -160,4 +161,4 @@ export async function DELETE(
   }
 
   return withCors(NextResponse.json({ deleted: true, id }))
-}
+})

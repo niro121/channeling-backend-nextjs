@@ -127,6 +127,7 @@ function AgentDetailReportContentInner({
       description="View agent information with filters"
       filterButtonLabel="Search"
       printPageSize="A4 portrait"
+      printPageMargins="6mm 5mm 18mm"
       exportOrientation="portrait"
       containerClassName="container mx-auto py-3 space-y-4 agent-detail-report-root"
       renderPrintContent={(rows) => <AgentDetailPrintLayout rows={rows} />}

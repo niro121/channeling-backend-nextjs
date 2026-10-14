@@ -13,11 +13,27 @@ import { useToast } from '@/components/hooks/use-toast';
 import { Printer } from 'lucide-react';
 import moment from 'moment';
 import { Button } from '@/components/ui/button';
-import { printPdfUtilWithHeader } from '@/lib/utils';
+import { ReportPrintLayout, toBrandedPdfSummaryItems, downloadBrandedReportPdf, downloadBrandedReportExcel } from '@/components/common/report-print';
+import type { ReportPrintSummaryItem } from '@/components/common/report-print';
+import { ExportWrapper } from '@/app/(dashboard)/export-wrapper';
 import Loading from '@/app/(dashboard)/loading';
+
+/** Same body-column shares as the printed Nurse View table. */
+const NURSE_VIEW_COLUMN_WIDTH_PERCENTS = [6, 18, 11, 20, 10, 20, 9, 6];
 
 type NurseViewReportContentProps = {
   sessionId: string;
+};
+
+type NurseViewExportRow = {
+  appointmentNo: string;
+  patientName: string;
+  paymentStatus: string;
+  remark: string;
+  area: string;
+  agentStaff: string;
+  agentRef: string;
+  markAbsent: string;
 };
 
 export default function NurseViewReportContentLegacy({
@@ -69,78 +85,56 @@ export default function NurseViewReportContentLegacy({
 
   const handlePrint = () => {
     if (!sessionData) return;
-
-    type NurseViewPrintRow = {
-      appointmentNo: string;
-      patientName: string;
-      paymentStatus: string;
-      remark: string;
-      area: string;
-      agentStaff: string;
-      agentRef: string;
-      markAbsent: string;
+    const styleId = 'nurse-view-print-page';
+    let el = document.getElementById(styleId) as HTMLStyleElement | null;
+    if (!el) {
+      el = document.createElement('style');
+      el.id = styleId;
+      document.head.appendChild(el);
+    }
+    el.textContent = `
+      @media print {
+        @page {
+          size: auto;
+          margin: 8mm 10mm;
+          @top-left { content: ""; }
+          @top-center { content: ""; }
+          @top-right { content: ""; }
+          @bottom-left { content: ""; }
+          @bottom-right { content: ""; }
+        }
+      }
+    `;
+    document.body.classList.add('print-nurse-view');
+    const cleanup = () => {
+      document.body.classList.remove('print-nurse-view');
+      el?.remove();
     };
+    window.addEventListener('afterprint', cleanup, { once: true });
+    window.print();
+  };
 
-    const headerLines = [
-      `Branch: ${sessionData.location?.name ?? '-'}`,
-      `Date: ${formatDate(sessionData.date)}`,
-      `Session Time: ${formatTime(sessionData.startTime)} - ${formatTime(sessionData.endTime)}`,
-      `Department Name: ${sessionData.department?.name ?? '-'}`,
-      `Consultant: ${
-        sessionData.doctor
-          ? `${sessionData.doctor.title} ${sessionData.doctor.name}`.trim()
-          : '-'
-      }`
-    ];
-
-    const data: NurseViewPrintRow[] = (sessionData.bookings ?? []).map(
-      (b) => ({
-        appointmentNo: String(b.appointmentNo ?? ''),
-        patientName: `${b.title ?? ''} ${b.name ?? ''}`.trim() || '-',
-        paymentStatus: b.status === 1 ? 'Paid' : 'Pending',
-        remark: b.remarks || '-',
-        area: b.area || '-',
-        agentStaff: b.agency?.name ?? b.staff?.name ?? b.creditCustomer?.name ?? '-',
-        agentRef: b.agencyId
-          ? b.agency?.code ?? b.agencyRef ?? '-'
-          : b.staffId
-            ? b.staff?.code ?? '-'
-            : b.creditCustomerId
-              ? b.creditCustomer?.code ?? '-'
-              : '-',
-        markAbsent: ''
-      })
-    );
-
-    const columns = [
-      'App.No',
-      'Patient Name',
-      'Payment Status',
-      'Remark',
-      'Area',
-      'Agent/ Staff/ Credit Customer',
-      'Agent/ Staff/ Credit Customer Ref.',
-      'Mark Absent'
-    ];
-
-    const keys = [
-      'appointmentNo',
-      'patientName',
-      'paymentStatus',
-      'remark',
-      'area',
-      'agentStaff',
-      'agentRef',
-      'markAbsent'
-    ] as (keyof NurseViewPrintRow)[];
-
-    printPdfUtilWithHeader<NurseViewPrintRow>({
-      title: 'Nurse View Report',
-      headerLines,
-      data,
-      columns,
-      keys
-    });
+  const handleExport = async () => {
+    if (!sessionData) {
+      return { success: false, message: 'No session data available' };
+    }
+    const data: NurseViewExportRow[] = (sessionData.bookings ?? []).map((b) => ({
+      appointmentNo: String(b.appointmentNo ?? ''),
+      patientName: `${b.title ?? ''} ${b.name ?? ''}`.trim() || '-',
+      paymentStatus: b.status === 1 ? 'Paid' : 'Pending',
+      remark: b.remarks || '-',
+      area: b.area || '-',
+      agentStaff: b.agency?.name ?? b.staff?.name ?? b.creditCustomer?.name ?? '-',
+      agentRef: b.agencyId
+        ? b.agency?.code ?? b.agencyRef ?? '-'
+        : b.staffId
+          ? b.staff?.code ?? '-'
+          : b.creditCustomerId
+            ? b.creditCustomer?.code ?? '-'
+            : '-',
+      markAbsent: '',
+    }));
+    return { success: true, data };
   };
 
   const formatTime = (date: Date) => {
@@ -187,8 +181,147 @@ export default function NurseViewReportContentLegacy({
     );
   }
 
+  const printSummaryItems = [
+    { label: 'Branch', value: sessionData.location?.name || '-' },
+    { label: 'Date', value: formatDate(sessionData.date) },
+    {
+      label: 'Session Time',
+      value: `${formatTime(sessionData.startTime)} - ${formatTime(sessionData.endTime)}`,
+    },
+    { label: 'Department', value: sessionData.department?.name || '-' },
+    {
+      label: 'Consultant',
+      value: sessionData.doctor
+        ? `${sessionData.doctor.title} ${sessionData.doctor.name}`.trim()
+        : '-',
+      fullWidth: true,
+    },
+  ] satisfies ReportPrintSummaryItem[];
+
   return (
-    <div className="container mx-auto py-6 space-y-6 print:py-2">
+    <div className="nurse-view-print-root container mx-auto py-6 space-y-6 print:py-0">
+      <style>{`
+        .nurse-view-dot-header { display: none; }
+        @media print {
+          body.print-nurse-view .nurse-view-print-root,
+          body.print-nurse-view .nurse-view-print-root.container {
+            width: 100% !important;
+            max-width: none !important;
+            margin: 0 !important;
+            padding: 2mm 4mm !important;
+            background: #fff !important;
+            color: #000 !important;
+            font-family: "Courier New", Courier, monospace !important;
+            font-size: 12px !important;
+            line-height: 1.3 !important;
+          }
+          body.print-nurse-view .nurse-view-print-root > .print\\:shadow-none,
+          body.print-nurse-view .nurse-view-print-root [class*="p-6"] {
+            width: 100% !important;
+            max-width: none !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            border: none !important;
+            box-shadow: none !important;
+            background: #fff !important;
+          }
+          body.print-nurse-view .nurse-view-print-root .rpt-print-header {
+            display: none !important;
+          }
+          body.print-nurse-view .nurse-view-dot-header {
+            display: block !important;
+            margin: 0 0 6px !important;
+            color: #000 !important;
+            background: #fff !important;
+          }
+          body.print-nurse-view .nurse-view-dot-header .print-title {
+            text-align: center !important;
+            font-weight: 700 !important;
+            font-size: 16px !important;
+            letter-spacing: 0.04em !important;
+            margin: 0 0 4px !important;
+          }
+          body.print-nurse-view .nurse-view-dot-header p {
+            margin: 0 !important;
+          }
+          body.print-nurse-view .nurse-view-dot-header .nv-label {
+            display: inline-block !important;
+            width: 7.2rem !important;
+          }
+          body.print-nurse-view .nurse-view-print-root .rpt-print-root,
+          body.print-nurse-view .nurse-view-print-root .rpt-print-body {
+            width: 100% !important;
+            max-width: none !important;
+            margin: 0 !important;
+            color: #000 !important;
+            background: #fff !important;
+            font-family: "Courier New", Courier, monospace !important;
+            box-sizing: border-box !important;
+          }
+          body.print-nurse-view .nurse-view-print-root .overflow-x-auto,
+          body.print-nurse-view .nurse-view-print-root .rounded-md {
+            overflow: visible !important;
+            width: 100% !important;
+            max-width: none !important;
+            border: 0 !important;
+            border-radius: 0 !important;
+            box-shadow: none !important;
+          }
+          body.print-nurse-view .nurse-view-print-root .rpt-print-root table.nv-print-table {
+            width: 100% !important;
+            max-width: 100% !important;
+            table-layout: fixed !important;
+            border-collapse: collapse !important;
+          }
+          body.print-nurse-view .nurse-view-print-root .rpt-print-root table.nv-print-table thead {
+            display: table-header-group !important;
+          }
+          body.print-nurse-view .nurse-view-print-root .rpt-print-root table.nv-print-table th,
+          body.print-nurse-view .nurse-view-print-root .rpt-print-root table.nv-print-table td {
+            border: 0 !important;
+            border-top: 1px solid #000 !important;
+            background: #fff !important;
+            color: #000 !important;
+            padding: 1px 2px !important;
+            font-family: "Courier New", Courier, monospace !important;
+            font-size: 11px !important;
+            font-weight: 400 !important;
+            line-height: 1.3 !important;
+            overflow: hidden !important;
+            word-break: break-word !important;
+            overflow-wrap: anywhere !important;
+            white-space: normal !important;
+            box-sizing: border-box !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+          body.print-nurse-view .nurse-view-print-root .rpt-print-root table.nv-print-table thead th {
+            font-weight: 700 !important;
+            background: #fff !important;
+          }
+          body.print-nurse-view .nurse-view-print-root .rpt-print-root table.nv-print-table tbody tr:last-child td {
+            border-bottom: 1px solid #000 !important;
+          }
+          body.print-nurse-view .nurse-view-print-root .rpt-print-root table.nv-print-table th *,
+          body.print-nurse-view .nurse-view-print-root .rpt-print-root table.nv-print-table td * {
+            color: #000 !important;
+            font-family: inherit !important;
+            font-size: inherit !important;
+            line-height: inherit !important;
+          }
+          ${NURSE_VIEW_COLUMN_WIDTH_PERCENTS.map(
+            (width, index) =>
+              `body.print-nurse-view .nurse-view-print-root .rpt-print-root table.nv-print-table th:nth-child(${index + 1}),
+          body.print-nurse-view .nurse-view-print-root .rpt-print-root table.nv-print-table td:nth-child(${index + 1}) { width: ${width}% !important; }`
+          ).join('\n')}
+          body.print-nurse-view .nurse-view-print-root input[type="checkbox"] {
+            width: 3.2mm !important;
+            height: 3.2mm !important;
+            margin: 0 !important;
+            accent-color: #000 !important;
+          }
+        }
+      `}</style>
       <Card className="print:shadow-none print:border-none">
         <CardHeader className="print:hidden">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -198,6 +331,64 @@ export default function NurseViewReportContentLegacy({
               </CardTitle>
             </div>
             <div className="flex gap-2">
+              <ExportWrapper<NurseViewExportRow>
+                serverData={handleExport}
+                columns={[
+                  'App.No',
+                  'Patient Name',
+                  'Payment Status',
+                  'Remark',
+                  'Area',
+                  'Agent/ Staff/ Credit Customer',
+                  'Agent/ Staff/ Credit Customer Ref.',
+                  'Mark Absent',
+                ]}
+                keys={[
+                  'appointmentNo',
+                  'patientName',
+                  'paymentStatus',
+                  'remark',
+                  'area',
+                  'agentStaff',
+                  'agentRef',
+                  'markAbsent',
+                ]}
+                title="Nurse View Report"
+                fileName="nurse-view-report"
+                exportOrientation="portrait"
+                pdfSummaryItems={toBrandedPdfSummaryItems(printSummaryItems)}
+                customDownloadPdf={async (args) => {
+                  await downloadBrandedReportPdf({
+                    reportName: args.title,
+                    summaryItems: toBrandedPdfSummaryItems(printSummaryItems),
+                    generatedAt: new Date().toLocaleString(),
+                    data: args.data,
+                    columns: args.columns,
+                    keys: args.keys,
+                    fileName: args.fileName,
+                    orientation: 'portrait',
+                    compactTable: true,
+                    pageMarginMm: 5,
+                    columnWidthPercents: NURSE_VIEW_COLUMN_WIDTH_PERCENTS,
+                  });
+                }}
+                customDownloadExcel={async (args) => {
+                  await downloadBrandedReportExcel({
+                    reportName: args.title,
+                    summaryItems: toBrandedPdfSummaryItems(printSummaryItems),
+                    generatedAt: new Date().toLocaleString(),
+                    data: args.data,
+                    columns: args.columns,
+                    keys: args.keys,
+                    fileName: args.fileName,
+                    sheetName: args.title.slice(0, 31),
+                    orientation: 'portrait',
+                    compactTable: true,
+                    columnWidths: NURSE_VIEW_COLUMN_WIDTH_PERCENTS,
+                    extraWrapColumnIndexes: [3, 6],
+                  });
+                }}
+              />
               <Button
                 variant="outline"
                 size="sm"
@@ -210,9 +401,9 @@ export default function NurseViewReportContentLegacy({
             </div>
           </div>
         </CardHeader>
-        <CardContent>
-          {/* Session Details */}
-          <div className="mb-6 space-y-2">
+        <CardContent className="print:p-0">
+          {/* Session details stay on screen. Print uses the compact dot-matrix header. */}
+          <div className="mb-6 space-y-2 print:hidden">
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <span className="font-semibold">Branch: </span>
@@ -245,9 +436,38 @@ export default function NurseViewReportContentLegacy({
           </div>
 
           {/* Patient List Table */}
-          <div className="mt-6">
+          <ReportPrintLayout
+            reportName="Nurse View Report"
+            pageSize="A4 portrait"
+            pageMargins="7mm 5mm 18mm"
+            generatedAt={new Date().toLocaleString()}
+            summaryItems={printSummaryItems}
+          >
+          <div className="nurse-view-dot-header font-mono text-[11px] leading-snug text-black">
+            <p className="print-title">NURSE VIEW REPORT</p>
+            <p>
+              <span className="nv-label">BRANCH</span>: {sessionData.location?.name || '-'}
+            </p>
+            <p>
+              <span className="nv-label">DATE</span>: {formatDate(sessionData.date)}
+            </p>
+            <p>
+              <span className="nv-label">SESSION</span>:{' '}
+              {formatTime(sessionData.startTime)} - {formatTime(sessionData.endTime)}
+            </p>
+            <p>
+              <span className="nv-label">DEPT</span>: {sessionData.department?.name || '-'}
+            </p>
+            <p>
+              <span className="nv-label">CONSULTANT</span>:{' '}
+              {sessionData.doctor
+                ? `${sessionData.doctor.title} ${sessionData.doctor.name}`.trim()
+                : '-'}
+            </p>
+          </div>
+          <div className="mt-6 print:mt-0">
             <div className="rounded-md border overflow-x-auto">
-              <table className="w-full border-collapse">
+              <table className="nv-print-table w-full border-collapse">
                 <thead>
                   <tr className="bg-muted">
                     <th className="border p-2 text-left font-semibold">
@@ -329,6 +549,7 @@ export default function NurseViewReportContentLegacy({
               </table>
             </div>
           </div>
+          </ReportPrintLayout>
         </CardContent>
       </Card>
     </div>

@@ -29,6 +29,16 @@ export type PublicSessionDto = {
   minPatientNumber: number
   /** Last bookable appointment number for this session */
   maxPatientNumber: number
+  /**
+   * Real session id of the immediate previous consecutive session on the same day.
+   * Null when this session is first in the chain, standalone, or the previous session is not in the result.
+   */
+  previousSessionId: string | null
+  /**
+   * Starting appointment number of the first session in this consecutive chain.
+   * Equals minPatientNumber when this session has no reachable previous session.
+   */
+  consecutiveStartNumber: number
   /** Highest appointment number issued so far on this session */
   appointmentNo: number
   /** True when appointmentNo has reached maxPatientNumber (no more bookings) */
@@ -59,6 +69,41 @@ function sessionDateKey(date: Date | string): string {
 
 function sessionLookupKey(date: Date | string, doctorSessionId: string): string {
   return `${sessionDateKey(date)}:${doctorSessionId}`
+}
+
+/**
+ * Resolve consecutive-session fields from sessions already loaded for this response.
+ * previousDoctorSession stores the previous doctor-session template id; the matching
+ * row is the session on the same date with that template. No extra database read.
+ */
+export function resolveConsecutiveSessionFields(
+  session: Session,
+  sessionByDoctorSessionOnDate: Map<string, Session>
+): { previousSessionId: string | null; consecutiveStartNumber: number } {
+  const ownStart = session.startingPatientNumber ?? 0
+  const visited = new Set<string>()
+  let cursor: Session = session
+  let previousSessionId: string | null = null
+
+  while (cursor.previousDoctorSession) {
+    if (visited.has(cursor.id)) break
+    visited.add(cursor.id)
+
+    const previous = sessionByDoctorSessionOnDate.get(
+      sessionLookupKey(cursor.date, cursor.previousDoctorSession)
+    )
+    if (!previous || previous.id === cursor.id) break
+
+    if (cursor.id === session.id) {
+      previousSessionId = previous.id
+    }
+    cursor = previous
+  }
+
+  return {
+    previousSessionId,
+    consecutiveStartNumber: cursor.startingPatientNumber ?? ownStart,
+  }
 }
 
 /**
@@ -193,6 +238,7 @@ export async function getPublicSessionsByDoctorCode(
     const minPatientNumber = s.startingPatientNumber ?? 0
     const maxPatientNumber = s.maxPatientNumber ?? 0
     const appointmentNo = s.appointmentNo ?? 0
+    const consecutive = resolveConsecutiveSessionFields(s, sessionByDoctorSessionOnDate)
     const advancedBookingEnabled =
       advancedBookingEnabledByTemplate.get(s.doctorSessionId) ?? false
     return {
@@ -205,6 +251,8 @@ export async function getPublicSessionsByDoctorCode(
       doctorOnLeave: onLeave,
       minPatientNumber,
       maxPatientNumber,
+      previousSessionId: consecutive.previousSessionId,
+      consecutiveStartNumber: consecutive.consecutiveStartNumber,
       appointmentNo,
       isFull: sessionFull,
       advancedBookingEnabled,

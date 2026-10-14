@@ -57,7 +57,7 @@ function estimateCardHeight(
     .join('   ');
 
   let h = 4; // head
-  h += 1.2 + lines(`Booking ${card.bookingId}  Remarks: ${card.remarks}`, 6.5) * 3;
+  h += 1.2 + lines(`Booking ${card.bookingId}  Receipt: ${card.receiptId}  Remarks: ${card.remarks}`, 6.5) * 3;
   h += 1.2 + lines(card.fromLine, 6.5) * 3;
   h += 1.2 + lines(card.toLine, 6.5) * 3;
   h += 1.5 + lines(metaTop, 6.25) * 2.8;
@@ -124,7 +124,7 @@ function drawCard(
     x: x + pad,
     y: cy,
     label: 'Booking',
-    value: `${card.bookingId}   Remarks: ${card.remarks}`,
+    value: `${card.bookingId}   Receipt: ${card.receiptId}   Remarks: ${card.remarks}`,
     contentWidth: width - pad * 2,
     mono: true,
   });

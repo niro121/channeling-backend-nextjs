@@ -6,6 +6,7 @@ import { formatCents } from "@/lib/format-money"
 import { formatUserDisplayName } from "@/lib/helpers/user-display.helper"
 import { formatDenomLabel, FLOAT_REQUEST_STATUS, floatRequestStatusLabel } from "@/types/float-request"
 import type { DenominationEntry } from "@/types/float-request"
+import { isHandoverHeldForReconciliation } from "@/lib/handover-utils"
 import { HANDOVER_STATUS } from "@/types/handover"
 import type { CashierSummaryPaymentAmounts } from "@/types/report"
 
@@ -72,6 +73,7 @@ type PreviousHandover = {
   creditCents?: number
   eWalletCents?: number
   enteredBreakdown?: unknown
+  reconciliationStatus?: number | null
   shift?: { startedAt?: Date | string | null } | null
 }
 
@@ -310,6 +312,10 @@ export function HandoverCashInPrint({
     .reduce((sum, f) => sum + (f.amountReceivedCents ?? 0), 0)
 
   const prevMethodCols = METHOD_KEYS.filter((key) => includedHandovers.some((h) => (h[key] ?? 0) > 0))
+  const reconHandovers = includedHandovers.filter((h) => isHandoverHeldForReconciliation(h.reconciliationStatus))
+  const reconMethodKeys = METHOD_KEYS.filter((key) => key !== "cashCents")
+  const reconMethodCols = reconMethodKeys.filter((key) => reconHandovers.some((h) => (h[key] ?? 0) > 0))
+  const reconRowTotal = (h: PreviousHandover) => reconMethodKeys.reduce((s, key) => s + (h[key] ?? 0), 0)
   const breakdown = parseBreakdown(handover.enteredBreakdown)
   const entryLines = flattenBreakdownLines(breakdown)
   const entryTotalCents = entryLines.reduce((s, l) => s + l.amountCents, 0)
@@ -566,6 +572,55 @@ export function HandoverCashInPrint({
                 })),
                 { text: formatCents(h.totalCents), align: "right" as const, nowrap: true, bold: true },
               ])}
+            />
+          </div>
+        ) : null}
+
+        {reconHandovers.length > 0 ? (
+          <div className="mt-3">
+            <p className="font-semibold mb-0.5">HANDOVERS SENT TO RECONCILIATION</p>
+            <PrintGrid
+              template={["1.1fr", "1.5fr", "1.4fr", ...reconMethodCols.map(() => "0.8fr"), "0.9fr"].join(" ")}
+              headers={[
+                { text: "Bill No", nowrap: true },
+                { text: "From" },
+                { text: "When", nowrap: true },
+                ...reconMethodCols.map((key) => ({ text: METHOD_LABELS[key], align: "right" as const, nowrap: true })),
+                { text: "Total", align: "right" as const, nowrap: true },
+              ]}
+              rows={[
+                ...reconHandovers.map((h) => [
+                  { text: h.handoverNoString || shortRef("HO", h.id), nowrap: true },
+                  { text: personLabel(h.fromUser) },
+                  { text: formatPrintDateTime(h.createdAt ?? h.shift?.startedAt), nowrap: true },
+                  ...reconMethodCols.map((key) => ({
+                    text: (h[key] ?? 0) > 0 ? formatCents(h[key] ?? 0) : "—",
+                    align: "right" as const,
+                    nowrap: true,
+                  })),
+                  { text: formatCents(reconRowTotal(h)), align: "right" as const, nowrap: true, bold: true },
+                ]),
+                [
+                  { text: "Total", bold: true },
+                  { text: "" },
+                  { text: "" },
+                  ...reconMethodCols.map((key) => {
+                    const colTotal = reconHandovers.reduce((s, h) => s + (h[key] ?? 0), 0)
+                    return {
+                      text: colTotal > 0 ? formatCents(colTotal) : "—",
+                      align: "right" as const,
+                      nowrap: true,
+                      bold: true,
+                    }
+                  }),
+                  {
+                    text: formatCents(reconHandovers.reduce((s, h) => s + reconRowTotal(h), 0)),
+                    align: "right" as const,
+                    nowrap: true,
+                    bold: true,
+                  },
+                ],
+              ]}
             />
           </div>
         ) : null}

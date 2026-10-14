@@ -9,7 +9,7 @@ import { getReportFilterOptions } from '@/services/reference/report-filter-optio
 export const dynamic = 'force-dynamic';
 
 export default async function DoctorAppointmentCountReportPage() {
-  const canView = await checkRouteAccess('/reports');
+  const canView = await checkRouteAccess('/reports/doctor-appointment-count');
   if (!canView) redirect('/unauthorized-access');
 
   const [ref, locRef, specialityRef, session] = await Promise.all([

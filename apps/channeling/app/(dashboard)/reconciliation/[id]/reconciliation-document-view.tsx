@@ -121,6 +121,7 @@ type Props = {
   reconciliationStatus?: number
   reconciliationRejectReason?: string | null
   handoverNoString?: string | null
+  reconciliationNoString?: string | null
   hasReconciliationIssues?: boolean
 }
 
@@ -217,6 +218,7 @@ export function ReconciliationDocumentView({
   reconciliationStatus = RECONCILIATION_STATUS.IN_RECONCILIATION,
   reconciliationRejectReason = null,
   handoverNoString = null,
+  reconciliationNoString = null,
   hasReconciliationIssues = false,
 }: Props) {
   const router = useRouter()
@@ -268,16 +270,15 @@ export function ReconciliationDocumentView({
   /** Top-level handover (first in chain). */
   const topHandover = chain[0]?.handover
 
-  /** Required amounts summed across ALL handovers in the chain (not just top-level). */
+  /** Top-level totals already include included handovers, so do not add the chain again. */
   const requiredByMethod = useMemo(() => {
-    const totals = { cardCents: 0, slipCents: 0, checkCents: 0, eWalletCents: 0 }
-    for (const { handover } of chain) {
-      totals.cardCents += handover.cardCents
-      totals.slipCents += handover.slipCents
-      totals.checkCents += handover.checkCents
-      totals.eWalletCents += handover.eWalletCents
+    const handover = chain[0]?.handover
+    return {
+      cardCents: handover?.cardCents ?? 0,
+      slipCents: handover?.slipCents ?? 0,
+      checkCents: handover?.checkCents ?? 0,
+      eWalletCents: handover?.eWalletCents ?? 0,
     }
-    return totals
   }, [chain])
 
   type RefEntryWithSource = { reference: string; amountCents: number; from: string }
@@ -458,6 +459,11 @@ export function ReconciliationDocumentView({
       <div className="flex items-center justify-between">
         <h2 className="text-3xl font-bold tracking-tight flex items-center gap-2 flex-wrap">
           Reconcile handover{handoverNoString ? <span className="font-mono"> {handoverNoString}</span> : null}
+          {reconciliationNoString ? (
+            <span className="text-base font-normal text-muted-foreground">
+              Recon <span className="font-mono font-medium text-foreground">{reconciliationNoString}</span>
+            </span>
+          ) : null}
           {hasReconciliationIssues ? <Badge variant="destructive">Issues</Badge> : null}
         </h2>
         <div className="flex items-center gap-2">
@@ -998,6 +1004,7 @@ export function ReconciliationDocumentView({
     <ReconciliationPrint
       topLevelHandoverId={topLevelHandoverId}
       handoverNoString={handoverNoString}
+      reconciliationNoString={reconciliationNoString}
       reconciliationStatus={reconciliationStatus}
       hasReconciliationIssues={hasReconciliationIssues}
       chain={chain}

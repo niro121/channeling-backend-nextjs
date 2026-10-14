@@ -48,7 +48,7 @@ export default async function Page({ searchParams }: SearchParams) {
     })
 
     // Check if user can add user groups
-    const canAdd = await checkPermission("users", "add")
+    const canAdd = await checkPermission("user-groups", "add")
 
     const handleExport = async () => {
         'use server';

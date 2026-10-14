@@ -40,11 +40,11 @@ export type ChannelDiscountReportExportRow = {
   patientName: string;
   doctor: string;
   type: string;
-  hospitalFee: string;
-  hospitalFeeDiscount: string;
-  professionalFee: string;
-  professionalFeeDiscount: string;
-  discount: string;
+  hospitalFee: number;
+  hospitalFeeDiscount: number;
+  professionalFee: number;
+  professionalFeeDiscount: number;
+  discount: number;
   autoDiscountScheme: string;
   discountScheme: string;
 };

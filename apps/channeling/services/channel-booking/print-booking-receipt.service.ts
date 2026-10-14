@@ -11,6 +11,10 @@ import {
   RUHUNU_HOSPITAL,
 } from "@/lib/receipt-template/ruhunu-hospital"
 import { getActiveReceiptTemplate } from "@/services/receipt-template/receipt-template.service"
+import {
+  APPROVAL_REQUEST_STATUS,
+  APPROVAL_REQUEST_TYPE,
+} from "@/types/approval-request"
 import { getBookingDetailsService } from "./get-booking-details.service"
 import type { ReceiptPlaceholderMap } from "@/types/receipt-template-db"
 import type { ReceiptTemplateRecord } from "@/types/receipt-template-db"
@@ -33,6 +37,67 @@ function invoiceStatus(status: number): string {
   return "Unknown"
 }
 
+/** Suffix stored on save: ` - Ref Bill No. : ${paidReceipt.receiptNoString}`. Refund slip prints the typed remark only. */
+const STORED_REF_BILL_SUFFIX = " - Ref Bill No. : "
+
+function refundRemarkForPrint(storedReason: string): string {
+  const idx = storedReason.lastIndexOf(STORED_REF_BILL_SUFFIX)
+  if (idx === -1) return storedReason
+  return storedReason.slice(0, idx).trim()
+}
+
+/** booking.refund: 1 professional fee, 2 hospital fee, 3 full cancel. */
+function refundTypeLabel(refund: number): string {
+  if (refund === 1) return "Professional Fee"
+  if (refund === 2) return "Hospital Fee"
+  if (refund === 3) return "Full"
+  return ""
+}
+
+/** Login username of a user. */
+async function resolveUsername(userId: string | null | undefined): Promise<string> {
+  if (!userId) return ""
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { username: true },
+  })
+  return user?.username?.trim() || ""
+}
+
+/** Username of the user who approved this cancel or refund. */
+async function resolveAuthorizedByUsername(
+  bookingId: string,
+  bookingStatus: number
+): Promise<string> {
+  const preferredType =
+    bookingStatus === 2
+      ? APPROVAL_REQUEST_TYPE.CHANNEL_CANCEL
+      : APPROVAL_REQUEST_TYPE.CHANNEL_REFUND
+  const matching = await prisma.approvalRequest.findFirst({
+    where: {
+      bookingId,
+      status: APPROVAL_REQUEST_STATUS.COMPLETED,
+      type: preferredType,
+    },
+    orderBy: { approvedAt: "desc" },
+    select: { approvedById: true },
+  })
+  if (matching?.approvedById) return resolveUsername(matching.approvedById)
+
+  const latest = await prisma.approvalRequest.findFirst({
+    where: {
+      bookingId,
+      status: APPROVAL_REQUEST_STATUS.COMPLETED,
+      type: {
+        in: [APPROVAL_REQUEST_TYPE.CHANNEL_CANCEL, APPROVAL_REQUEST_TYPE.CHANNEL_REFUND],
+      },
+    },
+    orderBy: { approvedAt: "desc" },
+    select: { approvedById: true },
+  })
+  return resolveUsername(latest?.approvedById)
+}
+
 function statusBanner(opts: { status: number; refund: number; isDuplicate: boolean }): string {
   if (opts.refund !== 0 && opts.status === 1) return "**Refunded**"
   if (opts.status === 2) return "**Canceled**"
@@ -52,7 +117,8 @@ async function resolveUserPrintCode(userId: string | null | undefined): Promise<
 
 /**
  * Normal prints: booking.createdBy → staff code (unchanged).
- * Refund prints: prefer payment-receipt cashier, then booking staff code, then booking creator.
+ * Refund receipt (method 0): cashier who created that refund receipt.
+ * Reprint of a paid bill after refund: payment-receipt cashier, then booking staff code, then booking creator.
  */
 async function resolveCashierCodeForPrint(opts: {
   bookingId: string
@@ -63,7 +129,10 @@ async function resolveCashierCodeForPrint(opts: {
   isRefunded: boolean
 }): Promise<string> {
   const isRefundReceipt = opts.receiptMethod === 0
-  if (!opts.isRefunded && !isRefundReceipt) {
+  if (isRefundReceipt) {
+    return resolveUserPrintCode(opts.receiptCreatedBy)
+  }
+  if (!opts.isRefunded) {
     return resolveUserPrintCode(opts.bookingCreatedBy)
   }
 
@@ -113,6 +182,8 @@ export async function printBookingReceiptService(
         locationId: true,
         method: true,
         createdBy: true,
+        amount: true,
+        remarks: true,
       },
     })
     if (!receipt) {
@@ -146,19 +217,21 @@ export async function printBookingReceiptService(
         professionalFee: true,
         hospitalFeeDiscount: true,
         professionsalFeeDiscount: true,
+        locationId: true,
         doctor: { select: { code: true } },
         staff: { select: { name: true, code: true } },
         agency: { select: { name: true, code: true } },
         location: {
-          select: { name: true, addressLine1: true, addressLine2: true, city: true },
+          select: { id: true, name: true, addressLine1: true, addressLine2: true, city: true },
         },
       },
     })
 
+    // Payment / cashier location (unchanged): prefer receipt.locationId for header print.
     const locationFromReceipt = receipt.locationId
       ? await prisma.location.findUnique({
           where: { id: receipt.locationId },
-          select: { name: true, addressLine1: true, addressLine2: true, city: true },
+          select: { id: true, name: true, addressLine1: true, addressLine2: true, city: true },
         })
       : null
     const location = locationFromReceipt ?? extra?.location ?? null
@@ -166,6 +239,9 @@ export async function printBookingReceiptService(
     const locationName = location?.name?.trim() || RUHUNU_HOSPITAL.name
     const locationAddress = location ? formatLocationAddress(location) : ""
     const addressLine = locationAddress || RUHUNU_HOSPITAL.address
+
+    // Session / booking location — always shown on print (even when same as payment location).
+    const sessionLocationName = extra?.location?.name?.trim() || ""
 
     const hospitalFee = extra?.hospitalFee ?? details.refundableBreakdown?.hospitalFee ?? 0
     const hospitalFeeDiscount =
@@ -199,10 +275,21 @@ export async function printBookingReceiptService(
     const refundAmount = refund && refund.refundAmount !== 0 ? money(Math.abs(refund.refundAmount)) : ""
     const refundReceiptNo = refund?.refundReceipts[0]?.receiptNoString?.trim() ?? ""
     const refundReason = refund?.refundReason?.trim() ?? ""
+    const approvals = refund?.approvals ?? []
+    const approvedBy =
+      approvals.length <= 1
+        ? (approvals[0]?.value ?? "")
+        : approvals
+            .map((approval) => {
+              const kind = approval.label.startsWith("Cancel") ? "Cancel" : "Refund"
+              return `${kind}: ${approval.value}`
+            })
+            .join("; ")
     const refundParts: string[] = []
     if (refundAmount) refundParts.push(`Refund Amount: ${refundAmount}`)
     if (refundReceiptNo) refundParts.push(`Refund Receipt: ${refundReceiptNo}`)
     if (refundReason) refundParts.push(`Cancel / refund remark: ${refundReason}`)
+    if (approvedBy) refundParts.push(approvedBy)
 
     const [cashierCode, printedBy] = await Promise.all([
       resolveCashierCodeForPrint({
@@ -222,6 +309,50 @@ export async function printBookingReceiptService(
       refund: details.refund ?? 0,
       isDuplicate,
     })
+
+    // Refund / cancel receipt (method 0): Sails-style slip for this receipt only.
+    if (receipt.method === 0) {
+      const [paidReceipt, authorizedBy, refundBy] = await Promise.all([
+        prisma.receipt.findFirst({
+          where: { bookingId: receipt.bookingId, method: 1 },
+          orderBy: { createdAt: "asc" },
+          select: { receiptNoString: true },
+        }),
+        resolveAuthorizedByUsername(receipt.bookingId, details.status),
+        resolveUsername(receipt.createdBy),
+      ])
+      return {
+        success: true,
+        data: {
+          placeholders: {
+            receipt_kind: "refund",
+            company_name: locationName,
+            location_address: addressLine,
+            refund_title: details.status === 2 ? "Cancel Receipt" : "Refund Receipt",
+            duplicate_label: isDuplicate ? "**Duplicate Copy**" : "",
+            refund_receipt_no: receipt.receiptNoString,
+            appointment_no: formatAppointmentNo(details.appointmentNo),
+            consultant: details.consultant,
+            appointment_date: details.appointmentDate,
+            appointment_time: details.appointmentTime,
+            session_location_name: sessionLocationName,
+            patient_name: details.name,
+            phone: details.phone,
+            channel_no: paidReceipt?.receiptNoString?.trim() || details.billNo,
+            refund_amount: money(Math.abs(receipt.amount ?? 0)),
+            refund_type: refundTypeLabel(details.refund ?? 0),
+            refund_by: refundBy,
+            authorized_by: authorizedBy,
+            refund_reason: refundRemarkForPrint(receipt.remarks?.trim() || refundReason),
+            generated_by: printedBy,
+            generated_at: format(new Date(), "dd/MM/yyyy HH.mm"),
+          },
+          template: null,
+          receiptNoString: receipt.receiptNoString,
+          isDuplicate,
+        },
+      }
+    }
 
     const input: BookingReceiptPrintInput = {
       patientName: details.name.toUpperCase(),
@@ -254,10 +385,12 @@ export async function printBookingReceiptService(
       refundAmount,
       refundReceiptNo,
       refundReason,
+      approvedBy,
       generatedBy: printedBy,
       companyName: locationName,
       locationName,
       locationAddress: addressLine,
+      sessionLocationName,
       duplicateLabel: isDuplicate ? "DUPLICATE" : "",
       statusBanner: banner,
     }

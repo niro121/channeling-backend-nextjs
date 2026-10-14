@@ -33,6 +33,8 @@ export type ReceiptJournalAccounts = {
   branchIncomeAccountId?: string | null;
   /** Branch/location expense account (used for branch expense receipts). */
   branchExpenseAccountId?: string | null;
+  /** Branch expense adjustment account (contra for agency debit/credit notes). */
+  expenseAdjustmentAccountId?: string | null;
   /** Cashier CASH account (required for cash receipt/refund). */
   cashierAccountId?: string | null;
   /** Agent PAYABLE account (required for agent receipt/refund). */
@@ -45,6 +47,8 @@ export type ReceiptJournalAccounts = {
   whtPayableAccountId?: string | null;
   /** Bank ledger account (for bank deposit/withdraw ledger methods). */
   bankLedgerAccountId?: string | null;
+  /** Branch reconciled account (cash voucher source). */
+  reconciledAccountId?: string | null;
 };
 
 /** When provided for channel PAYMENT (save/settle booking), journal credits branch with hospital fee and doctor payable with professional fee. */
@@ -541,8 +545,12 @@ export function buildReceiptJournalEntryInput(
     };
   }
 
-  // Ledger: Agency Debit Note (2) — Dr Agent PAYABLE, Cr branch cash (charge agent; credit branch)
-  if (receipt.method === RECEIPT_METHOD.DEBIT_NOTE && accounts.agentAccountId) {
+  // Ledger: Agency Debit Note (2) — Dr Agent PAYABLE, Cr Expense Adjustment (charge agent)
+  if (
+    receipt.method === RECEIPT_METHOD.DEBIT_NOTE &&
+    accounts.agentAccountId &&
+    accounts.expenseAdjustmentAccountId
+  ) {
     return {
       date: receipt.createdAt ?? new Date(),
       description: `Agency debit note${descSuffix}`,
@@ -552,13 +560,17 @@ export function buildReceiptJournalEntryInput(
       createdBy: receipt.createdBy ?? null,
       lines: [
         { accountId: accounts.agentAccountId, debitAmount: amountCents, creditAmount: 0 },
-        { accountId: branchAccountId, debitAmount: 0, creditAmount: amountCents },
+        { accountId: accounts.expenseAdjustmentAccountId, debitAmount: 0, creditAmount: amountCents },
       ],
     };
   }
 
-  // Ledger: Agency Credit Note (3) — Dr branch cash, Cr Agent PAYABLE (reverse of debit note)
-  if (receipt.method === RECEIPT_METHOD.CREDIT_NOTE && accounts.agentAccountId) {
+  // Ledger: Agency Credit Note (3) — Dr Expense Adjustment, Cr Agent PAYABLE (reverse of debit note)
+  if (
+    receipt.method === RECEIPT_METHOD.CREDIT_NOTE &&
+    accounts.agentAccountId &&
+    accounts.expenseAdjustmentAccountId
+  ) {
     return {
       date: receipt.createdAt ?? new Date(),
       description: `Agency credit note${descSuffix}`,
@@ -567,7 +579,7 @@ export function buildReceiptJournalEntryInput(
       locationId: receipt.locationId ?? receipt.userLocationId ?? null,
       createdBy: receipt.createdBy ?? null,
       lines: [
-        { accountId: branchAccountId, debitAmount: amountCents, creditAmount: 0 },
+        { accountId: accounts.expenseAdjustmentAccountId, debitAmount: amountCents, creditAmount: 0 },
         { accountId: accounts.agentAccountId, debitAmount: 0, creditAmount: amountCents },
       ],
     };
@@ -660,6 +672,76 @@ export function buildReceiptJournalEntryInput(
           accountId: accounts.cashierAccountId,
           debitAmount: 0,
           creditAmount: amountCents,
+          paymentMethod: RECEIPT_PAYMENT_METHOD.CASH,
+        },
+      ],
+    };
+  }
+
+  // Ledger: Cash Voucher (12) - non-cash leaves the reconciled account, cash enters the till.
+  if (receipt.method === RECEIPT_METHOD.CASH_VOUCHER && accounts.cashierAccountId && accounts.reconciledAccountId) {
+    const sourceLines = (receipt.paymentLines ?? []).filter(
+      (line) =>
+        line.paymentMethod === RECEIPT_PAYMENT_METHOD.CREDIT_CARD ||
+        line.paymentMethod === RECEIPT_PAYMENT_METHOD.SLIP ||
+        line.paymentMethod === RECEIPT_PAYMENT_METHOD.CHECK ||
+        line.paymentMethod === RECEIPT_PAYMENT_METHOD.E_WALLET
+    );
+    const journalLines = sourceLines.map((line) => ({
+      accountId: accounts.reconciledAccountId!,
+      debitAmount: 0,
+      creditAmount: Math.round(Math.abs(Number(line.amount) || 0) * 100),
+      paymentMethod: line.paymentMethod,
+    }));
+    const totalCents = journalLines.reduce((sum, line) => sum + line.creditAmount, 0);
+    if (totalCents <= 0) return null;
+    journalLines.push({
+      accountId: accounts.cashierAccountId,
+      debitAmount: totalCents,
+      creditAmount: 0,
+      paymentMethod: RECEIPT_PAYMENT_METHOD.CASH,
+    });
+    return {
+      date: receipt.createdAt ?? new Date(),
+      description: `Cash voucher${descSuffix}`,
+      referenceType: REFERENCE_TYPES.Receipt,
+      referenceId: receipt.id,
+      locationId: receipt.locationId ?? receipt.userLocationId ?? null,
+      createdBy: receipt.createdBy ?? null,
+      lines: journalLines,
+    };
+  }
+
+  // Ledger: Cash Voucher Cancel (13) - restore non-cash on the reconciled account and take cash back from the till.
+  if (receipt.method === RECEIPT_METHOD.CASH_VOUCHER_CANCEL && accounts.cashierAccountId && accounts.reconciledAccountId) {
+    const sourceLines = (receipt.paymentLines ?? []).filter(
+      (line) =>
+        line.paymentMethod === RECEIPT_PAYMENT_METHOD.CREDIT_CARD ||
+        line.paymentMethod === RECEIPT_PAYMENT_METHOD.SLIP ||
+        line.paymentMethod === RECEIPT_PAYMENT_METHOD.CHECK ||
+        line.paymentMethod === RECEIPT_PAYMENT_METHOD.E_WALLET
+    );
+    const journalLines = sourceLines.map((line) => ({
+      accountId: accounts.reconciledAccountId!,
+      debitAmount: Math.round(Math.abs(Number(line.amount) || 0) * 100),
+      creditAmount: 0,
+      paymentMethod: line.paymentMethod,
+    }));
+    const totalCents = journalLines.reduce((sum, line) => sum + line.debitAmount, 0);
+    if (totalCents <= 0) return null;
+    return {
+      date: receipt.createdAt ?? new Date(),
+      description: `Cash voucher cancel${descSuffix}`,
+      referenceType: REFERENCE_TYPES.Receipt,
+      referenceId: receipt.id,
+      locationId: receipt.locationId ?? receipt.userLocationId ?? null,
+      createdBy: receipt.createdBy ?? null,
+      lines: [
+        ...journalLines,
+        {
+          accountId: accounts.cashierAccountId,
+          debitAmount: 0,
+          creditAmount: totalCents,
           paymentMethod: RECEIPT_PAYMENT_METHOD.CASH,
         },
       ],
@@ -783,9 +865,12 @@ export async function resolveReceiptJournalAccounts(params: {
   /** Bank account id (BankAccount model) when receipt method requires bank ledger mapping. */
   bankAccountId?: string | null;
 }): Promise<ReceiptJournalAccounts | null | ResolveReceiptJournalAccountsError> {
-  const { getOrCreateAccount, getCashBookAccountForBranch, getMainCashBookAccount } = await import(
-    '@/services/accounting.service'
-  );
+  const {
+    getOrCreateAccount,
+    getOrCreateExpenseAdjustmentAccount,
+    getCashBookAccountForBranch,
+    getMainCashBookAccount,
+  } = await import('@/services/accounting.service');
 
   const branchAccount = params.locationId
     ? await getCashBookAccountForBranch(params.locationId)
@@ -806,6 +891,15 @@ export async function resolveReceiptJournalAccounts(params: {
   });
   if (!expenseRes.success) {
     return { error: expenseRes.error, errorCode: 'BRANCH_EXPENSE_ACCOUNT_NOT_FOUND' };
+  }
+
+  let expenseAdjustmentAccountId: string | null = null;
+  if (params.locationId) {
+    const adjustmentRes = await getOrCreateExpenseAdjustmentAccount(params.locationId);
+    if (!adjustmentRes.success) {
+      return { error: adjustmentRes.error, errorCode: 'EXPENSE_ADJUSTMENT_ACCOUNT_NOT_FOUND' };
+    }
+    expenseAdjustmentAccountId = adjustmentRes.account.id;
   }
 
   let cashierAccountId: string | null = null;
@@ -877,6 +971,7 @@ export async function resolveReceiptJournalAccounts(params: {
     branchAccountId: branchAccount.id,
     branchIncomeAccountId: incomeRes.account.id,
     branchExpenseAccountId: expenseRes.account.id,
+    expenseAdjustmentAccountId,
     cashierAccountId: cashierAccountId ?? undefined,
     agentAccountId: agentAccountId ?? undefined,
     creditCustomerAccountId: creditCustomerAccountId ?? undefined,

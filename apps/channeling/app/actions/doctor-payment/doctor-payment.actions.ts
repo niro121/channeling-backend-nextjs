@@ -14,14 +14,28 @@ import {
   type GetDoctorPaymentListParams,
 } from "@/services/doctor-payment/get-doctor-payment-list.service";
 import {
-  getDoctorPaymentReceiptDetail,
-  getDoctorCancelReceiptDetail,
-} from "@/services/doctor-payment/get-doctor-payment-receipt-detail.service";
+  previewDoctorPaymentReceiptService,
+  printDoctorPaymentReceiptService,
+  type PrintDoctorPaymentOptions,
+} from "@/services/doctor-payment/print-doctor-payment-receipt.service";
 import {
   cancelDoctorPaymentService,
   type CancelDoctorPaymentResult,
 } from "@/services/doctor-payment/cancel-doctor-payment.service";
 import { getEarliestPendingPaymentDateService } from "@/services/doctor-payment/get-earliest-pending-payment-date.service";
+import { getShiftRequirementFailure } from "@/services/shift.service";
+
+function hiddenServerErrorMessage(e: unknown, fallback: string): string {
+  const message = e instanceof Error ? e.message.trim() : "";
+  if (
+    !message ||
+    message.includes("Server Components render") ||
+    message.includes("omitted in production")
+  ) {
+    return fallback;
+  }
+  return message;
+}
 
 export async function getEligibleDoctorPaymentBookings(
   doctorId: string,
@@ -48,7 +62,21 @@ export async function getDoctorPaymentBookingDetails(bookingIds: string[]) {
 
 export async function processDoctorPaymentAction(input: ProcessDoctorPaymentInput) {
   await requirePermission("doctor-payments", "add");
-  return processDoctorPaymentService(input);
+  try {
+    return await processDoctorPaymentService(input);
+  } catch (e) {
+    if (input.userId) {
+      const shiftFailure = await getShiftRequirementFailure(input.userId).catch(() => null);
+      if (shiftFailure?.code === "SHIFT_EXPIRED") {
+        return { success: false as const, errorCode: "SHIFT_EXPIRED", message: "Shift expired" };
+      }
+    }
+    return {
+      success: false as const,
+      errorCode: "SERVER_ERROR",
+      message: hiddenServerErrorMessage(e, "Payment failed."),
+    };
+  }
 }
 
 export async function getDoctorPaymentList(params: GetDoctorPaymentListParams) {
@@ -56,17 +84,22 @@ export async function getDoctorPaymentList(params: GetDoctorPaymentListParams) {
   return getDoctorPaymentListService(params);
 }
 
-export async function getDoctorPaymentReceiptForPrint(receiptId: string) {
-  await requirePermission("doctor-payments", "view");
-  return getDoctorPaymentReceiptDetail(receiptId);
-}
-
-export async function getDoctorCancelReceiptForPrint(
-  cancelReceiptId: string,
-  options: { doctorName?: string; originalReceiptNoString?: string } = {}
+export async function getDoctorPaymentReceiptForPrint(
+  receiptId: string,
+  options: PrintDoctorPaymentOptions = {}
 ) {
   await requirePermission("doctor-payments", "view");
-  return getDoctorCancelReceiptDetail(cancelReceiptId, options);
+  const session = await getServerSession(authOptions);
+  return previewDoctorPaymentReceiptService(receiptId, session?.user?.id ?? null, options);
+}
+
+export async function printDoctorPaymentReceiptAction(
+  receiptId: string,
+  options: PrintDoctorPaymentOptions = {}
+) {
+  await requirePermission("doctor-payments", "view");
+  const session = await getServerSession(authOptions);
+  return printDoctorPaymentReceiptService(receiptId, session?.user?.id ?? null, options);
 }
 
 export async function cancelDoctorPaymentAction(
@@ -85,5 +118,15 @@ export async function cancelDoctorPaymentAction(
     receiptId,
     canceledBy: userId,
     cancelReason: cancelReason.trim(),
+  }).catch(async (e: unknown) => {
+    const shiftFailure = await getShiftRequirementFailure(userId).catch(() => null);
+    if (shiftFailure?.code === "SHIFT_EXPIRED") {
+      return { success: false as const, errorCode: "SHIFT_EXPIRED", message: "Shift expired" };
+    }
+    return {
+      success: false as const,
+      errorCode: "SERVER_ERROR",
+      message: hiddenServerErrorMessage(e, "Could not cancel this doctor payment."),
+    };
   });
 }

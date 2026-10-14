@@ -37,6 +37,11 @@ type ReportPrintLayoutProps = {
   logoSrc?: string | null
   /** `@page size` value, e.g. "A4 landscape". */
   pageSize?: string
+  /**
+   * `@page` margin shorthand (CSS). Default keeps room for Generated/page footers.
+   * e.g. "7mm 5mm 12mm" for tighter left/right on wide portrait tables.
+   */
+  pageMargins?: string
   className?: string
   children: React.ReactNode
 }
@@ -73,6 +78,7 @@ export function ReportPrintLayout({
   organizationName = RUHUNU_PRINT_BRAND_NAME,
   logoSrc = RUHUNU_HOSPITAL_LOGO_SRC,
   pageSize = "A4 portrait",
+  pageMargins = "8mm 10mm 14mm",
   className,
   children,
 }: ReportPrintLayoutProps) {
@@ -84,20 +90,27 @@ export function ReportPrintLayout({
         @media print {
           @page {
             size: ${pageSize};
-            margin: 8mm 10mm 14mm;
+            margin: ${pageMargins};
             /* Claim top margin boxes so Chrome does not inject date/title headers. */
             @top-left { content: ""; }
             @top-center { content: ""; }
             @top-right { content: ""; }
             @bottom-left {
               content: "Generated: ${cssString(generatedAt)}";
-              font-size: 8pt;
+              font-family: Arial, Helvetica, sans-serif;
+              font-size: 9pt;
+              font-weight: 700;
               color: #000;
+              /* Sit at the top of the bottom margin so hardware margins do not clip it */
+              vertical-align: top;
             }
             @bottom-right {
               content: "Page " counter(page) " of " counter(pages);
-              font-size: 8pt;
+              font-family: Arial, Helvetica, sans-serif;
+              font-size: 9pt;
+              font-weight: 700;
               color: #000;
+              vertical-align: top;
             }
           }
 

@@ -20,7 +20,7 @@ export function formatLocationAddress(location: {
   city?: string | null
 }): string {
   return [location.addressLine1, location.addressLine2, location.city]
-    .map((part) => part?.trim())
+    .map((part) => part?.trim().replace(/^,+|,+$/g, "").trim())
     .filter((part): part is string => Boolean(part))
     .join(", ")
 }
@@ -29,6 +29,16 @@ export function ruhunuPhoneFaxLine(): string {
   return `Phone : ${RUHUNU_HOSPITAL.phone}`
 }
 
+/** Tel-only line used on Sails agent/ledger receipts (no fax). */
+export function ruhunuTelLine(): string {
+  return `Tel : ${RUHUNU_HOSPITAL.phone}`
+}
+
 export function ruhunuEmailWebLine(): string {
   return `Email : ${RUHUNU_HOSPITAL.email} | Web : ${RUHUNU_HOSPITAL.web}`
+}
+
+/** Fallback address line: "Ruhunu Hospital, Karapitiya, Galle". */
+export function ruhunuHospitalAddressLine(): string {
+  return `${RUHUNU_HOSPITAL.name}, ${RUHUNU_HOSPITAL.address}`
 }

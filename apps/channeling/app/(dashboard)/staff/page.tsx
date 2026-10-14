@@ -73,7 +73,10 @@ export default async function StaffPage({ searchParams }: SearchParams) {
 
     return {
       success: true,
-      data: mappedStaff
+      data: mappedStaff,
+      totalRecords: staffListResponse.totalRecords,
+      exportLimit: staffListResponse.exportLimit,
+      limited: staffListResponse.limited,
     };
   };
 

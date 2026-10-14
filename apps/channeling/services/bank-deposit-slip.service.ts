@@ -175,7 +175,11 @@ export async function resolveBankDepositSlipSnapshot(params: {
   }
 
   if (!key) {
-    return { success: true, snapshot: {} }
+    return {
+      success: false,
+      errorCode: "VALIDATION",
+      message: "A deposit slip photo is required.",
+    }
   }
   if (!isOwnedSlipKey(key, params.userId)) {
     return { success: false, errorCode: "VALIDATION", message: "Deposit slip upload is invalid." }
@@ -245,7 +249,8 @@ export async function getBankDepositSlipForView(params: {
   const canSeeDeposits =
     isAdmin ||
     hasPermission(params.permissions, "approvals", APPROVAL_ACTION.VIEW) ||
-    hasPermission(params.permissions, "approvals", APPROVAL_ACTION.APPROVE_BANK_DEPOSIT)
+    hasPermission(params.permissions, "approvals", APPROVAL_ACTION.APPROVE_BANK_DEPOSIT) ||
+    hasPermission(params.permissions, "reports", "view")
   if (!isAdmin && !isOwner && !canSeeDeposits) {
     return { success: false, status: 403, error: "You don't have permission to view this photo." }
   }

@@ -8,7 +8,7 @@ import ChannelReportReceiptWiseContent from './channel-report-receipt-wise-conte
 export const dynamic = 'force-dynamic';
 
 export default async function ChannelReportReceiptWisePage() {
-  const canView = await checkRouteAccess('/reports');
+  const canView = await checkRouteAccess('/reports/channel-report-receipt-wise');
   if (!canView) {
     redirect('/unauthorized-access');
   }

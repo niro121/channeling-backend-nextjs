@@ -4,6 +4,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import DoctorLeaveForm from '../../doctor-leave-form';
 import { getOneLeaveByID } from '@/app/actions/doctor.leave.action';
+import { getLocationOptions } from '@/app/actions/doctor.sessions.action';
 import { BackButton } from '@/components/common/back-button';
 
 type PageProps = {
@@ -18,7 +19,10 @@ export default async function EditDoctorLeavePage({ params }: PageProps) {
   const session = await getServerSession(authOptions);
   const user = session?.user;
 
-  const { data, success } = await getOneLeaveByID(id);
+  const [{ data, success }, locationOptions] = await Promise.all([
+    getOneLeaveByID(id),
+    getLocationOptions()
+  ]);
   const doctorId = data.doctorId ?? data.doctor?.id ?? '';
   const doctorName = data.doctor?.name ?? '';
 
@@ -38,6 +42,7 @@ export default async function EditDoctorLeavePage({ params }: PageProps) {
         <DoctorLeaveForm
           doctorId={doctorId}
           doctorName={doctorName || ''}
+          branchOptions={locationOptions.data ?? []}
           doctorLeave={data}
           isEditPage={true}
           user={{

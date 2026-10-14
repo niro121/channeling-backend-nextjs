@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Wallet } from 'lucide-react';
 import { TillBalanceSection } from './till-balance-section';
 import { TillStatementSection } from './till-statement-section';
+import { ShortStatementSection } from './short-statement-section';
 
 function BalanceSectionFallback() {
   return (
@@ -85,6 +86,10 @@ export default async function MyTillPage({ searchParams }: PageProps) {
 
       <Suspense fallback={<BalanceSectionFallback />}>
         <TillBalanceSection tillId={till} from={from} to={to} />
+      </Suspense>
+
+      <Suspense fallback={<StatementSectionFallback />}>
+        <ShortStatementSection from={from} to={to} tillId={till} />
       </Suspense>
 
       <Suspense fallback={<StatementSectionFallback />}>

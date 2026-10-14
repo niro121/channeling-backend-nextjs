@@ -7,7 +7,7 @@
  *
  * Steps (stops on first failure):
  *   1. migrate-import
- *   2. migrate-accounting-accounts (location/doctor/agency GL accounts; no wipe)
+ *   2. migrate-accounting-accounts (recreate location/doctor/agency GL accounts after the flush)
  *   3. migrate-doctor-sessions
  *   4. migrate-missing-doctor-templates (legacy start_time=0 templates; same lib as [fix] in step 5)
  *   5. migrate-sessions-bookings (--no-fix-templates; preflight already ran in step 4)
@@ -253,7 +253,7 @@ function main(): void {
     steps.push({
       title: 'Reference import',
       detail: opts.importFlush
-        ? `Flush migrate tables, then import ${what}`
+        ? `Flush migrate tables and all GL accounts (cash books, journals, payables), then import ${what}`
         : `Import without flush: ${what}`,
       script: 'scripts/migrate-import.ts',
       args: importArgs,
@@ -265,7 +265,10 @@ function main(): void {
   if (!opts.skipAccountingAccounts) {
     steps.push({
       title: 'GL accounts',
-      detail: 'Create missing Main Cash Book, location cash/income/expense, doctor and agency payables (no wipe)',
+      detail:
+        !opts.skipImport && opts.importFlush
+          ? 'Recreate Main Cash Book, location cash/income/expense, doctor and agency payables after the account flush'
+          : 'Create missing Main Cash Book, location cash/income/expense, doctor and agency payables (no account wipe on this run)',
       script: 'scripts/migrate-accounting-accounts.ts',
       args: [],
     });

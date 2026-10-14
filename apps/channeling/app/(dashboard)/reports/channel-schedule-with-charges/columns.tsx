@@ -78,12 +78,9 @@ export const ChannelScheduleWithChargesColumns: ColumnDef<ChannelScheduleWithCha
         const v = row.original.startTime;
         if (!v) return '-';
         return (
-          <div className="whitespace-nowrap text-xs">
-            <div>
-              {moment(v).format('hh:mm A')}
-            </div>
-            <div className="text-muted-foreground">{moment(v).format('Do MMMM YYYY')}</div>
-          </div>
+          <span className="whitespace-nowrap text-xs">
+            {moment(v).format('hh:mm A')}
+          </span>
         );
       }
     },
@@ -94,12 +91,9 @@ export const ChannelScheduleWithChargesColumns: ColumnDef<ChannelScheduleWithCha
         const v = row.original.endTime;
         if (!v) return '-';
         return (
-          <div className="whitespace-nowrap text-xs">
-            <div>
-              {moment(v).format('hh:mm A')}
-            </div>
-            <div className="text-muted-foreground">{moment(v).format('Do MMMM YYYY')}</div>
-          </div>
+          <span className="whitespace-nowrap text-xs">
+            {moment(v).format('hh:mm A')}
+          </span>
         );
       }
     },

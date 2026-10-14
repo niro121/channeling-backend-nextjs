@@ -174,6 +174,17 @@ export async function getStaffById(id: string): Promise<{
   }
 }
 
+function staffSearchWhere(keyword: string): Prisma.StaffWhereInput {
+  return {
+    OR: [
+      { name: { contains: keyword, mode: Prisma.QueryMode.insensitive } },
+      { code: { contains: keyword, mode: Prisma.QueryMode.insensitive } },
+      { nic: { contains: keyword, mode: Prisma.QueryMode.insensitive } },
+      { contactMobile: { contains: keyword, mode: Prisma.QueryMode.insensitive } },
+    ],
+  }
+}
+
 export async function getStaff(params: GetStaffParams): Promise<{
   success: boolean
   data?: { records: any[]; totalRecords: number }
@@ -185,14 +196,7 @@ export async function getStaff(params: GetStaffParams): Promise<{
     const pageNumber = Math.max(1, Number.parseInt(page, 10) || 1)
     const pageSize = Math.min(100, Math.max(1, Number.parseInt(limit, 10) || 10))
     const skip = (pageNumber - 1) * pageSize
-    const whereClause: Prisma.StaffWhereInput = {
-      OR: [
-        { name: { contains: keyword, mode: Prisma.QueryMode.insensitive } },
-        { code: { contains: keyword, mode: Prisma.QueryMode.insensitive } },
-        { nic: { contains: keyword, mode: Prisma.QueryMode.insensitive } },
-        { contactMobile: { contains: keyword, mode: Prisma.QueryMode.insensitive } },
-      ],
-    }
+    const whereClause = staffSearchWhere(keyword)
     const [records, totalRecords] = await Promise.all([
       prisma.staff.findMany({
         where: whereClause,
@@ -213,6 +217,39 @@ export async function getStaff(params: GetStaffParams): Promise<{
   }
 }
 
+/** All staff matching the search, for Excel/PDF export. */
+export async function getAllStaffForExport(keyword: string = ""): Promise<{
+  success: boolean
+  data?: any[]
+  totalRecords?: number
+  exportLimit?: number
+  limited?: boolean
+  message?: string
+  error?: { message?: string }
+}> {
+  try {
+    const where = staffSearchWhere(keyword)
+    const [records, totalRecords] = await Promise.all([
+      prisma.staff.findMany({
+        where,
+        orderBy: { createdAt: "desc" },
+      }),
+      prisma.staff.count({ where }),
+    ])
+    return {
+      success: true,
+      data: records,
+      totalRecords,
+      exportLimit: records.length,
+      limited: false,
+      message: "Staff fetched successfully",
+    }
+  } catch (error: any) {
+    console.error("getAllStaffForExport error:", error)
+    return { success: false, error: { message: error.message || "Failed to fetch staff" } }
+  }
+}
+
 export type StaffOption = { id: string; name: string; code: string }
 
 export async function getStaffOptions(): Promise<{
@@ -225,7 +262,6 @@ export async function getStaffOptions(): Promise<{
     const records = await prisma.staff.findMany({
       where: { status: 1 },
       orderBy: { name: "asc" },
-      take: 500,
       select: { id: true, name: true, code: true },
     })
     const data: StaffOption[] = records.map((r) => ({

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { CustomContentAlertDialog } from '@/components/common/custom-content-alert-dialog';
@@ -27,6 +27,7 @@ export function FirstLoginPasswordDialog({
   const [showNew, setShowNew] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const submittingRef = useRef(false);
 
   const resetForm = () => {
     setCurrentPassword('');
@@ -36,10 +37,9 @@ export function FirstLoginPasswordDialog({
   };
 
   const handleClose = () => {
-    if (!loading) {
-      resetForm();
-      onClose();
-    }
+    if (submittingRef.current) return;
+    resetForm();
+    onClose();
   };
 
   const handleChangePassword = async () => {
@@ -67,6 +67,7 @@ export function FirstLoginPasswordDialog({
       return;
     }
 
+    submittingRef.current = true;
     setLoading(true);
     try {
       const res = await fetch('/api/auth/change-initial-password', {
@@ -85,9 +86,11 @@ export function FirstLoginPasswordDialog({
         return;
       }
       resetForm();
+      submittingRef.current = false;
       onClose();
       onSuccess(email, newP);
     } finally {
+      submittingRef.current = false;
       setLoading(false);
     }
   };

@@ -27,26 +27,27 @@ import {
   CardContent,
 } from '@/components/ui/card';
 import { useToast } from '@/components/hooks/use-toast';
-import { SearchIcon, Printer, Download, FileText, FileSpreadsheet, Loader2, X } from 'lucide-react';
+import { SearchIcon, Printer, FileText, FileSpreadsheet, Loader2, X } from 'lucide-react';
 import { getCashierSummaryReportData } from '@/app/actions/reports/cashier-summary.action';
+import { cashierSummarySectionShowsDetailRows } from '@/lib/cashier-summary-amounts';
 import { formatReceiptAmount } from '@/lib/format-money';
 import { formatReportRangeLabel } from '@/lib/format-report-range-label';
 import { formatExportFileName } from '@/lib/utils';
 import { ReportGenerationDetailsCard } from '@/components/common/report-generation-details';
 import {
   ReportPrintLayout,
-  downloadBrandedReportExcel,
-  downloadBrandedReportPdf,
   toBrandedPdfSummaryItems,
 } from '@/components/common/report-print';
 import type { ReportPrintSummaryItem } from '@/components/common/report-print';
 import { withAllBranchesOptions } from '@/lib/report-branch-options';
 import type {
   CashierSummaryReportSection,
-  CashierSummaryReportLineItem,
   CashierSummaryPaymentAmounts,
   CashierSummaryIncludedShift,
 } from '@/types/report';
+import { CashierSummaryPrintLayout } from './cashier-summary-print-layout';
+import { downloadCashierSummaryReportPdf } from './cashier-summary-pdf';
+import { downloadCashierSummaryReportExcel } from './cashier-summary-excel';
 
 type CashierSummaryContentProps = {
   initialUserOptions: Array<{ id: string; name: string }>;
@@ -91,9 +92,9 @@ const AGENCY_BILL_SECTION_KEYS = new Set([
 
 /** Amount columns: modest min width (~999,999 scale); nowrap so wider values grow the column. */
 const AMOUNT_HEAD =
-  'text-right tabular-nums lining-nums min-w-[5rem] !px-2 py-1 text-[11px] font-medium whitespace-nowrap align-bottom';
+  'ucs-amt text-right tabular-nums lining-nums min-w-[5rem] !px-2 py-1 text-[11px] font-medium whitespace-nowrap align-bottom';
 const AMOUNT_CELL =
-  'text-right tabular-nums lining-nums font-mono text-[11px] leading-snug min-w-[5rem] !px-2 py-0.5 whitespace-nowrap align-middle';
+  'ucs-amt text-right tabular-nums lining-nums font-mono text-[11px] leading-snug min-w-[5rem] !px-2 py-0.5 whitespace-nowrap align-middle';
 
 /** Slip + Credit (credit customer) → Credit Summary; cash methods → Cash Summary (agent shown after Grand Total). */
 const CASH_SUMMARY_KEYS: (keyof CashierSummaryPaymentAmounts)[] = [
@@ -112,7 +113,7 @@ function cashierSectionShowDetailRows(
   reportFormat: 'summary' | 'detail',
   sectionKey: string
 ): boolean {
-  return reportFormat === 'detail' || sectionKey === 'channelRefund';
+  return cashierSummarySectionShowsDetailRows(reportFormat, sectionKey);
 }
 
 function cashierSectionHasAnyTotal(section: CashierSummaryReportSection): boolean {
@@ -273,7 +274,7 @@ export default function CashierSummaryContent({
     generatedAt: string;
     includedShifts: CashierSummaryIncludedShift[];
   }): ReportPrintSummaryItem[] => [
-    { label: 'Period', value: formatReportRangeLabel(meta.from, meta.to) },
+    { label: 'Period', value: formatReportRangeLabel(meta.from, meta.to), fullWidth: true },
     { label: 'Staff', value: meta.userLabel },
     { label: 'Branch', value: meta.locationLabel },
     { label: 'Report Type', value: meta.format === 'detail' ? 'Detail' : 'Summary' },
@@ -424,325 +425,6 @@ export default function CashierSummaryContent({
     window.print();
   };
 
-  type CashierSummaryExportRow = {
-    section: string;
-    txCreated: string;
-    shift: string;
-    sessionDateTime: string;
-    billId: string;
-    receiptId: string;
-    patientOrAgency: string;
-    consultant: string;
-    name: string;
-    type: string;
-    cash: string;
-    creditCard: string;
-    slip: string;
-    cheque: string;
-    agent: string;
-    agentCredit: string;
-    eWallet: string;
-  };
-
-  const CASHIER_SUMMARY_EXPORT_COLUMNS = [
-    'Section',
-    'Tx Created',
-    'Shift',
-    'Session',
-    'Bill ID',
-    'Receipt ID',
-    'Patient/Agency',
-    'Consultant',
-    'Name',
-    'Type',
-    ...PAYMENT_COLUMNS.map((c) => c.label),
-  ] as const;
-
-  const CASHIER_SUMMARY_EXPORT_KEYS: (keyof CashierSummaryExportRow)[] = [
-    'section',
-    'txCreated',
-    'shift',
-    'sessionDateTime',
-    'billId',
-    'receiptId',
-    'patientOrAgency',
-    'consultant',
-    'name',
-    'type',
-    'cash',
-    'creditCard',
-    'slip',
-    'cheque',
-    'agent',
-    'agentCredit',
-    'eWallet',
-  ];
-
-  const buildCashierSummaryExportRows = (
-    reportFormat: 'summary' | 'detail' = format
-  ): CashierSummaryExportRow[] => {
-    const data: CashierSummaryExportRow[] = [];
-    const emptyAmountRow = (): Pick<
-      CashierSummaryExportRow,
-      'cash' | 'creditCard' | 'slip' | 'cheque' | 'agent' | 'agentCredit' | 'eWallet'
-    > => ({
-      cash: '',
-      creditCard: '',
-      slip: '',
-      cheque: '',
-      agent: '',
-      agentCredit: '',
-      eWallet: '',
-    });
-
-    const amountsFromLine = (row: CashierSummaryReportLineItem | CashierSummaryPaymentAmounts) => ({
-      cash: formatAmount(row.cash),
-      creditCard: formatAmount(row.creditCard),
-      slip: formatAmount(row.slip),
-      cheque: formatAmount(row.cheque),
-      agent: formatAmount(row.agent),
-      agentCredit: formatAmount(row.agentCredit),
-      eWallet: formatAmount(row.eWallet),
-    });
-
-    const pushSectionTotalRow = (section: CashierSummaryReportSection) => {
-      data.push({
-        section: section.title,
-        txCreated: '',
-        shift: '',
-        sessionDateTime: '',
-        billId: 'Total',
-        receiptId: '',
-        patientOrAgency: '',
-        consultant: '',
-        name: '',
-        type: '',
-        ...amountsFromLine(section.totals),
-      });
-    };
-
-    const pushDetailRow = (section: CashierSummaryReportSection, row: CashierSummaryReportLineItem) => {
-      const isIncomeExpense = section.key === 'incomeExpense';
-      data.push({
-        section: section.title,
-        txCreated:
-          row.txCreated instanceof Date
-            ? row.txCreated.toLocaleString()
-            : String(row.txCreated ?? ''),
-        shift: row.shiftLabel ?? '',
-        sessionDateTime: row.sessionDateTime ?? '',
-        billId: row.billId ?? '',
-        receiptId: row.receiptId,
-        patientOrAgency: isIncomeExpense ? '' : (row.patient ?? ''),
-        consultant: isIncomeExpense ? '' : (row.consultant ?? ''),
-        name: isIncomeExpense ? (row.name ?? '') : '',
-        type: isIncomeExpense ? (row.type ?? '') : '',
-        ...amountsFromLine(row),
-      });
-    };
-
-    const pushSummaryAmountRow = (
-      sectionLabel: string,
-      billIdLabel: string,
-      amounts: Partial<Record<keyof CashierSummaryPaymentAmounts, number>>,
-      /** Single combined total shown in the Cash column (credit/cash footer). */
-      combinedTotal?: number
-    ) => {
-      data.push({
-        section: sectionLabel,
-        txCreated: '',
-        shift: '',
-        sessionDateTime: '',
-        billId: billIdLabel,
-        receiptId: '',
-        patientOrAgency: '',
-        consultant: '',
-        name: '',
-        type: '',
-        cash:
-          combinedTotal != null
-            ? formatAmount(combinedTotal)
-            : amounts.cash != null
-              ? formatAmount(amounts.cash)
-              : '',
-        creditCard: amounts.creditCard != null ? formatAmount(amounts.creditCard) : '',
-        slip: amounts.slip != null ? formatAmount(amounts.slip) : '',
-        cheque: amounts.cheque != null ? formatAmount(amounts.cheque) : '',
-        agent: amounts.agent != null ? formatAmount(amounts.agent) : '',
-        agentCredit: amounts.agentCredit != null ? formatAmount(amounts.agentCredit) : '',
-        eWallet: amounts.eWallet != null ? formatAmount(amounts.eWallet) : '',
-      });
-    };
-
-    for (const section of sections) {
-      const showRows = cashierSectionShowDetailRows(reportFormat, section.key);
-      const hasAnyTotal = cashierSectionHasAnyTotal(section);
-
-      if (showRows && section.rows.length > 0) {
-        for (const row of section.rows) {
-          pushDetailRow(section, row);
-        }
-        pushSectionTotalRow(section);
-      } else if (hasAnyTotal) {
-        pushSectionTotalRow(section);
-      }
-    }
-
-    if (grandTotals) {
-      const crSlip = Number(grandTotals.slip);
-      const crCust = Number(grandTotals.agentCredit);
-      const crTotal = crSlip + crCust;
-      const cashTotal = sumAmounts(grandTotals, CASH_SUMMARY_KEYS);
-      const agentTotal = Number(grandTotals.agent);
-
-      data.push({
-        section: '',
-        txCreated: '',
-        shift: '',
-        sessionDateTime: '',
-        billId: '',
-        receiptId: '',
-        patientOrAgency: '',
-        consultant: '',
-        name: '',
-        type: '',
-        ...emptyAmountRow(),
-      });
-      pushSummaryAmountRow('Credit Summary', '', {});
-      pushSummaryAmountRow('Credit Summary', 'Slip Total', { slip: crSlip });
-      pushSummaryAmountRow('Credit Summary', 'Credit Total', { agentCredit: crCust });
-      pushSummaryAmountRow('Credit Summary', 'Total (Credit Summary)', {}, crTotal);
-      pushSummaryAmountRow('Cash Summary', '', {});
-      for (const col of PAYMENT_COLUMNS.filter((c) => CASH_SUMMARY_KEYS.includes(c.key))) {
-        const n = Number(grandTotals[col.key]);
-        pushSummaryAmountRow('Cash Summary', `${col.label} Total`, {
-          [col.key]: Number.isFinite(n) ? n : 0,
-        });
-      }
-      pushSummaryAmountRow('Cash Summary', 'Total (Cash Summary)', {}, cashTotal);
-      pushSummaryAmountRow('', 'Grand Total (Credit + Cash)', {}, crTotal + cashTotal);
-      pushSummaryAmountRow('', 'Agent Total', { agent: agentTotal });
-    }
-
-    return data;
-  };
-
-  const handleDownloadCSV = () => {
-    if (sections.length === 0 && !grandTotals) {
-      toast({
-        variant: 'destructive',
-        title: 'No data',
-        description: 'Run a search first to download CSV.',
-      });
-      return;
-    }
-
-    const lines: string[] = [];
-
-    for (const section of sections) {
-      const nameColumnLabel = AGENCY_BILL_SECTION_KEYS.has(section.key) ? 'Agency' : 'Patient';
-      const header =
-        'Section,Tx Created,Shift,Session Date/Time,Bill ID,Receipt ID,' +
-        nameColumnLabel +
-        ',Consultant,Name,Type,' +
-        PAYMENT_COLUMNS.map((c) => c.label).join(',');
-      lines.push(section.title);
-      lines.push(header);
-
-      for (const row of section.rows) {
-        const txCreated =
-          row.txCreated instanceof Date
-            ? row.txCreated.toLocaleString()
-            : String(row.txCreated ?? '');
-        const cells = [
-          section.title,
-          txCreated,
-          row.shiftLabel ?? '',
-          row.sessionDateTime ?? '',
-          row.billId ?? '',
-          row.receiptId,
-          row.patient ?? '',
-          row.consultant ?? '',
-          row.name ?? '',
-          row.type ?? '',
-          ...PAYMENT_COLUMNS.map((col) => {
-            const n = Number(row[col.key]);
-            return Number.isFinite(n) ? n.toFixed(2) : '0.00';
-          }),
-        ];
-        lines.push(cells.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(','));
-      }
-
-      const totalCells = [
-        section.title,
-        '',
-        '',
-        '',
-        'Total',
-        '',
-        '',
-        '',
-        '',
-        ...PAYMENT_COLUMNS.map((col) => {
-            const n = Number(section.totals[col.key]);
-            return Number.isFinite(n) ? n.toFixed(2) : '0.00';
-          }),
-      ];
-      lines.push(totalCells.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(','));
-      lines.push('');
-    }
-
-    if (grandTotals) {
-      lines.push('Grand Total (all payment columns)');
-      lines.push(
-        [
-          '',
-          '',
-          '',
-          '',
-          '',
-          '',
-          '',
-          '',
-          '',
-          ...PAYMENT_COLUMNS.map((col) => {
-            const n = Number(grandTotals[col.key]);
-            return Number.isFinite(n) ? n.toFixed(2) : '0.00';
-          }),
-        ]
-          .map((c) => `"${String(c).replace(/"/g, '""')}"`)
-          .join(',')
-      );
-      const crSlip = Number(grandTotals.slip);
-      const crCust = Number(grandTotals.agentCredit);
-      const crTotal = crSlip + crCust;
-      const cashTotal = sumAmounts(grandTotals, CASH_SUMMARY_KEYS);
-      const agentTotal = Number(grandTotals.agent);
-      lines.push('');
-      lines.push('"Credit Summary","","","","","","","","",""');
-      lines.push(`"Slip Total","","","","","","","","","${crSlip.toFixed(2)}"`);
-      lines.push(`"Credit Total","","","","","","","","","${crCust.toFixed(2)}"`);
-      lines.push(`"Total (Credit Summary)","","","","","","","","","${crTotal.toFixed(2)}"`);
-      lines.push('"Cash Summary","","","","","","","","",""');
-      for (const col of PAYMENT_COLUMNS.filter((c) => CASH_SUMMARY_KEYS.includes(c.key))) {
-        const n = Number(grandTotals[col.key]);
-        lines.push(`"${col.label} Total","","","","","","","","","${Number.isFinite(n) ? n.toFixed(2) : '0.00'}"`);
-      }
-      lines.push(`"Total (Cash Summary)","","","","","","","","","${cashTotal.toFixed(2)}"`);
-      lines.push(`"Grand Total (Credit + Cash)","","","","","","","","","${(crTotal + cashTotal).toFixed(2)}"`);
-      lines.push(`"Agent Total","","","","","","","","","${Number.isFinite(agentTotal) ? agentTotal.toFixed(2) : '0.00'}"`);
-    }
-
-    const csv = lines.join('\n');
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `cashier-summary-${reportMeta?.from?.replace(/[:T]/g, '-') ?? ''}-to-${reportMeta?.to?.replace(/[:T]/g, '-') ?? 'export'}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-
   const handleDownloadPdf = async () => {
     if (sections.length === 0 && !grandTotals) {
       toast({
@@ -760,21 +442,18 @@ export default function CashierSummaryContent({
       });
       return;
     }
-    const exportMeta = { ...reportMeta, format };
-    const data = buildCashierSummaryExportRows(format);
-    await downloadBrandedReportPdf({
+    const mode = reportMeta.format;
+    await downloadCashierSummaryReportPdf({
+      mode,
       reportName:
-        format === 'detail'
+        mode === 'detail'
           ? 'Userwise Cashier Detail - Channel'
           : 'Userwise Cashier Summary',
-      summaryItems: toBrandedPdfSummaryItems(buildSummaryItems(exportMeta)),
+      summaryItems: toBrandedPdfSummaryItems(buildSummaryItems(reportMeta)),
       generatedAt: reportMeta.generatedAt,
-      data,
-      columns: [...CASHIER_SUMMARY_EXPORT_COLUMNS],
-      keys: CASHIER_SUMMARY_EXPORT_KEYS,
+      sections,
+      grandTotals,
       fileName: `${formatExportFileName('cashier-summary')}.pdf`,
-      orientation: 'portrait',
-      compactTable: true,
     });
   };
 
@@ -789,22 +468,19 @@ export default function CashierSummaryContent({
     }
     setLoadingExcel(true);
     try {
-      const exportMeta = { ...reportMeta, format };
-      const data = buildCashierSummaryExportRows(format);
-      await downloadBrandedReportExcel({
+      const mode = reportMeta.format;
+      await downloadCashierSummaryReportExcel({
+        mode,
         reportName:
-          format === 'detail'
+          mode === 'detail'
             ? 'Userwise Cashier Detail - Channel'
             : 'Userwise Cashier Summary',
-        summaryItems: toBrandedPdfSummaryItems(buildSummaryItems(exportMeta)),
+        summaryItems: toBrandedPdfSummaryItems(buildSummaryItems(reportMeta)),
         generatedAt: reportMeta.generatedAt,
-        data,
-        columns: [...CASHIER_SUMMARY_EXPORT_COLUMNS],
-        keys: CASHIER_SUMMARY_EXPORT_KEYS,
+        sections,
+        grandTotals,
         fileName: `${formatExportFileName('cashier-summary')}.xlsx`,
-        sheetName: 'Cashier Summary',
-        orientation: 'portrait',
-        compactTable: true,
+        sheetName: mode === 'detail' ? 'Cashier Detail' : 'Cashier Summary',
       });
     } catch (error: unknown) {
       toast({
@@ -820,40 +496,18 @@ export default function CashierSummaryContent({
   const hasData = sections.some((s) => s.rows.length > 0 || PAYMENT_COLUMNS.some((col) => s.totals[col.key] !== 0));
 
   return (
-    <div className="w-full py-2 space-y-3 print:py-2 cashier-summary-print-root">
-      <style>{`
-        @media print {
-          .cashier-summary-print-root .overflow-x-auto,
-          .cashier-summary-print-root .overflow-auto {
-            overflow: visible !important;
-          }
-          .cashier-summary-print-root .rpt-print-root table {
-            table-layout: fixed !important;
-            width: 100% !important;
-          }
-          .cashier-summary-print-root .rpt-print-root th,
-          .cashier-summary-print-root .rpt-print-root td {
-            font-size: 6.5pt !important;
-            padding: 0.8mm 0.6mm !important;
-            line-height: 1.15 !important;
-          }
-          .cashier-summary-print-root .rpt-print-root thead th,
-          .cashier-summary-print-root .rpt-print-root th {
-            font-size: 6pt !important;
-          }
-          /* Hide empty sections that only show "No transactions found..." */
-          .cashier-summary-print-root .cashier-section-empty {
-            display: none !important;
-          }
-        }
-      `}</style>
+    <div
+      className={`w-full py-2 space-y-3 print:py-2 cashier-summary-report-root${
+        reportMeta?.format === 'summary' ? ' ucs-print-portrait' : ''
+      }`}
+    >
       <Card className="print:hidden">
         <CardHeader className="pb-2">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
             <div>
               <CardTitle className="text-xl font-bold">Userwise Cashier Detail - Channel</CardTitle>
               <CardDescription className="text-xs mt-0.5">
-                User-wise cashier summary by date range with optional branch filter. Summary shows only refunds in detail; Detail shows all transactions.
+                User-wise cashier summary by date range with optional branch filter. Summary lists Channel Refund, Channel Cancel, Agent Refunded, Agent Canceled, Agent Deposit & Withdraw, Agent Deposit Canceled, and Doctor Payment / Canceled line by line; other sections show totals only. Detail shows all transactions.
               </CardDescription>
             </div>
             <div className="flex gap-2">
@@ -880,10 +534,6 @@ export default function CashierSummaryContent({
                   <FileSpreadsheet className="h-4 w-4" />
                 )}
                 Excel
-              </Button>
-              <Button variant="outline" size="sm" onClick={handleDownloadCSV} className="gap-2">
-                <Download />
-                Download CSV
               </Button>
             </div>
           </div>
@@ -980,7 +630,7 @@ export default function CashierSummaryContent({
       )}
 
       {reportMeta && (
-        <Card className="bg-muted/20 print:shadow-none print:border-0 print:bg-white">
+        <Card className="bg-muted/20 print:shadow-none print:border-0 print:bg-white print:rounded-none">
           <CardHeader className="py-2 print:hidden">
             <CardTitle className="text-base">Userwise Cashier Summary</CardTitle>
             <CardDescription className="text-xs mt-0.5">
@@ -991,35 +641,61 @@ export default function CashierSummaryContent({
               <span className="font-medium text-foreground">Range:</span> {formatReportRangeLabel(reportMeta.from, reportMeta.to)}
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-3 py-2">
+          <CardContent className="space-y-3 py-2 print:p-0 print:space-y-0">
             <ReportPrintLayout
-              reportName={format === 'detail' ? 'Userwise Cashier Detail - Channel' : 'Userwise Cashier Summary'}
-              pageSize="A4 portrait"
+              reportName={
+                reportMeta.format === 'detail'
+                  ? 'Userwise Cashier Detail - Channel'
+                  : 'Userwise Cashier Summary'
+              }
+              pageSize={reportMeta.format === 'summary' ? 'A4 portrait' : 'A4 landscape'}
+              pageMargins="7mm 5mm 18mm"
               generatedAt={reportMeta.generatedAt}
-              summaryItems={buildSummaryItems({ ...reportMeta, format })}
+              summaryItems={buildSummaryItems(reportMeta)}
+              className="print:space-y-0"
             >
+              {/* Summary prints A4 portrait; detail stays landscape. Header is ReportPrintLayout. */}
+              <CashierSummaryPrintLayout
+                generatedAt={reportMeta.generatedAt}
+                pageSize={reportMeta.format === 'summary' ? 'A4 portrait' : 'A4 landscape'}
+              />
+
               {loading ? (
                 <div className="text-center py-8">Loading...</div>
               ) : !hasData ? (
                 <div className="text-center py-8 text-muted-foreground">
                   No data for the selected filters. Try a different date range, branch, or user.
                 </div>
-              ) : (
-                <>
+              ) : reportMeta.format === 'detail' ? (
+                <div className="ucs-screen-detail space-y-3">
                   {sections.map((section) => (
                     <SectionBlock
                       key={section.key}
                       section={section}
-                      showRows={cashierSectionShowDetailRows(format, section.key)}
+                      showRows={cashierSectionShowDetailRows('detail', section.key)}
                     />
                   ))}
-
                   {grandTotals && (
-                    <div className="border-t pt-4 mt-2">
+                    <div className="border-t pt-4 mt-2 ucs-credit-cash-footer">
                       <CashierCreditCashSummaryFooter totals={grandTotals} />
                     </div>
                   )}
-                </>
+                </div>
+              ) : (
+                <div className="ucs-screen-summary space-y-3">
+                  {sections.map((section) => (
+                    <SectionBlock
+                      key={section.key}
+                      section={section}
+                      showRows={cashierSectionShowDetailRows('summary', section.key)}
+                    />
+                  ))}
+                  {grandTotals && (
+                    <div className="border-t pt-4 mt-2 ucs-credit-cash-footer">
+                      <CashierCreditCashSummaryFooter totals={grandTotals} />
+                    </div>
+                  )}
+                </div>
               )}
               {!loading && (
                 <div className="border-t pt-4 mt-2 print:hidden">{renderReportMetaCard(reportMeta)}</div>
@@ -1053,9 +729,9 @@ function SectionBlock({
             <TableHeader>
               <TableRow className="border-b">
                 <TableHead className="w-10 py-1 text-[11px] font-medium text-left">No.</TableHead>
-                <TableHead className="min-w-[190px] py-1 text-[11px] font-medium text-left">Tx Created / Shift</TableHead>
-                <TableHead className="min-w-[84px] py-1 text-[11px] font-medium text-left">Session Date/Time</TableHead>
-                <TableHead className="py-1 text-[11px] font-medium text-left">Receipt ID / Bill ID</TableHead>
+                <TableHead className="ucs-tx-shift min-w-[190px] py-1 text-[11px] font-medium text-left">Tx Created / Shift</TableHead>
+                <TableHead className="ucs-session min-w-[84px] py-1 text-[11px] font-medium text-left">Session Date/Time</TableHead>
+                <TableHead className="ucs-receipt-bill py-1 text-[11px] font-medium text-left">Receipt ID / Bill ID</TableHead>
                 {isIncomeExpense ? (
                   <>
                     <TableHead className="py-1 text-[11px] font-medium text-left">Name</TableHead>
@@ -1063,13 +739,12 @@ function SectionBlock({
                   </>
                 ) : (
                   <>
-                    <TableHead className="py-1 text-[11px] font-medium text-left">
+                    <TableHead className="ucs-patient py-1 text-[11px] font-medium text-left">
                       {isAgencyBillSection ? 'Agency' : 'Patient'}
                     </TableHead>
-                    <TableHead className="py-1 text-[11px] font-medium text-left">Consultant</TableHead>
+                    <TableHead className="ucs-consultant py-1 text-[11px] font-medium text-left">Consultant</TableHead>
                   </>
-                )}
-                {PAYMENT_COLUMNS.map((c) => (
+                )}                {PAYMENT_COLUMNS.map((c) => (
                   <TableHead key={c.key} className={AMOUNT_HEAD}>
                     {c.label}
                   </TableHead>
@@ -1080,20 +755,24 @@ function SectionBlock({
               {section.rows.map((row, idx) => (
                 <TableRow key={`${section.key}-${idx}`} className="border-b border-border/50">
                   <TableCell className="py-0.5 text-[11px] text-center tabular-nums">{idx + 1}</TableCell>
-                  <TableCell className="py-0.5 text-[11px] align-top text-left">
-                    <div className="whitespace-nowrap">
+                  <TableCell className="ucs-tx-shift py-0.5 text-[11px] align-top text-left">
+                    <div className="ucs-stack-line whitespace-nowrap">
                       {row.txCreated instanceof Date
                         ? row.txCreated.toLocaleString()
                         : String(row.txCreated ?? '')}
                     </div>
-                    <div className="text-[9px] text-muted-foreground leading-tight mt-0.5">
+                    {/* Screen: full shift range; print: user name + code only */}
+                    <div className="ucs-stack-line ucs-tx-full text-[9px] text-muted-foreground leading-tight mt-0.5">
                       {row.shiftLabel ?? '—'}
                     </div>
+                    <div className="ucs-stack-line ucs-tx-compact hidden text-[9px] text-muted-foreground leading-tight mt-0.5">
+                      {row.shiftUserLabel ?? '—'}
+                    </div>
                   </TableCell>
-                  <TableCell className="py-0.5 text-[11px] text-left">{row.sessionDateTime ?? '—'}</TableCell>
-                  <TableCell className="py-0.5 text-[11px] text-left">
-                    <div>{row.receiptId}</div>
-                    <div className="text-[9px] text-muted-foreground leading-tight">{row.billId ?? '—'}</div>
+                  <TableCell className="ucs-session py-0.5 text-[11px] text-left">{row.sessionDateTime ?? '—'}</TableCell>
+                  <TableCell className="ucs-receipt-bill py-0.5 text-[11px] text-left">
+                    <div className="ucs-stack-line">{row.receiptId}</div>
+                    <div className="ucs-stack-line text-[9px] text-muted-foreground leading-tight">{row.billId ?? '—'}</div>
                   </TableCell>
                   {isIncomeExpense ? (
                     <>
@@ -1102,8 +781,8 @@ function SectionBlock({
                     </>
                   ) : (
                     <>
-                      <TableCell className="py-0.5 text-[11px] text-left">{row.patient ?? '—'}</TableCell>
-                      <TableCell className="py-0.5 text-[11px] text-left">{row.consultant ?? '—'}</TableCell>
+                      <TableCell className="ucs-patient py-0.5 text-[11px] text-left">{row.patient ?? '—'}</TableCell>
+                      <TableCell className="ucs-consultant py-0.5 text-[11px] text-left">{row.consultant ?? '—'}</TableCell>
                     </>
                   )}
                   {PAYMENT_COLUMNS.map((col) => (

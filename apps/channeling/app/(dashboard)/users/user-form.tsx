@@ -15,6 +15,7 @@ import { Separator } from "@/components/ui/separator"
 import { createNewUser, updateUser, updateUserPassword, getLocationOptions, getDoctorOptionsForUsers, fetchUserById, userHasOpenShiftAction } from "@/app/actions/user.actions"
 import { getStaffOptionsAction } from "@/app/actions/staff.actions"
 import { Combobox } from "@/components/common/combobox"
+import { SearchableSelector } from "@/components/common/searchable-selector"
 import { useToast } from "@/components/hooks/use-toast"
 import { Label } from "@/components/ui/label"
 import CustomSelectField from "@/components/common/custom-select-field"
@@ -483,26 +484,36 @@ const UserForm = ({ user, sessionUserType, userGroupOptions = [] }: UserFormProp
                 </div>
             )
         }
+        const staffValue =
+            formik.values.staffId && formik.values.staffId !== ""
+                ? formik.values.staffId
+                : "__none__"
+        const linkedStaffOptions = [
+            { id: "__none__", name: "None" },
+            ...staffOptions.map((s) => ({
+                id: s.id,
+                name: s.code ? `${s.name} (${s.code})` : s.name,
+            })),
+        ]
         return (
-            <CustomSelectField
-                id="staffId"
-                placeholder="Linked staff"
-                value={formik.values.staffId ?? "__none__"}
-                onChange={(value) => {
-                    formik.setFieldValue("staffId", value === "__none__" ? "" : value)
-                    formik.setFieldTouched("staffId", true)
-                }}
-                required={false}
-                options={[
-                    { id: "__none__", name: "None" },
-                    ...staffOptions.map((s) => ({
-                        id: s.id,
-                        name: s.code ? `${s.name} (${s.code})` : s.name,
-                    })),
-                ]}
-                styleClasses={styleClasses}
-                loading={staffOptionsLoading}
-            />
+            <div className={styleClasses.parentDiv}>
+                <Label className={styleClasses.labelClassName}>Linked staff</Label>
+                <div className={styleClasses.inputClassName}>
+                    <SearchableSelector
+                        label="Linked staff"
+                        placeholder={staffOptionsLoading ? "Loading staff..." : "None"}
+                        options={linkedStaffOptions}
+                        value={staffValue}
+                        defaultValue="__none__"
+                        disabled={staffOptionsLoading}
+                        className="w-full font-normal"
+                        onChange={(value) => {
+                            formik.setFieldValue("staffId", value === "__none__" ? "" : value)
+                            formik.setFieldTouched("staffId", true)
+                        }}
+                    />
+                </div>
+            </div>
         )
     }
 

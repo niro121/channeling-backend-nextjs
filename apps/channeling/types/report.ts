@@ -87,10 +87,10 @@ export type ExportAgentDetailData = {
   contactPerson: string;
   contactPhone: string;
   contactPersonEmail: string;
-  allowedCreditLimit: string;
-  maxCreditLimit: string;
-  standardCreditLimit: string;
-  balance: string;
+  allowedCreditLimit: number;
+  maxCreditLimit: number;
+  standardCreditLimit: number;
+  balance: number;
 };
 
 // User Activity Report Types
@@ -354,17 +354,18 @@ export type AllDoctorViewReportResponse = {
 };
 
 export type ExportAllDoctorViewData = {
-  no: string;
+  no: number;
   consultant: string;
-  notPaid: string;
-  paid: string;
-  cancel: string;
-  hosRefund: string;
-  proRefund: string;
-  hosValid: string;
-  proValid: string;
-  nettValid: string;
-  total: string;
+  notPaid: number | null;
+  paid: number | null;
+  cancel: number | null;
+  hosRefund: number | null;
+  proRefund: number | null;
+  hosValid: number | null;
+  proValid: number | null;
+  nettValid: number | null;
+  /** Raw amount — Excel stores as number (currency format applied on export). */
+  total: number;
   doctorSessionTime: string;
 };
 
@@ -392,7 +393,10 @@ export type CashierSummaryPaymentAmounts = {
 
 export type CashierSummaryReportLineItem = {
   txCreated: Date;
+  /** Full shift label for screen: user (name+code) + shift start–end range */
   shiftLabel: string | null;
+  /** Print-compact: user name + staff code only (no shift range) */
+  shiftUserLabel: string | null;
   sessionDateTime: string | null;
   billId: string | null;
   receiptId: string;
@@ -433,10 +437,23 @@ export type AllCashierSummaryDetailReportQuery = {
   format: 'summary' | 'detail';
 };
 
+/** A shift that contributed receipts for one cashier in the report range. */
+export type AllCashierShiftHandover = {
+  shiftId: string;
+  /** 1-based order of this cashier's shifts in the report, by start time. */
+  shiftNo: number;
+  startedAt: string;
+  handedOver: boolean;
+  handoverNo: string | null;
+  /** When the handover was approved. Null when the shift was not handed over. */
+  handedOverAt: string | null;
+};
+
 export type AllCashierUserSummaryRow = {
   userId: string;
   userName: string;
   receiptCount: number;
+  shifts: AllCashierShiftHandover[];
 } & CashierSummaryPaymentAmounts;
 
 export type AllCashierUserDetailSection = {
@@ -452,6 +469,7 @@ export type AllCashierUserDetailRow = {
   receiptCount: number;
   totals: CashierSummaryPaymentAmounts;
   sections: AllCashierUserDetailSection[];
+  shifts: AllCashierShiftHandover[];
 };
 
 export type AllCashierSummaryDetailReportResponse = {
@@ -539,6 +557,9 @@ export type WithholdingTaxReportRow = {
   docNo: string;
   consultant: string;
   speciality: string;
+  tinNumber: string;
+  nic: string;
+  address: string;
   remarks: string;
   totalAmt: number;
   taxPercent: number;
@@ -547,14 +568,17 @@ export type WithholdingTaxReportRow = {
 };
 
 export type WithholdingTaxReportExportRow = {
-  sNo: string;
+  sNo: string | number;
   docDate: string;
   docNo: string;
   consultant: string;
   speciality: string;
+  tinNumber: string;
+  nic: string;
+  address: string;
   remarks: string;
-  totalAmt: string;
-  taxPercent: string;
-  holdingTax: string;
-  netAmt: string;
+  totalAmt: number;
+  taxPercent: number | null;
+  holdingTax: number;
+  netAmt: number;
 };

@@ -62,9 +62,7 @@ export const getApiLogReportService = async ({
       }
     }
 
-    // Build where clause for Log model
-    // Log model fields: id, status (INFO/ERROR), name, description, before, after, createdAt
-    const logWhere: Prisma.LogWhereInput = {};
+    const logWhere: Prisma.ApiLogWhereInput = {};
 
     if (fromDate != null && toDate != null) {
       logWhere.createdAt = {
@@ -74,15 +72,14 @@ export const getApiLogReportService = async ({
     }
 
     if (hasUuidFilter && uuid) {
-      // Search UUID in name or description fields (case-insensitive)
       const uuidSearch = uuid.trim();
       logWhere.OR = [
-        { name: { contains: uuidSearch, mode: 'insensitive' } },
-        { description: { contains: uuidSearch, mode: 'insensitive' } }
+        { uuid: { contains: uuidSearch, mode: 'insensitive' } },
+        { clientId: { contains: uuidSearch, mode: 'insensitive' } }
       ];
     }
 
-    const totalCount = await prisma.log.count({ where: logWhere });
+    const totalCount = await prisma.apiLog.count({ where: logWhere });
     if (totalCount > MAX_RECORDS_SCAN) {
       return {
         success: false,
@@ -91,23 +88,20 @@ export const getApiLogReportService = async ({
         error: { message: `Too many records in selected range (${totalCount}). Please narrow filters/date range.` }
       };
     }
-    const records = await prisma.log.findMany({
+    const records = await prisma.apiLog.findMany({
       where: logWhere,
       orderBy: { createdAt: 'desc' }
     });
 
-    // Map Log model fields to API log report format
-    // Log.name -> endpoint, Log.status -> errorStatus, Log.before -> requestBody, Log.after -> responseBody
-    // Log.description might contain UUID or other details
     const mappedRecords = records.map((record) => ({
       id: record.id,
       createdAt: record.createdAt,
-      duration: null, // Not available in Log model
-      endpoint: record.name || '-',
-      uuid: record.description || null, // Assuming UUID might be in description
-      errorStatus: record.status === 'ERROR',
-      requestBody: record.before || null,
-      responseBody: record.after || null
+      duration: Math.round((record.durationMs / 1000) * 1000) / 1000,
+      endpoint: record.endpoint || '-',
+      uuid: record.uuid || record.clientId || null,
+      errorStatus: record.errorStatus,
+      requestBody: record.requestBody || null,
+      responseBody: record.responseBody || null
     }));
 
     return {

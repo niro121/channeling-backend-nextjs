@@ -2,10 +2,9 @@
 
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { requirePermission } from '@/lib/server-permissions';
+import { requireReport } from '@/lib/server-permissions';
 import { logActivityNonBlocking } from '@/lib/activity-log';
 import moment from 'moment';
-import { formatLKR } from '@/lib/format-money';
 import { getDoctorBalanceReportService } from '@/services/reports/doctor-balance.report.service';
 import type {
   DoctorBalanceReportExportRow,
@@ -13,7 +12,7 @@ import type {
 } from '@/types/reports/doctor-balance';
 
 export async function getDoctorBalanceReportData(query: DoctorBalanceReportQuery) {
-  await requirePermission('reports', 'view');
+  await requireReport('doctor-balance');
   try {
     const result = await getDoctorBalanceReportService(query);
     const session = await getServerSession(authOptions);
@@ -41,7 +40,7 @@ export async function getDoctorBalanceReportData(query: DoctorBalanceReportQuery
 export async function exportDoctorBalanceReportData(
   query: DoctorBalanceReportQuery
 ): Promise<{ success: boolean; data?: DoctorBalanceReportExportRow[]; message?: string }> {
-  await requirePermission('reports', 'view');
+  await requireReport('doctor-balance');
   try {
     const result = await getDoctorBalanceReportService(query);
     if (!result.success || !result.data?.length) {
@@ -56,7 +55,7 @@ export async function exportDoctorBalanceReportData(
       speciality: r.speciality,
       doctorPhoneNo: r.doctorPhoneNo,
       doctorAddress: r.doctorAddress,
-      doctorBalance: formatLKR(r.doctorBalance),
+      doctorBalance: r.doctorBalance,
     }));
 
     const balanceTotal = result.data.reduce((sum, r) => sum + (Number(r.doctorBalance) || 0), 0);
@@ -68,7 +67,7 @@ export async function exportDoctorBalanceReportData(
       speciality: '',
       doctorPhoneNo: '',
       doctorAddress: '',
-      doctorBalance: formatLKR(balanceTotal),
+      doctorBalance: balanceTotal,
     });
 
     const session = await getServerSession(authOptions);

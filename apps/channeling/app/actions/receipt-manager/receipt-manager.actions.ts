@@ -34,11 +34,18 @@ export type ReceiptExportRow = {
 
 export async function getReceiptListExportAction(
   params: Omit<GetReceiptListParams, "page" | "limit">
-): Promise<{ success: boolean; data?: ReceiptExportRow[]; message?: string }> {
+): Promise<{
+  success: boolean;
+  data?: ReceiptExportRow[];
+  message?: string;
+  totalRecords?: number;
+  exportLimit?: number;
+  limited?: boolean;
+}> {
   await requirePermission("receipt-manager", "view");
   try {
-    const items = await getReceiptListExportService(params);
-    const data: ReceiptExportRow[] = items.map((r) => ({
+    const result = await getReceiptListExportService(params);
+    const data: ReceiptExportRow[] = result.items.map((r) => ({
       receiptNoString: r.receiptNoString ?? "",
       method: getReceiptMethodLabel(r.method),
       type: r.type === 1 ? "Debit" : "Credit",
@@ -49,7 +56,13 @@ export async function getReceiptListExportAction(
       createdAt: r.createdAt ? new Date(r.createdAt).toISOString() : "",
       remarks: r.remarks ?? "",
     }));
-    return { success: true, data };
+    return {
+      success: true,
+      data,
+      totalRecords: result.totalRecords,
+      exportLimit: result.exportLimit,
+      limited: result.limited,
+    };
   } catch (err) {
     return {
       success: false,

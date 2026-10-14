@@ -3,7 +3,7 @@
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import moment from 'moment';
-import { requirePermission } from '@/lib/server-permissions';
+import { requireReport } from '@/lib/server-permissions';
 import { logActivityNonBlocking } from '@/lib/activity-log';
 import { getDoctorArrivalsReportService } from '@/services/reports/doctor.arrivals.report.service';
 import type {
@@ -12,7 +12,7 @@ import type {
 } from '@/types/reports/doctor.arrivals';
 
 export async function getDoctorArrivalsReportData(query: DoctorArrivalsReportQuery) {
-  await requirePermission('reports', 'view');
+  await requireReport('arrivals');
   try {
     const result = await getDoctorArrivalsReportService(query);
     if (!result.success) {
@@ -43,7 +43,7 @@ export async function getDoctorArrivalsReportData(query: DoctorArrivalsReportQue
 export async function exportDoctorArrivalsReportData(
   query: DoctorArrivalsReportQuery
 ): Promise<{ success: boolean; data?: DoctorArrivalsReportExportRow[]; message?: string }> {
-  await requirePermission('reports', 'view');
+  await requireReport('arrivals');
   try {
     const result = await getDoctorArrivalsReportService(query);
     if (!result.success || !result.data?.length) {

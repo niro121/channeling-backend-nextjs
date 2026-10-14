@@ -6,7 +6,7 @@ import { HANDOVER_STATUS, RECONCILIATION_STATUS } from "@/types/handover"
 import { logActivityNonBlocking } from "@/lib/activity-log"
 import { getIO, shiftUpdateRoom } from "@/lib/socket-server"
 import { formatUserDisplayName } from "@/lib/helpers/user-display.helper"
-import { ShiftRequirementError } from "@/lib/shift-requirement-error"
+import { ShiftRequirementError, type ShiftRequirementErrorCode } from "@/lib/shift-requirement-error"
 import { hasPermission } from "@/lib/permissions"
 import { userTypes } from "@/lib/roles"
 import {
@@ -141,33 +141,57 @@ export async function getCurrentShift(userId: string) {
   return shift
 }
 
+export type ShiftRequirementFailure = {
+  code: ShiftRequirementErrorCode
+  message: string
+}
+
+/**
+ * Why a till action cannot proceed, or null when the user has a usable ACTIVE shift.
+ * Expired shifts are allowed only when `allowExpired` is set (float handover).
+ */
+export async function getShiftRequirementFailure(
+  userId: string,
+  options?: { allowExpired?: boolean }
+): Promise<ShiftRequirementFailure | null> {
+  const shift = await getCurrentShift(userId)
+  if (!shift) {
+    return {
+      code: "NO_ACTIVE_SHIFT",
+      message:
+        "You must have an active shift to perform this action. Start or resume a shift from the top bar.",
+    }
+  }
+  if (!options?.allowExpired && isShiftPastMaxDuration(shift)) {
+    return {
+      code: "SHIFT_EXPIRED",
+      message: "Shift expired",
+    }
+  }
+  if (shift.status === SHIFT_STATUS.HANDOVER_PENDING) {
+    return { code: "HANDOVER_NOT_COMPLETE", message: "Handover not complete." }
+  }
+  if (shift.status !== SHIFT_STATUS.ACTIVE) {
+    return {
+      code: "SHIFT_PAUSED",
+      message: "Your shift is paused. Resume your shift from the top bar to continue.",
+    }
+  }
+  return null
+}
+
 /** Throws if the user does not have an ACTIVE shift. Expired shifts are allowed unless booking/ledger checks separately. */
 export async function requireActiveShift(
   userId: string,
   options?: { allowExpired?: boolean }
 ): Promise<void> {
-  const shift = await getCurrentShift(userId)
-  if (!shift) {
-    throw new ShiftRequirementError(
-      "You must have an active shift to perform this action. Start or resume a shift from the top bar.",
-      "NO_ACTIVE_SHIFT"
-    )
-  }
-  if (!options?.allowExpired && isShiftPastMaxDuration(shift)) {
-    throw new ShiftRequirementError(
-      "Your shift time limit has ended. Complete handover from the top bar before continuing.",
-      "SHIFT_EXPIRED"
-    )
-  }
-  if (shift.status === SHIFT_STATUS.HANDOVER_PENDING) {
-    throw new ShiftRequirementError("Handover not complete.", "HANDOVER_NOT_COMPLETE")
-  }
-  if (shift.status !== SHIFT_STATUS.ACTIVE) {
-    throw new ShiftRequirementError(
-      "Your shift is paused. Resume your shift from the top bar to continue.",
-      "SHIFT_PAUSED"
-    )
-  }
+  const failure = await getShiftRequirementFailure(userId, options)
+  if (!failure) return
+  const message =
+    failure.code === "SHIFT_EXPIRED"
+      ? "Your shift time limit has ended. Complete handover from the top bar before continuing."
+      : failure.message
+  throw new ShiftRequirementError(message, failure.code)
 }
 
 export type GetShiftsParams = {
@@ -424,12 +448,22 @@ export async function resumeShift(shiftId: string, userId: string) {
   return { success: true }
 }
 
+/** Receipts posted on this shift. A later refund still leaves the original receipt. */
+async function shiftHasReceipts(shiftId: string): Promise<boolean> {
+  const count = await prisma.receipt.count({ where: { shiftId } })
+  return count > 0
+}
+
 /**
  * True when the shift can be closed with no ShiftHandover:
- * every till is empty (or missing), nothing to forward, no handovers waiting to accept,
- * and no open float requests (pending approval or approved but not yet received).
+ * every till is empty (or missing), the shift has no receipts, nothing to forward,
+ * no handovers waiting to accept, and no open float requests
+ * (pending approval or approved but not yet received).
  */
-export async function canEndShiftWithoutHandover(userId: string): Promise<{
+export async function canEndShiftWithoutHandover(
+  userId: string,
+  shiftId?: string
+): Promise<{
   allowed: boolean
   reason?: string
 }> {
@@ -505,6 +539,25 @@ export async function canEndShiftWithoutHandover(userId: string): Promise<{
     }
   }
 
+  const receiptShiftId =
+    shiftId ??
+    (
+      await shiftModel.findFirst({
+        where: {
+          userId,
+          status: { in: [SHIFT_STATUS.ACTIVE, SHIFT_STATUS.PAUSED] },
+        },
+        select: { id: true },
+        orderBy: { startedAt: "desc" },
+      })
+    )?.id
+  if (receiptShiftId && (await shiftHasReceipts(receiptShiftId))) {
+    return {
+      allowed: false,
+      reason: "This shift has receipts. Complete a handover to end this shift.",
+    }
+  }
+
   return { allowed: true }
 }
 
@@ -519,7 +572,7 @@ export async function endShift(shiftId: string, userId: string) {
   })
   if (!shift) return { success: false, message: "Shift not found" }
 
-  const emptyClose = await canEndShiftWithoutHandover(validUserId)
+  const emptyClose = await canEndShiftWithoutHandover(validUserId, validShiftId)
   if (!emptyClose.allowed) {
     return {
       success: false,

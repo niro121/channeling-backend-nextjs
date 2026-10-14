@@ -1,7 +1,7 @@
 'use server';
 
 import moment from 'moment';
-import { requirePermission } from '@/lib/server-permissions';
+import { requireReport } from '@/lib/server-permissions';
 import { getChannelReportReceiptWiseService } from '@/services/reports/channel-report-receipt-wise.report.service';
 import type {
   ChannelReportReceiptWiseExportRow,
@@ -17,7 +17,7 @@ export async function getChannelReportReceiptWiseData(
   totalRecords: number;
   message?: string;
 }> {
-  await requirePermission('reports', 'view');
+  await requireReport('channel-report-receipt-wise');
   try {
     const result = await getChannelReportReceiptWiseService(query);
     return {
@@ -36,7 +36,7 @@ export async function getChannelReportReceiptWiseData(
 export async function exportChannelReportReceiptWiseData(
   query: ChannelReportReceiptWiseQuery
 ): Promise<{ success: boolean; data?: ChannelReportReceiptWiseExportRow[]; message?: string }> {
-  await requirePermission('reports', 'view');
+  await requireReport('channel-report-receipt-wise');
   try {
     const result = await getChannelReportReceiptWiseService(query);
     if (!result.success || !result.data?.length) {
@@ -49,7 +49,7 @@ export async function exportChannelReportReceiptWiseData(
       receiptDate: moment(row.receiptDate).format('YYYY-MM-DD hh:mm A'),
       receiptMethod: row.receiptMethod,
       transactionType: row.transactionType,
-      receiptAmount: row.receiptAmount.toFixed(2),
+      receiptAmount: Number(row.receiptAmount) || 0,
       bookingNo: row.bookingNo,
       appointmentNo: row.appointmentNo,
       sessionDate: row.sessionDate ? moment(row.sessionDate).format('YYYY-MM-DD') : '-',
@@ -60,11 +60,11 @@ export async function exportChannelReportReceiptWiseData(
       agency: row.agency,
       creditCustomer: row.creditCustomer,
       creator: row.creator,
-      handoverPerson: row.handoverPerson,
+      handedToStaff: row.handedToStaff,
       cancelReason: row.cancelReason,
       reversedReceiptNo: row.reversedReceiptNo,
-      whdAmount: row.whdAmount !== 0 ? row.whdAmount.toFixed(2) : '-',
-      netAmount: row.netAmount.toFixed(2),
+      whdAmount: Number(row.whdAmount) || 0,
+      netAmount: Number(row.netAmount) || 0,
     }));
 
     return { success: true, data: rows };

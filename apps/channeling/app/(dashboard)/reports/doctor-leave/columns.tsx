@@ -25,6 +25,15 @@ export const DoctorLeaveReportColumns: ColumnDef<DoctorLeaveReportRow>[] = [
     cell: ({ row }) => row.original.doctor?.name ?? '-'
   },
   {
+    id: 'branch',
+    header: () => <span className="whitespace-nowrap">Branch</span>,
+    cell: ({ row }) => (
+      <div className="max-w-40 truncate" title={row.original.branchName ?? undefined}>
+        {row.original.branchName?.trim() || '—'}
+      </div>
+    ),
+  },
+  {
     accessorKey: 'leaveDate',
     header: 'Leave Date',
     cell: ({ row }) => {

@@ -1,12 +1,12 @@
 'use server';
 
 import moment from 'moment';
-import { requirePermission } from '@/lib/server-permissions';
+import { requireReport } from '@/lib/server-permissions';
 import { getWithholdingTaxReportService } from '@/services/reports/withholding-tax.report.service';
 import type { WithholdingTaxReportExportRow, WithholdingTaxReportQuery } from '@/types/report';
 
 export async function getWithholdingTaxReportData(query: WithholdingTaxReportQuery) {
-  await requirePermission('reports', 'view');
+  await requireReport('withholding-tax');
   try {
     return await getWithholdingTaxReportService(query);
   } catch (error: unknown) {
@@ -18,7 +18,7 @@ export async function getWithholdingTaxReportData(query: WithholdingTaxReportQue
 export async function exportWithholdingTaxReportData(
   query: WithholdingTaxReportQuery
 ): Promise<{ success: boolean; data?: WithholdingTaxReportExportRow[]; message?: string }> {
-  await requirePermission('reports', 'view');
+  await requireReport('withholding-tax');
   try {
     const result = await getWithholdingTaxReportService(query);
     if (!result.success || !result.data.length) {
@@ -26,16 +26,19 @@ export async function exportWithholdingTaxReportData(
     }
 
     const data: WithholdingTaxReportExportRow[] = result.data.map((row) => ({
-      sNo: String(row.sNo ?? '-'),
+      sNo: row.sNo,
       docDate: row.docDate ? moment(row.docDate).format('DD/MM/YYYY HH:mm') : '-',
       docNo: row.docNo ?? '-',
       consultant: row.consultant ?? '-',
       speciality: row.speciality ?? '-',
+      tinNumber: row.tinNumber ?? '-',
+      nic: row.nic ?? '-',
+      address: row.address ?? '-',
       remarks: row.remarks ?? '-',
-      totalAmt: String(row.totalAmt ?? 0),
-      taxPercent: String(row.taxPercent ?? 0),
-      holdingTax: String(row.holdingTax ?? 0),
-      netAmt: String(row.netAmt ?? 0)
+      totalAmt: row.totalAmt ?? 0,
+      taxPercent: row.taxPercent ?? 0,
+      holdingTax: row.holdingTax ?? 0,
+      netAmt: row.netAmt ?? 0,
     }));
 
     const totalAmt = result.data.reduce((sum, row) => sum + (Number(row.totalAmt) || 0), 0);
@@ -47,11 +50,14 @@ export async function exportWithholdingTaxReportData(
       docNo: '',
       consultant: '',
       speciality: '',
+      tinNumber: '',
+      nic: '',
+      address: '',
       remarks: '',
-      totalAmt: String(totalAmt),
-      taxPercent: '',
-      holdingTax: String(holdingTax),
-      netAmt: String(netAmt),
+      totalAmt,
+      taxPercent: null,
+      holdingTax,
+      netAmt,
     });
 
     return { success: true, data };

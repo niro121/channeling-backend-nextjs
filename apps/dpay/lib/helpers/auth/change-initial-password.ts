@@ -29,7 +29,13 @@ export async function changeInitialPassword(input: {
   }
 
   const user = await authPrisma.user.findFirst({
-    where: { OR: [{ email: identifier }, { username: identifier }], status: 1 },
+    where: {
+      OR: [
+        { email: { equals: identifier, mode: 'insensitive' } },
+        { username: { equals: identifier, mode: 'insensitive' } },
+      ],
+      status: 1,
+    },
   });
 
   if (!user || !user.password) return { success: false, status: 401, error: 'Invalid credentials' };

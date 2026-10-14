@@ -25,3 +25,9 @@ export function isShiftRequirementError(e: unknown): e is ShiftRequirementError 
     typeof err.message === "string"
   )
 }
+
+/** User-facing copy for a blocked till action. Expired shifts use a short, explicit message. */
+export function shiftRequirementMessage(e: ShiftRequirementError): string {
+  if (e.code === "SHIFT_EXPIRED") return "Shift expired"
+  return e.message
+}

@@ -16,12 +16,20 @@ export type CashBookReportRow = {
   runningBalance: number;
 };
 
+/** Closing balance for one payment type. Shown only in the report footer. */
+export type CashBookTypeBalance = {
+  label: string;
+  balanceCents: number;
+};
+
 export type CashBookReportResponse = {
   success: boolean;
   data: CashBookReportRow[];
   totalRecords: number;
   openingBalanceCents: number;
   closingBalanceCents: number;
+  /** Non-zero closing balances by payment type. Sum equals closingBalanceCents. */
+  closingBalancesByType: CashBookTypeBalance[];
   cashBookName: string;
   cashBookCode: string | null;
   message?: string;

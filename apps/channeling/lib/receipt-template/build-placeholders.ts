@@ -73,6 +73,163 @@ export function buildPlaceholdersForLedger(
   }
 }
 
+export type LedgerReceiptPrintLineInput = {
+  mode: string
+  paymentDetails: string
+  transactionNo: string
+  amount: string
+}
+
+export type LedgerReceiptPrintInput = {
+  companyName: string
+  locationName?: string
+  locationAddress: string
+  title: string
+  receiptNo: string
+  dateTime: string
+  agentName: string
+  agentCode: string
+  agentCity: string
+  agentContact: string
+  branchName: string
+  transactionType: string
+  showAgentFields: boolean
+  lines: LedgerReceiptPrintLineInput[]
+  totalAmount: string
+  remarks: string
+  generatedBy: string
+  /** Approver display name. Set for bank deposits that went through approval. */
+  approvedBy?: string
+  /** Approval date and time, already formatted for the slip. */
+  approvedAt?: string
+  statusBanner?: string
+  duplicateLabel?: string
+}
+
+function escapePlaceholder(value: string): string {
+  return String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+}
+
+function formatLedgerInfoBlock(input: LedgerReceiptPrintInput): string {
+  const row = (label: string, value: string) =>
+    `<tr>
+      <td class="label">${label}</td>
+      <td class="colon">:</td>
+      <td class="value">${value}</td>
+    </tr>`
+  const rows = input.showAgentFields
+    ? [
+        row("Receipt No", escapePlaceholder(input.receiptNo)),
+        row("Date/Time", escapePlaceholder(input.dateTime)),
+        row("Agent Name", escapePlaceholder(input.agentName)),
+        row("Agent Code", escapePlaceholder(input.agentCode)),
+        row("Agent City", escapePlaceholder(input.agentCity)),
+        row("Contact No", escapePlaceholder(input.agentContact)),
+      ]
+    : [
+        row("Receipt No", escapePlaceholder(input.receiptNo)),
+        row("Date/Time", escapePlaceholder(input.dateTime)),
+        row("Branch", escapePlaceholder(input.branchName)),
+        row("Transaction Type", escapePlaceholder(input.transactionType)),
+      ]
+  const approvedBy = input.approvedBy?.trim() ?? ""
+  const approvedAt = input.approvedAt?.trim() ?? ""
+  if (approvedBy) rows.push(row("Approved by", escapePlaceholder(approvedBy)))
+  if (approvedAt) rows.push(row("Approved at", escapePlaceholder(approvedAt)))
+  return `<table class="info-grid"><tbody>${rows.join("")}</tbody></table>`
+}
+
+function formatLedgerPaymentTable(lines: LedgerReceiptPrintLineInput[], totalAmount: string): string {
+  const rows = lines
+    .map((line) => {
+      const details = line.paymentDetails.trim()
+      return `<tr>
+        <td class="mode">${escapePlaceholder(line.mode)}${details ? ` ${escapePlaceholder(details)}` : ""}</td>
+        <td class="amt">${escapePlaceholder(line.amount)}</td>
+      </tr>`
+    })
+    .join("")
+  return `<table class="lines">
+    <thead>
+      <tr>
+        <th class="mode">Mode</th>
+        <th class="amt">Amount (Rs)</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${rows}
+      <tr>
+        <td class="total-label">Total</td>
+        <td class="amt">${escapePlaceholder(totalAmount)}</td>
+      </tr>
+    </tbody>
+  </table>`
+}
+
+/** TSV line_items: siNo, mode, paymentDetails, transactionNo, amount */
+function formatLedgerLineItems(lines: LedgerReceiptPrintLineInput[]): string {
+  return lines
+    .map((line, index) =>
+      [
+        String(index + 1).padStart(2, "0"),
+        line.mode,
+        line.paymentDetails,
+        line.transactionNo,
+        line.amount,
+      ].join("\t")
+    )
+    .join("\n")
+}
+
+/**
+ * Placeholders for the Sails-style agent / ledger receipt (dot-matrix).
+ */
+export function buildPlaceholdersForLedgerReceipt(
+  input: LedgerReceiptPrintInput
+): ReceiptPlaceholderMap {
+  const generatedAt = format(new Date(), "dd/MM/yyyy HH.mm")
+  const first = input.lines[0]
+  const statusBanner = (input.statusBanner ?? "").trim()
+  return {
+    company_name: escapePlaceholder(input.companyName),
+    location_name: escapePlaceholder(input.locationName || input.companyName),
+    location_address: escapePlaceholder(input.locationAddress),
+    tel: escapePlaceholder(RUHUNU_HOSPITAL.phone),
+    email: escapePlaceholder(RUHUNU_HOSPITAL.email),
+    web: escapePlaceholder(RUHUNU_HOSPITAL.web),
+    title: escapePlaceholder(input.title),
+    receipt_no: escapePlaceholder(input.receiptNo),
+    date_time: escapePlaceholder(input.dateTime),
+    agency_name: escapePlaceholder(input.agentName),
+    agency_code: escapePlaceholder(input.agentCode),
+    agent_city: escapePlaceholder(input.agentCity),
+    agent_contact: escapePlaceholder(input.agentContact),
+    branch_name: escapePlaceholder(input.branchName),
+    transaction_type: escapePlaceholder(input.transactionType),
+    show_agent_fields: input.showAgentFields ? "1" : "",
+    line_items: formatLedgerLineItems(input.lines),
+    payment_table: formatLedgerPaymentTable(input.lines, input.totalAmount),
+    info_block: formatLedgerInfoBlock(input),
+    mode: escapePlaceholder(first?.mode ?? ""),
+    payment_details: escapePlaceholder(first?.paymentDetails ?? ""),
+    transaction_no: escapePlaceholder(first?.transactionNo ?? ""),
+    amount: escapePlaceholder(input.totalAmount),
+    remarks: escapePlaceholder(input.remarks),
+    generated_by: escapePlaceholder(input.generatedBy),
+    generated_at: escapePlaceholder(generatedAt),
+    approved_by: escapePlaceholder(input.approvedBy?.trim() ?? ""),
+    approved_at: escapePlaceholder(input.approvedAt?.trim() ?? ""),
+    status_banner: statusBanner
+      ? `<div class="status-banner">${escapePlaceholder(statusBanner)}</div>`
+      : "",
+    duplicate_label: escapePlaceholder(input.duplicateLabel ?? ""),
+  }
+}
+
 /**
  * Build placeholder map for doctor payment (Consultant Payment) receipt.
  * Keys: consultant_name, document_status, invoice_no, line_items, sub_payable, wht, net_paid_amount,
@@ -153,10 +310,14 @@ export type BookingReceiptPrintInput = {
   refundAmount: string
   refundReceiptNo: string
   refundReason: string
+  /** Who approved the paid cancel or refund. Blank when there was no approval. */
+  approvedBy: string
   generatedBy: string
   companyName?: string
   locationName?: string
   locationAddress?: string
+  /** Session/branch location name for print (shown alongside payment location). */
+  sessionLocationName?: string
   email?: string
   web?: string
   duplicateLabel?: string
@@ -178,6 +339,7 @@ export function buildPlaceholdersForBookingReceipt(
     company_name: companyName,
     location_name: locationName,
     location_address: locationAddress,
+    session_location_name: input.sessionLocationName?.trim() || "",
     tel: RUHUNU_HOSPITAL.phone,
     email: input.email ?? RUHUNU_HOSPITAL.email,
     web: input.web ?? RUHUNU_HOSPITAL.web,
@@ -212,6 +374,7 @@ export function buildPlaceholdersForBookingReceipt(
     refund_amount: input.refundAmount,
     refund_receipt_no: input.refundReceiptNo,
     refund_reason: input.refundReason,
+    approved_by: input.approvedBy,
     generated_by: input.generatedBy,
     generated_at: generatedAt,
     phone: input.tel,

@@ -20,3 +20,24 @@ export type DashboardQueueSnapshot = {
   shown: number
   noShow: number
 }
+
+/** Approval center work for the signed-in user. */
+export type DashboardApprovalStats = {
+  toAttend: number
+  mineOpen: number
+  cancels: number
+  refunds: number
+  deposits: number
+}
+
+/** Float requests the signed-in user still has to act on. */
+export type DashboardFloatStats = {
+  toApprove: number
+  toReceive: number
+}
+
+/** Pending shift handovers involving the signed-in user. Null means that side is hidden. */
+export type DashboardHandoverStats = {
+  toAccept: number | null
+  sentByMe: number | null
+}

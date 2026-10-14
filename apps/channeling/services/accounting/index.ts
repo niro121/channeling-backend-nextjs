@@ -15,6 +15,12 @@ export {
   getOrCreateWhtPayableAccount,
   WHT_PAYABLE_ACCOUNT_CODE,
   WHT_PAYABLE_NAME,
+  getOrCreateExpenseAdjustmentAccount,
+  EXPENSE_ADJUSTMENT_CODE_PREFIX,
+  EXPENSE_ADJUSTMENT_NAME_PREFIX,
+  expenseAdjustmentAccountCode,
+  expenseAdjustmentAccountName,
+  isExpenseAdjustmentAccount,
   getOrCreateAgentOpeningBalancesAccount,
   AGENT_OPENING_BALANCES_ACCOUNT_CODE,
   AGENT_OPENING_BALANCES_ACCOUNT_NAME,
@@ -46,6 +52,13 @@ export {
   listTillsForUser,
   type ResolvedTill,
 } from './till.service';
+export {
+  ensureCashierShortAccount,
+  getCashierShortBalance,
+  getCashierShortBreakdown,
+  type CashierShortBalance,
+  type CashierShortBreakdown,
+} from './cashier-short-account.service';
 
 // Journals
 export {

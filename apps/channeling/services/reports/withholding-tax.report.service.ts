@@ -13,6 +13,66 @@ function parseDateTime(input?: string, isEnd = false): Date | null {
   return parseReportDateTime(input, isEnd);
 }
 
+type MappedDoctor = {
+  consultant: string;
+  speciality: string;
+  doctorId: string | null;
+  specialityId: string | null;
+  tinNumber: string;
+  nic: string;
+  address: string;
+};
+
+type DoctorIdentitySource = {
+  title: string | null;
+  name: string | null;
+  specialityId: string | null;
+  speciality: { name: string } | null;
+  tinNumber: string | null;
+  nic: string | null;
+  addressLine1: string | null;
+  addressLine2: string | null;
+  city: string | null;
+  id?: string;
+};
+
+const doctorIdentitySelect = {
+  title: true,
+  name: true,
+  specialityId: true,
+  speciality: { select: { name: true } },
+  tinNumber: true,
+  nic: true,
+  addressLine1: true,
+  addressLine2: true,
+  city: true,
+} as const;
+
+function displayOrDash(value: string | null | undefined): string {
+  const trimmed = (value ?? '').trim();
+  return trimmed || '-';
+}
+
+function formatDoctorAddress(doctor: Pick<DoctorIdentitySource, 'addressLine1' | 'addressLine2' | 'city'>): string {
+  const address = [doctor.addressLine1, doctor.addressLine2, doctor.city]
+    .map((part) => (part ?? '').trim())
+    .filter(Boolean)
+    .join(', ');
+  return address || '-';
+}
+
+function mapDoctorIdentity(doctor: DoctorIdentitySource, doctorId: string | null): MappedDoctor {
+  return {
+    consultant: `${doctor.title ?? ''} ${doctor.name ?? ''}`.trim() || '-',
+    speciality: doctor.speciality?.name ?? '-',
+    doctorId,
+    specialityId: doctor.specialityId ?? null,
+    tinNumber: displayOrDash(doctor.tinNumber),
+    nic: displayOrDash(doctor.nic),
+    address: formatDoctorAddress(doctor),
+  };
+}
+
 type ReceiptReportBucket = {
   receiptId: string;
   receiptNoString: string;
@@ -24,6 +84,9 @@ type ReceiptReportBucket = {
   netAmt: number;
   consultant: string;
   speciality: string;
+  tinNumber: string;
+  nic: string;
+  address: string;
   doctorId: string | null;
   specialityId: string | null;
 };
@@ -107,10 +170,7 @@ export async function getWithholdingTaxReportService(
                     doctor: {
                       select: {
                         id: true,
-                        title: true,
-                        name: true,
-                        specialityId: true,
-                        speciality: { select: { name: true } },
+                        ...doctorIdentitySelect,
                       },
                     },
                   },
@@ -163,47 +223,26 @@ export async function getWithholdingTaxReportService(
         doctorPaymentReceiptId: true,
         doctorId: true,
         doctor: {
-          select: {
-            title: true,
-            name: true,
-            specialityId: true,
-            speciality: { select: { name: true } }
-          }
+          select: doctorIdentitySelect
         }
       }
     });
 
-    const receiptDoctorMap = new Map<
-      string,
-      { consultant: string; speciality: string; doctorId: string | null; specialityId: string | null }
-    >();
+    const receiptDoctorMap = new Map<string, MappedDoctor>();
     for (const b of bookings) {
       if (!b.doctorPaymentReceiptId || !b.doctor) continue;
       if (receiptDoctorMap.has(b.doctorPaymentReceiptId)) continue;
-      receiptDoctorMap.set(b.doctorPaymentReceiptId, {
-        consultant: `${b.doctor.title ?? ''} ${b.doctor.name ?? ''}`.trim() || '-',
-        speciality: b.doctor.speciality?.name ?? '-',
-        doctorId: b.doctorId,
-        specialityId: b.doctor.specialityId ?? null,
-      });
+      receiptDoctorMap.set(b.doctorPaymentReceiptId, mapDoctorIdentity(b.doctor, b.doctorId));
     }
 
-    const journalDoctorMap = new Map<
-      string,
-      { consultant: string; speciality: string; doctorId: string | null; specialityId: string | null }
-    >();
+    const journalDoctorMap = new Map<string, MappedDoctor>();
     for (const line of whtLines) {
       if (journalDoctorMap.has(line.journalId)) continue;
       const doctor = line.journal.journalLines
         .map((jl) => jl.account?.doctor)
         .find((d) => Boolean(d));
       if (!doctor) continue;
-      journalDoctorMap.set(line.journalId, {
-        consultant: `${doctor.title ?? ''} ${doctor.name ?? ''}`.trim() || '-',
-        speciality: doctor.speciality?.name ?? '-',
-        doctorId: doctor.id,
-        specialityId: doctor.specialityId ?? null,
-      });
+      journalDoctorMap.set(line.journalId, mapDoctorIdentity(doctor, doctor.id));
     }
 
     const specialityFilter =
@@ -252,6 +291,9 @@ export async function getWithholdingTaxReportService(
           netAmt,
           consultant: mapped.consultant,
           speciality: mapped.speciality,
+          tinNumber: mapped.tinNumber,
+          nic: mapped.nic,
+          address: mapped.address,
           doctorId: mapped.doctorId ?? null,
           specialityId: mapped.specialityId,
         };
@@ -276,6 +318,9 @@ export async function getWithholdingTaxReportService(
           grouped.set(key, {
             consultant: row.consultant,
             speciality: row.speciality,
+            tinNumber: row.tinNumber,
+            nic: row.nic,
+            address: row.address,
             totalAmt: row.totalAmt,
             taxPercent: row.taxPercent,
             holdingTax: row.holdingTax,
@@ -291,6 +336,9 @@ export async function getWithholdingTaxReportService(
         docNo: '-',
         consultant: g.consultant,
         speciality: g.speciality,
+        tinNumber: g.tinNumber,
+        nic: g.nic,
+        address: g.address,
         remarks: '-',
         totalAmt: g.totalAmt,
         taxPercent: g.taxPercent,
@@ -305,6 +353,9 @@ export async function getWithholdingTaxReportService(
         docNo: row.receiptNoString,
         consultant: row.consultant,
         speciality: row.speciality,
+        tinNumber: row.tinNumber,
+        nic: row.nic,
+        address: row.address,
         remarks: row.remarks,
         totalAmt: row.totalAmt,
         taxPercent: row.taxPercent,

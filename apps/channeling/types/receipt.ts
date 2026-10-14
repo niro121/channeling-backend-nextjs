@@ -3,7 +3,7 @@
  * Use these when creating receipts or when building journal entries from receipts.
  */
 
-/** Receipt.method: 0 REFUND, 1 PAYMENT, 2 DEBIT NOTE, 3 CREDIT NOTE, 4 DOCTOR PAYMENT, 5 DOCTOR CANCEL, 6 AGENCY DEPOSIT, 7 AGENCY WITHDRAW, 8 BRANCH INCOME, 9 BRANCH EXPENSE, 10 BANK DEPOSIT, 11 BANK WITHDRAW */
+/** Receipt.method: 0 REFUND, 1 PAYMENT, 2 DEBIT NOTE, 3 CREDIT NOTE, 4 DOCTOR PAYMENT, 5 DOCTOR CANCEL, 6 AGENCY DEPOSIT, 7 AGENCY WITHDRAW, 8 BRANCH INCOME, 9 BRANCH EXPENSE, 10 BANK DEPOSIT, 11 BANK WITHDRAW, 12 CASH VOUCHER, 13 CASH VOUCHER CANCEL */
 export const RECEIPT_METHOD = {
   REFUND: 0,
   PAYMENT: 1,
@@ -17,6 +17,8 @@ export const RECEIPT_METHOD = {
   BRANCH_EXPENSE: 9,
   BANK_DEPOSIT: 10,
   BANK_WITHDRAW: 11,
+  CASH_VOUCHER: 12,
+  CASH_VOUCHER_CANCEL: 13,
 } as const;
 
 /** Receipt.paymentMethod: 0 Cash, 1 Credit Card, 2 Slip, 3 Check, 4 Agent, 5 Credit */
@@ -30,6 +32,24 @@ export const RECEIPT_PAYMENT_METHOD = {
   E_WALLET: 6,
   MIXED: 7,
 } as const;
+
+/** True when the receipt itself was billed as Agent (payment type 4), not merely tagged with an agency. */
+export function isAgentPaymentMethod(paymentMethod: number): boolean {
+  return paymentMethod === RECEIPT_PAYMENT_METHOD.AGENT
+}
+
+/**
+ * Store Receipt.agencyId only for Agent-type payments.
+ * Advance/API On-Call may tag Booking.agencyId without being agent-billed; counter cash/card
+ * settlement of those bookings must not copy the tag onto the receipt.
+ */
+export function receiptAgencyIdIfAgentPayment(
+  paymentMethod: number,
+  agencyId: string | null | undefined
+): string | null {
+  if (!isAgentPaymentMethod(paymentMethod) || !agencyId) return null
+  return agencyId
+}
 
 export const PAYMENT_METHOD_NAMES: Record<number, string> = {
   [RECEIPT_PAYMENT_METHOD.CASH]: 'Cash',
@@ -55,4 +75,6 @@ export const RECEIPT_METHOD_NAMES: Record<number, string> = {
   [RECEIPT_METHOD.BRANCH_EXPENSE]: 'Branch Expense',
   [RECEIPT_METHOD.BANK_DEPOSIT]: 'Bank Deposit',
   [RECEIPT_METHOD.BANK_WITHDRAW]: 'Bank Withdraw',
+  [RECEIPT_METHOD.CASH_VOUCHER]: 'Cash Voucher',
+  [RECEIPT_METHOD.CASH_VOUCHER_CANCEL]: 'Cash Voucher Cancel',
 };

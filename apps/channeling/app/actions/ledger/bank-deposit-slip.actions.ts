@@ -2,7 +2,7 @@
 
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
-import { requirePermission } from "@/lib/server-permissions"
+import { assertCanAddLedgerTransactionType } from "@/lib/server-permissions"
 import { requestBankDepositSlipUpload } from "@/services/bank-deposit-slip.service"
 import { listShiftBillAttachmentsForShift } from "@/services/shift-bill-attachment.service"
 
@@ -10,7 +10,10 @@ export async function requestBankDepositSlipUploadAction(input: {
   contentType: string
   sizeBytes: number
 }) {
-  await requirePermission("ledger", "add")
+  const canDeposit = await assertCanAddLedgerTransactionType("BANK_DEPOSIT")
+  if (!canDeposit) {
+    return { success: false as const, error: "You don't have permission to record a bank deposit." }
+  }
   const session = await getServerSession(authOptions)
   if (!session?.user?.id) {
     return { success: false as const, error: "You must be signed in." }
@@ -23,7 +26,10 @@ export async function requestBankDepositSlipUploadAction(input: {
 }
 
 export async function listShiftBillsForBankDepositAction() {
-  await requirePermission("ledger", "add")
+  const canDeposit = await assertCanAddLedgerTransactionType("BANK_DEPOSIT")
+  if (!canDeposit) {
+    return { success: false as const, error: "You don't have permission to record a bank deposit." }
+  }
   const session = await getServerSession(authOptions)
   if (!session?.user?.id) {
     return { success: false as const, error: "You must be signed in." }

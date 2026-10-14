@@ -27,7 +27,26 @@ export function RoomOccupancyPrintLayout({ rows }: Props) {
         @media print {
           @page {
             size: A4 landscape;
-            margin: 6mm 7mm 11mm;
+            margin: 6mm 5mm 18mm;
+          }
+          .room-occupancy-report-root,
+          .room-occupancy-report-root.container {
+            width: 100% !important;
+            max-width: none !important;
+            margin-left: 0 !important;
+            margin-right: 0 !important;
+            padding-left: 0 !important;
+            padding-right: 0 !important;
+          }
+          .room-occupancy-report-root .rpt-print-root,
+          .room-occupancy-report-root .rpt-print-body,
+          .room-occupancy-report-root .rpt-print-header,
+          .room-occupancy-report-root .rpt-print-summary,
+          .room-occupancy-report-root .ro-print-root,
+          .room-occupancy-report-root .ro-print-table {
+            width: 100% !important;
+            max-width: none !important;
+            box-sizing: border-box !important;
           }
           .room-occupancy-report-root .rpt-print-header {
             margin-bottom: 1mm !important;

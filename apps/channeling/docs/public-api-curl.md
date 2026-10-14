@@ -78,6 +78,8 @@ curl -X GET "http://localhost:3000/api/public/sessions?doctorCode=DR0001&fromDat
       "doctorOnLeave": false,
       "minPatientNumber": 1,
       "maxPatientNumber": 50,
+      "previousSessionId": null,
+      "consecutiveStartNumber": 1,
       "appointmentNo": 12,
       "isFull": false,
       "advancedBookingEnabled": true,
@@ -106,6 +108,8 @@ curl -X GET "http://localhost:3000/api/public/sessions?doctorCode=DR0001&fromDat
 `amount` is net (professional + hospital − auto discount). `apiFeeLocal` / `apiFeeForeign` are the API catalog row only (banking charges); they are already included in `hospitalFee` when `paymentMode` is `api`, and are `0` for `agent` / `oncall`.
 
 `status` is `0` (disabled) when any of: doctor on leave (`doctorOnLeave: true`), current time is past `endTime`, a previous consecutive session on the same day is not full (linked via `previousDoctorSession` — same rule as channel booking), or `isFull` is true. Otherwise `status` is `1`.
+
+`previousSessionId` is the real session id of the immediate previous consecutive session on the same day, or `null` when this session is first, standalone, or that previous session is not in the result. `consecutiveStartNumber` is the starting appointment number of the first session in that chain (`minPatientNumber` of the root). `minPatientNumber` remains this session's own starting number.
 
 `advancedBookingEnabled` is `true` when the doctor session template has advance booking turned on. On **Create booking**, send `paymentMode: oncall` (or `paid: no`) on such sessions for an **On-Call** pending booking. Send `paymentMode: api` for a card/API booking, or `paymentMode: agent` for a settled Agent booking.
 

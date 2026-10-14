@@ -2,7 +2,7 @@
 
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { requirePermission } from '@/lib/server-permissions';
+import { requireReport } from '@/lib/server-permissions';
 import { logActivityNonBlocking } from '@/lib/activity-log';
 import moment from 'moment';
 import { getDailyReturnsSummaryReportService } from '@/services/reports/daily-returns-summary.report.service';
@@ -15,7 +15,7 @@ const money = (n: number) =>
   Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 export async function getDailyReturnsSummaryReportData(query: DailyReturnsSummaryReportQuery) {
-  await requirePermission('reports', 'view');
+  await requireReport('daily-returns-summary');
   try {
     const result = await getDailyReturnsSummaryReportService(query);
     const session = await getServerSession(authOptions);
@@ -41,7 +41,7 @@ export async function getDailyReturnsSummaryReportData(query: DailyReturnsSummar
 export async function exportDailyReturnsSummaryReportData(
   query: DailyReturnsSummaryReportQuery
 ): Promise<{ success: boolean; data?: DailyReturnsSummaryReportExportRow[]; message?: string }> {
-  await requirePermission('reports', 'view');
+  await requireReport('daily-returns-summary');
   try {
     const result = await getDailyReturnsSummaryReportService(query);
     if (!result.success || !result.data?.length) {

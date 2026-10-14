@@ -13,7 +13,7 @@ import DoctorLeaveForm from './doctor-leave-form';
 import { getOneLeaveByID, getSessionsByIds } from '@/app/actions/doctor.leave.action';
 import { useDoctorLeavesRefetch } from './doctor-leaves-refresh-context';
 import type { DoctorLeave, Session } from '@/types/doctor.leave';
-import { formatSessionTime, getSessionStartAt } from '../channel-booking/components/sessions-selection/util';
+import { formatSessionTime } from '../channel-booking/components/sessions-selection/util';
 import Loading from '../loading';
 
 type EditDoctorLeaveDialogProps = {
@@ -28,9 +28,9 @@ function mapApiSessionToItem(raw: any): Session {
     id: raw.id,
     date,
     location: raw.location?.name ?? '',
+    locationId: raw.location?.id ?? raw.locationId ?? '',
     startTime: formatSessionTime(raw.startTime, raw.date),
-    endTime: formatSessionTime(raw.endTime, raw.date),
-    startAt: getSessionStartAt(raw.startTime, date)
+    endTime: formatSessionTime(raw.endTime, raw.date)
   };
 }
 
@@ -71,6 +71,11 @@ export function EditDoctorLeaveDialog({
           if (sessionsRes.success && sessionsRes.data?.length) {
             sessions = sessionsRes.data.map(mapApiSessionToItem);
           }
+          const sessionBranch = sessions.find((s) => s.locationId);
+          const locationId =
+            leave.locationId ?? leave.location?.id ?? sessionBranch?.locationId ?? '';
+          const locationName =
+            leave.location?.name ?? sessionBranch?.location ?? '';
           const doctorLeave: DoctorLeave = {
             id: leave.id,
             fromDate: new Date(leave.fromDate),
@@ -81,6 +86,10 @@ export function EditDoctorLeaveDialog({
             status: leave.status ?? 1,
             doctorId,
             doctor: leave.doctor,
+            locationId: locationId || null,
+            location: locationId
+              ? { id: locationId, name: locationName }
+              : null,
             createdBy: leave.createdBy ?? null,
             updatedBy: leave.updatedBy ?? null,
             createdAt: new Date(leave.createdAt),
@@ -134,6 +143,16 @@ export function EditDoctorLeaveDialog({
           <DoctorLeaveForm
             doctorId={doctorLeaveData.doctorId}
             doctorName={doctorName}
+            branchOptions={
+              doctorLeaveData.locationId
+                ? [
+                    {
+                      id: doctorLeaveData.locationId,
+                      name: doctorLeaveData.location?.name || 'This branch'
+                    }
+                  ]
+                : []
+            }
             doctorLeave={doctorLeaveData}
             user={{
               id: session?.user?.id,

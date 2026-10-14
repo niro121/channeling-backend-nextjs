@@ -301,7 +301,7 @@ export async function downloadChannelTransferReportExcel({
 
     row = writeLabeledValueRow(sheet, row, {
       label: 'BOOKING',
-      value: `${card.bookingId}\nRemarks: ${card.remarks}`,
+      value: `${card.bookingId}\nReceipt: ${card.receiptId}\nRemarks: ${card.remarks}`,
       colCount,
       valueFont: { bold: true, size: 8, name: 'Courier New', color: { argb: 'FF000000' } },
       charsPerLine: 72,

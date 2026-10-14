@@ -121,12 +121,21 @@ const settleBookingSchema = z
       }
     }
 
-    if (data.settle_method === SAVE_PAYMENT_TYPE_E_WALLET && !data.ewallet_ref?.trim()) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["ewallet_ref"],
-        message: "E-wallet reference is required when settling via E-Wallet.",
-      })
+    if (data.settle_method === SAVE_PAYMENT_TYPE_E_WALLET) {
+      if (!data.ewallet_ref?.trim()) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["ewallet_ref"],
+          message: "E-wallet reference is required when settling via E-Wallet.",
+        })
+      }
+      if (!bankId) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["bank"],
+          message: "Bank is required when settling via E-Wallet.",
+        })
+      }
     }
 
     // When settling via Credit Card: both bank and card reference are mandatory.
@@ -219,6 +228,16 @@ const settleBookingSchema = z
             code: z.ZodIssueCode.custom,
             path: ["payment_lines", idx, "slip_date"],
             message: "Slip date is required for slip payment lines.",
+          })
+        }
+        if (
+          line.payment_method === SAVE_PAYMENT_TYPE_E_WALLET &&
+          !line.bank?.id?.trim()
+        ) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ["payment_lines", idx, "bank"],
+            message: "Bank is required for e-wallet payment lines.",
           })
         }
         if (

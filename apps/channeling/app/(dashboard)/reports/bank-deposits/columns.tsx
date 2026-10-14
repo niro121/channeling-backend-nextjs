@@ -9,6 +9,26 @@ function rowTextClass(type: string | null | undefined): string {
   return type === 'Bank Withdraw' ? 'text-red-600 font-medium' : '';
 }
 
+function PersonWhen({
+  name,
+  at,
+  className,
+}: {
+  name: string | null;
+  at: Date | null;
+  className: string;
+}) {
+  if (!name && !at) return <span className={className}>-</span>;
+  return (
+    <span className={className}>
+      <span className="block">{name || '-'}</span>
+      <span className="block tabular-nums text-muted-foreground">
+        {at ? moment(at).format('YYYY-MM-DD HH:mm:ss') : '-'}
+      </span>
+    </span>
+  );
+}
+
 export const BankDepositsColumns: ColumnDef<BankDepositsReportRow>[] = [
   {
     id: 'sNo',
@@ -71,8 +91,30 @@ export const BankDepositsColumns: ColumnDef<BankDepositsReportRow>[] = [
     header: 'Created Date and Time',
     cell: ({ row }) => {
       const d = row.getValue<Date | null>('createdAt');
-      return <span className={rowTextClass(row.original.transactionType)}>{d ? moment(d).format('YYYY-MM-DD HH:mm') : '-'}</span>;
+      return <span className={rowTextClass(row.original.transactionType)}>{d ? moment(d).format('YYYY-MM-DD HH:mm:ss') : '-'}</span>;
     },
+  },
+  {
+    id: 'requestedBy',
+    header: 'Requested By',
+    cell: ({ row }) => (
+      <PersonWhen
+        name={row.original.requestedBy}
+        at={row.original.requestedAt}
+        className={rowTextClass(row.original.transactionType)}
+      />
+    ),
+  },
+  {
+    id: 'approvedBy',
+    header: 'Approved By',
+    cell: ({ row }) => (
+      <PersonWhen
+        name={row.original.approvedBy}
+        at={row.original.approvedAt}
+        className={rowTextClass(row.original.transactionType)}
+      />
+    ),
   },
   {
     accessorKey: 'bankAccountName',
@@ -82,6 +124,28 @@ export const BankDepositsColumns: ColumnDef<BankDepositsReportRow>[] = [
         {row.getValue<string>('bankAccountName') ?? '-'}
       </span>
     ),
+  },
+  {
+    id: 'attachment',
+    header: 'Attachment',
+    cell: ({ row }) => {
+      const url = row.original.attachmentUrl;
+      const name = row.original.attachmentName || 'View slip';
+      if (!url) {
+        return <span className={rowTextClass(row.original.transactionType)}>-</span>;
+      }
+      return (
+        <a
+          href={url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-primary underline underline-offset-2"
+          title={name}
+        >
+          View
+        </a>
+      );
+    },
   },
   {
     accessorKey: 'totalAmount',

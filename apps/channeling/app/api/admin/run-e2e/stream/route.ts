@@ -1,7 +1,5 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
-import { userTypes } from "@/lib/roles";
+import { routeDenied } from "@/lib/api-privilege";
 import prisma from "@/lib/prisma";
 import { spawn } from "child_process";
 
@@ -53,14 +51,8 @@ export async function POST(request: Request) {
     );
   }
 
-  const session = await getServerSession(authOptions);
-  if (!session?.user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-  const userType = (session.user as { userType?: number }).userType;
-  if (userType !== userTypes.admin) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
+  const denied = await routeDenied("/admin/run-e2e");
+  if (denied) return denied;
 
   let scenarioId: string | null = null;
   try {

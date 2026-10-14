@@ -6,7 +6,7 @@ import { Selector } from '@/components/common/selector';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/components/hooks/use-toast';
-import { Download, FileSpreadsheet, FileText, Loader2, Printer, SearchIcon } from 'lucide-react';
+import { FileSpreadsheet, FileText, Loader2, Printer, SearchIcon } from 'lucide-react';
 import { getAgentBalanceReportData } from '@/app/actions/reports/agent-balance.report.action';
 import type { AgentBalanceReportContentProps, AgentBalanceReportRow } from '@/types/reports/agent-balance';
 import { formatLKR } from '@/lib/format-money';
@@ -15,12 +15,13 @@ import { ReportAgentSelect } from '@/components/common/agent-select';
 import { ReportGenerationDetailsCard } from '@/components/common/report-generation-details';
 import {
   ReportPrintLayout,
-  downloadBrandedReportExcel,
-  downloadBrandedReportPdf,
   toBrandedPdfSummaryItems,
 } from '@/components/common/report-print';
 import type { ReportPrintSummaryItem } from '@/components/common/report-print';
 import { ReportEmptyStateCard } from '@/components/common/report-empty-state';
+import { AgentBalancePrintLayout } from './agent-balance-print-layout';
+import { downloadAgentBalanceReportPdf } from './agent-balance-pdf';
+import { downloadAgentBalanceReportExcel } from './agent-balance-excel';
 
 const STATUS_OPTIONS = [
   { id: '1', name: 'Active' },
@@ -100,52 +101,6 @@ export default function AgentBalanceReportContent({ agentOptions, currentUserNam
       />
     ) : null;
 
-  const downloadCsv = () => {
-    if (rows.length === 0) {
-      toast({ variant: 'destructive', title: 'No data', description: 'Run a search first to download.' });
-      return;
-    }
-    const lines = [
-      [
-        'S No.',
-        'Status',
-        'Agent Code',
-        'Parent Agent',
-        'Agent Name',
-        'Agent Phone No',
-        'Agent Address',
-        'Hard credit limit',
-        'Agency credit limit',
-        'Allowed credit limit',
-        'Agent Balance',
-      ].join(','),
-      ...rows.map((r, i) =>
-        [
-          i + 1,
-          r.status === 1 ? 'Active' : 'Inactive',
-          r.agentCode,
-          r.parentAgent,
-          r.agentName,
-          r.agentPhoneNo,
-          r.agentAddress,
-          r.hardCreditLimit.toFixed(2),
-          r.agencyCreditLimit.toFixed(2),
-          r.allowedCreditLimit.toFixed(2),
-          r.agentBalance.toFixed(2),
-        ]
-          .map((v) => `"${String(v).replace(/"/g, '""')}"`)
-          .join(',')
-      ),
-    ];
-    const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `agent-balance-report-${new Date().toISOString().slice(0, 10)}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-
   const downloadPdf = async () => {
     if (rows.length === 0) {
       toast({ variant: 'destructive', title: 'No data', description: 'Run a search first to download PDF.' });
@@ -155,63 +110,12 @@ export default function AgentBalanceReportContent({ agentOptions, currentUserNam
       toast({ variant: 'destructive', title: 'No data', description: 'Run a search first to download PDF.' });
       return;
     }
-    type PdfRow = {
-      no: string;
-      status: string;
-      agentCode: string;
-      parentAgent: string;
-      agentName: string;
-      agentPhoneNo: string;
-      agentAddress: string;
-      hardCreditLimit: string;
-      agencyCreditLimit: string;
-      allowedCreditLimit: string;
-      agentBalance: string;
-    };
-    const data: PdfRow[] = rows.map((r, i) => ({
-      no: String(i + 1),
-      status: r.status === 1 ? 'Active' : 'Inactive',
-      agentCode: r.agentCode,
-      parentAgent: r.parentAgent,
-      agentName: r.agentName,
-      agentPhoneNo: r.agentPhoneNo,
-      agentAddress: r.agentAddress,
-      hardCreditLimit: r.hardCreditLimit.toFixed(2),
-      agencyCreditLimit: r.agencyCreditLimit.toFixed(2),
-      allowedCreditLimit: r.allowedCreditLimit.toFixed(2),
-      agentBalance: r.agentBalance.toFixed(2),
-    }));
-    await downloadBrandedReportPdf({
+    await downloadAgentBalanceReportPdf({
       reportName: 'Agent Balance Report',
       summaryItems: toBrandedPdfSummaryItems(buildSummaryItems(reportMeta)),
       generatedAt: reportMeta.generatedAt,
-      data,
-      columns: [
-        'No.',
-        'Status',
-        'Agent Code',
-        'Parent Agent',
-        'Agent Name',
-        'Phone',
-        'Address',
-        'Hard credit limit',
-        'Agency credit limit',
-        'Allowed credit limit',
-        'Agent Balance',
-      ],
-      keys: [
-        'no',
-        'status',
-        'agentCode',
-        'parentAgent',
-        'agentName',
-        'agentPhoneNo',
-        'agentAddress',
-        'hardCreditLimit',
-        'agencyCreditLimit',
-        'allowedCreditLimit',
-        'agentBalance',
-      ],
+      rows,
+      balanceTotal,
       fileName: `${formatExportFileName('agent-balance-report')}.pdf`,
     });
   };
@@ -223,63 +127,12 @@ export default function AgentBalanceReportContent({ agentOptions, currentUserNam
     }
     setLoadingExcel(true);
     try {
-      type ExcelRow = {
-        no: string;
-        status: string;
-        agentCode: string;
-        parentAgent: string;
-        agentName: string;
-        agentPhoneNo: string;
-        agentAddress: string;
-        hardCreditLimit: string;
-        agencyCreditLimit: string;
-        allowedCreditLimit: string;
-        agentBalance: string;
-      };
-      const data: ExcelRow[] = rows.map((r, i) => ({
-        no: String(i + 1),
-        status: r.status === 1 ? 'Active' : 'Inactive',
-        agentCode: r.agentCode,
-        parentAgent: r.parentAgent,
-        agentName: r.agentName,
-        agentPhoneNo: r.agentPhoneNo,
-        agentAddress: r.agentAddress,
-        hardCreditLimit: r.hardCreditLimit.toFixed(2),
-        agencyCreditLimit: r.agencyCreditLimit.toFixed(2),
-        allowedCreditLimit: r.allowedCreditLimit.toFixed(2),
-        agentBalance: r.agentBalance.toFixed(2),
-      }));
-      await downloadBrandedReportExcel({
+      await downloadAgentBalanceReportExcel({
         reportName: 'Agent Balance Report',
         summaryItems: toBrandedPdfSummaryItems(buildSummaryItems(reportMeta)),
         generatedAt: reportMeta.generatedAt,
-        data,
-        columns: [
-          'No.',
-          'Status',
-          'Agent Code',
-          'Parent Agent',
-          'Agent Name',
-          'Phone',
-          'Address',
-          'Hard credit limit',
-          'Agency credit limit',
-          'Allowed credit limit',
-          'Agent Balance',
-        ],
-        keys: [
-          'no',
-          'status',
-          'agentCode',
-          'parentAgent',
-          'agentName',
-          'agentPhoneNo',
-          'agentAddress',
-          'hardCreditLimit',
-          'agencyCreditLimit',
-          'allowedCreditLimit',
-          'agentBalance',
-        ],
+        rows,
+        balanceTotal,
         fileName: `${formatExportFileName('agent-balance-report')}.xlsx`,
         sheetName: 'Agent Balance',
       });
@@ -295,7 +148,7 @@ export default function AgentBalanceReportContent({ agentOptions, currentUserNam
   };
 
   return (
-    <div className="w-full py-2 space-y-3">
+    <div className="w-full py-2 space-y-3 agent-balance-report-root">
       <Card className="print:hidden">
         <CardHeader className="pb-2">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
@@ -324,7 +177,6 @@ export default function AgentBalanceReportContent({ agentOptions, currentUserNam
                 )}
                 Excel
               </Button>
-              <Button variant="outline" size="sm" onClick={downloadCsv} className="gap-2"><Download />Download CSV</Button>
             </div>
           </div>
         </CardHeader>
@@ -369,7 +221,8 @@ export default function AgentBalanceReportContent({ agentOptions, currentUserNam
           <CardContent className="space-y-3 py-2">
             <ReportPrintLayout
               reportName="Agent Balance Report"
-              pageSize="A4 landscape"
+              pageSize="A4 portrait"
+              pageMargins="6mm 5mm 18mm"
               generatedAt={reportMeta.generatedAt}
               summaryItems={buildSummaryItems(reportMeta)}
             >
@@ -384,7 +237,7 @@ export default function AgentBalanceReportContent({ agentOptions, currentUserNam
                 </div>
               ) : (
                 <>
-                  <div className="rounded-md border overflow-x-auto">
+                  <div className="rounded-md border overflow-x-auto ab-screen-table print:hidden">
                     <Table className="text-[11px] [&_th]:px-1.5 [&_td]:px-1.5 [&_th]:border-r [&_th:last-child]:border-r-0 [&_td]:border-r [&_td:last-child]:border-r-0">
                       <TableHeader>
                         <TableRow className="border-b">
@@ -433,6 +286,9 @@ export default function AgentBalanceReportContent({ agentOptions, currentUserNam
                         </TableRow>
                       </TableBody>
                     </Table>
+                  </div>
+                  <div className="ab-print-only hidden print:block">
+                    <AgentBalancePrintLayout rows={rows} balanceTotal={balanceTotal} />
                   </div>
                   <div className="print:hidden">{renderMetaCard()}</div>
                 </>

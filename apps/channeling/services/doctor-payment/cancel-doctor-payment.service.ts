@@ -16,8 +16,7 @@ import {
   type AccountingTx,
 } from "@/services/accounting.service";
 import { getNextSequenceNumber } from "@/services/channel-booking/helpers/sequence";
-import { requireActiveShift, getCurrentShift } from "@/services/shift.service";
-import { isShiftRequirementError } from "@/lib/shift-requirement-error";
+import { getCurrentShift, getShiftRequirementFailure } from "@/services/shift.service";
 
 const JOURNAL_SEQUENCE_SCOPE = "journal";
 
@@ -39,23 +38,12 @@ export async function cancelDoctorPaymentService(
   input: CancelDoctorPaymentInput
 ): Promise<CancelDoctorPaymentResult> {
   if (input.canceledBy) {
-    try {
-      await requireActiveShift(input.canceledBy, { allowExpired: true });
-    } catch (e) {
-      if (isShiftRequirementError(e)) {
-        return {
-          success: false,
-          errorCode: e.code,
-          message: e.message,
-        };
-      }
+    const shiftFailure = await getShiftRequirementFailure(input.canceledBy);
+    if (shiftFailure) {
       return {
         success: false,
-        errorCode: "NO_ACTIVE_SHIFT",
-        message:
-          e instanceof Error
-            ? e.message
-            : "You must have an active shift to perform this action. Start or resume a shift from the top bar.",
+        errorCode: shiftFailure.code,
+        message: shiftFailure.code === "SHIFT_EXPIRED" ? "Shift expired" : shiftFailure.message,
       };
     }
   }

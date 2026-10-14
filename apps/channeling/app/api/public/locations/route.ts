@@ -1,3 +1,4 @@
+import { withPublicApiLog } from "@/lib/public-api-log"
 import { NextRequest, NextResponse } from "next/server"
 import { publicApiCorsHeaders } from "@/lib/public-api-cors"
 import { getPublicApiClient } from "@/lib/public-api-auth"
@@ -41,7 +42,7 @@ export async function OPTIONS() {
   return withCors(new NextResponse(null, { status: 204 }))
 }
 
-export async function GET(request: NextRequest) {
+export const GET = withPublicApiLog(async function GET(request: NextRequest) {
   const client = await getPublicApiClient(request.headers, { recheckBlocked: true })
   if (!client) return unauthorized()
 
@@ -80,9 +81,9 @@ export async function GET(request: NextRequest) {
       totalRecords: result.totalRecords,
     })
   )
-}
+})
 
-export async function POST(request: NextRequest) {
+export const POST = withPublicApiLog(async function POST(request: NextRequest) {
   const client = await getPublicApiClient(request.headers, { recheckBlocked: true })
   if (!client) return unauthorized()
 
@@ -122,4 +123,4 @@ export async function POST(request: NextRequest) {
       { status: 201 }
     )
   )
-}
+})

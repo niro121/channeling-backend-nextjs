@@ -5,7 +5,7 @@
  * Usage:
  *   npm run migrate:all                              # full pipeline (recommended)
  *   npm run migrate:import
- *   npm run migrate:import -- --flush                    # Flush tables then import (no prompt)
+ *   npm run migrate:import -- --flush                    # Flush tables (including all GL accounts) then import
  *   npm run migrate:import -- --no-flush                 # Import only, do not delete
  *   npm run migrate:import -- --only=specialities       # Run only specialities (then exit)
  * Report state in temp/ is cleared automatically at the start of each migrate:import run.
@@ -311,6 +311,13 @@ async function deleteMigrateTables(): Promise<void> {
   add('shift handovers', (await prisma.shiftHandover.deleteMany({})).count);
   add('shifts', (await prisma.shift.deleteMany({})).count);
   add('tills', (await prisma.till.deleteMany({})).count);
+  // Journal lines restrict Account deletes. Clear the ledger, then every GL account
+  // (cash books, payables, receivables, income, expense) so step 2 can recreate them.
+  add('float requests', (await prisma.floatRequest.deleteMany({})).count);
+  add('journal lines', (await prisma.journalLine.deleteMany({})).count);
+  add('journals', (await prisma.journal.deleteMany({})).count);
+  await prisma.account.updateMany({ data: { parentAccountId: null } });
+  add('accounts', (await prisma.account.deleteMany({})).count);
   add('user booking locations', (await prisma.userBookingLocation.deleteMany({})).count);
   add(
     'user.userLocationId unlinked',

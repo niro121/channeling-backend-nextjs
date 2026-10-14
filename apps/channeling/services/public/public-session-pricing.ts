@@ -84,6 +84,8 @@ export function parsePublicPaymentMode(
 export function publicPaymentModeToMethods(
   mode: PublicPaymentMode
 ): PublicPaymentMethodPair {
+  // Agent method (2) only for paymentMode=agent. Unpaid online advance is On-Call so it
+  // can be settled at the counter as POS; paid website bookings are API (4), not Agent.
   if (mode === "agent") {
     return {
       payment_method: SAVE_BOOKING_METHOD_AGENT,

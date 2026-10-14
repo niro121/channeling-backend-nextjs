@@ -3,7 +3,7 @@
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { getChannelBookingsReportService } from '@/services/reports/channel-bookings.report.service';
-import { requirePermission } from '@/lib/server-permissions';
+import { requireReport } from '@/lib/server-permissions';
 import { logActivityNonBlocking } from '@/lib/activity-log';
 import {
   ChannelBookingsReportQuery,
@@ -11,7 +11,7 @@ import {
 } from '@/types/reports/channel-bookings';
 
 export async function getChannelBookingsReportData(query: ChannelBookingsReportQuery) {
-  await requirePermission('reports', 'view');
+  await requireReport('channel-bookings');
   try {
     const result = await getChannelBookingsReportService(query);
     return {
@@ -39,7 +39,7 @@ export async function exportChannelBookingsReportData(
   data?: ChannelBookingsReportExportRow[];
   message?: string;
 }> {
-  await requirePermission('reports', 'view');
+  await requireReport('channel-bookings');
   try {
     const result = await getChannelBookingsReportService(query);
     if (!result.success || !result.data?.length) {
@@ -149,10 +149,10 @@ export async function exportChannelBookingsReportData(
         area: row.area ?? '-',
         updater,
         creator,
-        hospitalFee: typeof row.hospitalFee === 'number' ? row.hospitalFee.toFixed(2) : '-',
-        doctorFee: typeof row.professionalFee === 'number' ? row.professionalFee.toFixed(2) : '-',
-        discount: typeof row.discount === 'number' ? row.discount.toFixed(2) : '-',
-        totalFee: typeof row.amount === 'number' ? row.amount.toFixed(2) : '-',
+        hospitalFee: typeof row.hospitalFee === 'number' ? row.hospitalFee : '-',
+        doctorFee: typeof row.professionalFee === 'number' ? row.professionalFee : '-',
+        discount: typeof row.discount === 'number' ? row.discount : '-',
+        totalFee: typeof row.amount === 'number' ? row.amount : '-',
         paymentMode: row.receiptPaymentMethod != null ? (PAYMENT_METHOD_NAMES[row.receiptPaymentMethod] ?? String(row.receiptPaymentMethod)) : '-',
         agentName: row.agency?.name ?? '-',
       };

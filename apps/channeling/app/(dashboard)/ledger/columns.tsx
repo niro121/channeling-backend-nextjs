@@ -9,11 +9,9 @@ import { ReceiptNoCell } from "./receipt-no-cell"
 import { LedgerRecordActions } from "./ledger-record-actions"
 
 export function getLedgerColumns({
-  canCancel,
-  canCancelBankDeposit,
+  cancelableMethods,
 }: {
-  canCancel: boolean
-  canCancelBankDeposit: boolean
+  cancelableMethods: number[]
 }): ColumnDef<LedgerReceiptListItem>[] {
   return [
   {
@@ -144,8 +142,7 @@ export function getLedgerColumns({
       <div className="text-right">
         <LedgerRecordActions
           row={row}
-          canCancel={canCancel}
-          canCancelBankDeposit={canCancelBankDeposit}
+          cancelableMethods={cancelableMethods}
         />
       </div>
     ),
@@ -153,4 +150,4 @@ export function getLedgerColumns({
   ]
 }
 
-export const LedgerColumns = getLedgerColumns({ canCancel: true, canCancelBankDeposit: true })
+export const LedgerColumns = getLedgerColumns({ cancelableMethods: [] })

@@ -939,6 +939,12 @@ function isValidObjectId(s: string | null | undefined): boolean {
   return !!s && /^[a-f0-9]{24}$/i.test(s);
 }
 
+/** Legacy all-bookings sends agency.code. Fall back to migrateSourceId if a payload still sends the Mongo id. */
+function resolveAgencyId(key: string | null, maps: RefMaps): string | null {
+  if (!key) return null;
+  return maps.agenciesByCode.get(key) ?? maps.agenciesBySourceId.get(key) ?? null;
+}
+
 type RefMaps = {
   doctorsByCode: Map<string, string>;
   departmentsByName: Map<string, string>;
@@ -947,6 +953,8 @@ type RefMaps = {
   roomsByKey: Map<string, string>;
   doctorSessionsBySourceId: Map<string, { id: string; fees: AppFee[] }>;
   agenciesBySourceId: Map<string, string>;
+  /** Legacy all-bookings sends agency.code, not the Mongo id. */
+  agenciesByCode: Map<string, string>;
   discountsBySourceId: Map<string, string>;
   doctorsBySourceId: Map<string, string>;
   staffByCode: Map<string, string>;
@@ -965,8 +973,7 @@ async function loadRefMaps(): Promise<RefMaps> {
         select: { id: true, migrateSourceId: true, fees: true },
       }),
       prisma.agency.findMany({
-        where: { migrateSourceId: { not: null } },
-        select: { id: true, migrateSourceId: true },
+        select: { id: true, code: true, migrateSourceId: true },
       }),
       prisma.discount.findMany({
         where: { migrateSourceId: { not: null } },
@@ -998,6 +1005,9 @@ async function loadRefMaps(): Promise<RefMaps> {
     doctorSessionsBySourceId,
     agenciesBySourceId: new Map(
       agencies.filter((a) => a.migrateSourceId).map((a) => [a.migrateSourceId!, a.id])
+    ),
+    agenciesByCode: new Map(
+      agencies.filter((a) => a.code).map((a) => [a.code!, a.id])
     ),
     discountsBySourceId: new Map(
       discounts.filter((d) => d.migrateSourceId).map((d) => [d.migrateSourceId!, d.id])
@@ -1264,11 +1274,11 @@ function buildBookingData(
   const appointmentNo = safeNumber(row.appointment_no);
   if (!appointmentNo) return null;
 
-  const agencySourceId = toLegacyString(row.agency);
+  const agencyKey = toLegacyString(row.agency);
   const discountSourceId = toLegacyString(row.discount_id);
   const autoDiscountSourceId = toLegacyString(row.auto_discount_id);
   const referredDoctorSourceId = toLegacyString(row.referred_doctor);
-  const referredAgencySourceId = toLegacyString(row.referred_agency);
+  const referredAgencyKey = toLegacyString(row.referred_agency);
   const staffCode = toLegacyString(row.staff);
   const referredStaffCode = toLegacyString(row.referred_staff);
 
@@ -1288,6 +1298,11 @@ function buildBookingData(
     : null;
   const movedBy = isValidObjectId(row.movedby) ? row.movedby! : null;
 
+  // Legacy amount is the fee subtotal (professional + hospital, including card commission).
+  // This app stores amount as the bill total after discount; the screen adds discount back for the subtotal.
+  const discount = safeNumber(row.discount);
+  const amount = Math.round((safeNumber(row.amount) - discount) * 100) / 100;
+
   return {
     migrateSourceId: legacyId,
     title: row.title ?? '',
@@ -1299,8 +1314,8 @@ function buildBookingData(
     method: safeNumber(row.method),
     sessionId,
     doctorId,
-    amount: safeNumber(row.amount),
-    discount: safeNumber(row.discount),
+    amount,
+    discount,
     foriegner: Boolean(row.foriegner),
     status: safeNumber(row.status),
     createdBy: isValidObjectId(row.createdBy) ? row.createdBy! : importUserId,
@@ -1317,7 +1332,7 @@ function buildBookingData(
     canceledAt,
     canceledBy,
     agencyRef: row.agency_ref ?? '',
-    agencyId: agencySourceId ? maps.agenciesBySourceId.get(agencySourceId) ?? null : null,
+    agencyId: resolveAgencyId(agencyKey, maps),
     staffId: staffCode ? maps.staffByCode.get(staffCode) ?? null : null,
     discountDivision: (row.discount_division ?? null) as Prisma.InputJsonValue,
     hospitalFeeDiscount: safeNumber(row.hospital_fee_discount),
@@ -1329,9 +1344,7 @@ function buildBookingData(
         maps.doctorsByCode.get(referredDoctorSourceId) ??
         null
       : null,
-    referredAgencyId: referredAgencySourceId
-      ? maps.agenciesBySourceId.get(referredAgencySourceId) ?? null
-      : null,
+    referredAgencyId: resolveAgencyId(referredAgencyKey, maps),
     referredStaffId: referredStaffCode ? maps.staffByCode.get(referredStaffCode) ?? null : null,
     sessionStartTime: unixToSeconds(row.session_start_time),
     sessionEndTime: unixToSeconds(row.session_end_time),

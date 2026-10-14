@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { DateRangePicker } from '@/components/common/date-range-picker';
 import { Combobox } from '@/components/common/combobox';
 import { Selector } from '@/components/common/selector';
-import { Download, FileSpreadsheet, FileText, Loader2, Printer, SearchIcon } from 'lucide-react';
+import { FileSpreadsheet, FileText, Loader2, Printer, SearchIcon } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useToast } from '@/components/hooks/use-toast';
 import {
@@ -186,70 +186,6 @@ export default function DoctorAppointmentCountReportContent({
 
   const handlePrint = () => window.print();
 
-  const handleDownloadCsv = () => {
-    if (rows.length === 0) {
-      toast({ variant: 'destructive', title: 'No data', description: 'Run a search first to download CSV.' });
-      return;
-    }
-    const lines: string[] = [];
-    lines.push([
-      'Consultant',
-      'Speciality',
-      'Not Paid',
-      'Paid',
-      'Cancel',
-      'Hos Refund',
-      'Pro Refund',
-      'Hos Valid',
-      'Pro Valid',
-      'Nett Valid',
-      'Hos',
-      'Pro',
-      'Total ( Rs. )',
-    ].join(','));
-    for (const r of rows) {
-      lines.push([
-        r.consultant,
-        r.speciality,
-        String(r.notPaid),
-        String(r.paid),
-        String(r.cancel),
-        String(r.hosRefund),
-        String(r.proRefund),
-        String(r.hosValid),
-        String(r.proValid),
-        String(r.nettValid),
-        money(r.hos),
-        money(r.pro),
-        money(r.total),
-      ].map((v) => `"${String(v).replace(/"/g, '""')}"`).join(','));
-    }
-    if (totals) {
-      lines.push([
-        'Total',
-        '',
-        String(totals.notPaid),
-        String(totals.paid),
-        String(totals.cancel),
-        String(totals.hosRefund),
-        String(totals.proRefund),
-        String(totals.hosValid),
-        String(totals.proValid),
-        String(totals.nettValid),
-        money(totals.hos),
-        money(totals.pro),
-        money(totals.total),
-      ].map((v) => `"${String(v).replace(/"/g, '""')}"`).join(','));
-    }
-    const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `doctor-appointment-count-${moment().format('YYYY-MM-DD')}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-
   const handleDownloadPdf = async () => {
     if (rows.length === 0) {
       toast({ variant: 'destructive', title: 'No data', description: 'Run a search first to download PDF.' });
@@ -349,17 +285,17 @@ export default function DoctorAppointmentCountReportContent({
       type ExcelRow = {
         consultant: string;
         speciality: string;
-        notPaid: string;
-        paid: string;
-        cancel: string;
-        hosRefund: string;
-        proRefund: string;
-        hosValid: string;
-        proValid: string;
-        nettValid: string;
-        hos: string;
-        pro: string;
-        total: string;
+        notPaid: number;
+        paid: number;
+        cancel: number;
+        hosRefund: number;
+        proRefund: number;
+        hosValid: number;
+        proValid: number;
+        nettValid: number;
+        hos: number;
+        pro: number;
+        total: number;
       };
       const toRow = (
         r: DoctorAppointmentCountReportRow | DoctorAppointmentCountReportTotals,
@@ -367,17 +303,17 @@ export default function DoctorAppointmentCountReportContent({
       ): ExcelRow => ({
         consultant: label ?? ('consultant' in r ? r.consultant : 'Total'),
         speciality: 'speciality' in r ? r.speciality : '',
-        notPaid: String(r.notPaid),
-        paid: String(r.paid),
-        cancel: String(r.cancel),
-        hosRefund: String(r.hosRefund),
-        proRefund: String(r.proRefund),
-        hosValid: String(r.hosValid),
-        proValid: String(r.proValid),
-        nettValid: String(r.nettValid),
-        hos: money(r.hos),
-        pro: money(r.pro),
-        total: money(r.total),
+        notPaid: r.notPaid,
+        paid: r.paid,
+        cancel: r.cancel,
+        hosRefund: r.hosRefund,
+        proRefund: r.proRefund,
+        hosValid: r.hosValid,
+        proValid: r.proValid,
+        nettValid: r.nettValid,
+        hos: r.hos,
+        pro: r.pro,
+        total: r.total,
       });
       const data: ExcelRow[] = [
         ...rows.map((r) => toRow(r)),
@@ -418,6 +354,21 @@ export default function DoctorAppointmentCountReportContent({
           'pro',
           'total',
         ],
+        columnNumberFormats: [
+          undefined, // Consultant
+          undefined, // Speciality
+          '0', // Not Paid
+          '0', // Paid
+          '0', // Cancel
+          '0', // Hos Refund
+          '0', // Pro Refund
+          '0', // Hos Valid
+          '0', // Pro Valid
+          '0', // Nett Valid
+          '#,##0.00', // Hos
+          '#,##0.00', // Pro
+          '#,##0.00', // Total
+        ],
         fileName: `${formatExportFileName('doctor-appointment-count')}.xlsx`,
         sheetName: 'Appointment Count',
         orientation: 'portrait',
@@ -438,24 +389,119 @@ export default function DoctorAppointmentCountReportContent({
     <div className="w-full py-2 space-y-3 doctor-appointment-count-print-root">
       <style>{`
         @media print {
-          .doctor-appointment-count-print-root .overflow-x-auto,
-          .doctor-appointment-count-print-root .overflow-auto {
-            overflow: visible !important;
+          /* Full page width — print only (screen / PDF / Excel unchanged) */
+          .doctor-appointment-count-print-root {
+            width: 100% !important;
+            max-width: none !important;
+            margin-left: 0 !important;
+            margin-right: 0 !important;
+            padding-left: 0 !important;
+            padding-right: 0 !important;
           }
-          .doctor-appointment-count-print-root .rpt-print-root table {
+          .doctor-appointment-count-print-root .rpt-print-root,
+          .doctor-appointment-count-print-root .rpt-print-body,
+          .doctor-appointment-count-print-root .rpt-print-header,
+          .doctor-appointment-count-print-root .rpt-print-summary {
+            width: 100% !important;
+            max-width: none !important;
+            box-sizing: border-box !important;
+          }
+          .doctor-appointment-count-print-root > div {
+            width: 100% !important;
+            max-width: none !important;
+            margin-left: 0 !important;
+            margin-right: 0 !important;
+          }
+          .doctor-appointment-count-print-root .overflow-x-auto,
+          .doctor-appointment-count-print-root .overflow-auto,
+          .doctor-appointment-count-print-root .overflow-hidden,
+          .doctor-appointment-count-print-root .rounded-md {
+            overflow: visible !important;
+            width: 100% !important;
+            max-width: none !important;
+            border-radius: 0 !important;
+            box-shadow: none !important;
+          }
+
+          /* Body — match compact branded PDF layout */
+          .doctor-appointment-count-print-root .rpt-print-root table.dac-print-table {
             table-layout: fixed !important;
             width: 100% !important;
+            max-width: 100% !important;
+            border-collapse: collapse !important;
+            border: 0.5pt solid #000 !important;
           }
-          .doctor-appointment-count-print-root .rpt-print-root th,
-          .doctor-appointment-count-print-root .rpt-print-root td {
-            font-size: 6.5pt !important;
+          /* Consultant | Speciality | 8 counts | Hos | Pro | Total */
+          .doctor-appointment-count-print-root .rpt-print-root table.dac-print-table th:nth-child(1),
+          .doctor-appointment-count-print-root .rpt-print-root table.dac-print-table td:nth-child(1) { width: 16% !important; }
+          .doctor-appointment-count-print-root .rpt-print-root table.dac-print-table th:nth-child(2),
+          .doctor-appointment-count-print-root .rpt-print-root table.dac-print-table td:nth-child(2) { width: 12% !important; }
+          .doctor-appointment-count-print-root .rpt-print-root table.dac-print-table th:nth-child(n+3):nth-child(-n+10),
+          .doctor-appointment-count-print-root .rpt-print-root table.dac-print-table td:nth-child(n+3):nth-child(-n+10) { width: 5% !important; }
+          .doctor-appointment-count-print-root .rpt-print-root table.dac-print-table th:nth-child(11),
+          .doctor-appointment-count-print-root .rpt-print-root table.dac-print-table td:nth-child(11),
+          .doctor-appointment-count-print-root .rpt-print-root table.dac-print-table th:nth-child(12),
+          .doctor-appointment-count-print-root .rpt-print-root table.dac-print-table td:nth-child(12) { width: 8% !important; }
+          .doctor-appointment-count-print-root .rpt-print-root table.dac-print-table th:nth-child(13),
+          .doctor-appointment-count-print-root .rpt-print-root table.dac-print-table td:nth-child(13) { width: 16% !important; }
+
+          .doctor-appointment-count-print-root .rpt-print-root table.dac-print-table th,
+          .doctor-appointment-count-print-root .rpt-print-root table.dac-print-table td {
+            font-size: 5.5pt !important;
             padding: 0.7mm 0.5mm !important;
-            line-height: 1.15 !important;
+            line-height: 1.2 !important;
             white-space: normal !important;
             word-break: break-word !important;
+            overflow-wrap: break-word !important;
+            overflow: hidden !important;
+            text-overflow: clip !important;
+            max-width: none !important;
+            border: 0.5pt solid #000 !important;
+            color: #000 !important;
+            vertical-align: middle !important;
+            box-sizing: border-box !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
           }
-          .doctor-appointment-count-print-root .rpt-print-root thead th {
-            font-size: 6pt !important;
+          .doctor-appointment-count-print-root .rpt-print-root table.dac-print-table thead th {
+            font-size: 5pt !important;
+            font-weight: 700 !important;
+            background: #e8e8e8 !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+          .doctor-appointment-count-print-root .rpt-print-root table.dac-print-table th:nth-child(n+3):nth-child(-n+10),
+          .doctor-appointment-count-print-root .rpt-print-root table.dac-print-table td:nth-child(n+3):nth-child(-n+10) {
+            text-align: center !important;
+            white-space: nowrap !important;
+            font-variant-numeric: tabular-nums !important;
+          }
+          .doctor-appointment-count-print-root .rpt-print-root table.dac-print-table th:nth-child(n+11),
+          .doctor-appointment-count-print-root .rpt-print-root table.dac-print-table td:nth-child(n+11) {
+            text-align: right !important;
+            white-space: nowrap !important;
+            font-variant-numeric: tabular-nums !important;
+          }
+          .doctor-appointment-count-print-root .rpt-print-root table.dac-print-table th:first-child,
+          .doctor-appointment-count-print-root .rpt-print-root table.dac-print-table td:first-child {
+            border-left: 0.7pt solid #000 !important;
+            text-align: left !important;
+          }
+          .doctor-appointment-count-print-root .rpt-print-root table.dac-print-table th:nth-child(2),
+          .doctor-appointment-count-print-root .rpt-print-root table.dac-print-table td:nth-child(2) {
+            text-align: left !important;
+          }
+          .doctor-appointment-count-print-root .rpt-print-root table.dac-print-table th:last-child,
+          .doctor-appointment-count-print-root .rpt-print-root table.dac-print-table td:last-child {
+            border-right: 0.7pt solid #000 !important;
+          }
+          .doctor-appointment-count-print-root .rpt-print-root table.dac-print-table tr.rpt-print-total td {
+            font-weight: 700 !important;
+            background: #f3f3f3 !important;
+          }
+          .doctor-appointment-count-print-root .rpt-print-root tr {
+            break-inside: avoid !important;
+            page-break-inside: avoid !important;
           }
         }
       `}</style>
@@ -492,10 +538,6 @@ export default function DoctorAppointmentCountReportContent({
                   <FileSpreadsheet className="h-4 w-4" />
                 )}
                 Excel
-              </Button>
-              <Button variant="outline" size="sm" onClick={handleDownloadCsv} className="gap-2">
-                <Download />
-                Download CSV
               </Button>
             </div>
           </div>
@@ -569,13 +611,14 @@ export default function DoctorAppointmentCountReportContent({
             <ReportPrintLayout
               reportName="Doctor Appointment Count Report ( By Session Date )"
               pageSize="A4 portrait"
+              pageMargins="7mm 5mm 18mm"
               generatedAt={reportMeta.generatedAt}
               summaryItems={buildSummaryItems(reportMeta)}
             >
               <div className="space-y-3">
                 <div className="print:hidden">{renderReportMetaCard()}</div>
                 <div className="rounded-md border overflow-x-auto">
-                  <Table className="text-[11px] [&_th]:px-1.5 [&_td]:px-1.5 [&_th]:border-r [&_th:last-child]:border-r-0 [&_td]:border-r [&_td:last-child]:border-r-0">
+                  <Table className="dac-print-table text-[11px] [&_th]:px-1.5 [&_td]:px-1.5 [&_th]:border-r [&_th:last-child]:border-r-0 [&_td]:border-r [&_td:last-child]:border-r-0">
                     <TableHeader>
                       <TableRow className="border-b">
                         <TableHead className="text-left">Consultant</TableHead>

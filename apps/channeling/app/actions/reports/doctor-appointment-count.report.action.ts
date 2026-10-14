@@ -1,6 +1,6 @@
 'use server';
 
-import { requirePermission } from '@/lib/server-permissions';
+import { requireReport } from '@/lib/server-permissions';
 import { getDoctorAppointmentCountReportService } from '@/services/reports/doctor-appointment-count.report.service';
 import type {
   DoctorAppointmentCountReportExportRow,
@@ -18,7 +18,7 @@ export async function getDoctorAppointmentCountReportData(
   totalRecords: number;
   message?: string;
 }> {
-  await requirePermission('reports', 'view');
+  await requireReport('doctor-appointment-count');
   try {
     const res = await getDoctorAppointmentCountReportService(query);
     return {
@@ -37,7 +37,7 @@ export async function getDoctorAppointmentCountReportData(
 export async function exportDoctorAppointmentCountReportData(
   query: DoctorAppointmentCountReportQuery
 ): Promise<{ success: boolean; data?: DoctorAppointmentCountReportExportRow[]; message?: string }> {
-  await requirePermission('reports', 'view');
+  await requireReport('doctor-appointment-count');
   try {
     const res = await getDoctorAppointmentCountReportService(query);
     if (!res.success || !res.data?.length) {
@@ -46,17 +46,17 @@ export async function exportDoctorAppointmentCountReportData(
     const data: DoctorAppointmentCountReportExportRow[] = res.data.map((r) => ({
       consultant: r.consultant,
       speciality: r.speciality,
-      notPaid: String(r.notPaid),
-      paid: String(r.paid),
-      cancel: String(r.cancel),
-      hosRefund: String(r.hosRefund),
-      proRefund: String(r.proRefund),
-      hosValid: String(r.hosValid),
-      proValid: String(r.proValid),
-      nettValid: String(r.nettValid),
-      hos: r.hos.toFixed(2),
-      pro: r.pro.toFixed(2),
-      total: r.total.toFixed(2),
+      notPaid: r.notPaid,
+      paid: r.paid,
+      cancel: r.cancel,
+      hosRefund: r.hosRefund,
+      proRefund: r.proRefund,
+      hosValid: r.hosValid,
+      proValid: r.proValid,
+      nettValid: r.nettValid,
+      hos: r.hos,
+      pro: r.pro,
+      total: r.total,
     }));
     return { success: true, data };
   } catch (error: unknown) {

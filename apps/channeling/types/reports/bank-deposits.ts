@@ -19,8 +19,20 @@ export type BankDepositsReportRow = {
   userLocation: string | null;
   user: string | null;
   createdAt: Date | null;
+  /** User who submitted the linked bank-deposit approval. */
+  requestedBy: string | null;
+  /** When the linked bank-deposit approval was requested. */
+  requestedAt: Date | null;
+  /** User who approved the linked bank-deposit request. */
+  approvedBy: string | null;
+  /** When the linked bank-deposit request was approved. */
+  approvedAt: Date | null;
   bankAccountId: string | null;
   bankAccountName: string | null;
+  /** Relative URL to the deposit-slip image, when one was attached. */
+  attachmentUrl: string | null;
+  /** File name of the attached deposit slip. */
+  attachmentName: string | null;
   totalAmount: number;
   count: number;
 };
@@ -33,7 +45,10 @@ export type BankDepositsReportExportRow = {
   userLocation: string;
   user: string;
   createdAt: string;
+  requestedBy: string;
+  approvedBy: string;
   bankAccount: string;
+  attachment: string;
   total: string;
 };
 

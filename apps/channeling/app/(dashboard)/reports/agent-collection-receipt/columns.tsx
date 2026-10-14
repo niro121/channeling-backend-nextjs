@@ -84,6 +84,11 @@ export const AgentCollectionReceiptColumns: ColumnDef<AgentCollectionReceiptRepo
     cell: ({ row }) => <span className={`text-right tabular-nums block ${isNegativeReceipt(row.original) ? 'text-red-600' : ''}`.trim()}>{formatReceiptAmount(row.getValue<number>('slipAmount') ?? 0)}</span>
   },
   {
+    accessorKey: 'eWalletAmount',
+    header: () => <span className="text-right block whitespace-nowrap">E-Wallet</span>,
+    cell: ({ row }) => <span className={`text-right tabular-nums block ${isNegativeReceipt(row.original) ? 'text-red-600' : ''}`.trim()}>{formatReceiptAmount(row.getValue<number>('eWalletAmount') ?? 0)}</span>
+  },
+  {
     accessorKey: 'slipRef',
     header: 'Slip Ref',
     cell: ({ row }) => <span className={isNegativeReceipt(row.original) ? 'text-red-600' : ''}>{row.getValue<string>('slipRef') ?? '-'}</span>

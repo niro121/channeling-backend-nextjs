@@ -10,7 +10,7 @@ import NoShowPatientReportContent from './no-show-patient-report-content';
 export const dynamic = 'force-dynamic';
 
 export default async function NoShowPatientReportPage() {
-  const canView = await checkRouteAccess('/reports');
+  const canView = await checkRouteAccess('/reports/no-show-patient');
   if (!canView) redirect('/unauthorized-access');
 
   const [session, ref, locRef, deptRef, specRef] = await Promise.all([

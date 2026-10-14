@@ -1,7 +1,7 @@
 'use server';
 
 import moment from 'moment';
-import { requirePermission } from '@/lib/server-permissions';
+import { requireReport } from '@/lib/server-permissions';
 import { getChannelDiscountReportService } from '@/services/reports/channel-discount.report.service';
 import type {
   ChannelDiscountReportExportRow,
@@ -17,7 +17,7 @@ function formatSession(date: Date | null, startUnix: number | null, endUnix: num
 }
 
 export async function getChannelDiscountReportData(query: ChannelDiscountReportQuery): Promise<ChannelDiscountReportResult> {
-  await requirePermission('reports', 'view');
+  await requireReport('channel-discount');
   try {
     return await getChannelDiscountReportService(query);
   } catch (error: unknown) {
@@ -29,7 +29,7 @@ export async function getChannelDiscountReportData(query: ChannelDiscountReportQ
 export async function exportChannelDiscountReportData(
   query: ChannelDiscountReportQuery
 ): Promise<{ success: boolean; data?: ChannelDiscountReportExportRow[]; message?: string }> {
-  await requirePermission('reports', 'view');
+  await requireReport('channel-discount');
   try {
     const result = await getChannelDiscountReportService(query);
     if (!result.success || !result.data?.length) {
@@ -43,11 +43,11 @@ export async function exportChannelDiscountReportData(
       patientName: row.patientName ?? '-',
       doctor: row.doctor ?? '-',
       type: row.type ?? '-',
-      hospitalFee: String(row.hospitalFee ?? 0),
-      hospitalFeeDiscount: String(row.hospitalFeeDiscount ?? 0),
-      professionalFee: String(row.professionalFee ?? 0),
-      professionalFeeDiscount: String(row.professionalFeeDiscount ?? 0),
-      discount: String(row.discount ?? 0),
+      hospitalFee: row.hospitalFee ?? 0,
+      hospitalFeeDiscount: row.hospitalFeeDiscount ?? 0,
+      professionalFee: row.professionalFee ?? 0,
+      professionalFeeDiscount: row.professionalFeeDiscount ?? 0,
+      discount: row.discount ?? 0,
       autoDiscountScheme: row.autoDiscountScheme ?? '-',
       discountScheme: row.discountScheme ?? '-'
     }));

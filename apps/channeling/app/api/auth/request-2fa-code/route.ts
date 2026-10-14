@@ -13,6 +13,7 @@ import {
 } from '@/lib/helpers/2fa/totp';
 import { send2faSms, send2faEmail } from '@/lib/helpers/2fa/send-2fa-code';
 import crypto from 'crypto';
+import { loginIdentifierOr } from '@/lib/helpers/auth/parse-login-identifier';
 
 const APP_NAME = process.env.NEXT_PUBLIC_APP_NAME || 'Ruhunu Channelling';
 
@@ -43,7 +44,7 @@ export async function POST(request: Request) {
 
     const user = await prisma.user.findFirst({
       where: {
-        OR: [{ email: identifier }, { username: identifier }],
+        OR: loginIdentifierOr(identifier),
         status: 1
       },
       include: { userGroup: true }

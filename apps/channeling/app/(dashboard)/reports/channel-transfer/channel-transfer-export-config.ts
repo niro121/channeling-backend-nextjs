@@ -14,6 +14,7 @@ export type ChannelTransferCompactCard = {
   when: string;
   by: string;
   bookingId: string;
+  receiptId: string;
   remarks: string;
   fromLine: string;
   toLine: string;
@@ -108,6 +109,7 @@ export function mapChannelTransferCompactFromReportRow(
     when: formatStamp(row.transferredAt),
     by: dash(row.transferredByUserName),
     bookingId: dash(row.bookingDisplayId || row.bookingId),
+    receiptId: dash(row.receiptNoString),
     remarks: dash(row.remarks),
     fromLine: shortenTransferActivity(row.beforeActivity, 'from'),
     toLine: shortenTransferActivity(row.afterActivity, 'to'),
@@ -127,6 +129,7 @@ export function mapChannelTransferCompactFromExportRow(
     when: formatStamp(row.transferredAt),
     by: dash(row.transferredBy),
     bookingId: dash(row.bookingId),
+    receiptId: dash(row.receiptId),
     remarks: dash(row.remarks),
     fromLine: shortenTransferActivity(row.beforeActivity, 'from'),
     toLine: shortenTransferActivity(row.afterActivity, 'to'),
@@ -143,6 +146,7 @@ export const CHANNEL_TRANSFER_EXPORT_COLUMNS = [
   'Transferred At',
   'Transferred By',
   'Booking ID',
+  'Receipt ID',
   'Remarks',
   'From (Before)',
   'To (After)',
@@ -157,6 +161,7 @@ export const CHANNEL_TRANSFER_EXPORT_KEYS = [
   'transferredAt',
   'transferredBy',
   'bookingId',
+  'receiptId',
   'remarks',
   'beforeActivity',
   'afterActivity',

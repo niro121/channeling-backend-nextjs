@@ -5,6 +5,7 @@ import { Plus } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { AddLedgerTransactionDialog } from "./add-ledger-transaction-dialog"
 import type { ReferenceSelectOption } from "@/types/reference"
+import type { LedgerTransactionType } from "@/services/ledger/create-ledger-receipt.service"
 
 type BankOption = { id: string; name: string }
 type BankAccountOption = {
@@ -21,6 +22,7 @@ type BankAccountOption = {
 
 type LedgerToolbarWithAddDialogProps = {
   canAdd: boolean
+  allowedTransactionTypes: LedgerTransactionType[]
   locations: ReferenceSelectOption[]
   agencies: ReferenceSelectOption[]
   banks: BankOption[]
@@ -31,6 +33,7 @@ type LedgerToolbarWithAddDialogProps = {
 
 export function LedgerToolbarWithAddDialog({
   canAdd,
+  allowedTransactionTypes,
   locations,
   agencies,
   banks,
@@ -40,13 +43,14 @@ export function LedgerToolbarWithAddDialog({
 }: LedgerToolbarWithAddDialogProps) {
   const [addDialogOpen, setAddDialogOpen] = React.useState(false)
 
+  if (!canAdd || allowedTransactionTypes.length === 0) return null
+
   return (
     <>
       <Button
         size="sm"
         className="gap-1.5 h-9 cursor-pointer"
         onClick={() => setAddDialogOpen(true)}
-        disabled={!canAdd}
         asChild={false}
       >
         <Plus className="h-4 w-4" />
@@ -63,6 +67,7 @@ export function LedgerToolbarWithAddDialog({
         bankAccounts={bankAccounts}
         userLocationId={userLocationId}
         userLocationName={userLocationName}
+        allowedTransactionTypes={allowedTransactionTypes}
       />
     </>
   )

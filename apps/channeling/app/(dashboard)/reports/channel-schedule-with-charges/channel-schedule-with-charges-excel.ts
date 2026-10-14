@@ -14,6 +14,7 @@ import {
 import type { ChannelScheduleWithChargesReportExportRow } from '@/types/reports/channel-schedule-with-charges';
 import {
   CHANNEL_SCHEDULE_EXPORT_GROUPS,
+  CHANNEL_SCHEDULE_FEE_KEYS,
   channelScheduleExportCellValue,
 } from './channel-schedule-with-charges-export-config';
 
@@ -255,7 +256,11 @@ export async function downloadChannelScheduleWithChargesReportExcel({
         right: { style: 'thin' },
         bottom: { style: 'thin' },
       };
-      cell.alignment = { vertical: 'middle', horizontal: 'left', wrapText: true };
+      cell.alignment = {
+        vertical: 'middle',
+        horizontal: CHANNEL_SCHEDULE_FEE_KEYS.has(col.key) ? 'right' : 'left',
+        wrapText: true,
+      };
       colIndex += 1;
     }
   }
@@ -270,6 +275,7 @@ export async function downloadChannelScheduleWithChargesReportExcel({
       for (const col of group.columns) {
         const cell = dataRow.getCell(colIndex);
         const value = channelScheduleExportCellValue(item, col.key);
+        const isFee = CHANNEL_SCHEDULE_FEE_KEYS.has(col.key);
         cell.value = value;
         cell.font = { size: 8, name: 'Arial' };
         cell.border = {
@@ -278,7 +284,14 @@ export async function downloadChannelScheduleWithChargesReportExcel({
           right: { style: 'thin' },
           bottom: { style: 'thin' },
         };
-        cell.alignment = { vertical: 'top', horizontal: 'left', wrapText: true };
+        cell.alignment = {
+          vertical: 'top',
+          horizontal: isFee ? 'right' : 'left',
+          wrapText: true,
+        };
+        if (isFee && typeof value === 'number') {
+          cell.numFmt = '#,##0.00';
+        }
         colIndex += 1;
       }
     }

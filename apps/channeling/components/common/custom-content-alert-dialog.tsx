@@ -47,7 +47,17 @@ export function CustomContentAlertDialog({
           >
             Cancel
           </AlertDialogCancel>
-          <AlertDialogAction onClick={handleContinue} disabled={loading} className="cursor-pointer">
+          <AlertDialogAction
+            type="button"
+            onClick={(event) => {
+              // AlertDialogAction closes the dialog unless the click is cancelled.
+              // Callers close it themselves after async work succeeds.
+              event.preventDefault();
+              handleContinue();
+            }}
+            disabled={loading}
+            className="cursor-pointer"
+          >
             {continueLabel} {loading && <Spinner />}
           </AlertDialogAction>
         </AlertDialogFooter>

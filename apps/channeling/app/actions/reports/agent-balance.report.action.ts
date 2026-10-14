@@ -1,6 +1,6 @@
 'use server';
 
-import { requirePermission } from '@/lib/server-permissions';
+import { requireReport } from '@/lib/server-permissions';
 import { getAgentBalanceReportService } from '@/services/reports/agent-balance.report.service';
 import type { AgentBalanceReportQuery, AgentBalanceReportRow } from '@/types/reports/agent-balance';
 
@@ -12,7 +12,7 @@ export async function getAgentBalanceReportData(
   totalRecords?: number;
   message?: string;
 }> {
-  await requirePermission('reports', 'view');
+  await requireReport('agent-balance');
   try {
     const result = await getAgentBalanceReportService(query);
     return {

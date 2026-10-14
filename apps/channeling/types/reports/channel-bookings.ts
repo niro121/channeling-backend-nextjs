@@ -14,7 +14,7 @@ export type ChannelBookingsReportQuery = {
   branchTypeId?: string;
   specialityId?: string;
   doctorId?: string;
-  status?: string; // '__all__' | '0' | '1' | '2' | '3' (Pending, Paid, Cancel, Refund)
+  status?: string; // '__all__' | '0' | '1' | '2' (Pending, Paid, Cancel)
   refundStatus?: string; // '__all__' | 'no_refund' | 'any_refund' | 'hospital_only' | 'professional_only' | 'full_only'
   areaId?: string;
   agencyId?: string;
@@ -59,7 +59,6 @@ export const STATUS_OPTIONS = [
   { id: '1', name: 'Paid' },
   { id: '0', name: 'Pending' },
   { id: '2', name: 'Cancel' },
-  { id: '3', name: 'Refund' },
 ];
 
 export const REFUND_STATUS_OPTIONS = [

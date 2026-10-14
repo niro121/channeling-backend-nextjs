@@ -66,7 +66,7 @@ export const RECEIPT_REPORT_EXPORT_GROUPS: ReceiptReportExportGroup[] = [
     title: 'Audit',
     columns: [
       { key: 'creator', header: 'Creator' },
-      { key: 'handoverPerson', header: 'Handover Person' },
+      { key: 'handedToStaff', header: 'Handed to Staff' },
     ],
   },
 ];
@@ -100,6 +100,9 @@ export const RECEIPT_REPORT_PDF_HEADERS = [
 function s(row: ChannelReportReceiptWiseExportRow, key: keyof ChannelReportReceiptWiseExportRow): string {
   const v = row[key];
   if (v === undefined || v === null || v === '') return '-';
+  if (typeof v === 'number' && Number.isFinite(v)) {
+    return v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
   return String(v);
 }
 
@@ -123,7 +126,7 @@ export function receiptReportPdfCompactRow(row: ChannelReportReceiptWiseExportRo
     amounts,
     `App #${s(row, 'appointmentNo')}\n${s(row, 'sessionDate')} · ${s(row, 'sessionTime')}\n${s(row, 'consultant')}`,
     `${s(row, 'patientName')}\n${s(row, 'bookingStatus')}\nAgy: ${s(row, 'agency')}\nCredit: ${s(row, 'creditCustomer')}`,
-    `By: ${s(row, 'creator')}\nHand: ${s(row, 'handoverPerson')}`,
+    `By: ${s(row, 'creator')}\nHand: ${s(row, 'handedToStaff')}`,
   ];
 }
 

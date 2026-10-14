@@ -1,7 +1,7 @@
 import React from "react"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
-import { checkRouteAccess, checkPermission } from "@/lib/server-permissions"
+import { checkRouteAccess, getAllowedLedgerTransactionTypes } from "@/lib/server-permissions"
 import { redirect } from "next/navigation"
 import prisma from "@/lib/prisma"
 import { getReferenceData } from "@/app/actions/reference/get-reference-data.action"
@@ -15,8 +15,8 @@ export default async function LedgerAddPage() {
   if (!canView) {
     redirect("/unauthorized-access")
   }
-  const canAdd = await checkPermission("ledger", "add")
-  if (!canAdd) {
+  const allowedTransactionTypes = await getAllowedLedgerTransactionTypes()
+  if (allowedTransactionTypes.length === 0) {
     redirect("/unauthorized-access")
   }
 
@@ -62,6 +62,7 @@ export default async function LedgerAddPage() {
           bankAccounts={bankAccounts}
           userLocationId={userLocationId}
           userLocationName={userLocationName}
+          allowedTransactionTypes={allowedTransactionTypes}
         />
       </div>
     </div>

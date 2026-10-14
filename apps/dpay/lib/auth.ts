@@ -34,7 +34,10 @@ export const authOptions: NextAuthOptions = {
 
           const loginIdentifier = credentials.username.trim();
           const userWhere = {
-            OR: [{ email: loginIdentifier }, { username: loginIdentifier }],
+            OR: [
+              { email: { equals: loginIdentifier, mode: 'insensitive' as const } },
+              { username: { equals: loginIdentifier, mode: 'insensitive' as const } },
+            ],
             status: 1
           };
 

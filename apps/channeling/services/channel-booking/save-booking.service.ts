@@ -14,6 +14,7 @@ import {
 } from "@/types/save-booking"
 import { getIO, channelBookingRoom, floatBalanceRoom } from "@/lib/socket-server"
 import { sendSms } from "@/lib/helpers/sms/send-sms"
+import { sendBookingSms } from "@/lib/helpers/sms/send-booking-sms"
 import {
   createReceiptAndUpdateBooking,
   loadSessionForSaveBooking,
@@ -48,6 +49,7 @@ import { isSessionDoctorDeparted } from "@/lib/channel-room/is-session-doctor-ar
 import { logActivityNonBlocking } from "@/lib/activity-log"
 import { parseSlipDateInput } from "@/lib/slip-date"
 import { Prisma } from "@prisma/client"
+import { receiptAgencyIdIfAgentPayment } from "@/types/receipt"
 
 export type SaveBookingServiceResult =
   | { success: true; data: unknown }
@@ -63,6 +65,11 @@ export type SaveBookingServiceOptions = {
    * Applies to POS/Agent/API methods only. Default true.
    */
   settleOnCreate?: boolean
+  /**
+   * Patient channel-details SMS after a successful booking. Default true.
+   * API method (4) never sends, even when this is true.
+   */
+  sendBookingSms?: boolean
 }
 
 function isPrismaUniqueConstraintError(e: unknown): boolean {
@@ -142,8 +149,11 @@ function buildMixedLinesFromSaveInput(input: SaveBookingInput, amountToUse: numb
     ) {
       return { error: "Slip payment lines require bank, slip reference, and slip date." }
     }
-    if (line.paymentMethod === SAVE_PAYMENT_TYPE_E_WALLET && !line.cardReference.trim()) {
-      return { error: "E-wallet payment lines require a reference." }
+    if (
+      line.paymentMethod === SAVE_PAYMENT_TYPE_E_WALLET &&
+      (!line.bankId || !line.cardReference.trim())
+    ) {
+      return { error: "E-wallet payment lines require both bank and a reference." }
     }
   }
   const total = lines.reduce((sum, line) => sum + line.amount, 0)
@@ -357,11 +367,20 @@ export async function saveBookingService(
       message: "Credit Customer is required for this payment type.",
     }
   }
-  if (input.payment_type === SAVE_PAYMENT_TYPE_E_WALLET && !input.ewallet_ref?.trim()) {
-    return {
-      success: false,
-      errorCode: "INVALID_INPUT",
-      message: "E-wallet reference is required for E-wallet payment.",
+  if (input.payment_type === SAVE_PAYMENT_TYPE_E_WALLET) {
+    if (!input.ewallet_ref?.trim()) {
+      return {
+        success: false,
+        errorCode: "INVALID_INPUT",
+        message: "E-wallet reference is required for E-wallet payment.",
+      }
+    }
+    if (!input.bank?.id) {
+      return {
+        success: false,
+        errorCode: "INVALID_INPUT",
+        message: "Bank is required for E-wallet payment.",
+      }
     }
   }
 
@@ -773,7 +792,7 @@ export async function saveBookingService(
             remarks,
             type: 1,
             method: 1,
-            agencyId: input.agency?.id ?? null,
+            agencyId: receiptAgencyIdIfAgentPayment(input.payment_type, input.agency?.id ?? null),
             creditCustomerId: input.credit_customer?.id ?? null,
             createdBy: userId,
             shiftId,
@@ -831,7 +850,7 @@ export async function saveBookingService(
           const io = getIO()
           if (io) io.to(floatBalanceRoom(userId)).emit("float-balance-update", {})
         }
-        if (input.agency?.id) {
+        if (isAgent && input.agency?.id) {
             const updateBalanceResult = await updateAgentBalance(input.agency.id, -receiptAmount)
             // SMS: agency balance after booking (template type 4), only if agency has sendSms and phone
             const agencyDetails = await prisma.agency.findUnique({
@@ -932,6 +951,17 @@ export async function saveBookingService(
           console.log("[save-booking] session-update skipped: getIO() is null (not using custom server?)")
         }
       }
+    }
+
+    // Patient SMS is fire-and-forget. A Mobitel failure must not fail or delay the booking.
+    // API method bookings never receive this SMS.
+    if (
+      options?.sendBookingSms !== false &&
+      input.payment_method !== SAVE_BOOKING_METHOD_API
+    ) {
+      void sendBookingSms(booking.id).catch((err) => {
+        console.error("saveBookingService booking sms error", err)
+      })
     }
 
     return { success: true, data: fullBooking }

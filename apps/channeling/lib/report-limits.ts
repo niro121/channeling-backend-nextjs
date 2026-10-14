@@ -21,12 +21,25 @@ type ReportLimitKey =
   | 'withholding_tax'
   | 'cash_book'
   | 'bank_deposits'
+  | 'cash_vouchers'
   | 'completed_handovers'
+  | 'approval_requests'
   | 'channel_report_receipt_wise'
   | 'room_occupancy'
   | 'no_show_patient'
   | 'daily_returns_summary'
-  | 'doctor_balance';
+  | 'doctor_balance'
+  | 'cashier_short_balance';
+
+const DEFAULT_REPORT_MAX = 10000
+
+/**
+ * Row cap from REPORT_MAX. Used by report queries and list Excel/PDF exports.
+ * Falls back to 10000.
+ */
+export function getReportMax(): number {
+  return envPositiveInt(process.env.REPORT_MAX, DEFAULT_REPORT_MAX)
+}
 
 function envPositiveInt(value: string | undefined, fallback: number): number {
   const parsed = Number(value);

@@ -19,7 +19,7 @@ export function ChannelTransferPrintLayout({ rows }: Props) {
         @media print {
           @page {
             size: A4 portrait;
-            margin: 6mm 7mm 11mm;
+            margin: 6mm 5mm 18mm;
           }
           .channel-transfer-report-root .rpt-print-header {
             margin-bottom: 1mm !important;
@@ -209,6 +209,10 @@ export function ChannelTransferPrintLayout({ rows }: Props) {
               <div className="ct-print-v ct-print-inline">
                 <span className="ct-print-inline-item ct-print-mono ct-print-strong">
                   {t.bookingId}
+                </span>
+                <span className="ct-print-inline-item">
+                  <span className="ct-print-muted">Receipt: </span>
+                  <span className="ct-print-mono ct-print-strong">{t.receiptId}</span>
                 </span>
                 <span className="ct-print-inline-item">
                   <span className="ct-print-muted">Remarks: </span>

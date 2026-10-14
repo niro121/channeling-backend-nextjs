@@ -1,3 +1,4 @@
+import { withPublicApiLog } from "@/lib/public-api-log"
 import { NextRequest, NextResponse } from "next/server"
 import { publicApiCorsHeaders } from "@/lib/public-api-cors"
 import { requestPublicApiToken } from "@/services/public/token.service"
@@ -42,7 +43,7 @@ export async function OPTIONS() {
   return withCors(new NextResponse(null, { status: 204 }))
 }
 
-export async function POST(request: NextRequest) {
+export const POST = withPublicApiLog(async function POST(request: NextRequest) {
   const body = await parseBody(request)
   const result = await requestPublicApiToken(body, EXPIRES_IN_SEC)
 
@@ -68,4 +69,4 @@ export async function POST(request: NextRequest) {
       expires_in: result.expiresIn,
     })
   )
-}
+})

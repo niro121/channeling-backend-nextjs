@@ -237,6 +237,7 @@ function ChannelBookingsReportContentInner(
       filterButtonLabel="Search"
       initialEmptyMessage="No bookings found. Select filters and click Search."
       printPageSize="A4 landscape"
+      printPageMargins="6mm 5mm 18mm"
       containerClassName="container mx-auto py-3 space-y-4 channel-bookings-report-root"
       renderPrintContent={(rows) => <ChannelBookingsPrintLayout rows={rows} />}
       customDownloadPdf={handleChannelBookingsPdfDownload}

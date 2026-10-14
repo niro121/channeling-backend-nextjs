@@ -11,9 +11,9 @@ import type { ReconciliationListTab } from "@/services/reconciliation.service"
 
 const TAB_SUBHEADINGS: Record<ReconciliationListTab, string> = {
   reconciliation:
-    "Top-level handovers to reconcile or in progress. Open a row to tick receipts and submit or reject.",
-  approved: "Handovers whose non-cash amounts have been reconciled and approved.",
-  rejected: "Handovers whose reconciliation was rejected. Open to view details.",
+    "Handovers assigned to you to reconcile or in progress. Open a row to tick receipts and submit or reject.",
+  approved: "Handovers assigned to you whose non-cash amounts have been reconciled and approved.",
+  rejected: "Handovers assigned to you whose reconciliation was rejected. Open to view details.",
 }
 
 type FetchListAction = (params: {

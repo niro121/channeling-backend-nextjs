@@ -88,6 +88,25 @@ export const CHANNEL_SCHEDULE_EXPORT_KEYS = CHANNEL_SCHEDULE_EXPORT_GROUPS.flatM
   g.columns.map((c) => c.key)
 );
 
+export const CHANNEL_SCHEDULE_FEE_KEYS = new Set<keyof ChannelScheduleWithChargesReportExportRow>([
+  'doctorFeeLocal',
+  'hospitalFeeLocal',
+  'agencyFeeLocal',
+  'scanFeeLocal',
+  'onCallFeeLocal',
+  'creditCardCommissionLocal',
+  'apiFeeLocal',
+  'sessionValueLocal',
+  'doctorFeeForeign',
+  'hospitalFeeForeign',
+  'agencyFeeForeign',
+  'scanFeeForeign',
+  'onCallFeeForeign',
+  'creditCardCommissionForeign',
+  'apiFeeForeign',
+  'sessionValueForeign',
+]);
+
 /** Print/PDF column %: Session, Time, Schedule, Local, Foreign, Meta */
 export const CHANNEL_SCHEDULE_PDF_COL_PERCENTS = [16, 15, 12, 18, 18, 21];
 
@@ -103,6 +122,9 @@ export const CHANNEL_SCHEDULE_PDF_HEADERS = [
 function s(row: ChannelScheduleWithChargesReportExportRow, key: keyof ChannelScheduleWithChargesReportExportRow): string {
   const v = row[key];
   if (v === undefined || v === null || v === '') return '-';
+  if (typeof v === 'number' && Number.isFinite(v)) {
+    return v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
   return String(v);
 }
 
@@ -158,6 +180,13 @@ export function channelScheduleExportCellValue(
 ): string | number | null {
   const v = row[key];
   if (v === undefined || v === null || v === '') return null;
+  if (CHANNEL_SCHEDULE_FEE_KEYS.has(key)) {
+    if (typeof v === 'number' && Number.isFinite(v)) return v;
+    const text = String(v).trim();
+    if (text === '' || text === '-') return null;
+    const n = parseFloat(text.replace(/,/g, ''));
+    return Number.isFinite(n) ? n : null;
+  }
   if (typeof v === 'number') return v;
   return String(v);
 }

@@ -223,6 +223,12 @@ export default function LocationForm({
                       name: location.expenseAccountName,
                       code: location.expenseAccountCode,
                     },
+                    {
+                      label: 'Expense adjustment',
+                      id: location.expenseAdjustmentAccountId,
+                      name: location.expenseAdjustmentAccountName,
+                      code: location.expenseAdjustmentAccountCode,
+                    },
                   ].map((acc) => (
                     <div key={acc.label} className={styleClasses.parentDiv}>
                       <Label className={styleClasses.labelClassName}>{acc.label}</Label>
@@ -253,10 +259,13 @@ export default function LocationForm({
                     </div>
                   ))}
                 </div>
-                {(!location.accountId || !location.incomeAccountId || !location.expenseAccountId) && (
+                {(!location.accountId ||
+                  !location.incomeAccountId ||
+                  !location.expenseAccountId ||
+                  !location.expenseAdjustmentAccountId) && (
                   <>
                     <p className="text-muted-foreground text-sm">
-                      One or more location GL accounts are missing. Create missing cash, income, and expense accounts.
+                      One or more location GL accounts are missing. Create missing cash, income, expense, and expense adjustment accounts.
                     </p>
                     <Button
                       size="sm"

@@ -1,8 +1,11 @@
 "use server"
 
 import { z } from "zod"
+import { bookingPaymentDenialMessage } from "@/lib/booking-payment-permissions"
 import { fetchServerSession } from "@/lib/session"
 import { requirePermission } from "@/lib/server-permissions"
+import { userTypes } from "@/lib/roles"
+import type { Permissions } from "@/types/user-group"
 import { logActivityNonBlocking } from "@/lib/activity-log"
 import prisma from "@/lib/prisma"
 import { isSessionDoctorDeparted } from "@/lib/channel-room/is-session-doctor-arrived"
@@ -70,12 +73,21 @@ const saveBookingSchema = z.object({
   hmisPatientId: z.string().optional().nullable(),
   hmisMrn: z.string().optional().nullable(),
 }).superRefine((data, ctx) => {
-  if (data.payment_type === SAVE_PAYMENT_TYPE_E_WALLET && !data.ewallet_ref?.trim()) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      path: ["ewallet_ref"],
-      message: "E-wallet reference is required for E-wallet payment.",
-    })
+  if (data.payment_type === SAVE_PAYMENT_TYPE_E_WALLET) {
+    if (!data.ewallet_ref?.trim()) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["ewallet_ref"],
+        message: "E-wallet reference is required for E-wallet payment.",
+      })
+    }
+    if (!data.bank?.id?.trim()) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["bank"],
+        message: "Bank is required for E-wallet payment.",
+      })
+    }
   }
 
   if (data.payment_type === SAVE_PAYMENT_TYPE_SLIP) {
@@ -180,6 +192,16 @@ const saveBookingSchema = z.object({
     }
     if (
       line.payment_method === SAVE_PAYMENT_TYPE_E_WALLET &&
+      !line.bank?.id?.trim()
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["payment_lines", idx, "bank"],
+        message: "Bank is required for e-wallet payment lines.",
+      })
+    }
+    if (
+      line.payment_method === SAVE_PAYMENT_TYPE_E_WALLET &&
       !line.ewallet_ref?.trim()
     ) {
       ctx.addIssue({
@@ -199,6 +221,32 @@ const saveBookingSchema = z.object({
 })
 
 export type SaveBookingActionInput = z.infer<typeof saveBookingSchema>
+
+async function bookingPaymentDeniedForSession(
+  session: Awaited<ReturnType<typeof fetchServerSession>>,
+  input: {
+    payment_method: number
+    payment_type: number
+    payment_lines?: { payment_method: number }[] | null
+  }
+): Promise<string | null> {
+  if (!session?.user?.id) return "Permission denied"
+  if (session.user.userType === userTypes.admin) return null
+  let permissions = (session.user.permissions ?? null) as Permissions | null
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: { userGroup: { select: { permissions: true } } },
+    })
+    const stored = user?.userGroup?.permissions
+    if (stored && typeof stored === "object" && !Array.isArray(stored)) {
+      permissions = stored as Permissions
+    }
+  } catch (err) {
+    console.error("booking payment permission lookup failed", err)
+  }
+  return bookingPaymentDenialMessage(permissions, false, input)
+}
 
 /**
  * Save booking action: auth, Zod validation, then service.
@@ -257,6 +305,14 @@ export async function saveBookingAction(
 
   const session = await fetchServerSession()
   const userId = session?.user?.id ?? null
+  const paymentDenied = await bookingPaymentDeniedForSession(session, parsed.data)
+  if (paymentDenied) {
+    return {
+      success: false,
+      errorCode: "FORBIDDEN",
+      message: paymentDenied,
+    }
+  }
 
   const input: SaveBookingInput = {
     ...parsed.data,

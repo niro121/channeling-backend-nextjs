@@ -5,12 +5,15 @@ import { redirect } from 'next/navigation';
 import { checkRouteAccess } from '@/lib/server-permissions';
 import { logActivityNonBlocking } from '@/lib/activity-log';
 import { getDoctorOptions } from '@/app/actions/sessions.action';
+import { getLocationOptions } from '@/app/actions/doctor.sessions.action';
+import { withAllBranchesOptions } from '@/lib/report-branch-options';
 import DoctorLeavesList from './doctor-leaves-list';
 import Loading from '../loading';
 
 type SearchParams = {
   searchParams?: Promise<{
     doctorId?: string;
+    branchId?: string;
     fromDate?: string;
     toDate?: string;
     page?: string;
@@ -32,7 +35,11 @@ export default async function DoctorLeavesPage({ searchParams }: SearchParams) {
   }
 
   const params = await searchParams;
-  const doctorOptions = await getDoctorOptions();
+  const [doctorOptions, locationOptions] = await Promise.all([
+    getDoctorOptions(),
+    getLocationOptions()
+  ]);
+  const branchOptions = withAllBranchesOptions(locationOptions.data ?? []);
 
   const doctor =
     (doctorOptions &&
@@ -48,11 +55,13 @@ export default async function DoctorLeavesPage({ searchParams }: SearchParams) {
         <DoctorLeavesList
           doctorId={params?.doctorId}
           doctorName={doctor?.name}
+          branchId={params?.branchId}
           fromDate={params?.fromDate}
           toDate={params?.toDate}
           page={params?.page}
           limit={params?.limit}
           doctorOptions={doctorOptions.data}
+          branchOptions={branchOptions}
         />
       </Suspense>
     </div>

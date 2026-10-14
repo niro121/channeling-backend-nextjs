@@ -1,7 +1,7 @@
 /**
  * Seed accounting accounts (same logic as scripts/seed-accounting-accounts.ts).
  * Removes all accounting data then creates Main Cash Book, location cash books,
- * location income/expense accounts, agent (PAYABLE) / doctor (PAYABLE) /
+ * location income/expense/expense-adjustment accounts, agent (PAYABLE) / doctor (PAYABLE) /
  * credit-customer (RECEIVABLE) accounts, and syncs Sequence table.
  * Runs only when SEED_HELPER is enabled in .env.
  */
@@ -9,6 +9,11 @@
 import prisma from "@/lib/prisma"
 import { isSeedHelperEnabled, SEED_HELPER_DISABLED_MESSAGE } from "./seed-helper-enabled"
 import { getAccountCreateNameAndCode } from "@/services/accounting/account/get-account-create-name-code.service"
+import {
+  expenseAdjustmentAccountCode,
+  expenseAdjustmentAccountName,
+  isExpenseAdjustmentAccount,
+} from "@/services/accounting/account/expense-adjustment-account.constants"
 
 export type SeedAccountingAccountsResult =
   | { success: true; message: string; details: string }
@@ -134,10 +139,13 @@ export async function runSeedAccountingAccounts(
 
     const existingLocationExpenseAccounts = await prisma.account.findMany({
       where: { type: "EXPENSE", locationId: { in: locationIds }, isActive: true },
-      select: { locationId: true },
+      select: { locationId: true, code: true, name: true },
     })
     const existingLocationExpenseIds = new Set(
-      existingLocationExpenseAccounts.map((a) => a.locationId).filter(Boolean) as string[]
+      existingLocationExpenseAccounts
+        .filter((a) => !isExpenseAdjustmentAccount(a))
+        .map((a) => a.locationId)
+        .filter(Boolean) as string[]
     )
     const locationExpensesToCreate = locations.filter((loc) => !existingLocationExpenseIds.has(loc.id))
     let locationExpenseCreated = 0
@@ -163,6 +171,38 @@ export async function runSeedAccountingAccounts(
     const locationExpenseSkipped = locations.length - locationExpenseCreated
     lines.push(
       `Location expense accounts: ${locationExpenseCreated} created, ${locationExpenseSkipped} existing.`
+    )
+
+    const existingAdjustmentIds = new Set(
+      existingLocationExpenseAccounts
+        .filter((a) => isExpenseAdjustmentAccount(a))
+        .map((a) => a.locationId)
+        .filter(Boolean) as string[]
+    )
+    const locationAdjustmentsToCreate = locations.filter((loc) => !existingAdjustmentIds.has(loc.id))
+    let locationAdjustmentCreated = 0
+    if (locationAdjustmentsToCreate.length > 0) {
+      const result = await prisma.account.createMany({
+        data: locationAdjustmentsToCreate.map((loc) => ({
+          name: expenseAdjustmentAccountName(loc.name),
+          code: loc.code ? expenseAdjustmentAccountCode(loc.code) : null,
+          type: "EXPENSE" as const,
+          parentAccountId: null,
+          locationId: loc.id,
+          doctorId: null,
+          agencyId: null,
+          userId: null,
+          creditCustomerId: null,
+          minBalanceAllowed: null,
+          maxBalanceAllowed: null,
+          isActive: true,
+        })),
+      })
+      locationAdjustmentCreated = result.count
+    }
+    const locationAdjustmentSkipped = locations.length - locationAdjustmentCreated
+    lines.push(
+      `Location expense adjustment accounts: ${locationAdjustmentCreated} created, ${locationAdjustmentSkipped} existing.`
     )
 
     const mainLocation =

@@ -3,7 +3,7 @@
 import moment from 'moment';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { requirePermission } from '@/lib/server-permissions';
+import { requireReport } from '@/lib/server-permissions';
 import { logActivityNonBlocking } from '@/lib/activity-log';
 import { formatCents } from '@/lib/format-money';
 import type {
@@ -14,7 +14,7 @@ import type {
 import { getCashBookReportService } from '@/services/reports/cash-book.report.service';
 
 export async function getCashBookReportData(query: CashBookReportQuery): Promise<CashBookReportResponse> {
-  await requirePermission('reports', 'view');
+  await requireReport('cash-book');
   try {
     return await getCashBookReportService(query);
   } catch (error: unknown) {
@@ -25,6 +25,7 @@ export async function getCashBookReportData(query: CashBookReportQuery): Promise
       totalRecords: 0,
       openingBalanceCents: 0,
       closingBalanceCents: 0,
+      closingBalancesByType: [],
       cashBookName: '-',
       cashBookCode: null,
       message: msg,
@@ -35,12 +36,16 @@ export async function getCashBookReportData(query: CashBookReportQuery): Promise
 export async function exportCashBookReportData(
   query: CashBookReportQuery
 ): Promise<{ success: boolean; data?: CashBookReportExportRow[]; message?: string }> {
-  await requirePermission('reports', 'view');
+  await requireReport('cash-book');
   try {
     const result = await getCashBookReportService(query);
     if (!result.success) {
       return { success: false, message: result.message ?? 'Failed to export cash book report' };
     }
+
+    const openingDateLabel = query.dateFrom
+      ? new Date(query.dateFrom).toLocaleString()
+      : '';
 
     const mappedRows: CashBookReportExportRow[] = result.data.map((row) => ({
       date: new Date(row.date).toLocaleString(),
@@ -55,13 +60,13 @@ export async function exportCashBookReportData(
 
     const exportData: CashBookReportExportRow[] = [
       {
-        date: '',
-        journalNo: '',
-        account: '',
+        date: openingDateLabel,
+        journalNo: '-',
+        account: '-',
         description: 'Opening Balance',
-        paymentType: '',
-        debit: '',
-        credit: '',
+        paymentType: '-',
+        debit: '-',
+        credit: '-',
         balance: formatCents(result.openingBalanceCents),
       },
       ...mappedRows,
@@ -75,6 +80,16 @@ export async function exportCashBookReportData(
         credit: '',
         balance: formatCents(result.closingBalanceCents),
       },
+      ...result.closingBalancesByType.map((typeBalance) => ({
+        date: '',
+        journalNo: '',
+        account: '',
+        description: 'Closing Balance',
+        paymentType: typeBalance.label,
+        debit: '',
+        credit: '',
+        balance: formatCents(typeBalance.balanceCents),
+      })),
     ];
 
     const session = await getServerSession(authOptions);

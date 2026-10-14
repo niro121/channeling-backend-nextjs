@@ -17,7 +17,7 @@ import CustomDatePickerField from '@/components/common/custom-date-picker-field'
 import { Selector } from '@/components/common/selector';
 import { SearchIcon } from '@/components/icons';
 import moment from 'moment';
-import { ReportPrintLayout, toBrandedPdfSummaryItems } from '@/components/common/report-print';
+import { ReportPrintLayout, toBrandedPdfSummaryItems, downloadBrandedReportPdf } from '@/components/common/report-print';
 import type { ReportPrintSummaryItem } from '@/components/common/report-print';
 import Loading from '@/app/(dashboard)/loading';
 
@@ -161,27 +161,118 @@ export default function AllDoctorViewReportContent({
   };
 
   return (
-    <div className="container mx-auto py-6 space-y-6 print:py-2 all-doctor-view-print-root">
+    <div className="container mx-auto py-6 space-y-6 print:py-0 all-doctor-view-print-root">
       <style>{`
         @media print {
-          .all-doctor-view-print-root .overflow-x-auto,
-          .all-doctor-view-print-root .overflow-auto {
-            overflow: visible !important;
+          /* Full printable width. Card padding and the screen container are removed. */
+          .all-doctor-view-print-root,
+          .all-doctor-view-print-root.container {
+            width: 100% !important;
+            max-width: none !important;
+            margin: 0 !important;
+            padding: 0 !important;
           }
-          .all-doctor-view-print-root .rpt-print-root table {
+          .all-doctor-view-print-root > .print\\:shadow-none,
+          .all-doctor-view-print-root [class*="p-6"] {
+            width: 100% !important;
+            max-width: none !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            border: none !important;
+            box-shadow: none !important;
+            background: #fff !important;
+          }
+          .all-doctor-view-print-root .rpt-print-root,
+          .all-doctor-view-print-root .rpt-print-body,
+          .all-doctor-view-print-root .rpt-print-header,
+          .all-doctor-view-print-root .rpt-print-summary {
+            width: 100% !important;
+            max-width: none !important;
+            box-sizing: border-box !important;
+          }
+          .all-doctor-view-print-root > div {
+            width: 100% !important;
+            max-width: none !important;
+            margin-left: 0 !important;
+            margin-right: 0 !important;
+          }
+          .all-doctor-view-print-root .overflow-x-auto,
+          .all-doctor-view-print-root .overflow-auto,
+          .all-doctor-view-print-root .overflow-hidden,
+          .all-doctor-view-print-root .rounded-md {
+            overflow: visible !important;
+            width: 100% !important;
+            max-width: none !important;
+            border-radius: 0 !important;
+            box-shadow: none !important;
+          }
+
+          /* Body table — same proportions as compact PDF autoTable */
+          .all-doctor-view-print-root .rpt-print-root table.adv-print-table {
             table-layout: fixed !important;
             width: 100% !important;
+            max-width: 100% !important;
+            border-collapse: collapse !important;
+            border: 0.5pt solid #000 !important;
           }
-          .all-doctor-view-print-root .rpt-print-root th,
-          .all-doctor-view-print-root .rpt-print-root td {
-            font-size: 6.5pt !important;
+          .all-doctor-view-print-root .rpt-print-root table.adv-print-table col.adv-col-no { width: 4% !important; }
+          .all-doctor-view-print-root .rpt-print-root table.adv-print-table col.adv-col-consultant { width: 22% !important; }
+          .all-doctor-view-print-root .rpt-print-root table.adv-print-table col.adv-col-num { width: 5% !important; }
+          .all-doctor-view-print-root .rpt-print-root table.adv-print-table col.adv-col-total { width: 10% !important; }
+          .all-doctor-view-print-root .rpt-print-root table.adv-print-table col.adv-col-time { width: 24% !important; }
+
+          .all-doctor-view-print-root .rpt-print-root table.adv-print-table th,
+          .all-doctor-view-print-root .rpt-print-root table.adv-print-table td {
+            font-size: 5.5pt !important;
             padding: 0.7mm 0.5mm !important;
-            line-height: 1.15 !important;
+            line-height: 1.2 !important;
             white-space: normal !important;
             word-break: break-word !important;
+            overflow-wrap: anywhere !important;
+            overflow: hidden !important;
+            text-overflow: clip !important;
+            max-width: none !important;
+            border: 0.5pt solid #000 !important;
+            color: #000 !important;
+            vertical-align: middle !important;
+            box-sizing: border-box !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
           }
-          .all-doctor-view-print-root .rpt-print-root thead th {
-            font-size: 6pt !important;
+          .all-doctor-view-print-root .rpt-print-root table.adv-print-table thead th {
+            font-size: 5pt !important;
+            font-weight: 700 !important;
+            background: #e8e8e8 !important;
+            text-align: left !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+          /* Numeric + Total stay right-aligned, but wrap so values are not cut off the page */
+          .all-doctor-view-print-root .rpt-print-root table.adv-print-table th:nth-child(n+3):nth-child(-n+11),
+          .all-doctor-view-print-root .rpt-print-root table.adv-print-table td:nth-child(n+3):nth-child(-n+11) {
+            text-align: right !important;
+            white-space: normal !important;
+            font-variant-numeric: tabular-nums !important;
+          }
+          .all-doctor-view-print-root .rpt-print-root table.adv-print-table th:first-child,
+          .all-doctor-view-print-root .rpt-print-root table.adv-print-table td:first-child {
+            text-align: center !important;
+            border-left: 0.7pt solid #000 !important;
+          }
+          .all-doctor-view-print-root .rpt-print-root table.adv-print-table th:last-child,
+          .all-doctor-view-print-root .rpt-print-root table.adv-print-table td:last-child {
+            border-right: 0.7pt solid #000 !important;
+          }
+          .all-doctor-view-print-root .rpt-print-root table.adv-print-table tbody tr:last-child td {
+            font-weight: 700 !important;
+            background: #f3f3f3 !important;
+          }
+          .all-doctor-view-print-root .rpt-print-root table.adv-print-table .text-green-600 {
+            color: #000 !important;
+          }
+          .all-doctor-view-print-root .rpt-print-root tr {
+            break-inside: avoid !important;
+            page-break-inside: avoid !important;
           }
         }
       `}</style>
@@ -194,7 +285,7 @@ export default function AllDoctorViewReportContent({
 
           </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="print:p-0">
           {/* Filters */}
           <div className="flex flex-col sm:flex-row gap-4 items-end mb-6 pb-4 border-b print:hidden">
             <div className="flex-shrink-0" style={{ minWidth: '140px' }}>
@@ -314,6 +405,71 @@ export default function AllDoctorViewReportContent({
               showPrintButton
               exportOrientation="portrait"
               compactTable
+              excelColumnNumberFormats={[
+                '0', // No
+                undefined, // Consultant
+                '0', // Not Paid
+                '0', // Paid
+                '0', // Cancel
+                '0', // Hos Refund
+                '0', // Pro Refund
+                '0', // Hos Valid
+                '0', // Pro Valid
+                '0', // Nett Valid
+                '#,##0.00', // Total (Rs.)
+                undefined, // Doctor Session Time
+              ]}
+              customDownloadPdf={async (args) => {
+                // Keep PDF display friendly: blank null cells, 2-decimal totals.
+                const pdfData = args.data.map((row) => ({
+                  ...row,
+                  notPaid: row.notPaid ?? '',
+                  paid: row.paid ?? '',
+                  cancel: row.cancel ?? '',
+                  hosRefund: row.hosRefund ?? '',
+                  proRefund: row.proRefund ?? '',
+                  hosValid: row.hosValid ?? '',
+                  proValid: row.proValid ?? '',
+                  nettValid: row.nettValid ?? '',
+                  total:
+                    typeof row.total === 'number' ? row.total.toFixed(2) : row.total,
+                }));
+                await downloadBrandedReportPdf({
+                  reportName: args.title,
+                  summaryItems: toBrandedPdfSummaryItems([
+                    { label: 'Date', value: date ? moment(date).format('YYYY-MM-DD') : '—' },
+                    {
+                      label: 'Session Type',
+                      value:
+                        sessionType === '__all__'
+                          ? 'All'
+                          : sessionTypeOptions.find((s) => s.id === sessionType)?.name ?? sessionType,
+                    },
+                    {
+                      label: 'Fee Type',
+                      value:
+                        feeType === '__all__'
+                          ? 'All'
+                          : feeTypeOptions.find((f) => f.id === feeType)?.name ?? feeType,
+                    },
+                    {
+                      label: 'Branch',
+                      value:
+                        locationId === '__all__'
+                          ? 'All Branches'
+                          : locationOptions.find((l) => l.id === locationId)?.name ?? locationId,
+                    },
+                  ]),
+                  generatedAt: new Date().toLocaleString(),
+                  data: pdfData,
+                  columns: args.columns,
+                  keys: args.keys,
+                  fileName: args.fileName,
+                  orientation: 'portrait',
+                  compactTable: true,
+                  pageMarginMm: 5,
+                });
+              }}
               pdfSummaryItems={toBrandedPdfSummaryItems([
                 { label: 'Date', value: date ? moment(date).format('YYYY-MM-DD') : '—' },
                 {
@@ -345,6 +501,7 @@ export default function AllDoctorViewReportContent({
           <ReportPrintLayout
             reportName="All Doctor View Report"
             pageSize="A4 portrait"
+            pageMargins="7mm 5mm 18mm"
             generatedAt={new Date().toLocaleString()}
             summaryItems={[
               { label: 'Date', value: date ? moment(date).format('YYYY-MM-DD') : '—' },
@@ -380,7 +537,21 @@ export default function AllDoctorViewReportContent({
               </div>
             ) : (
               <div className="rounded-md border overflow-x-auto">
-                <table className="w-full border-collapse">
+                <table className="w-full border-collapse adv-print-table">
+                  <colgroup>
+                    <col className="adv-col-no" />
+                    <col className="adv-col-consultant" />
+                    <col className="adv-col-num" />
+                    <col className="adv-col-num" />
+                    <col className="adv-col-num" />
+                    <col className="adv-col-num" />
+                    <col className="adv-col-num" />
+                    <col className="adv-col-num" />
+                    <col className="adv-col-num" />
+                    <col className="adv-col-num" />
+                    <col className="adv-col-total" />
+                    <col className="adv-col-time" />
+                  </colgroup>
                   <thead>
                     <tr className="bg-muted">
                       <th className="border p-2 text-left font-semibold">No</th>

@@ -78,7 +78,10 @@ export default async function Page({ searchParams }: SearchParams) {
 
         return {
             success: true,
-            data: mappedPatients
+            data: mappedPatients,
+            totalRecords: patientListResponse.totalRecords,
+            exportLimit: patientListResponse.exportLimit,
+            limited: patientListResponse.limited,
         };
     };
 

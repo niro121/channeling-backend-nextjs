@@ -10,7 +10,12 @@ import { logActivityNonBlocking } from "@/lib/activity-log"
 import { getIO, shiftUpdateRoom } from "@/lib/socket-server"
 import { getTillBalanceBreakdown } from "@/services/accounting/balance.service"
 import { getCurrentShift } from "@/services/shift.service"
-import { createJournalEntry, resolveTillForUserAndLocation } from "@/services/accounting.service"
+import {
+  createJournalEntry,
+  ensureCashierShortAccount,
+  getCashierShortBalance,
+  resolveTillForUserAndLocation,
+} from "@/services/accounting.service"
 import {
   getOpenFloatsBlockingShiftEnd,
   getReceivedFloatsForHandover,
@@ -26,10 +31,18 @@ import {
   deriveHandoverCashierSummaryFilters,
   expectedHandoverAvailableFromTill,
   expectedHandoverCollectionCents,
+  formatHandoverCashAboveShortError,
+  formatHandoverNonCashShortError,
   formatHandoverOverAmountError,
-  getHandoverAmountOvers,
+  handoverCashOverTillCents,
+  handoverNonCashShorts,
+  handoverOversBeyondCashSettlement,
+  handoverNonCashHeldCents,
   handoverAmountsTotalCents,
   handoverDiscrepancyReasonRequiredMessage,
+  handoverShortsExceedingTillGap,
+  handoverTillGaps,
+  formatHandoverShortExceedsGapError,
   isHandoverCollectionExcess,
   normalizedIncludedIds,
   sumReceivedHandoverFloats,
@@ -132,7 +145,7 @@ export async function getExpectedHandoverCollection(params: {
     return { success: false, error: "Could not determine the cashier summary window for this handover." }
   }
 
-  const [summaryResult, receivedFloats, previousHandovers] = await Promise.all([
+  const [summaryResult, receivedFloats, previousCollection] = await Promise.all([
     getCashierSummaryReportService({
       userId: params.cashierUserId,
       dateFrom: summaryFilters.dateFrom,
@@ -173,19 +186,24 @@ export async function getExpectedHandoverCollection(params: {
       cents: f.amountReceivedCents ?? 0,
     }))
   const summaryCents = cashierSummaryGrandTotalCents(summaryResult.grandTotals)
+  const { previousHandovers, sentToReconciliation } = previousCollection
   const previousHandoversCents = previousHandovers.reduce((sum, h) => sum + h.cents, 0)
+  const sentToReconciliationCents = sentToReconciliation.reduce((sum, h) => sum + h.cents, 0)
   const data: ExpectedHandoverCollection = {
     floatsInCents,
     floatsOutCents,
     summaryCents,
     previousHandoversCents,
+    sentToReconciliationCents,
     expectedCents: expectedHandoverCollectionCents({
       floatsInCents,
       floatsOutCents,
       summaryCents,
       previousHandoversCents,
+      sentToReconciliationCents,
     }),
     previousHandovers,
+    sentToReconciliation,
     floatsIn,
     floatsOut,
   }
@@ -200,7 +218,22 @@ export async function getExpectedHandoverCollection(params: {
 async function listPreviousHandoversForExpectedCollection(
   cashierUserId: string,
   shiftId: string
-): Promise<ExpectedHandoverCollectionSourceRow[]> {
+): Promise<{
+  previousHandovers: ExpectedHandoverCollectionSourceRow[]
+  sentToReconciliation: ExpectedHandoverCollectionSourceRow[]
+}> {
+  const amountSelect = {
+    id: true,
+    status: true,
+    totalCents: true,
+    cardCents: true,
+    slipCents: true,
+    checkCents: true,
+    eWalletCents: true,
+    reconciliationStatus: true,
+    handoverNoString: true,
+    fromUser: { select: { name: true, staff: { select: { code: true } } } },
+  } as const
   const [receivedOnShift, receivedByUser] = await Promise.all([
     prisma.shiftHandover.findMany({
       where: {
@@ -209,13 +242,7 @@ async function listPreviousHandoversForExpectedCollection(
           notIn: [HANDOVER_STATUS.PENDING, HANDOVER_STATUS.REJECTED, HANDOVER_STATUS.CANCELLED],
         },
       },
-      select: {
-        id: true,
-        status: true,
-        totalCents: true,
-        handoverNoString: true,
-        fromUser: { select: { name: true, staff: { select: { code: true } } } },
-      },
+      select: amountSelect,
       orderBy: { createdAt: "asc" },
     }),
     prisma.shiftHandover.findMany({
@@ -225,29 +252,29 @@ async function listPreviousHandoversForExpectedCollection(
           notIn: [HANDOVER_STATUS.PENDING, HANDOVER_STATUS.REJECTED, HANDOVER_STATUS.CANCELLED],
         },
       },
-      select: {
-        id: true,
-        status: true,
-        totalCents: true,
-        handoverNoString: true,
-        forwardedToHandoverId: true,
-        reconciliationStatus: true,
-        fromUser: { select: { name: true, staff: { select: { code: true } } } },
-      },
+      select: { ...amountSelect, forwardedToHandoverId: true },
       orderBy: { createdAt: "asc" },
     }),
   ])
 
   const byId = new Map<string, ExpectedHandoverCollectionSourceRow>()
+  const sentById = new Map<string, ExpectedHandoverCollectionSourceRow>()
   const add = (h: {
     id: string
     totalCents: number
+    cardCents?: number | null
+    slipCents?: number | null
+    checkCents?: number | null
+    eWalletCents?: number | null
+    reconciliationStatus?: number | null
     handoverNoString?: string | null
     fromUser: { name: string | null; staff?: { code: string } | null } | null
   }) => {
     const from = handoverFromLabel(h.fromUser)
     const label = h.handoverNoString?.trim() ? `${h.handoverNoString.trim()} · ${from}` : from
     byId.set(h.id, { id: h.id, label, cents: h.totalCents ?? 0 })
+    const heldCents = handoverNonCashHeldCents(h)
+    if (heldCents > 0) sentById.set(h.id, { id: h.id, label, cents: heldCents })
   }
 
   for (const h of receivedOnShift) {
@@ -260,7 +287,10 @@ async function listPreviousHandoversForExpectedCollection(
     if (isExcludedFromBulkTransfer(h.reconciliationStatus)) continue
     if (!byId.has(h.id)) add(h)
   }
-  return [...byId.values()]
+  return {
+    previousHandovers: [...byId.values()],
+    sentToReconciliation: [...sentById.values()],
+  }
 }
 
 /** Submit handover: create PENDING handover, set shift to HANDOVER_PENDING. No journal until approved. */
@@ -272,7 +302,9 @@ export async function processShiftHandover(
   discrepancyReason?: string,
   enteredBreakdown?: ShiftHandoverEnteredBreakdown,
   includedHandoverIds?: string[],
-  attachmentIds?: string[]
+  attachmentIds?: string[],
+  _shortAmounts?: ShiftHandoverAmounts,
+  _settlementCents?: number
 ): Promise<
   | { success: true; handoverId: string }
   | { success: false; error: string }
@@ -407,21 +439,51 @@ export async function processShiftHandover(
   // Non-cash still on till but held in open reconciliation must stay with this bulk cashier.
   const held = await getNonCashHeldInReconciliation(validFrom)
   const available = expectedHandoverAvailableFromTill(breakdown, held)
-  const overs = getHandoverAmountOvers(amt, available)
-  if (overs.length > 0) {
-    return {
-      success: false,
-      error: formatHandoverOverAmountError(overs, "submit"),
+  // Settlement is the cash counted above the till. The client cannot choose a different amount.
+  const cashOverTill = handoverCashOverTillCents(amt.cashCents, available.cashCents)
+  const shorts = handoverTillGaps(amt, available)
+  const nonCashShorts = handoverNonCashShorts(amt, available)
+  if (nonCashShorts.length > 0) {
+    return { success: false, error: formatHandoverNonCashShortError(nonCashShorts) }
+  }
+  const shortTotal = handoverAmountsTotalCents(shorts)
+
+  let openShortCents = 0
+  if (shortTotal > 0 || cashOverTill > 0) {
+    const senderTill = await prisma.till.findFirst({
+      where: { accountId: breakdown.tillAccountId },
+      select: { locationId: true },
+    })
+    if (!senderTill?.locationId) {
+      return { success: false, error: "Could not determine the branch for this short." }
+    }
+    if (cashOverTill > 0) {
+      const openShort = await getCashierShortBalance(validFrom, senderTill.locationId)
+      openShortCents = openShort.balanceCents
     }
   }
+  if (cashOverTill > openShortCents) {
+    return {
+      success: false,
+      error: formatHandoverCashAboveShortError({
+        enteredCashCents: amt.cashCents,
+        availableCashCents: available.cashCents,
+        openShortCents,
+      }),
+    }
+  }
+  const nonCashOvers = handoverOversBeyondCashSettlement(amt, available, openShortCents).filter(
+    (over) => over.key !== "cashCents"
+  )
+  if (nonCashOvers.length > 0) {
+    return {
+      success: false,
+      error: formatHandoverOverAmountError(nonCashOvers, "submit"),
+    }
+  }
+  const settlement = cashOverTill
 
-  const hasShort =
-    amt.cashCents < available.cashCents ||
-    amt.cardCents < available.cardCents ||
-    amt.slipCents < available.slipCents ||
-    amt.checkCents < available.checkCents ||
-    amt.creditCents < available.creditCents ||
-    amt.eWalletCents < available.eWalletCents
+  const hasShort = amt.cashCents < available.cashCents
 
   const expectedCollection = await getExpectedHandoverCollection({
     cashierUserId: validFrom,
@@ -432,6 +494,26 @@ export async function processShiftHandover(
     return { success: false, error: expectedCollection.error }
   }
   const enteredTotalCents = handoverAmountsTotalCents(amt)
+  const excessCents = Math.max(0, enteredTotalCents - expectedCollection.data.expectedCents)
+  if (settlement > excessCents) {
+    return {
+      success: false,
+      error:
+        excessCents <= 0
+          ? "A short can be settled only when this handover has an excess."
+          : `Cash above the till (${formatCents(settlement)}) is more than the excess of ${formatCents(excessCents)}.`,
+    }
+  }
+  if (settlement > openShortCents) {
+    return {
+      success: false,
+      error: formatHandoverCashAboveShortError({
+        enteredCashCents: amt.cashCents,
+        availableCashCents: available.cashCents,
+        openShortCents,
+      }),
+    }
+  }
   const hasExcess = isHandoverCollectionExcess(
     enteredTotalCents - expectedCollection.data.expectedCents
   )
@@ -485,6 +567,13 @@ export async function processShiftHandover(
       creditCents: amt.creditCents,
       eWalletCents: amt.eWalletCents,
       totalCents,
+      shortCashCents: shorts.cashCents,
+      shortCardCents: shorts.cardCents,
+      shortSlipCents: shorts.slipCents,
+      shortCheckCents: shorts.checkCents,
+      shortCreditCents: shorts.creditCents,
+      shortEWalletCents: shorts.eWalletCents,
+      settlementCents: settlement,
       discrepancyReason: parsed.data.discrepancyReason?.trim() || null,
       enteredBreakdown: enteredBreakdown != null ? (enteredBreakdown as object) : undefined,
       includedHandoverIds: dataIncludedHandoverIds,
@@ -727,7 +816,16 @@ export async function approveHandover(
 
   const held = await getNonCashHeldInReconciliation(handover.fromUserId)
   const available = expectedHandoverAvailableFromTill(breakdown, held)
-  const overs = getHandoverAmountOvers(
+  const cashOverTill = handoverCashOverTillCents(handover.cashCents, available.cashCents)
+  const storedSettlementCents = Math.max(0, handover.settlementCents ?? 0)
+  if (cashOverTill !== storedSettlementCents) {
+    return {
+      success: false,
+      error:
+        "Till cash changed since this handover was submitted, so the excess no longer matches the short settlement. Reject it so the cashier can submit again.",
+    }
+  }
+  const overs = handoverOversBeyondCashSettlement(
     {
       cashCents: handover.cashCents,
       cardCents: handover.cardCents,
@@ -736,7 +834,8 @@ export async function approveHandover(
       creditCents: handover.creditCents,
       eWalletCents: handover.eWalletCents,
     },
-    available
+    available,
+    handover.settlementCents ?? 0
   )
   if (overs.length > 0) {
     return {
@@ -745,62 +844,205 @@ export async function approveHandover(
     }
   }
 
-  const totalCents =
-    handover.cashCents +
-    handover.cardCents +
-    handover.slipCents +
-    handover.checkCents +
-    handover.creditCents +
-    handover.eWalletCents
+  const handedOver: ShiftHandoverAmounts = {
+    cashCents: handover.cashCents,
+    cardCents: handover.cardCents,
+    slipCents: handover.slipCents,
+    checkCents: handover.checkCents,
+    creditCents: handover.creditCents,
+    eWalletCents: handover.eWalletCents,
+  }
+  const shorts: ShiftHandoverAmounts = {
+    cashCents: handover.shortCashCents ?? 0,
+    cardCents: handover.shortCardCents ?? 0,
+    slipCents: handover.shortSlipCents ?? 0,
+    checkCents: handover.shortCheckCents ?? 0,
+    creditCents: handover.shortCreditCents ?? 0,
+    eWalletCents: handover.shortEWalletCents ?? 0,
+  }
+  const shortGapErrors = handoverShortsExceedingTillGap(shorts, handedOver, available)
+  if (shortGapErrors.length > 0) {
+    return { success: false, error: formatHandoverShortExceedsGapError(shortGapErrors) }
+  }
+  const storedNonCashShorts = handoverNonCashShorts(handedOver, {
+    cashCents: handedOver.cashCents,
+    cardCents: handedOver.cardCents + shorts.cardCents,
+    slipCents: handedOver.slipCents + shorts.slipCents,
+    checkCents: handedOver.checkCents + shorts.checkCents,
+    creditCents: handedOver.creditCents + shorts.creditCents,
+    eWalletCents: handedOver.eWalletCents + shorts.eWalletCents,
+  })
+  if (storedNonCashShorts.length > 0) {
+    return {
+      success: false,
+      error: `${formatHandoverNonCashShortError(storedNonCashShorts)} Reject this handover so the cashier can submit again.`,
+    }
+  }
+  const shortTotal = handoverAmountsTotalCents(shorts)
+  const settlementCents = Math.max(0, handover.settlementCents ?? 0)
+  const totalCents = handoverAmountsTotalCents(handedOver)
+
+  let shortAccountId: string | null = null
+  let shortLocationId: string | null = null
+  if (shortTotal > 0 || settlementCents > 0) {
+    const senderTill = await prisma.till.findFirst({
+      where: { accountId: breakdown.tillAccountId },
+      select: { locationId: true },
+    })
+    if (!senderTill?.locationId) {
+      return { success: false, error: "Could not determine the branch for this short." }
+    }
+    shortLocationId = senderTill.locationId
+    if (settlementCents > 0) {
+      const openShort = await getCashierShortBalance(handover.fromUserId, shortLocationId)
+      if (settlementCents > openShort.balanceCents) {
+        return {
+          success: false,
+          error: `Settlement ${formatCents(settlementCents)} is more than the open short of ${formatCents(openShort.balanceCents)}.`,
+        }
+      }
+      const expectedCollection = await getExpectedHandoverCollection({
+        cashierUserId: handover.fromUserId,
+        shiftId: handover.shiftId,
+        shiftStartedAt: handover.shift.startedAt,
+        windowEnd: handover.createdAt,
+      })
+      if (!expectedCollection.success) {
+        return { success: false, error: expectedCollection.error }
+      }
+      const excessCents = Math.max(
+        0,
+        handoverAmountsTotalCents(handedOver) - expectedCollection.data.expectedCents
+      )
+      if (settlementCents > excessCents) {
+        return {
+          success: false,
+          error:
+            excessCents <= 0
+              ? "A short can be settled only when this handover has an excess."
+              : `Settlement cannot be more than the excess of ${formatCents(excessCents)}.`,
+        }
+      }
+    }
+    const shortAccount = await ensureCashierShortAccount(handover.fromUserId, shortLocationId)
+    if (!shortAccount.success) {
+      return { success: false, error: shortAccount.error }
+    }
+    shortAccountId = shortAccount.account.accountId
+  }
 
   let journalId: string | null = null
-  if (totalCents > 0) {
-    const recipientTillLocationId = approverShift.locationId ?? null
-    if (!recipientTillLocationId) {
-      return { success: false, error: "Your current shift has no location. Start a shift at a location to receive a handover." }
+  if (totalCents > 0 || shortTotal > 0 || settlementCents > 0) {
+    const needsRecipient = totalCents > 0 || settlementCents > 0
+    let toAccountId: string | null = null
+    if (needsRecipient) {
+      const recipientTillLocationId = approverShift.locationId ?? null
+      if (!recipientTillLocationId) {
+        return { success: false, error: "Your current shift has no location. Start a shift at a location to receive a handover." }
+      }
+      const toTill = await resolveTillForUserAndLocation(handover.toUserId, recipientTillLocationId)
+      toAccountId = toTill.accountId
     }
-    const toTill = await resolveTillForUserAndLocation(handover.toUserId, recipientTillLocationId)
-    const toAccountId = toTill.accountId
 
-    const methodAmounts: { method: number; amount: number }[] = [
-      { method: RECEIPT_PAYMENT_METHOD.CASH, amount: handover.cashCents },
-      { method: RECEIPT_PAYMENT_METHOD.CREDIT_CARD, amount: handover.cardCents },
-      { method: RECEIPT_PAYMENT_METHOD.SLIP, amount: handover.slipCents },
-      { method: RECEIPT_PAYMENT_METHOD.CHECK, amount: handover.checkCents },
-      { method: RECEIPT_PAYMENT_METHOD.CREDIT, amount: handover.creditCents },
-      { method: RECEIPT_PAYMENT_METHOD.E_WALLET, amount: handover.eWalletCents },
-    ].filter((m) => m.amount > 0)
+    const methodAmounts: { method: number; amount: number; shortAmount: number }[] = [
+      { method: RECEIPT_PAYMENT_METHOD.CASH, amount: handedOver.cashCents, shortAmount: shorts.cashCents },
+      { method: RECEIPT_PAYMENT_METHOD.CREDIT_CARD, amount: handedOver.cardCents, shortAmount: shorts.cardCents },
+      { method: RECEIPT_PAYMENT_METHOD.SLIP, amount: handedOver.slipCents, shortAmount: shorts.slipCents },
+      { method: RECEIPT_PAYMENT_METHOD.CHECK, amount: handedOver.checkCents, shortAmount: shorts.checkCents },
+      { method: RECEIPT_PAYMENT_METHOD.CREDIT, amount: handedOver.creditCents, shortAmount: shorts.creditCents },
+      { method: RECEIPT_PAYMENT_METHOD.E_WALLET, amount: handedOver.eWalletCents, shortAmount: shorts.eWalletCents },
+    ]
 
     const lines: Array<{
       accountId: string
       debitAmount: number
       creditAmount: number
-      paymentMethod: number
+      paymentMethod?: number
+      memo?: string
     }> = []
     for (const { method, amount } of methodAmounts) {
+      if (amount <= 0 || !toAccountId) continue
+      const tillAmount =
+        method === RECEIPT_PAYMENT_METHOD.CASH ? Math.min(amount, available.cashCents) : amount
+      if (tillAmount <= 0) continue
       lines.push({
         accountId: breakdown.tillAccountId,
         debitAmount: 0,
-        creditAmount: amount,
+        creditAmount: tillAmount,
         paymentMethod: method,
+        memo: "Handover",
       })
       lines.push({
         accountId: toAccountId,
-        debitAmount: amount,
+        debitAmount: tillAmount,
         creditAmount: 0,
         paymentMethod: method,
+        memo: "Handover",
+      })
+    }
+    if (shortTotal > 0 && shortAccountId) {
+      for (const { method, shortAmount } of methodAmounts) {
+        if (shortAmount <= 0) continue
+        lines.push({
+          accountId: shortAccountId,
+          debitAmount: shortAmount,
+          creditAmount: 0,
+          paymentMethod: method,
+          memo: "Short",
+        })
+        lines.push({
+          accountId: breakdown.tillAccountId,
+          debitAmount: 0,
+          creditAmount: shortAmount,
+          paymentMethod: method,
+          memo: "Short",
+        })
+      }
+    }
+    if (settlementCents > 0 && shortAccountId && toAccountId) {
+      lines.push({
+        accountId: toAccountId,
+        debitAmount: settlementCents,
+        creditAmount: 0,
+        paymentMethod: RECEIPT_PAYMENT_METHOD.CASH,
+        memo: "Short settlement",
+      })
+      lines.push({
+        accountId: shortAccountId,
+        debitAmount: 0,
+        creditAmount: settlementCents,
+        paymentMethod: RECEIPT_PAYMENT_METHOD.CASH,
+        memo: "Short settlement",
       })
     }
 
     const fromName = handover.fromUser?.name ?? "Cashier"
     const toName = handover.toUser?.name ?? "Bulk cashier"
-    const methodParts = methodAmounts.map(
-      (m) => `${PAYMENT_METHOD_NAMES[m.method] ?? "Method " + m.method}: LKR ${(m.amount / 100).toFixed(2)}`
-    )
-    const totalLKR = (totalCents / 100).toFixed(2)
+    const postedByMethod = methodAmounts.map((m) => ({
+      ...m,
+      posted:
+        m.method === RECEIPT_PAYMENT_METHOD.CASH ? Math.min(m.amount, available.cashCents) : m.amount,
+    }))
+    const postedTotalCents = postedByMethod.reduce((sum, m) => sum + Math.max(0, m.posted), 0)
+    const methodParts = postedByMethod
+      .filter((m) => m.posted > 0)
+      .map((m) => `${PAYMENT_METHOD_NAMES[m.method] ?? "Method " + m.method}: LKR ${(m.posted / 100).toFixed(2)}`)
+    const shortParts = methodAmounts
+      .filter((m) => m.shortAmount > 0)
+      .map((m) => `${PAYMENT_METHOD_NAMES[m.method] ?? "Method " + m.method}: LKR ${(m.shortAmount / 100).toFixed(2)}`)
     const now = new Date()
     const approvedAtStr = now.toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" })
-    let description = `Shift handover received — Journal entry: Cashier "${fromName}" handed over to "${toName}". Amounts by method: ${methodParts.join("; ")}. Total LKR ${totalLKR}. Approved and received by ${toName} on ${approvedAtStr}.`
+    let description = `Shift handover received — Journal entry: Cashier "${fromName}" handed over to "${toName}".`
+    if (methodParts.length > 0) {
+      description += ` Amounts by method: ${methodParts.join("; ")}. Total LKR ${(postedTotalCents / 100).toFixed(2)}.`
+    }
+    if (shortParts.length > 0) {
+      description += ` Short moved to the branch short account: ${shortParts.join("; ")}. Total LKR ${(shortTotal / 100).toFixed(2)}.`
+    }
+    if (settlementCents > 0) {
+      description += ` Cash settlement of previous short: LKR ${(settlementCents / 100).toFixed(2)}.`
+    }
+    description += ` Approved and received by ${toName} on ${approvedAtStr}.`
     if (approvalComments?.trim()) {
       description += ` Comments: ${approvalComments.trim()}`
     }
@@ -809,6 +1051,7 @@ export async function approveHandover(
       description,
       referenceType: REFERENCE_TYPES.ShiftHandover,
       referenceId: handoverId,
+      locationId: shortLocationId ?? approverShift.locationId ?? null,
       createdBy: handover.fromUserId,
       lines,
     })
@@ -871,6 +1114,8 @@ export async function approveHandover(
       shiftId: handover.shiftId,
       fromUserId: handover.fromUserId,
       totalCents,
+      shortTotal,
+      settlementCents,
       leftoverEndedShiftIds: leftover.endedShiftIds,
       leftoverCancelledHandoverIds: leftover.cancelledHandoverIds,
     },
@@ -897,6 +1142,18 @@ export async function approveHandover(
   }
 
   return { success: true }
+}
+
+/**
+ * Included handovers are marked forwarded when a bulk cashier passes them on.
+ * If that handover is rejected or cancelled, those documents stay with the sender
+ * and must be available to send to reconciliation or include again.
+ */
+async function releaseIncludedHandovers(handoverId: string): Promise<void> {
+  await prisma.shiftHandover.updateMany({
+    where: { forwardedToHandoverId: handoverId },
+    data: { forwardedToHandoverId: null },
+  })
 }
 
 /** Reject handover (to user only). Requires rejectReason. Shift returns to ACTIVE. */
@@ -934,6 +1191,7 @@ export async function rejectHandover(
       rejectReason: trimmed,
     },
   })
+  await releaseIncludedHandovers(handoverId)
   await unlinkShiftBillsFromHandover(handoverId)
 
   await shiftModel.update({
@@ -995,6 +1253,7 @@ export async function cancelHandover(
       cancelledBy: cancelledByUserId,
     },
   })
+  await releaseIncludedHandovers(handoverId)
   await unlinkShiftBillsFromHandover(handoverId)
 
   await shiftModel.update({
@@ -1048,10 +1307,16 @@ export async function getHandoversToMe(toUserId: string) {
 /** Handovers approved by me that still need a reconciler assigned (PENDING, or IN_RECONCILIATION with no assignee). Top-level only. */
 export async function getHandoversApprovedByMeNotReconciled(toUserId: string) {
   // Do not filter reconciliationStatus in Mongo where (null vs 0 mismatch). Filter in memory.
+  // Exclude reconciled/forwarded rows in the query so the fetch doesn't grow with every past handover.
+  // On MongoDB `field: null` doesn't match a missing field, hence the isSet: false branch.
   const results = await prisma.shiftHandover.findMany({
     where: {
       toUserId,
       status: HANDOVER_STATUS.APPROVED,
+      AND: [
+        { OR: [{ nonCashReconciledAt: null }, { nonCashReconciledAt: { isSet: false } }] },
+        { OR: [{ forwardedToHandoverId: null }, { forwardedToHandoverId: { isSet: false } }] },
+      ],
     },
     orderBy: { createdAt: "desc" },
     include: {
@@ -1059,7 +1324,7 @@ export async function getHandoversApprovedByMeNotReconciled(toUserId: string) {
       shift: { select: { id: true, startedAt: true, userId: true, user: { select: { id: true, name: true } } } },
     },
   })
-  const filtered = results.filter((r) => {
+  return results.filter((r) => {
     if (r.nonCashReconciledAt != null) return false
     if (r.forwardedToHandoverId != null) return false
     const recon = r.reconciliationStatus ?? RECONCILIATION_STATUS.PENDING
@@ -1069,25 +1334,6 @@ export async function getHandoversApprovedByMeNotReconciled(toUserId: string) {
     if (recon === RECONCILIATION_STATUS.IN_RECONCILIATION && !r.reconciliationAssignedToUserId) return true
     return false
   })
-  console.log(
-    "[getHandoversApprovedByMeNotReconciled] toUserId:",
-    toUserId,
-    "raw:",
-    results.map((r) => ({
-      id: r.id,
-      recon: r.reconciliationStatus,
-      assigned: r.reconciliationAssignedToUserId,
-      nonCashAt: r.nonCashReconciledAt,
-      fwd: r.forwardedToHandoverId,
-      card: r.cardCents,
-      cash: r.cashCents,
-    })),
-    "after filter:",
-    filtered.length,
-    "ids:",
-    filtered.map((r) => r.id)
-  )
-  return filtered
 }
 
 /** Single handover by id. Access (participant vs view-any) is enforced in the action. */
@@ -1319,6 +1565,17 @@ function isExcludedFromBulkTransfer(reconciliationStatus: number | null | undefi
   )
 }
 
+/** One approved handover whose non-cash is in reconciliation and must stay with this cashier. */
+export type HeldReconciliationHandover = {
+  id: string
+  handoverNoString: string | null
+  fromLabel: string
+  cardCents: number
+  slipCents: number
+  checkCents: number
+  eWalletCents: number
+}
+
 /** Non-cash cents still on till but held by open reconciliation (must not be handed to next bulk). */
 export type NonCashHeldInReconciliation = {
   cardCents: number
@@ -1326,6 +1583,7 @@ export type NonCashHeldInReconciliation = {
   checkCents: number
   eWalletCents: number
   handoverCount: number
+  handovers: HeldReconciliationHandover[]
 }
 
 export async function getNonCashHeldInReconciliation(
@@ -1337,21 +1595,35 @@ export async function getNonCashHeldInReconciliation(
       status: HANDOVER_STATUS.APPROVED,
       reconciliationStatus: RECONCILIATION_STATUS.IN_RECONCILIATION,
     },
+    orderBy: { createdAt: "desc" },
     select: {
+      id: true,
+      handoverNoString: true,
       cardCents: true,
       slipCents: true,
       checkCents: true,
       eWalletCents: true,
       forwardedToHandoverId: true,
+      fromUser: { select: { name: true, staff: { select: { code: true } } } },
     },
   })
   const held = list.filter((h) => h.forwardedToHandoverId == null)
+  const handovers: HeldReconciliationHandover[] = held.map((h) => ({
+    id: h.id,
+    handoverNoString: h.handoverNoString,
+    fromLabel: handoverFromLabel(h.fromUser),
+    cardCents: h.cardCents ?? 0,
+    slipCents: h.slipCents ?? 0,
+    checkCents: h.checkCents ?? 0,
+    eWalletCents: h.eWalletCents ?? 0,
+  }))
   return {
-    cardCents: held.reduce((s, h) => s + (h.cardCents ?? 0), 0),
-    slipCents: held.reduce((s, h) => s + (h.slipCents ?? 0), 0),
-    checkCents: held.reduce((s, h) => s + (h.checkCents ?? 0), 0),
-    eWalletCents: held.reduce((s, h) => s + (h.eWalletCents ?? 0), 0),
-    handoverCount: held.length,
+    cardCents: handovers.reduce((s, h) => s + h.cardCents, 0),
+    slipCents: handovers.reduce((s, h) => s + h.slipCents, 0),
+    checkCents: handovers.reduce((s, h) => s + h.checkCents, 0),
+    eWalletCents: handovers.reduce((s, h) => s + h.eWalletCents, 0),
+    handoverCount: handovers.length,
+    handovers,
   }
 }
 
@@ -1482,6 +1754,7 @@ const includedHandoverSelect = {
   handoverNoString: true,
   includedHandoverIds: true,
   enteredBreakdown: true,
+  reconciliationStatus: true,
 } as const
 
 export type IncludedHandoverForDisplay = Prisma.ShiftHandoverGetPayload<{
@@ -1530,8 +1803,59 @@ export async function getHandoversByForwardedTo(topLevelHandoverId: string) {
 }
 
 /**
- * Previous handovers associated with this handover only:
- * included on submit, forwarded to this record, or received into the same shift.
+ * Immediate previous handovers for this document:
+ * approved handovers received into this shift (cashiers who gave to this user),
+ * plus any other handover this submission included directly.
+ * Nested handovers inside those documents are not expanded.
+ */
+export async function getDirectIncludedHandovers(params: {
+  handoverId: string
+  shiftId: string
+  includedHandoverIds: unknown
+}): Promise<IncludedHandoverForDisplay[]> {
+  const ids = normalizedIncludedIds(params.includedHandoverIds)
+  const [included, receivedOnShift] = await Promise.all([
+    ids.length > 0
+      ? prisma.shiftHandover.findMany({
+          where: { id: { in: ids } },
+          select: includedHandoverSelect,
+        })
+      : getHandoversByForwardedTo(params.handoverId),
+    prisma.shiftHandover.findMany({
+      where: {
+        toShiftId: params.shiftId,
+        status: {
+          notIn: [HANDOVER_STATUS.PENDING, HANDOVER_STATUS.REJECTED, HANDOVER_STATUS.CANCELLED],
+        },
+      },
+      select: { ...includedHandoverSelect, status: true, forwardedToHandoverId: true },
+      orderBy: { createdAt: "asc" },
+    }),
+  ])
+
+  const byId = new Map<string, IncludedHandoverForDisplay>()
+  for (const h of included) {
+    if (h.id === params.handoverId) continue
+    byId.set(h.id, h)
+  }
+  for (const h of receivedOnShift) {
+    if (h.id === params.handoverId) continue
+    if (Number(h.status) !== HANDOVER_STATUS.APPROVED) continue
+    const forwardedTo = h.forwardedToHandoverId
+    if (forwardedTo != null && forwardedTo !== params.handoverId) continue
+    if (byId.has(h.id)) continue
+    const { status: _status, forwardedToHandoverId: _forwarded, ...rest } = h
+    byId.set(rest.id, rest)
+  }
+
+  return [...byId.values()].sort(
+    (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+  )
+}
+
+/**
+ * Full previous-handover set for reconciliation: direct includes, their nested
+ * chain, forwards into this record, and approved handovers received on the shift.
  */
 export async function getPreviousHandoversForHandoverDetail(params: {
   handoverId: string

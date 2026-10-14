@@ -45,14 +45,22 @@ import {
   ChevronRight,
   ChevronsLeft,
   ChevronsRight,
+  Check,
   Loader2,
   Search,
 } from "lucide-react"
 import Link from "next/link"
+import { formatDateTimeSriLanka } from "@/lib/utils"
 
 function actionError(result: { success?: boolean; message?: string } | undefined | null): string {
   if (!result || result.success) return "Something went wrong."
   return result.message ?? "Something went wrong."
+}
+
+/** Request was already approved, rejected, or withdrawn by someone else. */
+function isStaleRequestError(result: { success?: boolean; errorCode?: string } | undefined | null): boolean {
+  if (!result || result.success) return false
+  return result.errorCode === "invalid_state" || result.errorCode === "not_found"
 }
 
 function formatRs(amount: number): string {
@@ -71,6 +79,7 @@ function statusBadge(status: ApprovalRequestStatus) {
 function typeLabel(type: string) {
   if (type === APPROVAL_REQUEST_TYPE.CHANNEL_CANCEL) return "Cancel"
   if (type === APPROVAL_REQUEST_TYPE.BANK_DEPOSIT) return "Bank deposit"
+  if (type === APPROVAL_REQUEST_TYPE.CASH_VOUCHER) return "Cash voucher"
   return "Refund"
 }
 
@@ -278,14 +287,19 @@ export function ApprovalCenterContent({
         toast({
           title: "Approved",
           description:
-            row.type === APPROVAL_REQUEST_TYPE.BANK_DEPOSIT
+            row.type === APPROVAL_REQUEST_TYPE.BANK_DEPOSIT ||
+            row.type === APPROVAL_REQUEST_TYPE.CASH_VOUCHER
               ? `Posted to ledger${result.data?.receiptNoString ? ` as ${result.data.receiptNoString}` : ""}.`
               : "The requester can now complete this on the booking.",
         })
         await loadRows()
       } else {
         toast({ title: "Error", description: actionError(result), variant: "destructive" })
+        if (isStaleRequestError(result)) await loadRows()
       }
+    } catch {
+      toast({ title: "Error", description: "Could not approve this request.", variant: "destructive" })
+      await loadRows()
     } finally {
       setActingId(null)
     }
@@ -303,7 +317,17 @@ export function ApprovalCenterContent({
         await loadRows()
       } else {
         toast({ title: "Error", description: actionError(result), variant: "destructive" })
+        if (isStaleRequestError(result)) {
+          setRejectTarget(null)
+          setRejectReason("")
+          await loadRows()
+        }
       }
+    } catch {
+      toast({ title: "Error", description: "Could not reject this request.", variant: "destructive" })
+      setRejectTarget(null)
+      setRejectReason("")
+      await loadRows()
     } finally {
       setActingId(null)
     }
@@ -318,7 +342,11 @@ export function ApprovalCenterContent({
         await loadRows()
       } else {
         toast({ title: "Error", description: actionError(result), variant: "destructive" })
+        if (isStaleRequestError(result)) await loadRows()
       }
+    } catch {
+      toast({ title: "Error", description: "Could not withdraw this request.", variant: "destructive" })
+      await loadRows()
     } finally {
       setActingId(null)
     }
@@ -328,6 +356,7 @@ export function ApprovalCenterContent({
   const showCancelType = view === "mine" || access.canSeeCancels
   const showRefundType = view === "mine" || access.canSeeRefunds
   const showDepositType = view === "mine" || access.canSeeDeposits
+  const showVoucherType = view === "mine" || access.canSeeCashVouchers
 
   return (
     <div className="space-y-4">
@@ -335,7 +364,7 @@ export function ApprovalCenterContent({
         <h1 className="text-xl font-semibold">Approval Center</h1>
         <p className="text-sm text-muted-foreground">
           {view === "attend"
-            ? "Pending requests waiting for approval. Bank deposits post to the ledger when you approve."
+            ? "Pending requests waiting for approval. Bank deposits and cash vouchers post to the ledger when you approve."
             : "Requests you have sent."}
         </p>
       </div>
@@ -395,6 +424,9 @@ export function ApprovalCenterContent({
               {showDepositType && (
                 <SelectItem value={APPROVAL_REQUEST_TYPE.BANK_DEPOSIT}>Bank deposits</SelectItem>
               )}
+              {showVoucherType && (
+                <SelectItem value={APPROVAL_REQUEST_TYPE.CASH_VOUCHER}>Cash vouchers</SelectItem>
+              )}
             </SelectContent>
           </Select>
         </div>
@@ -444,6 +476,9 @@ export function ApprovalCenterContent({
               <tr className="border-b bg-muted/40 text-left">
                 <th className="p-2 font-medium">Requested</th>
                 <th className="p-2 font-medium">Type</th>
+                <th className="p-2 font-medium">Refund method</th>
+                <th className="p-2 font-medium">Payment type</th>
+                <th className="p-2 font-medium">Payment method</th>
                 <th className="p-2 font-medium">Doctor</th>
                 <th className="p-2 font-medium">Details</th>
                 <th className="p-2 font-medium">Amount</th>
@@ -456,32 +491,38 @@ export function ApprovalCenterContent({
               {rows.map((row) => {
                 const isOwn = row.requestedById === currentUserId
                 const isDeposit = row.type === APPROVAL_REQUEST_TYPE.BANK_DEPOSIT
+                const isVoucher = row.type === APPROVAL_REQUEST_TYPE.CASH_VOUCHER
+                const isImmediate = isDeposit || isVoucher
                 const canActOnType =
                   (row.type === APPROVAL_REQUEST_TYPE.CHANNEL_CANCEL && access.canApproveCancel) ||
                   (row.type === APPROVAL_REQUEST_TYPE.CHANNEL_REFUND && access.canApproveRefund) ||
-                  (isDeposit && access.canApproveBankDeposit)
+                  (isDeposit && access.canApproveBankDeposit) ||
+                  (isVoucher && access.canApproveCashVoucher)
                 const canApprove =
                   !isOwn && row.status === APPROVAL_REQUEST_STATUS.PENDING && canActOnType
                 const canReject =
                   !isOwn &&
                   canActOnType &&
                   (row.status === APPROVAL_REQUEST_STATUS.PENDING ||
-                    (!isDeposit && row.status === APPROVAL_REQUEST_STATUS.APPROVED))
+                    (!isImmediate && row.status === APPROVAL_REQUEST_STATUS.APPROVED))
                 const canWithdraw =
                   isOwn &&
                   (row.status === APPROVAL_REQUEST_STATUS.PENDING ||
-                    (!isDeposit && row.status === APPROVAL_REQUEST_STATUS.APPROVED))
+                    (!isImmediate && row.status === APPROVAL_REQUEST_STATUS.APPROVED))
                 return (
                   <tr key={row.id} className="border-b last:border-0">
                     <td className="p-2">
                       <div>{row.requestedByName}</div>
                       <div className="text-xs text-muted-foreground whitespace-nowrap">
-                        {new Date(row.createdAt).toLocaleString()}
+                        {formatDateTimeSriLanka(row.createdAt)}
                       </div>
                     </td>
                     <td className="p-2">{typeLabel(row.type)}</td>
+                    <td className="p-2 whitespace-nowrap">{row.refundMethodName}</td>
+                    <td className="p-2 whitespace-nowrap">{row.paymentTypeName}</td>
+                    <td className="p-2 whitespace-nowrap">{row.paymentMethodName}</td>
                     <td className="p-2">
-                      {isDeposit ? (
+                      {isImmediate ? (
                         <span className="text-muted-foreground">—</span>
                       ) : (
                         <span title={row.doctorName}>{row.doctorName || "—"}</span>
@@ -508,8 +549,18 @@ export function ApprovalCenterContent({
                     </td>
                     <td className="p-2 whitespace-nowrap">{formatRs(row.amount)}</td>
                     <td className="p-2">{statusBadge(row.status)}</td>
-                    <td className="p-2 max-w-[220px]">
+                    <td className="p-2 max-w-[280px]">
                       <p className="truncate" title={row.remarks}>{row.remarks}</p>
+                      {row.checkedConfirmations.length > 0 ? (
+                        <ul className="mt-1 space-y-0.5 text-xs text-muted-foreground">
+                          {row.checkedConfirmations.map((label) => (
+                            <li key={label} className="flex items-start gap-1 whitespace-normal">
+                              <Check className="mt-0.5 size-3 shrink-0 text-emerald-600" aria-hidden />
+                              <span>{label}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      ) : null}
                       {row.rejectReason ? (
                         <p className="text-xs text-destructive truncate" title={row.rejectReason}>
                           Rejected: {row.rejectReason}

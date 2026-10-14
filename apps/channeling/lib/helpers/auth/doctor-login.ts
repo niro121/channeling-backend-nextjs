@@ -1,6 +1,7 @@
 import prisma from "@/lib/prisma"
 import { DOCTOR_USER_TYPE } from "@/lib/doctor-app-auth"
 import type { User, UserGroup } from "@prisma/client"
+import { loginIdentifierOr } from "@/lib/helpers/auth/parse-login-identifier"
 
 export type DoctorUserWithGroup = User & { userGroup: UserGroup | null }
 
@@ -13,7 +14,7 @@ export async function findActiveDoctorUser(
     where: {
       userType: DOCTOR_USER_TYPE,
       status: 1,
-      OR: [{ email: trimmed }, { username: trimmed }],
+      OR: loginIdentifierOr(trimmed),
     },
     include: { userGroup: true },
   })

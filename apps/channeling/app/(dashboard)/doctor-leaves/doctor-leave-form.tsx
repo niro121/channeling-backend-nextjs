@@ -26,10 +26,7 @@ import {
   updateDoctorLeave
 } from '@/app/actions/doctor.leave.action';
 import moment from 'moment';
-import {
-  formatSessionTime,
-  getSessionStartAt
-} from '../channel-booking/components/sessions-selection/util';
+import { formatSessionTime } from '../channel-booking/components/sessions-selection/util';
 import { Badge } from '@/components/ui/badge';
 import { Plus, X } from 'lucide-react';
 import { CustomSwitch } from '@/components/common/custom-switch';
@@ -37,67 +34,17 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import { useDoctorLeavesRefetch } from './doctor-leaves-refresh-context';
-
-const SESSION_STARTED_TOOLTIP =
-  'This session has already started (or its start time is now or in the past). It cannot be added to or removed from this leave.';
-
-const SAVE_DISABLED_ILLEGAL_TOOLTIP =
-  'The session list cannot be changed to add or remove sessions that have already started. Reload the form and avoid altering those entries.';
+import { Combobox } from '@/components/common/combobox';
 
 const SAVE_DISABLED_NO_SESSIONS_TOOLTIP =
   'Select at least one session to save this leave. Add sessions from the Active sessions tab to Selected sessions, then try again.';
 
-/** True when the session’s scheduled start (date + start time) is at or before the current time. */
-function isSessionStartOnOrBeforeNow(s: Session): boolean {
-  if (s.startAt && !Number.isNaN(new Date(s.startAt).getTime())) {
-    return new Date(s.startAt).getTime() <= Date.now();
-  }
-  if (!s.startTime) return false;
-  const m = s.startTime.trim().match(/^(\d{1,2}):(\d{2})/);
-  if (m) {
-    const d = new Date(s.date);
-    const h = parseInt(m[1], 10);
-    const min = parseInt(m[2], 10);
-    if (!Number.isNaN(h) && !Number.isNaN(min)) {
-      const start = new Date(
-        d.getFullYear(),
-        d.getMonth(),
-        d.getDate(),
-        h,
-        min,
-        0,
-        0
-      );
-      return start.getTime() <= Date.now();
-    }
-  }
-  const ampm = s.startTime.trim().match(/^(\d{1,2})\.(\d{2})(AM|PM)$/i);
-  if (ampm) {
-    const d = new Date(s.date);
-    let h = parseInt(ampm[1], 10);
-    const min = parseInt(ampm[2], 10);
-    const p = ampm[3].toUpperCase();
-    if (p === 'PM' && h !== 12) h += 12;
-    if (p === 'AM' && h === 12) h = 0;
-    if (!Number.isNaN(h) && !Number.isNaN(min)) {
-      const start = new Date(
-        d.getFullYear(),
-        d.getMonth(),
-        d.getDate(),
-        h,
-        min,
-        0,
-        0
-      );
-      return start.getTime() <= Date.now();
-    }
-  }
-  return false;
-}
-
 type LeaveFormProps = {
   doctorId: string;
   doctorName: string;
+  branchOptions?: { id: string; name: string }[];
+  /** Branch chosen on the list filter, used as the default for a new leave. */
+  defaultBranchId?: string;
   doctorLeave: DoctorLeave | null;
   isEditPage?: boolean;
   user?: {
@@ -113,6 +60,8 @@ type LeaveFormProps = {
 export default function DoctorLeaveForm({
   doctorId,
   doctorName,
+  branchOptions = [],
+  defaultBranchId,
   doctorLeave,
   user,
   onClose,
@@ -134,6 +83,11 @@ export default function DoctorLeaveForm({
   /** Session IDs already used by another leave for this doctor — not selectable for this leave */
   const [lockedSessionIds, setLockedSessionIds] = React.useState<Set<string>>(new Set());
   const [sessionsTab, setSessionsTab] = React.useState<'active' | 'selected'>('active');
+  const lockedBranchId = doctorLeave?.locationId ?? '';
+  const [branchId, setBranchId] = React.useState<string>(
+    lockedBranchId ||
+      (defaultBranchId && defaultBranchId !== '__all__' ? defaultBranchId : '')
+  );
   const [dateRange, setDateRange] = React.useState<{
     fromDate?: Date;
     toDate?: Date;
@@ -153,7 +107,10 @@ export default function DoctorLeaveForm({
       sesssions: doctorLeave?.sessions ?? [],
       sendSms: Boolean(doctorLeave?.sendSms),
       status: doctorLeave?.status ?? 0,
-      doctorId: doctorLeave?.doctorId ?? doctorId
+      doctorId: doctorLeave?.doctorId ?? doctorId,
+      locationId:
+        doctorLeave?.locationId ??
+        (defaultBranchId && defaultBranchId !== '__all__' ? defaultBranchId : '')
     }),
     [
       doctorLeave?.id,
@@ -164,7 +121,9 @@ export default function DoctorLeaveForm({
       doctorLeave?.sendSms,
       doctorLeave?.status,
       doctorLeave?.doctorId,
-      doctorId
+      doctorLeave?.locationId,
+      doctorId,
+      defaultBranchId
     ]
   );
 
@@ -179,6 +138,8 @@ export default function DoctorLeaveForm({
     () =>
       Yup.object({
         doctorId: Yup.string().required(),
+
+        locationId: Yup.string().required('Branch is required'),
 
         fromDate: Yup.date().required('From date is required'),
 
@@ -229,6 +190,7 @@ export default function DoctorLeaveForm({
     const payload = {
       ...values,
       doctorId: values.doctorId ?? doctorId,
+      locationId: values.locationId || branchId || undefined,
       sendSms: values.sendSms === true ? 1 : 0,
       sessions: sessionIds.map((id) => ({ id }))
     } as DoctorLeaveFormProps & { sendSms: number; sessions: { id: string }[] };
@@ -349,15 +311,17 @@ export default function DoctorLeaveForm({
       id: raw.id,
       date,
       location: raw.location?.name ?? '',
+      locationId: raw.location?.id ?? raw.locationId ?? '',
       startTime: formatSessionTime(raw.startTime, raw.date),
-      endTime: formatSessionTime(raw.endTime, raw.date),
-      startAt: getSessionStartAt(raw.startTime, date)
+      endTime: formatSessionTime(raw.endTime, raw.date)
     };
   }
 
   React.useEffect(() => {
     if (
       !doctorId ||
+      !branchId ||
+      branchId === '__all__' ||
       !dateRange.fromDate ||
       !dateRange.toDate ||
       dateRange.toDate < dateRange.fromDate
@@ -374,7 +338,7 @@ export default function DoctorLeaveForm({
 
     const fromStr = moment(dateRange.fromDate).format('YYYY-MM-DD');
     const toStr = moment(dateRange.toDate).format('YYYY-MM-DD');
-    const fetchKey = `${doctorId}|${fromStr}|${toStr}`;
+    const fetchKey = `${doctorId}|${branchId}|${fromStr}|${toStr}`;
     if (sessionsFetchKeyRef.current !== fetchKey) {
       sessionsFetchKeyRef.current = fetchKey;
       setRemovedSessions([]);
@@ -383,8 +347,18 @@ export default function DoctorLeaveForm({
     setSessionsLoading(true);
 
     Promise.all([
-      getAllActiveSessions({ doctorId, fromDate: fromStr, toDate: toStr }),
-      getCanceledSessions({ doctorId, fromDate: fromStr, toDate: toStr }),
+      getAllActiveSessions({
+        doctorId,
+        fromDate: fromStr,
+        toDate: toStr,
+        locationId: branchId
+      }),
+      getCanceledSessions({
+        doctorId,
+        fromDate: fromStr,
+        toDate: toStr,
+        locationId: branchId
+      }),
       getSessionIdsLockedByOtherLeaves({
         doctorId,
         excludeLeaveId: doctorLeave?.id ?? undefined
@@ -419,7 +393,7 @@ export default function DoctorLeaveForm({
       .finally(() => setSessionsLoading(false));
     // Intentionally omit `doctorLeave?.sessions`: it is a new array reference on many parent renders and
     // would refetch and previously cleared `removedSessions` after the user deselects on-leave sessions (edit only).
-  }, [doctorId, dateRange.fromDate, dateRange.toDate, doctorLeave?.id]);
+  }, [doctorId, branchId, dateRange.fromDate, dateRange.toDate, doctorLeave?.id]);
 
   return (
     <Formik
@@ -468,37 +442,9 @@ export default function DoctorLeaveForm({
         });
         const selectedSessions = Array.from(byId.values()).filter((s) => selectedIds.has(s.id));
 
-        const initSessionIds = new Set(
-          (formik.initialValues.sesssions ?? []).map((s) => getSessionId(s))
-        );
-        const currSessionIds = new Set(formik.values.sesssions.map((s) => getSessionId(s)));
-        let illegalSessionMembershipChange = false;
-        for (const id of initSessionIds) {
-          if (currSessionIds.has(id)) continue;
-          const s = byId.get(id);
-          if (s && isSessionStartOnOrBeforeNow(s)) {
-            illegalSessionMembershipChange = true;
-            break;
-          }
-        }
-        if (!illegalSessionMembershipChange) {
-          for (const id of currSessionIds) {
-            if (initSessionIds.has(id)) continue;
-            const s = byId.get(id);
-            if (s && isSessionStartOnOrBeforeNow(s)) {
-              illegalSessionMembershipChange = true;
-              break;
-            }
-          }
-        }
-
-        const canSelectAllActive = activeSessions.some(
-          (s) => !selectedIds.has(s.id) && !isSessionStartOnOrBeforeNow(s)
-        );
-        const canRemoveAll = selectedSessions.some((s) => !isSessionStartOnOrBeforeNow(s));
+        const canSelectAllActive = activeSessions.some((s) => !selectedIds.has(s.id));
 
         const handleRemoveFromLeave = (session: Session) => {
-          if (isSessionStartOnOrBeforeNow(session)) return;
           const updated = formik.values.sesssions.filter((s) => getSessionId(s) !== session.id);
           void formik.setFieldValue('sesssions', updated);
           if (updated.length === 0) {
@@ -508,7 +454,7 @@ export default function DoctorLeaveForm({
         };
 
         const handleAddToLeave = (session: Session) => {
-          if (isSessionStartOnOrBeforeNow(session)) return;
+          if (session.locationId && branchId && session.locationId !== branchId) return;
           const current = formik.values.sesssions;
           if (current.some((s) => getSessionId(s) === session.id)) return;
           formik.setFieldValue('sesssions', [...current, session]);
@@ -517,9 +463,7 @@ export default function DoctorLeaveForm({
 
         const handleSelectAll = () => {
           const current = formik.values.sesssions;
-          const toAdd = activeSessions.filter(
-            (s) => !selectedIds.has(s.id) && !isSessionStartOnOrBeforeNow(s)
-          );
+          const toAdd = activeSessions.filter((s) => !selectedIds.has(s.id));
           if (toAdd.length === 0) return;
           formik.setFieldValue('sesssions', [...current, ...toAdd]);
           setRemovedSessions((prev) =>
@@ -529,33 +473,20 @@ export default function DoctorLeaveForm({
         };
 
         const handleRemoveAll = () => {
-          const toRemove = selectedSessions.filter((s) => !isSessionStartOnOrBeforeNow(s));
-          if (toRemove.length === 0) return;
-          const stay = selectedSessions.filter((s) => isSessionStartOnOrBeforeNow(s));
-          const stayIds = new Set(stay.map((s) => s.id));
-          formik.setFieldValue(
-            'sesssions',
-            formik.values.sesssions.filter((s) => stayIds.has(getSessionId(s)))
-          );
+          if (selectedSessions.length === 0) return;
+          formik.setFieldValue('sesssions', []);
           setRemovedSessions((prev) =>
-            [...prev, ...toRemove].filter((s, i, arr) => arr.findIndex((x) => x.id === s.id) === i)
+            [...prev, ...selectedSessions].filter(
+              (s, i, arr) => arr.findIndex((x) => x.id === s.id) === i
+            )
           );
-          if (stay.length > 0) {
-            setSessionsTab('selected');
-          } else {
-            setSessionsTab('active');
-            void formik.setFieldTouched('sesssions', true, false);
-          }
+          setSessionsTab('active');
+          void formik.setFieldTouched('sesssions', true, false);
         };
 
         const hasNoSelectedSessions = formik.values.sesssions.length === 0;
-        const saveActionsDisabled =
-          loading || illegalSessionMembershipChange || hasNoSelectedSessions;
-        const showSaveDisabledWhyTooltip =
-          !loading && (illegalSessionMembershipChange || hasNoSelectedSessions);
-        const saveDisabledWhyTooltip = illegalSessionMembershipChange
-          ? SAVE_DISABLED_ILLEGAL_TOOLTIP
-          : SAVE_DISABLED_NO_SESSIONS_TOOLTIP;
+        const saveActionsDisabled = loading || hasNoSelectedSessions;
+        const showSaveDisabledWhyTooltip = !loading && hasNoSelectedSessions;
 
         return (
           <Form className="w-full">
@@ -577,6 +508,43 @@ export default function DoctorLeaveForm({
                   aria-readonly
                 >
                   DR. {doctorName}
+                </div>
+              </div>
+              <div className={styleClasses.parentDiv}>
+                <Label className={styleClasses.labelClassName}>
+                  Branch<span className="text-red-600"> *</span>
+                </Label>
+                <div className={styleClasses.inputClassName}>
+                  {lockedBranchId ? (
+                    <div className="flex h-9 w-full items-center rounded-md border border-input bg-muted px-3 text-sm text-muted-foreground">
+                      {branchOptions.find((o) => o.id === lockedBranchId)?.name ||
+                        doctorLeave?.location?.name ||
+                        'This branch'}
+                    </div>
+                  ) : (
+                    <Combobox
+                      label="Select branch"
+                      options={branchOptions.filter((o) => o.id !== '__all__')}
+                      value={formik.values.locationId || branchId}
+                      defaultValue=""
+                      onChange={(v) => {
+                        const next = v || '';
+                        setBranchId(next);
+                        formik.setFieldValue('locationId', next);
+                        formik.setFieldValue('sesssions', []);
+                        setRemovedSessions([]);
+                      }}
+                    />
+                  )}
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    A leave covers one branch. Only sessions at the selected branch can be added.
+                  </p>
+                  {formik.touched.locationId &&
+                  typeof formik.errors.locationId === 'string' ? (
+                    <p className="mt-1 text-sm text-destructive">
+                      {formik.errors.locationId}
+                    </p>
+                  ) : null}
                 </div>
               </div>
               <div className={styleClasses.parentDiv}>
@@ -670,97 +638,48 @@ export default function DoctorLeaveForm({
                           </span>
                         )}
                       </p>
-                      {!sessionsLoading && activeSessions.length > 0 && (
+                      {!sessionsLoading && canSelectAllActive && (
                         <div className="flex justify-end mb-2">
-                          {canSelectAllActive ? (
-                            <Button
-                              type="button"
-                              variant="secondary"
-                              size="sm"
-                              onClick={handleSelectAll}
-                              className="gap-1.5"
-                            >
-                              <Plus className="h-3.5 w-3.5" />
-                              Select All
-                            </Button>
-                          ) : (
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <span className="inline-flex">
-                                  <Button
-                                    type="button"
-                                    variant="secondary"
-                                    size="sm"
-                                    className="gap-1.5"
-                                    disabled
-                                  >
-                                    <Plus className="h-3.5 w-3.5" />
-                                    Select All
-                                  </Button>
-                                </span>
-                              </TooltipTrigger>
-                              <TooltipContent
-                                className="max-w-56"
-                              >
-                                {SESSION_STARTED_TOOLTIP}
-                              </TooltipContent>
-                            </Tooltip>
-                          )}
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            size="sm"
+                            onClick={handleSelectAll}
+                            className="gap-1.5"
+                          >
+                            <Plus className="h-3.5 w-3.5" />
+                            Select All
+                          </Button>
                         </div>
                       )}
                       <Card className="flex flex-wrap gap-3 p-2 relative min-h-[80px]">
                         {sessionsLoading && (
                           <Loader className="w-4 h-4 animate-spin absolute left-1/2 top-1/4" />
                         )}
-                        {!sessionsLoading && activeSessions.length === 0 && (
+                        {!sessionsLoading && !branchId && (
                           <p className="text-muted-foreground text-center text-sm w-full py-4">
-                            No active sessions in this range, or all are already
+                            Select a branch to see its sessions.
+                          </p>
+                        )}
+                        {!sessionsLoading && branchId && activeSessions.length === 0 && (
+                          <p className="text-muted-foreground text-center text-sm w-full py-4">
+                            No active sessions at this branch in this range, or all are already
                             on leave.
                           </p>
                         )}
-                        {activeSessions.map((option) => {
-                          const started = isSessionStartOnOrBeforeNow(option);
-                          const label = (
-                            <>
-                              {new Date(option.date).toLocaleDateString()} |{' '}
-                              {option.location} | {option.startTime} -{' '}
-                              {option.endTime}
-                              <Plus className="h-3 w-3 ml-0.5" />
-                            </>
-                          );
-                          if (started) {
-                            return (
-                              <Tooltip key={option.id}>
-                                <TooltipTrigger asChild>
-                                  <span className="inline-flex cursor-not-allowed">
-                                    <Badge
-                                      variant="secondary"
-                                      className="h-fit flex items-center gap-1 bg-muted text-muted-foreground border border-border opacity-70 pointer-events-none"
-                                      aria-disabled
-                                    >
-                                      {label}
-                                    </Badge>
-                                  </span>
-                                </TooltipTrigger>
-                                <TooltipContent
-                                  className="max-w-xs"
-                                >
-                                  {SESSION_STARTED_TOOLTIP}
-                                </TooltipContent>
-                              </Tooltip>
-                            );
-                          }
-                          return (
-                            <Badge
-                              key={option.id}
-                              variant="secondary"
-                              className="h-fit flex items-center gap-1 bg-primary/10 text-primary hover:bg-primary/20 border border-primary/30 cursor-pointer"
-                              onClick={() => handleAddToLeave(option)}
-                            >
-                              {label}
-                            </Badge>
-                          );
-                        })}
+                        {activeSessions.map((option) => (
+                          <Badge
+                            key={option.id}
+                            variant="secondary"
+                            className="h-fit flex items-center gap-1 bg-primary/10 text-primary hover:bg-primary/20 border border-primary/30 cursor-pointer"
+                            onClick={() => handleAddToLeave(option)}
+                          >
+                            {new Date(option.date).toLocaleDateString()} |{' '}
+                            {option.location} | {option.startTime} -{' '}
+                            {option.endTime}
+                            <Plus className="h-3 w-3 ml-0.5" />
+                          </Badge>
+                        ))}
                       </Card>
                     </TabsContent>
                     <TabsContent value="selected" className="mt-3">
@@ -769,38 +688,16 @@ export default function DoctorLeaveForm({
                       </p>
                       {selectedSessions.length > 0 && (
                         <div className="flex justify-end mb-2">
-                          {canRemoveAll ? (
-                            <Button
-                              type="button"
-                              variant="secondary"
-                              size="sm"
-                              onClick={handleRemoveAll}
-                              className="gap-1.5"
-                            >
-                              <X className="h-3.5 w-3.5" />
-                              Remove All
-                            </Button>
-                          ) : (
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <span className="inline-flex">
-                                  <Button
-                                    type="button"
-                                    variant="secondary"
-                                    size="sm"
-                                    className="gap-1.5"
-                                    disabled
-                                  >
-                                    <X className="h-3.5 w-3.5" />
-                                    Remove All
-                                  </Button>
-                                </span>
-                              </TooltipTrigger>
-                              <TooltipContent className="max-w-56">
-                                {SESSION_STARTED_TOOLTIP}
-                              </TooltipContent>
-                            </Tooltip>
-                          )}
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            size="sm"
+                            onClick={handleRemoveAll}
+                            className="gap-1.5"
+                          >
+                            <X className="h-3.5 w-3.5" />
+                            Remove All
+                          </Button>
                         </div>
                       )}
                       <Card className="flex flex-wrap gap-3 p-2 relative min-h-[80px]">
@@ -809,56 +706,24 @@ export default function DoctorLeaveForm({
                             No sessions selected. Add from Active sessions tab.
                           </p>
                         )}
-                        {selectedSessions.map((option) => {
-                          const started = isSessionStartOnOrBeforeNow(option);
-                          const line = (
-                            <>
-                              {new Date(option.date).toLocaleDateString()} |{' '}
-                              {option.location} | {option.startTime} -{' '}
-                              {option.endTime}
-                            </>
-                          );
-                          if (started) {
-                            return (
-                              <Tooltip key={option.id}>
-                                <TooltipTrigger asChild>
-                                  <span className="inline-flex cursor-not-allowed">
-                                    <Badge
-                                      variant="secondary"
-                                      className="h-fit flex items-center gap-1 bg-muted text-muted-foreground border border-border opacity-80 pointer-events-none"
-                                      aria-disabled
-                                    >
-                                      {line}
-                                      <X
-                                        className="h-3 w-3 opacity-50"
-                                        aria-hidden
-                                      />
-                                    </Badge>
-                                  </span>
-                                </TooltipTrigger>
-                                <TooltipContent className="max-w-xs">
-                                  {SESSION_STARTED_TOOLTIP}
-                                </TooltipContent>
-                              </Tooltip>
-                            );
-                          }
-                          return (
-                            <Badge
-                              key={option.id}
-                              variant="secondary"
-                              className="h-fit flex items-center gap-1 cursor-pointer bg-teal-700 text-white hover:bg-teal-600"
-                            >
-                              {line}
-                              <X
-                                className="h-3 w-3 cursor-pointer"
-                                onPointerDown={(e) => {
-                                  e.preventDefault();
-                                  handleRemoveFromLeave(option);
-                                }}
-                              />
-                            </Badge>
-                          );
-                        })}
+                        {selectedSessions.map((option) => (
+                          <Badge
+                            key={option.id}
+                            variant="secondary"
+                            className="h-fit flex items-center gap-1 cursor-pointer bg-teal-700 text-white hover:bg-teal-600"
+                          >
+                            {new Date(option.date).toLocaleDateString()} |{' '}
+                            {option.location} | {option.startTime} -{' '}
+                            {option.endTime}
+                            <X
+                              className="h-3 w-3 cursor-pointer"
+                              onPointerDown={(e) => {
+                                e.preventDefault();
+                                handleRemoveFromLeave(option);
+                              }}
+                            />
+                          </Badge>
+                        ))}
                       </Card>
                     </TabsContent>
                   </Tabs>
@@ -972,7 +837,7 @@ export default function DoctorLeaveForm({
                       <TooltipContent
                         className="max-w-xs"
                       >
-                        {saveDisabledWhyTooltip}
+                        {SAVE_DISABLED_NO_SESSIONS_TOOLTIP}
                       </TooltipContent>
                     </Tooltip>
                     <Tooltip>
@@ -993,7 +858,7 @@ export default function DoctorLeaveForm({
                       <TooltipContent
                         className="max-w-56"
                       >
-                        {saveDisabledWhyTooltip}
+                        {SAVE_DISABLED_NO_SESSIONS_TOOLTIP}
                       </TooltipContent>
                     </Tooltip>
                   </>

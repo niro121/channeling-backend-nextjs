@@ -34,6 +34,9 @@ type ReceiptManagerToolbarProps = {
     success: boolean;
     data?: ReceiptExportRow[];
     message?: string;
+    totalRecords?: number;
+    exportLimit?: number;
+    limited?: boolean;
   }>;
 };
 

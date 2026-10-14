@@ -7,14 +7,15 @@ import { getLedgerColumns } from "./columns"
 import LedgerFilterSection from "./filter-section"
 import { LedgerToolbarWithAddDialog } from "./ledger-toolbar-with-add-dialog"
 import type { LedgerReceiptListItem } from "@/services/ledger/list-ledger-receipts.service"
+import type { LedgerTransactionType } from "@/services/ledger/create-ledger-receipt.service"
 import type { ReferenceSelectOption } from "@/types/reference"
 
 type LedgerTableClientProps = {
   data: LedgerReceiptListItem[]
   totalRecords: number
   canAdd: boolean
-  canCancel: boolean
-  canCancelBankDeposit: boolean
+  allowedTransactionTypes: LedgerTransactionType[]
+  cancelableMethods: number[]
   page?: string
   limit?: string
   branchId?: string
@@ -42,8 +43,8 @@ export function LedgerTableClient({
   data,
   totalRecords,
   canAdd,
-  canCancel,
-  canCancelBankDeposit,
+  allowedTransactionTypes,
+  cancelableMethods,
   page,
   limit,
   branchId,
@@ -60,7 +61,7 @@ export function LedgerTableClient({
     <CustomDataTable
       heading="Ledger"
       subHeading="Branch income/expense and agency debit note, credit note, deposit, withdraw."
-      columns={getLedgerColumns({ canCancel, canCancelBankDeposit })}
+      columns={getLedgerColumns({ cancelableMethods })}
       data={data}
       rowCount={totalRecords}
       haveBulkDelete={false}
@@ -87,6 +88,7 @@ export function LedgerTableClient({
       toolbarRight={
         <LedgerToolbarWithAddDialog
           canAdd={canAdd}
+          allowedTransactionTypes={allowedTransactionTypes}
           locations={locations}
           agencies={agencies}
           banks={banks}

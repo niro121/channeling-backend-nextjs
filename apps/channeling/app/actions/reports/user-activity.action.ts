@@ -2,7 +2,8 @@
 
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { requirePermission } from '@/lib/server-permissions';
+import { REPORTS_WITH_USER_OPTIONS } from '@/lib/report-privileges';
+import { requireAnyReport, requireReport } from '@/lib/server-permissions';
 import { logActivityNonBlocking } from '@/lib/activity-log';
 import prisma from '@/lib/prisma';
 import { getActivityLogsForReport } from '@/services/reports/user-activity.service';
@@ -19,7 +20,7 @@ export async function getReportUserOptionsAction(): Promise<{
   data?: Array<{ id: string; name: string }>;
   message?: string;
 }> {
-  await requirePermission('reports', 'view');
+  await requireAnyReport([...REPORTS_WITH_USER_OPTIONS]);
   try {
     const ref = await getReferenceData({ users: true });
     if (!ref.success) return { success: false, message: ref.message ?? 'Failed to load users' };
@@ -40,7 +41,7 @@ export async function getReportActionOptionsAction(): Promise<{
   data?: string[];
   message?: string;
 }> {
-  await requirePermission('reports', 'view');
+  await requireReport('user-activity');
   try {
     const logs = await prisma.activityLog.findMany({
       select: { action: true },
@@ -62,7 +63,7 @@ export async function getReportActionOptionsAction(): Promise<{
 export async function getUserActivityReportData(
   query: UserActivityReportQuery
 ): Promise<UserActivityReportResponse> {
-  await requirePermission('reports', 'view');
+  await requireReport('user-activity');
   try {
     const result = await getActivityLogsForReport(
       query.userId === '__all__' || !query.userId ? undefined : query.userId,
@@ -105,7 +106,7 @@ export async function exportUserActivityReportData(
   message?: string;
   hasMore?: boolean;
 }> {
-  await requirePermission('reports', 'view');
+  await requireReport('user-activity');
   try {
     const result = await getActivityLogsForReport(
       query.userId === '__all__' || !query.userId ? undefined : query.userId,

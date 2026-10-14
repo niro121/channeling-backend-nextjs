@@ -1,22 +1,28 @@
 'use client';
 
-import React, { Suspense, useMemo, useState } from 'react';
+import React, { Suspense, useCallback, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { DateTimeRangePicker } from '@/components/common/date-time-range-picker';
 import { Combobox } from '@/components/common/combobox';
 import { ReportTemplate } from '@/app/(dashboard)/report-template';
 import { TableCell, TableRow } from '@/components/ui/table';
+import { toBrandedPdfSummaryItems } from '@/components/common/report-print';
+import type { ReportPrintSummaryItem } from '@/components/common/report-print';
 import { formatCents } from '@/lib/format-money';
 import type {
   CashBookReportExportRow,
   CashBookReportQuery,
   CashBookReportRow,
+  CashBookTypeBalance,
 } from '@/types/reports/cash-book';
 import {
   exportCashBookReportData,
   getCashBookReportData,
 } from '@/app/actions/reports/cash-book.report.action';
 import { CashBookReportColumns } from './columns';
+import { CashBookPrintLayout } from './cash-book-print-layout';
+import { downloadCashBookReportPdf } from './cash-book-pdf';
+import { downloadCashBookReportExcel } from './cash-book-excel';
 import Loading from '@/app/(dashboard)/loading';
 
 type Props = {
@@ -37,6 +43,7 @@ function ContentInner({ currentUserName, cashBookOptions }: Props) {
   const [summary, setSummary] = useState<{
     openingBalanceCents: number;
     closingBalanceCents: number;
+    closingBalancesByType: CashBookTypeBalance[];
   } | null>(null);
 
   const today = todayLocalYyyyMmDd();
@@ -55,13 +62,88 @@ function ContentInner({ currentUserName, cashBookOptions }: Props) {
     cashBookAccountId: searchParams.get('cashBookAccountId') ?? defaultCashBookId,
   });
 
+  const buildSummaryItems = useCallback(
+    (values: Record<string, string | undefined>): ReportPrintSummaryItem[] => {
+      const from = values.dateFrom ?? '';
+      const to = values.dateTo ?? '';
+      const accountId = values.cashBookAccountId ?? '';
+      return [
+        {
+          label: 'Period',
+          value: `${from || '—'} to ${to || '—'}`,
+          fullWidth: true,
+        },
+        {
+          label: 'Cash Book',
+          value: allCashBooks.find((x) => x.id === accountId)?.name ?? '-',
+        },
+      ];
+    },
+    [allCashBooks]
+  );
+
+  const handlePdfDownload = useCallback(
+    async (args: {
+      title: string;
+      data: CashBookReportExportRow[];
+      columns: string[];
+      keys: (keyof CashBookReportExportRow)[];
+      fileName?: string;
+    }) => {
+      const query = buildQuery();
+      await downloadCashBookReportPdf({
+        reportName: 'Cash Book',
+        summaryItems: toBrandedPdfSummaryItems(buildSummaryItems(query)),
+        generatedAt: new Date().toLocaleString(),
+        rows: args.data,
+        openingDateLabel: query.dateFrom ? new Date(query.dateFrom).toLocaleString() : undefined,
+        fileName: args.fileName,
+      });
+    },
+    [buildSummaryItems]
+  );
+
+  const handleExcelDownload = useCallback(
+    async (args: {
+      title: string;
+      data: CashBookReportExportRow[];
+      columns: string[];
+      keys: (keyof CashBookReportExportRow)[];
+      fileName?: string;
+    }) => {
+      const query = buildQuery();
+      await downloadCashBookReportExcel({
+        reportName: 'Cash Book',
+        summaryItems: toBrandedPdfSummaryItems(buildSummaryItems(query)),
+        generatedAt: new Date().toLocaleString(),
+        rows: args.data,
+        openingDateLabel: query.dateFrom ? new Date(query.dateFrom).toLocaleString() : undefined,
+        fileName: args.fileName,
+        sheetName: 'Cash Book',
+      });
+    },
+    [buildSummaryItems]
+  );
+
   return (
     <ReportTemplate<CashBookReportRow, CashBookReportExportRow>
       title="Cash Book"
       description="Statement-style view for a selected cash book within a date range."
       filterButtonLabel="Search"
       showBackButton={false}
-      containerClassName="w-full py-2 space-y-3"
+      printPageSize="A4 portrait"
+      printPageMargins="7mm 5mm 18mm"
+      exportOrientation="portrait"
+      containerClassName="w-full py-2 space-y-3 cash-book-report-root"
+      renderPrintContent={(rows) => (
+        <CashBookPrintLayout
+          rows={rows}
+          closingBalanceCents={summary?.closingBalanceCents ?? null}
+          closingBalancesByType={summary?.closingBalancesByType ?? []}
+        />
+      )}
+      customDownloadPdf={handlePdfDownload}
+      customDownloadExcel={handleExcelDownload}
       generationDetails={{
         generatedBy: currentUserName,
         formatFilters: (values) => {
@@ -76,22 +158,7 @@ function ContentInner({ currentUserName, cashBookOptions }: Props) {
             </>
           );
         },
-        formatPrintSummaryItems: (values) => {
-          const from = values.dateFrom ?? '';
-          const to = values.dateTo ?? '';
-          const accountId = values.cashBookAccountId ?? '';
-          return [
-            {
-              label: 'Period',
-              value: `${from || '—'} to ${to || '—'}`,
-              fullWidth: true,
-            },
-            {
-              label: 'Cash Book',
-              value: allCashBooks.find((x) => x.id === accountId)?.name ?? '-',
-            },
-          ];
-        },
+        formatPrintSummaryItems: (values) => buildSummaryItems(values),
       }}
       initialFilterValues={{
         dateFrom: defaultFrom,
@@ -139,6 +206,7 @@ function ContentInner({ currentUserName, cashBookOptions }: Props) {
           setSummary({
             openingBalanceCents: result.openingBalanceCents,
             closingBalanceCents: result.closingBalanceCents,
+            closingBalancesByType: result.closingBalancesByType,
           });
           const openingRow: CashBookReportRow = {
             id: 'opening-balance-row',
@@ -181,6 +249,14 @@ function ContentInner({ currentUserName, cashBookOptions }: Props) {
               </TableCell>
               <TableCell className="text-right tabular-nums">{formatCents(summary.closingBalanceCents)}</TableCell>
             </TableRow>
+            {summary.closingBalancesByType.map((typeBalance) => (
+              <TableRow key={typeBalance.label} className="bg-muted/20">
+                <TableCell colSpan={7} className="pl-8 text-left">
+                  {typeBalance.label}
+                </TableCell>
+                <TableCell className="text-right tabular-nums">{formatCents(typeBalance.balanceCents)}</TableCell>
+              </TableRow>
+            ))}
             {rows.length === 0 && (
               <TableRow className="bg-muted/20">
                 <TableCell colSpan={8} className="text-center text-muted-foreground">

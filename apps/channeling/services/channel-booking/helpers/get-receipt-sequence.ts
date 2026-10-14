@@ -25,6 +25,8 @@ function pad(num: number, size: number): string {
  * method 9 → branchexpense, shortcode + 'CHANN-EXP/' + pad(5)
  * method 10 → bankdeposit, shortcode + 'CHANN-BNK-DP/' + pad(5)
  * method 11 → bankwithdraw, shortcode + 'CHANN-BNK-WD/' + pad(5)
+ * method 12 → cashvoucher, shortcode + 'CHANN-CSH-VC/' + pad(5)
+ * method 13 → cashvouchercancel, shortcode + 'CHANN-CSH-VR/' + pad(5)
  * When locationId is null (and no userLocationId for pay/refund/agency ledger), uses receipt:global and REC- prefix for backward compat.
  * Payment/refund and agency ledger methods prefer userLocationId (cashier location) over locationId (session/booking).
  */
@@ -107,6 +109,14 @@ export async function getReceiptSequenceInfo(
   } else if (method === RECEIPT_METHOD.BANK_WITHDRAW) {
     scopeSuffix = "bankwithdraw"
     prefix = `${shortcode}CHANN-BNK-WD/`
+    padSize = 5
+  } else if (method === RECEIPT_METHOD.CASH_VOUCHER) {
+    scopeSuffix = "cashvoucher"
+    prefix = `${shortcode}CHANN-CSH-VC/`
+    padSize = 5
+  } else if (method === RECEIPT_METHOD.CASH_VOUCHER_CANCEL) {
+    scopeSuffix = "cashvouchercancel"
+    prefix = `${shortcode}CHANN-CSH-VR/`
     padSize = 5
   } else {
     scopeSuffix = "receipts"

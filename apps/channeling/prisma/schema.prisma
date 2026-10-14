@@ -214,6 +214,8 @@ model Doctor {
   addressLine2       String?
   city               String?
   registrationNumber String?
+  tinNumber          String?
+  nic                String?
   qualification      String
   referralCharge     Float
   sessionNoPrefix    String?
@@ -396,6 +398,9 @@ model DoctorLeave {
   // ==== RELATIONS ==== //
   doctorId    String @db.ObjectId
   doctor      Doctor @relation("DoctorToLeaves", fields: [doctorId], references: [id], onDelete: Cascade)
+  /** Branch this leave applies to. One leave covers sessions at a single location. */
+  locationId  String?   @db.ObjectId
+  location    Location? @relation("LocationToDoctorLeave", fields: [locationId], references: [id], onDelete: SetNull)
   createdUser User?  @relation("UserCreatedLeaves", fields: [createdBy], references: [id], onDelete: SetNull)
   updatedUser User?  @relation("UserUpdatedLeaves", fields: [updatedBy], references: [id], onDelete: SetNull)
 }
@@ -425,6 +430,7 @@ model Location {
   agencies             Agency[]              @relation("LocationToAgency")
   doctorSessions       DoctorSession[]       @relation("SessionToLocation")
   sessions             Session[]             @relation("LocationToSession")
+  doctorLeaves         DoctorLeave[]         @relation("LocationToDoctorLeave")
   bookings             Booking[]             @relation("LocationToBooking")
   receiptsBilling      Receipt[]             @relation("ReceiptBillingLocation")
   receiptsUserLocation Receipt[]             @relation("ReceiptUserLocation")
@@ -577,10 +583,10 @@ model FloatRequest {
   @@index([floatNoString])
 }
 
-/// Approval: channel cancel/refund (request → approve → requester executes)
-/// or bank deposit (request → approve posts ledger receipt).
+/// Approval: channel cancel/refund (request → approve → requester executes),
+/// bank deposit, or cash voucher (request → approve posts ledger receipt).
 /// status: 0=PENDING, 1=APPROVED, 2=REJECTED, 3=WITHDRAWN, 4=COMPLETED
-/// type: channel_cancel | channel_refund | bank_deposit
+/// type: channel_cancel | channel_refund | bank_deposit | cash_voucher
 model ApprovalRequest {
   id              String   @id @default(auto()) @map("_id") @db.ObjectId
   type            String
@@ -597,6 +603,8 @@ model ApprovalRequest {
   professionalFee Float    @default(0)
   hospitalFee     Float    @default(0)
   paymentLines    Json?
+  /// Channel cancel/refund checklist ticked by the requester before approval.
+  confirmations   Json?
   bankAccountId   String?  @db.ObjectId
   bankAccount     BankAccount? @relation("ApprovalRequestBankAccount", fields: [bankAccountId], references: [id], onDelete: SetNull)
   locationId      String?  @db.ObjectId
@@ -642,6 +650,15 @@ model ShiftHandover {
   creditCents            Int            @default(0)
   eWalletCents           Int            @default(0)
   totalCents             Int            @default(0)
+  /// Missing money moved off the till onto the branch short receivable when the handover is approved.
+  shortCashCents         Int            @default(0)
+  shortCardCents         Int            @default(0)
+  shortSlipCents         Int            @default(0)
+  shortCheckCents        Int            @default(0)
+  shortCreditCents       Int            @default(0)
+  shortEWalletCents      Int            @default(0)
+  /// Cash brought in on this handover to pay down the existing branch short. Not part of the till.
+  settlementCents        Int            @default(0)
   discrepancyReason      String?        // Reason for discrepancy (required when there is a short or over > 100 cents)
   enteredBreakdown       Json?          // Cashier-entered denominations and references: { cashDenominations, cardEntries, slipEntries, ... }
   includedHandoverIds    Json?          // Array of handover ids ["id1","id2"] that the sender is passing on (chain)
@@ -659,6 +676,9 @@ model ShiftHandover {
   createdAt              DateTime       @default(now())
   handoverNo             Int?
   handoverNoString       String?
+  /// Assigned when the handover is sent to reconciliation. Kept for the sender's printed record.
+  reconciliationNo       Int?
+  reconciliationNoString String?
   billAttachments        ShiftBillAttachment[]
 
   // Back-office reconciliation lifecycle: status + approved/rejected details
@@ -682,6 +702,7 @@ model ShiftHandover {
   @@index([forwardedToHandoverId])
   @@index([nonCashReconciledAt])
   @@index([handoverNoString])
+  @@index([reconciliationNoString])
   @@index([reconciliationStatus])
   @@index([reconciliationRejectedAt])
   @@index([reconciliationAssignedToUserId])
@@ -728,11 +749,29 @@ model Notification {
   referenceType String?   // e.g. FloatRequest, ShiftHandover
   referenceId   String?   @db.ObjectId // id of the related entity for deep link
   readAt        DateTime? // null = unread
+  /// Set by the push worker (services/push-worker.service.ts) when it claims this row; unset = not pushed yet.
+  pushedAt      DateTime?
   createdAt     DateTime  @default(now())
 
   @@index([userId])
   @@index([userId, readAt])
   @@index([createdAt(sort: Desc)])
+}
+
+// Web Push subscriptions for the management PWA (one per installed app / browser per user).
+// Sent from services/web-push.service.ts when a notification is created.
+model WebPushSubscription {
+  id         String    @id @default(auto()) @map("_id") @db.ObjectId
+  userId     String    @db.ObjectId
+  endpoint   String    @unique
+  p256dh     String
+  auth       String
+  userAgent  String?
+  platform   String?   // ios | android | desktop
+  createdAt  DateTime  @default(now())
+  lastUsedAt DateTime?
+
+  @@index([userId])
 }
 
 model ActivityLog {
@@ -1193,6 +1232,8 @@ model Receipt {
   printedAt  DateTime?
   /// Number of times Print Receipt was invoked. 0 = never printed (next print is original).
   printCount Int      @default(0)
+  /// printCount at cancel. Prints at or below this are the live slip, not reprints of the canceled slip.
+  printCountAtCancel Int?
 
   // Index for reconciliation receipt lookup: by shift (primary) and by creator+time (legacy)
   @@index([createdBy, createdAt])
@@ -1320,6 +1361,28 @@ model JournalLine {
   @@index([accountId, journalId])
 }
 
+/// One row per public API call (`/api/public/*`), written by `withPublicApiLog`.
+model ApiLog {
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  createdAt    DateTime @default(now())
+  /// Wall time for the handler, in milliseconds.
+  durationMs   Int
+  method       String
+  endpoint     String
+  /// Request id returned as `x-request-id`. Also used by the API Log report UUID search.
+  uuid         String
+  /// OAuth client_id when the caller sent a Bearer token or a token request body.
+  clientId     String?
+  statusCode   Int
+  errorStatus  Boolean
+  requestBody  String?
+  responseBody String?
+
+  @@index([createdAt(sort: Desc)])
+  @@index([uuid])
+  @@index([clientId])
+}
+
 model Log {
   id          String    @id @default(auto()) @map("_id") @db.ObjectId
   status      LogStatus // INFO, ERROR
@@ -1347,6 +1410,15 @@ model Sequence {
   id        String   @id @default(auto()) @map("_id") @db.ObjectId
   scopeKey  String   @unique
   lastValue Int      @default(0)
+  updatedAt DateTime @updatedAt
+}
+
+/// Short-lived mutex so cash-voucher balance checks and posts for one account cannot overlap.
+model CashVoucherAccountLock {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  accountId String   @unique @db.ObjectId
+  owner     String
+  expiresAt DateTime
   updatedAt DateTime @updatedAt
 }
 

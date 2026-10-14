@@ -1,11 +1,13 @@
 'use client';
 
-import React, { Suspense, useMemo } from 'react';
+import React, { Suspense, useMemo, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { ReportTemplate } from '@/app/(dashboard)/report-template';
 import { DateTimeRangePicker } from '@/components/common/date-time-range-picker';
 import { Combobox } from '@/components/common/combobox';
 import { ReportAgentSelect } from '@/components/common/agent-select';
+import { toBrandedPdfSummaryItems } from '@/components/common/report-print';
+import type { ReportPrintSummaryItem } from '@/components/common/report-print';
 import Loading from '@/app/(dashboard)/loading';
 import { TableCell, TableRow } from '@/components/ui/table';
 import { formatReceiptAmount } from '@/lib/format-money';
@@ -21,6 +23,9 @@ import {
   getAgentCollectionReceiptReportData
 } from '@/app/actions/reports/agent-collection-receipt.report.action';
 import { AgentCollectionReceiptColumns } from './columns';
+import { AgentCollectionReceiptPrintLayout } from './agent-collection-receipt-print-layout';
+import { downloadAgentCollectionReceiptReportPdf } from './agent-collection-receipt-pdf';
+import { downloadAgentCollectionReceiptReportExcel } from './agent-collection-receipt-excel';
 
 type Props = {
   currentUserName: string;
@@ -62,13 +67,95 @@ function ContentInner({ currentUserName, locationOptions, agencyOptions }: Props
     [locationOptions]
   );
 
+  const buildSummaryItems = useCallback(
+    (values: Record<string, string | undefined>): ReportPrintSummaryItem[] => {
+      const df = values.dateFrom ?? '';
+      const dt = values.dateTo ?? '';
+      const locId = values.locationId ?? '__all__';
+      const agencyId = values.agencyId ?? '__all__';
+      const pt = (values.paymentType ?? '__all__') as AgentCollectionReceiptPaymentType;
+      return [
+        {
+          label: 'Period',
+          value: df && dt ? formatReportRangeLabel(df, dt) : `${df || '—'} to ${dt || '—'}`,
+          fullWidth: true,
+        },
+        {
+          label: 'Branch',
+          value:
+            locId === '__all__'
+              ? 'All Branches'
+              : (allLocations.find((l) => l.id === locId)?.name ?? locId),
+        },
+        {
+          label: 'Agent',
+          value:
+            agencyId === '__all__'
+              ? 'All Agents'
+              : (agencyOptions.find((a) => a.id === agencyId)?.name ?? agencyId),
+        },
+        {
+          label: 'Type',
+          value: PAYMENT_TYPE_OPTIONS.find((p) => p.id === pt)?.name ?? pt,
+        },
+      ];
+    },
+    [allLocations, agencyOptions]
+  );
+
+  const handlePdfDownload = useCallback(
+    async (args: {
+      title: string;
+      data: AgentCollectionReceiptReportExportRow[];
+      columns: string[];
+      keys: (keyof AgentCollectionReceiptReportExportRow)[];
+      fileName?: string;
+    }) => {
+      await downloadAgentCollectionReceiptReportPdf({
+        reportName: 'Agent Collection Receipt Report',
+        summaryItems: toBrandedPdfSummaryItems(buildSummaryItems(buildQuery())),
+        generatedAt: new Date().toLocaleString(),
+        rows: args.data,
+        fileName: args.fileName,
+      });
+    },
+    [buildSummaryItems]
+  );
+
+  const handleExcelDownload = useCallback(
+    async (args: {
+      title: string;
+      data: AgentCollectionReceiptReportExportRow[];
+      columns: string[];
+      keys: (keyof AgentCollectionReceiptReportExportRow)[];
+      fileName?: string;
+    }) => {
+      await downloadAgentCollectionReceiptReportExcel({
+        reportName: 'Agent Collection Receipt Report',
+        summaryItems: toBrandedPdfSummaryItems(buildSummaryItems(buildQuery())),
+        generatedAt: new Date().toLocaleString(),
+        rows: args.data,
+        fileName: args.fileName,
+        sheetName: 'Collection Receipts',
+      });
+    },
+    [buildSummaryItems]
+  );
+
   return (
     <ReportTemplate<AgentCollectionReceiptReportRow, AgentCollectionReceiptReportExportRow>
       title="Agent Collection Receipt Report"
       description="Shows agent deposits, withdrawals, and their cancellations (ledger receipts)."
       filterButtonLabel="Search"
       showBackButton={false}
-      containerClassName="w-full py-2 space-y-3"
+      printPageSize="A4 portrait"
+      printPageMargins="6mm 5mm 18mm"
+      containerClassName="w-full py-2 space-y-3 agent-collection-receipt-report-root"
+      renderPrintContent={(rows) => (
+        <AgentCollectionReceiptPrintLayout rows={rows} />
+      )}
+      customDownloadPdf={handlePdfDownload}
+      customDownloadExcel={handleExcelDownload}
       generationDetails={{
         generatedBy: currentUserName,
         formatFilters: (values) => {
@@ -87,38 +174,7 @@ function ContentInner({ currentUserName, locationOptions, agencyOptions }: Props
             </>
           );
         },
-        formatPrintSummaryItems: (values) => {
-          const df = values.dateFrom ?? '';
-          const dt = values.dateTo ?? '';
-          const locId = values.locationId ?? '__all__';
-          const agencyId = values.agencyId ?? '__all__';
-          const pt = (values.paymentType ?? '__all__') as AgentCollectionReceiptPaymentType;
-          return [
-            {
-              label: 'Period',
-              value: df && dt ? formatReportRangeLabel(df, dt) : `${df || '—'} to ${dt || '—'}`,
-              fullWidth: true,
-            },
-            {
-              label: 'Branch',
-              value:
-                locId === '__all__'
-                  ? 'All Branches'
-                  : (allLocations.find((l) => l.id === locId)?.name ?? locId),
-            },
-            {
-              label: 'Agent',
-              value:
-                agencyId === '__all__'
-                  ? 'All Agents'
-                  : (agencyOptions.find((a) => a.id === agencyId)?.name ?? agencyId),
-            },
-            {
-              label: 'Type',
-              value: PAYMENT_TYPE_OPTIONS.find((p) => p.id === pt)?.name ?? pt,
-            },
-          ];
-        },
+        formatPrintSummaryItems: (values) => buildSummaryItems(values),
       }}
       filterContent={({ values, setValue }) => (
         <div className="flex flex-wrap items-end gap-4">
@@ -192,6 +248,7 @@ function ContentInner({ currentUserName, locationOptions, agencyOptions }: Props
         'Credit Card',
         'Cheque',
         'Slip',
+        'E-Wallet',
         'Slip Ref',
         'Slip Date',
         'Cheque No',
@@ -213,6 +270,7 @@ function ContentInner({ currentUserName, locationOptions, agencyOptions }: Props
           'creditCard',
           'cheque',
           'slip',
+          'eWallet',
           'slipRef',
           'slipDate',
           'chequeRef',
@@ -233,9 +291,10 @@ function ContentInner({ currentUserName, locationOptions, agencyOptions }: Props
             acc.card += Number(r.cardAmount) || 0;
             acc.cheque += Number(r.chequeAmount) || 0;
             acc.slip += Number(r.slipAmount) || 0;
+            acc.eWallet += Number(r.eWalletAmount) || 0;
             return acc;
           },
-          { receipt: 0, cash: 0, card: 0, cheque: 0, slip: 0 }
+          { receipt: 0, cash: 0, card: 0, cheque: 0, slip: 0, eWallet: 0 }
         );
         return (
           <TableRow className="font-medium bg-muted/50">
@@ -247,6 +306,7 @@ function ContentInner({ currentUserName, locationOptions, agencyOptions }: Props
             <TableCell className="text-right tabular-nums">{formatReceiptAmount(totals.card)}</TableCell>
             <TableCell className="text-right tabular-nums">{formatReceiptAmount(totals.cheque)}</TableCell>
             <TableCell className="text-right tabular-nums">{formatReceiptAmount(totals.slip)}</TableCell>
+            <TableCell className="text-right tabular-nums">{formatReceiptAmount(totals.eWallet)}</TableCell>
             <TableCell colSpan={6} />
           </TableRow>
         );

@@ -8,6 +8,8 @@ import {
   getTillBalanceBreakdownForAccount,
   getAccountStatement,
   ensureTillForUserLocation,
+  getCashierShortBalance,
+  getCashierShortBreakdown,
 } from '@/services/accounting.service';
 import {
   listTillsForUser,
@@ -30,6 +32,16 @@ export type MyTillBalance = {
   tillLocationName: string | null;
   tillLocationCode: string | null;
   tillId: string | null;
+  shortAccountId: string | null;
+  shortAccountName: string | null;
+  shortAccountCode: string | null;
+  shortBalanceCents: number;
+  shortCashCents: number;
+  shortCardCents: number;
+  shortSlipCents: number;
+  shortCheckCents: number;
+  shortCreditCents: number;
+  shortEWalletCents: number;
   availableTills: Array<{
     tillId: string;
     accountId: string;
@@ -178,6 +190,57 @@ export async function getMyTillStatement(
   }
 }
 
+/** Short-account statement for the signed-in cashier at the selected branch till. */
+export async function getMyShortStatement(
+  fromDate?: string | null,
+  toDate?: string | null,
+  selectedTillId?: string | null
+): Promise<{
+  success: boolean;
+  data?: MyTillStatement | null;
+  message?: string;
+}> {
+  const session = await getServerSession(authOptions);
+  const userId = session?.user?.id;
+  if (!userId) {
+    return { success: false, message: 'Not signed in.' };
+  }
+  const fromStr = typeof fromDate === 'string' ? fromDate : undefined;
+  const toStr = typeof toDate === 'string' ? toDate : undefined;
+  const { from, to } = parseStatementPeriod(fromStr, toStr);
+  try {
+    const till = await resolveSelectedTill(userId, selectedTillId);
+    if (!till) return { success: true, data: null };
+    const shortBalance = await getCashierShortBalance(userId, till.locationId);
+    if (!shortBalance.accountId) return { success: true, data: null };
+    const st = await getAccountStatement(shortBalance.accountId, from, to);
+    if (!st) return { success: true, data: null };
+    return {
+      success: true,
+      data: {
+        lines: st.lines.map((l) => ({
+          id: l.id,
+          date: l.date,
+          journalNumber: l.journalNumber,
+          description: l.description,
+          debitAmount: l.debitAmount,
+          creditAmount: l.creditAmount,
+          runningBalance: l.runningBalance,
+          paymentMethod: l.paymentMethod,
+        })),
+        openingBalance: st.openingBalance,
+        closingBalance: st.closingBalance,
+      },
+    };
+  } catch (error) {
+    console.error('getMyShortStatement error:', error);
+    return {
+      success: false,
+      message: error instanceof Error ? error.message : 'Failed to load short statement.',
+    };
+  }
+}
+
 export async function getMyTillBalance(selectedTillId?: string | null): Promise<{
   success: boolean;
   data?: MyTillBalance;
@@ -214,12 +277,26 @@ export async function getMyTillBalance(selectedTillId?: string | null): Promise<
           tillLocationName: null,
           tillLocationCode: null,
           tillId: null,
+          shortAccountId: null,
+          shortAccountName: null,
+          shortAccountCode: null,
+          shortBalanceCents: 0,
+          shortCashCents: 0,
+          shortCardCents: 0,
+          shortSlipCents: 0,
+          shortCheckCents: 0,
+          shortCreditCents: 0,
+          shortEWalletCents: 0,
           availableTills: [],
           otherTills: [],
         },
       };
     }
-    const balance = await getTillBalanceBreakdownForActiveTill(userId, selectedTill.locationId);
+    const [balance, shortBalance] = await Promise.all([
+      getTillBalanceBreakdownForActiveTill(userId, selectedTill.locationId),
+      getCashierShortBalance(userId, selectedTill.locationId),
+    ]);
+    const shortBreakdown = await getCashierShortBreakdown(shortBalance.accountId);
     const otherTills = allTills
       .filter((t) => t.tillId !== selectedTill.tillId)
       .map((t) => ({
@@ -248,6 +325,16 @@ export async function getMyTillBalance(selectedTillId?: string | null): Promise<
         tillLocationName: selectedTill.locationName,
         tillLocationCode: selectedTill.locationCode,
         tillId: selectedTill.tillId,
+        shortAccountId: shortBalance.accountId,
+        shortAccountName: shortBalance.accountName,
+        shortAccountCode: shortBalance.accountCode,
+        shortBalanceCents: shortBreakdown.totalCents,
+        shortCashCents: shortBreakdown.cashCents,
+        shortCardCents: shortBreakdown.cardCents,
+        shortSlipCents: shortBreakdown.slipCents,
+        shortCheckCents: shortBreakdown.checkCents,
+        shortCreditCents: shortBreakdown.creditCents,
+        shortEWalletCents: shortBreakdown.eWalletCents,
         availableTills: allTills.map((t) => ({
           ...t,
           isCurrentAssigned: activeTill ? t.tillId === activeTill.tillId : false,
@@ -260,6 +347,57 @@ export async function getMyTillBalance(selectedTillId?: string | null): Promise<
     return {
       success: false,
       message: error instanceof Error ? error.message : 'Failed to load till balance.',
+    };
+  }
+}
+
+/** Open short for the signed-in cashier at their active till branch. */
+export async function getMyCashierShortBalance(): Promise<{
+  success: boolean;
+  data?: {
+    balanceCents: number;
+    accountId: string | null;
+    accountName: string | null;
+    accountCode: string | null;
+    locationId: string | null;
+  };
+  message?: string;
+}> {
+  const session = await getServerSession(authOptions);
+  const userId = session?.user?.id;
+  if (!userId) {
+    return { success: false, message: 'Not signed in.' };
+  }
+  try {
+    const activeTill = await resolveActiveTillForUserLocation(userId);
+    if (!activeTill) {
+      return {
+        success: true,
+        data: {
+          balanceCents: 0,
+          accountId: null,
+          accountName: null,
+          accountCode: null,
+          locationId: null,
+        },
+      };
+    }
+    const shortBalance = await getCashierShortBalance(userId, activeTill.locationId);
+    return {
+      success: true,
+      data: {
+        balanceCents: shortBalance.balanceCents,
+        accountId: shortBalance.accountId,
+        accountName: shortBalance.accountName,
+        accountCode: shortBalance.accountCode,
+        locationId: activeTill.locationId,
+      },
+    };
+  } catch (error) {
+    console.error('getMyCashierShortBalance error:', error);
+    return {
+      success: false,
+      message: error instanceof Error ? error.message : 'Failed to load short balance.',
     };
   }
 }

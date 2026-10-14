@@ -10,9 +10,10 @@ import {
 import { getInclusiveDaySpan, getReportMaxRangeDays, getReportMaxRecords } from '@/lib/report-limits';
 import { parseReportDateTime } from '@/lib/parse-report-datetime';
 import { HANDOVER_STATUS, RECONCILIATION_STATUS } from '@/types/handover';
-import type {
-  CompletedHandoversReportQuery,
-  CompletedHandoversReportRow,
+import {
+  handoverReportVarianceLines,
+  type CompletedHandoversReportQuery,
+  type CompletedHandoversReportRow,
 } from '@/types/reports/completed-handovers';
 
 const MAX_RANGE_DAYS = getReportMaxRangeDays('completed_handovers', 31);
@@ -157,6 +158,13 @@ export async function getCompletedHandoversReportService(
       creditCents: true,
       eWalletCents: true,
       totalCents: true,
+      shortCashCents: true,
+      shortCardCents: true,
+      shortSlipCents: true,
+      shortCheckCents: true,
+      shortCreditCents: true,
+      shortEWalletCents: true,
+      settlementCents: true,
       discrepancyReason: true,
       createdAt: true,
       approvedAt: true,
@@ -190,6 +198,7 @@ export async function getCompletedHandoversReportService(
       creditCents: h.creditCents,
       eWalletCents: h.eWalletCents,
       totalCents: rowTotalCents(h),
+      variances: handoverReportVarianceLines(h),
       status: h.status,
       statusLabel: statusLabel(h.status),
       reconciliationStatus: h.reconciliationStatus ?? RECONCILIATION_STATUS.PENDING,

@@ -4,6 +4,7 @@ import type { ColumnDef } from '@tanstack/react-table';
 import moment from 'moment';
 import type { AgentHistoryCreditLimitUpdateReportRow } from '@/types/reports/agent-history-credit-limit-update';
 import { formatLKR } from '@/lib/format-money';
+import { creditLimitChangeRemark } from '@/lib/credit-limit-change-remark';
 
 export const AgentHistoryCreditLimitUpdateColumns: ColumnDef<AgentHistoryCreditLimitUpdateReportRow>[] = [
   {
@@ -25,15 +26,17 @@ export const AgentHistoryCreditLimitUpdateColumns: ColumnDef<AgentHistoryCreditL
     accessorKey: 'limitType',
     header: 'Limit Type',
     cell: ({ row }) => {
-      const t = row.getValue<'soft' | 'hard'>('limitType');
-      return t === 'soft' ? 'Soft' : 'Hard';
+      const t = row.getValue<'soft' | 'hard' | 'credit'>('limitType');
+      if (t === 'soft') return 'Soft';
+      if (t === 'credit') return 'Credit';
+      return 'Hard';
     },
   },
   {
     accessorKey: 'hardLimitField',
     header: 'Hard Limit Field',
     cell: ({ row }) => {
-      const limitType = row.getValue<'soft' | 'hard'>('limitType');
+      const limitType = row.getValue<'soft' | 'hard' | 'credit'>('limitType');
       const field = row.getValue<'minBalanceAllowed' | 'maxBalanceAllowed' | null>('hardLimitField');
       if (limitType !== 'hard') return '-';
       if (field === 'minBalanceAllowed') return 'Minimum balance';
@@ -71,6 +74,11 @@ export const AgentHistoryCreditLimitUpdateColumns: ColumnDef<AgentHistoryCreditL
     accessorKey: 'changedByUserName',
     header: 'Changed by',
     cell: ({ row }) => row.getValue<string>('changedByUserName') ?? '-',
+  },
+  {
+    id: 'remark',
+    header: 'Remark',
+    cell: ({ row }) => creditLimitChangeRemark(row.original.metadata),
   },
   {
     accessorKey: 'createdAt',

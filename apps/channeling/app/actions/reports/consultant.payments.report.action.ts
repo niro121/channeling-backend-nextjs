@@ -3,7 +3,7 @@
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { getConsultantPaymentsReportService } from '@/services/reports/consultant.payments.report.service';
-import { requirePermission } from '@/lib/server-permissions';
+import { requireReport } from '@/lib/server-permissions';
 import { logActivityNonBlocking } from '@/lib/activity-log';
 import moment from 'moment';
 import type { ConsultantPaymentsReportQuery } from '@/types/report';
@@ -18,10 +18,10 @@ export type ConsultantPaymentsReportExportRow = {
   consultationSession: string;
   patientName: string;
   modeOfPay: string;
-  consultationCharge: string;
-  discountAmount: string;
-  whtAmount: string;
-  netAmount: string;
+  consultationCharge: number;
+  discountAmount: number;
+  whtAmount: number;
+  netAmount: number;
   paymentStatus: string;
   paidBy: string;
   paidDate: string;
@@ -29,7 +29,7 @@ export type ConsultantPaymentsReportExportRow = {
 };
 
 export async function getConsultantPaymentsReportData(query: ConsultantPaymentsReportQuery) {
-  await requirePermission('reports', 'view');
+  await requireReport('consultant-payments');
   try {
     const result = await getConsultantPaymentsReportService(query);
     return {
@@ -52,7 +52,7 @@ export async function getConsultantPaymentsReportData(query: ConsultantPaymentsR
 export async function exportConsultantPaymentsReportData(
   query: ConsultantPaymentsReportQuery
 ): Promise<{ success: boolean; data?: ConsultantPaymentsReportExportRow[]; message?: string }> {
-  await requirePermission('reports', 'view');
+  await requireReport('consultant-payments');
   try {
     const result = await getConsultantPaymentsReportService(query);
     if (!result.success || !result.data?.length) {
@@ -69,10 +69,10 @@ export async function exportConsultantPaymentsReportData(
         consultationSession: row.consultationSession ?? '-',
         patientName: row.patientName ?? '-',
         modeOfPay: row.modeOfPay ?? '-',
-        consultationCharge: String(row.consultationCharge ?? '0'),
-        discountAmount: String(row.discountAmount ?? '0'),
-        whtAmount: String(row.whtAmount ?? '0'),
-        netAmount: String(row.netAmount ?? '0'),
+        consultationCharge: Number(row.consultationCharge) || 0,
+        discountAmount: Number(row.discountAmount) || 0,
+        whtAmount: Number(row.whtAmount) || 0,
+        netAmount: Number(row.netAmount) || 0,
         paymentStatus: row.paymentStatus ?? '-',
         paidBy: row.paidBy ?? '-',
         paidDate: row.paidDate ? moment(row.paidDate).format('DD/MM/YYYY HH:mm') : '-',

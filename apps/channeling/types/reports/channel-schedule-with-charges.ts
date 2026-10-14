@@ -7,9 +7,9 @@ export type ChannelScheduleWithChargesReportQuery = {
   specialityId?: string;
   doctorId?: string;
   /**
-   * '__all__' / undefined => no day-type filter
-   * 'specific_date' => applyTo sessions
-   * 'weekday' => recurring weekday sessions
+   * '__all__' / undefined => both specific-date and weekday sessions
+   * 'specific_date' => dayType 8
+   * 'weekday' => dayType 1–7
    */
   reportType?: string;
 };
@@ -67,23 +67,23 @@ export type ChannelScheduleWithChargesReportExportRow = {
   dateType: string;
   applyOnlyTo: string;
 
-  doctorFeeLocal: string;
-  hospitalFeeLocal: string;
-  agencyFeeLocal: string;
-  scanFeeLocal: string;
-  onCallFeeLocal: string;
-  creditCardCommissionLocal: string;
-  apiFeeLocal: string;
-  sessionValueLocal: string;
+  doctorFeeLocal: number | null;
+  hospitalFeeLocal: number | null;
+  agencyFeeLocal: number | null;
+  scanFeeLocal: number | null;
+  onCallFeeLocal: number | null;
+  creditCardCommissionLocal: number | null;
+  apiFeeLocal: number | null;
+  sessionValueLocal: number | null;
 
-  doctorFeeForeign: string;
-  hospitalFeeForeign: string;
-  agencyFeeForeign: string;
-  scanFeeForeign: string;
-  onCallFeeForeign: string;
-  creditCardCommissionForeign: string;
-  apiFeeForeign: string;
-  sessionValueForeign: string;
+  doctorFeeForeign: number | null;
+  hospitalFeeForeign: number | null;
+  agencyFeeForeign: number | null;
+  scanFeeForeign: number | null;
+  onCallFeeForeign: number | null;
+  creditCardCommissionForeign: number | null;
+  apiFeeForeign: number | null;
+  sessionValueForeign: number | null;
 
   startingPatientNo: number | string;
   maximumPatientNo: number | string;

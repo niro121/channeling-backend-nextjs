@@ -6,42 +6,8 @@ import { Button } from "@/components/ui/button"
 import { useToast } from "@/components/hooks/use-toast"
 import { printBookingReceiptAction } from "@/app/actions/channel-booking"
 import { buildBookingReceiptPrintHtml } from "@/lib/receipt-template/build-print-html"
+import { printHtmlInIframe } from "@/lib/receipt-template/print-html-iframe"
 import { cn } from "@/lib/utils"
-
-function printHtmlInIframe(html: string) {
-  const iframe = document.createElement("iframe")
-  iframe.setAttribute("title", "Print receipt")
-  // Off-screen A5 viewport so Chrome print preview matches the receipt page size.
-  iframe.setAttribute(
-    "style",
-    "position:fixed;left:-10000px;top:0;width:148mm;height:210mm;border:0"
-  )
-  document.body.appendChild(iframe)
-  const doc = iframe.contentDocument ?? iframe.contentWindow?.document
-  const win = iframe.contentWindow
-  if (!doc || !win) {
-    document.body.removeChild(iframe)
-    return
-  }
-  doc.open()
-  doc.write(html)
-  doc.close()
-  const runPrint = () => {
-    try {
-      win.focus()
-      win.print()
-    } finally {
-      window.setTimeout(() => {
-        if (iframe.parentNode) document.body.removeChild(iframe)
-      }, 1500)
-    }
-  }
-  if (doc.readyState === "complete") {
-    window.setTimeout(runPrint, 250)
-  } else {
-    iframe.onload = () => window.setTimeout(runPrint, 250)
-  }
-}
 
 type PrintReceiptButtonProps = {
   receiptId: string
@@ -81,7 +47,8 @@ export function PrintReceiptButton({
         result.data.template,
         result.data.receiptNoString
       )
-      printHtmlInIframe(html)
+      // Develop sized the booking print viewport to A5 so Chrome preview matches the page.
+      printHtmlInIframe(html, { width: "148mm", height: "210mm" })
     } catch (e) {
       toast({
         title: "Print failed",

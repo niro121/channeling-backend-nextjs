@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState, useCallback } from "react"
+import { useEffect, useState, useCallback, type ReactNode } from "react"
 import { useParams, useRouter } from "next/navigation"
 import Link from "next/link"
 import { useSession } from "next-auth/react"
@@ -39,8 +39,10 @@ import {
   deriveHandoverCashierSummaryFilters,
   expectedHandoverCollectionCents,
   formatHandoverOverAmountError,
-  getHandoverAmountOvers,
+  handoverOversBeyondCashSettlement,
   handoverCollectionDiffCents,
+  handoverNonCashHeldCents,
+  isHandoverHeldForReconciliation,
   isHandoverCollectionExcess,
   sumReceivedHandoverFloats,
 } from "@/lib/handover-utils"
@@ -76,6 +78,14 @@ import { HandoverBillGallery } from "@/components/shift-bills/handover-bill-gall
 import { HandoverCollectionCalcInfo } from "@/components/handover-collection-calc-info"
 
 const METHOD_KEYS = ["cashCents", "cardCents", "slipCents", "checkCents", "creditCents", "eWalletCents"] as const
+const SHORT_FIELDS = {
+  cashCents: "shortCashCents",
+  cardCents: "shortCardCents",
+  slipCents: "shortSlipCents",
+  checkCents: "shortCheckCents",
+  creditCents: "shortCreditCents",
+  eWalletCents: "shortEWalletCents",
+} as const
 const METHOD_LABELS: Record<(typeof METHOD_KEYS)[number], string> = {
   cashCents: "Cash",
   cardCents: "Card",
@@ -159,7 +169,7 @@ function printHandoverDocument(mode: "report" | "summary") {
   }
   el.textContent =
     mode === "summary"
-      ? "@media print { @page { size: A5 portrait; margin: 4mm 12mm; } }"
+      ? "@media print { @page { margin: 8mm 10mm; } }"
       : "@media print { @page { size: A4 portrait; margin: 8mm; } }"
   document.body.classList.toggle("print-handover-summary", mode === "summary")
   const cleanup = () => {
@@ -170,12 +180,12 @@ function printHandoverDocument(mode: "report" | "summary") {
   window.print()
 }
 
-function handoverBreakdownSummary(raw: unknown): string {
+function handoverBreakdownSummary(raw: unknown, opts?: { omitCash?: boolean }): string {
   const b = parseEnteredBreakdown(raw)
   if (!b) return "—"
   const parts: string[] = []
   const cash = (b.cashDenominations ?? []).filter((d) => d.count > 0)
-  if (cash.length) parts.push(`Cash ${denomSummary(cash)}`)
+  if (cash.length && !opts?.omitCash) parts.push(`Cash ${denomSummary(cash)}`)
   const entryGroups: { label: string; entries?: { reference: string; amountCents: number }[] }[] = [
     { label: "Card", entries: b.cardEntries },
     { label: "Slips", entries: b.slipEntries },
@@ -243,7 +253,7 @@ function flattenBreakdownLines(breakdown: EnteredBreakdown | null | undefined): 
   return lines
 }
 
-/** Shape of each item in data.includedHandovers (linked handovers in the chain). */
+/** Shape of each item in data.includedHandovers (handovers this submission includes). */
 type IncludedHandoverRow = {
   id: string
   fromUserId: string
@@ -259,6 +269,7 @@ type IncludedHandoverRow = {
   creditCents?: number
   eWalletCents?: number
   enteredBreakdown?: unknown
+  reconciliationStatus?: number | null
 }
 
 export default function HandoverDetailPage() {
@@ -286,6 +297,7 @@ export default function HandoverDetailPage() {
   const [sendToReconLoading, setSendToReconLoading] = useState(false)
   const [ticked, setTicked] = useState<Set<string>>(new Set())
   const [autoPrintToken, setAutoPrintToken] = useState(0)
+  const [reconPrintToken, setReconPrintToken] = useState(0)
   const { toast } = useToast()
 
   const fetchDetail = useCallback(async (opts?: { silent?: boolean }) => {
@@ -319,6 +331,17 @@ export default function HandoverDetailPage() {
     }, 300)
     return () => window.clearTimeout(timer)
   }, [autoPrintToken, data])
+
+  useEffect(() => {
+    if (!reconPrintToken) return
+    if (!data?.handover?.reconciliationNoString) return
+    const token = reconPrintToken
+    const timer = window.setTimeout(() => {
+      printHandoverDocument("summary")
+      setReconPrintToken((current) => (current === token ? 0 : current))
+    }, 300)
+    return () => window.clearTimeout(timer)
+  }, [reconPrintToken, data])
 
   useEffect(() => {
     if (!(sendReconOpen || changeAssigneeOpen) || !canSendToReconciliation) return
@@ -393,7 +416,7 @@ export default function HandoverDetailPage() {
   const allTicked = allTickIds.length > 0 && allTickIds.every((tid) => ticked.has(tid))
   const amountOvers =
     handover && tillBreakdown
-      ? getHandoverAmountOvers(
+      ? handoverOversBeyondCashSettlement(
           {
             cashCents: handover.cashCents,
             cardCents: handover.cardCents,
@@ -409,7 +432,8 @@ export default function HandoverDetailPage() {
             checkCents: tillBreakdown.checkCents ?? 0,
             creditCents: tillBreakdown.creditCents ?? 0,
             eWalletCents: tillBreakdown.eWalletCents ?? 0,
-          }
+          },
+          handover.settlementCents ?? 0
         )
       : []
   const hasAmountOver = amountOvers.length > 0
@@ -466,6 +490,8 @@ export default function HandoverDetailPage() {
       toast({ title: "Handover rejected." })
       setRejectOpen(false)
       setRejectReason("")
+      window.dispatchEvent(new Event("handovers:refresh"))
+      router.refresh()
       router.push("/handovers")
     } catch (e) {
       toast({ title: "Error", description: e instanceof Error ? e.message : "Failed to reject", variant: "destructive" })
@@ -483,10 +509,17 @@ export default function HandoverDetailPage() {
     try {
       const result = await sendHandoverToReconciliationAction(id, reconcilerUserId)
       if (result.success) {
-        toast({ title: "Sent to reconciliation for the selected user." })
+        const reconNo = result.reconciliationNoString
+        toast({
+          title: reconNo
+            ? `Sent to reconciliation. Recon no ${reconNo}.`
+            : "Sent to reconciliation for the selected user.",
+          description: "A summary is printing for your records.",
+        })
         setSendReconOpen(false)
         setReconcilerUserId("")
-        await fetchDetail()
+        await fetchDetail({ silent: true })
+        setReconPrintToken((n) => n + 1)
         router.refresh()
       } else {
         toast({ title: result.error ?? "Failed", variant: "destructive" })
@@ -717,8 +750,14 @@ export default function HandoverDetailPage() {
               <>
                 <Fact label="Approved" value={formatDateTime(handover.approvedAt)} />
                 <Fact label="By" value={fromUserLabel(data.approvedByUser)} />
-                {isInReconciliation ? (
-                  <Fact label="Reconciler" value={assignedUserLabel ?? "—"} />
+                {handover.reconciliationNoString ? (
+                  <Fact label="Recon No" value={handover.reconciliationNoString} />
+                ) : null}
+                {handover.reconciliationNoString || isInReconciliation ? (
+                  <Fact label="Sent to" value={assignedUserLabel ?? "—"} />
+                ) : null}
+                {handover.reconciliationRequestedAt ? (
+                  <Fact label="Sent" value={formatDateTime(handover.reconciliationRequestedAt)} />
                 ) : null}
               </>
             ) : null}
@@ -757,6 +796,25 @@ export default function HandoverDetailPage() {
 
           <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 border-t pt-2 text-sm">
             <span className="font-bold tabular-nums">LKR {formatCents(totalCents)}</span>
+            {(() => {
+              const shortRows = METHOD_KEYS.filter((key) => (handover[SHORT_FIELDS[key]] ?? 0) > 0)
+              const settlement = handover.settlementCents ?? 0
+              if (shortRows.length === 0 && settlement <= 0) return null
+              return (
+                <span className="basis-full text-destructive">
+                  {shortRows.length > 0 ? (
+                    <>
+                      Short{" "}
+                      {shortRows
+                        .map((key) => `${METHOD_LABELS[key]} ${formatCents(handover[SHORT_FIELDS[key]] ?? 0)}`)
+                        .join(", ")}
+                    </>
+                  ) : null}
+                  {shortRows.length > 0 && settlement > 0 ? " · " : null}
+                  {settlement > 0 ? <>Settlement {formatCents(settlement)}</> : null}
+                </span>
+              )
+            })()}
             {METHOD_KEYS.filter((k) => (handover[k] ?? 0) > 0).map((key) => {
               const Icon = METHOD_ICONS[key]
               return (
@@ -824,7 +882,7 @@ export default function HandoverDetailPage() {
           .filter((f) => f.direction === "out" && f.status === FLOAT_REQUEST_STATUS.RECEIVED)
           .reduce((sum, f) => sum + (f.amountReceivedCents ?? 0), 0)
         const rows = (data.includedHandovers ?? []) as IncludedHandoverRow[]
-        const methodCols = METHOD_KEYS.filter((key) => rows.some((h) => (h[key] ?? 0) > 0))
+        const reconRows = rows.filter((h) => isHandoverHeldForReconciliation(h.reconciliationStatus))
         if (receivedFloats.length === 0 && rows.length === 0) return null
         return (
           <Card>
@@ -915,71 +973,100 @@ export default function HandoverDetailPage() {
                 )
               })()}
 
-              {rows.length > 0 ? (
-                <div>
-                  <h3 className="mb-1.5 flex items-center gap-1.5 text-sm font-semibold">
-                    <GitBranch className="h-4 w-4" />
-                    Previous handovers
-                  </h3>
-                  <Table className={tableGrid}>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead className={thCompact}>Bill No</TableHead>
-                        <TableHead className={thCompact}>From</TableHead>
-                        <TableHead className={thCompact}>When</TableHead>
-                        {methodCols.map((key) => (
-                          <TableHead key={key} className={`${thCompact} text-right`}>
-                            {METHOD_LABELS[key]}
-                          </TableHead>
-                        ))}
-                        <TableHead className={`${thCompact} text-right`}>Total</TableHead>
-                        <TableHead className={thCompact}>Breakdown</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {rows.map((h) => (
-                        <TableRow key={h.id}>
-                          <TableCell className={`${tdCompact} whitespace-nowrap tabular-nums`}>
-                            {h.handoverNoString ?? "—"}
-                          </TableCell>
-                          <TableCell className={`${tdCompact} font-medium whitespace-nowrap`}>
-                            {fromUserLabel(h.fromUser)}
-                          </TableCell>
-                          <TableCell className={`${tdCompact} whitespace-nowrap text-muted-foreground`}>
-                            {formatDateTime(h.createdAt ?? h.shift?.startedAt)}
-                          </TableCell>
-                          {methodCols.map((key) => (
-                            <TableCell key={key} className={`${tdCompact} text-right tabular-nums`}>
-                              {(h[key] ?? 0) > 0 ? formatCents(h[key] ?? 0) : "—"}
-                            </TableCell>
+              {(() => {
+                const renderHandoverTable = (
+                  tableRows: IncludedHandoverRow[],
+                  title: string,
+                  icon: ReactNode,
+                  opts?: { note?: string; omitCash?: boolean }
+                ) => {
+                  if (tableRows.length === 0) return null
+                  const methodKeys = opts?.omitCash ? METHOD_KEYS.filter((key) => key !== "cashCents") : METHOD_KEYS
+                  const methodCols = methodKeys.filter((key) => tableRows.some((h) => (h[key] ?? 0) > 0))
+                  const rowTotal = (h: IncludedHandoverRow) =>
+                    opts?.omitCash ? methodKeys.reduce((s, key) => s + (h[key] ?? 0), 0) : h.totalCents
+                  return (
+                    <div>
+                      <h3 className="mb-1.5 flex items-center gap-1.5 text-sm font-semibold">
+                        {icon}
+                        {title}
+                      </h3>
+                      {opts?.note ? <p className="mb-1.5 text-xs text-muted-foreground">{opts.note}</p> : null}
+                      <Table className={tableGrid}>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead className={thCompact}>Bill No</TableHead>
+                            <TableHead className={thCompact}>From</TableHead>
+                            <TableHead className={thCompact}>When</TableHead>
+                            {methodCols.map((key) => (
+                              <TableHead key={key} className={`${thCompact} text-right`}>
+                                {METHOD_LABELS[key]}
+                              </TableHead>
+                            ))}
+                            <TableHead className={`${thCompact} text-right`}>Total</TableHead>
+                            <TableHead className={thCompact}>Breakdown</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {tableRows.map((h) => (
+                            <TableRow key={h.id}>
+                              <TableCell className={`${tdCompact} whitespace-nowrap tabular-nums`}>
+                                {h.handoverNoString ?? "—"}
+                              </TableCell>
+                              <TableCell className={`${tdCompact} font-medium whitespace-nowrap`}>
+                                {fromUserLabel(h.fromUser)}
+                              </TableCell>
+                              <TableCell className={`${tdCompact} whitespace-nowrap text-muted-foreground`}>
+                                {formatDateTime(h.createdAt ?? h.shift?.startedAt)}
+                              </TableCell>
+                              {methodCols.map((key) => (
+                                <TableCell key={key} className={`${tdCompact} text-right tabular-nums`}>
+                                  {(h[key] ?? 0) > 0 ? formatCents(h[key] ?? 0) : "—"}
+                                </TableCell>
+                              ))}
+                              <TableCell className={`${tdCompact} text-right tabular-nums font-medium`}>
+                                {formatCents(rowTotal(h))}
+                              </TableCell>
+                              <TableCell className={`${tdCompact} text-muted-foreground max-w-[16rem]`}>
+                                {handoverBreakdownSummary(h.enteredBreakdown, { omitCash: opts?.omitCash })}
+                              </TableCell>
+                            </TableRow>
                           ))}
-                          <TableCell className={`${tdCompact} text-right tabular-nums font-medium`}>
-                            {formatCents(h.totalCents)}
-                          </TableCell>
-                          <TableCell className={`${tdCompact} text-muted-foreground max-w-[16rem]`}>
-                            {handoverBreakdownSummary(h.enteredBreakdown)}
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                      <TableRow className="border-t-2 font-medium bg-muted/30">
-                        <TableCell className={tdCompact} colSpan={3}>Total</TableCell>
-                        {methodCols.map((key) => {
-                          const colTotal = rows.reduce((s, h) => s + (h[key] ?? 0), 0)
-                          return (
-                            <TableCell key={key} className={`${tdCompact} text-right tabular-nums`}>
-                              {colTotal > 0 ? formatCents(colTotal) : "—"}
+                          <TableRow className="border-t-2 font-medium bg-muted/30">
+                            <TableCell className={tdCompact} colSpan={3}>Total</TableCell>
+                            {methodCols.map((key) => {
+                              const colTotal = tableRows.reduce((s, h) => s + (h[key] ?? 0), 0)
+                              return (
+                                <TableCell key={key} className={`${tdCompact} text-right tabular-nums`}>
+                                  {colTotal > 0 ? formatCents(colTotal) : "—"}
+                                </TableCell>
+                              )
+                            })}
+                            <TableCell className={`${tdCompact} text-right tabular-nums`}>
+                              {formatCents(tableRows.reduce((s, h) => s + rowTotal(h), 0))}
                             </TableCell>
-                          )
-                        })}
-                        <TableCell className={`${tdCompact} text-right tabular-nums`}>
-                          {formatCents(rows.reduce((s, h) => s + h.totalCents, 0))}
-                        </TableCell>
-                        <TableCell className={tdCompact} />
-                      </TableRow>
-                    </TableBody>
-                  </Table>
-                </div>
-              ) : null}
+                            <TableCell className={tdCompact} />
+                          </TableRow>
+                        </TableBody>
+                      </Table>
+                    </div>
+                  )
+                }
+                return (
+                  <>
+                    {renderHandoverTable(rows, "Previous handovers", <GitBranch className="h-4 w-4" />)}
+                    {renderHandoverTable(
+                      reconRows,
+                      "Handovers sent to reconciliation",
+                      <FileCheck className="h-4 w-4" />,
+                      {
+                        omitCash: true,
+                        note: "Card, slips, cheques, and e-wallet only. These amounts stay with this cashier and are excluded from Total Collection.",
+                      }
+                    )}
+                  </>
+                )
+              })()}
             </CardContent>
           </Card>
         )
@@ -991,6 +1078,16 @@ export default function HandoverDetailPage() {
         const { floatsInCents: floatsInTotal, floatsOutCents: floatsOutTotal } =
           sumReceivedHandoverFloats(receivedFloats)
         const prevTotal = includedHandovers.reduce((s, h) => s + h.totalCents, 0)
+        const sentToReconciliationRows = includedHandovers.flatMap((h) => {
+          const cents = handoverNonCashHeldCents(h)
+          if (cents <= 0) return []
+          return [{
+            id: h.id,
+            label: [h.handoverNoString, fromUserLabel(h.fromUser)].filter(Boolean).join(" · ") || "Sent to reconciliation",
+            cents,
+          }]
+        })
+        const sentToReconciliationTotal = sentToReconciliationRows.reduce((s, h) => s + h.cents, 0)
         const cs = data.cashierSummary
         const hasSummary = cs != null
         const summaryVal = hasSummary
@@ -1002,8 +1099,9 @@ export default function HandoverDetailPage() {
               floatsOutCents: floatsOutTotal,
               summaryCents: summaryVal,
               previousHandoversCents: prevTotal,
+              sentToReconciliationCents: sentToReconciliationTotal,
             })
-          : floatsInTotal + summaryVal + prevTotal - floatsOutTotal
+          : floatsInTotal + summaryVal + prevTotal - sentToReconciliationTotal - floatsOutTotal
         const collectionDiff = hasSummary
           ? handoverCollectionDiffCents(totalCents, collectionTotal)
           : 0
@@ -1011,6 +1109,9 @@ export default function HandoverDetailPage() {
         if (floatsInTotal > 0) parts.push({ label: "Floats In", cents: floatsInTotal, sign: "+" })
         parts.push({ label: "Summary", cents: summaryVal, sign: "+" })
         if (prevTotal > 0) parts.push({ label: "Previous Handovers", cents: prevTotal, sign: "+" })
+        if (sentToReconciliationTotal > 0) {
+          parts.push({ label: "Sent to reconciliation", cents: sentToReconciliationTotal, sign: "−" })
+        }
         if (floatsOutTotal > 0) parts.push({ label: "Floats Out", cents: floatsOutTotal, sign: "−" })
         const previousHandoverRows = includedHandovers.map((h) => ({
           id: h.id,
@@ -1049,6 +1150,7 @@ export default function HandoverDetailPage() {
                     <HandoverCollectionCalcInfo
                       summaryCents={summaryVal}
                       previousHandovers={previousHandoverRows}
+                      sentToReconciliation={sentToReconciliationRows}
                       floatsIn={floatsInRows}
                       floatsOut={floatsOutRows}
                       expectedCents={collectionTotal}
@@ -1409,6 +1511,7 @@ export default function HandoverDetailPage() {
               <CardDescription>
                 Choose who should reconcile this handover. Only users with the{" "}
                 <strong>Approve Reconciliation</strong> permission are listed. Only that user can submit or reject.
+                A summary slip prints afterwards, with the reconciliation number and who it was sent to, for your records.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -1556,6 +1659,15 @@ export default function HandoverDetailPage() {
         includedHandovers={includedHandovers}
         cashierSummary={data.cashierSummary}
         tillBreakdown={tillBreakdown}
+        reconciliation={
+          handover.reconciliationNoString
+            ? {
+                reconciliationNoString: handover.reconciliationNoString,
+                sentAt: handover.reconciliationRequestedAt,
+                sentTo: data.reconciliationAssignedToUser,
+              }
+            : null
+        }
       />
     </>
   )

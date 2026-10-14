@@ -32,6 +32,7 @@ If a report must be full-bleed for a specific UX reason, document why in the PR 
   - `containerClassName="w-full py-2 space-y-3"`
 - Apply this by default for cashier-category reports such as:
   - `Cashier Drawer Balance`
+  - `Cashier Short Balance`
   - `Card Summary - Bank Wise`
 
 ## 1.1) Empty State (Required)

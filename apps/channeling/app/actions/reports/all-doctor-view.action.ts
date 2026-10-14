@@ -6,13 +6,13 @@ import {
   AllDoctorViewReportResponse,
   ExportAllDoctorViewData
 } from '@/types/report';
-import { requirePermission } from '@/lib/server-permissions';
+import { requireReport } from '@/lib/server-permissions';
 
 // ==== GET ALL DOCTOR VIEW REPORT DATA ==== //
 export const getAllDoctorViewReportData = async (
   query: AllDoctorViewReportQuery
 ): Promise<AllDoctorViewReportResponse> => {
-  await requirePermission('reports', 'view');
+  await requireReport('all-doctor-view');
   try {
     const result = await getAllDoctorViewReportDataService(query);
     return {
@@ -38,7 +38,7 @@ export const getAllDoctorViewReportData = async (
 export const exportAllDoctorViewReportData = async (
   query: AllDoctorViewReportQuery
 ): Promise<{ success: boolean; data?: ExportAllDoctorViewData[]; message?: string }> => {
-  await requirePermission('reports', 'view');
+  await requireReport('all-doctor-view');
   try {
     const result = await getAllDoctorViewReportDataService(query);
 
@@ -50,34 +50,34 @@ export const exportAllDoctorViewReportData = async (
     }
 
     const mappedData: ExportAllDoctorViewData[] = result.data.map((row) => ({
-      no: row.no.toString(),
+      no: row.no,
       consultant: `${row.consultantName} (${row.consultantCode})`,
-      notPaid: row.notPaid.toString(),
-      paid: row.paid.toString(),
-      cancel: row.cancel.toString(),
-      hosRefund: row.hosRefund.toString(),
-      proRefund: row.proRefund.toString(),
-      hosValid: row.hosValid.toString(),
-      proValid: row.proValid.toString(),
-      nettValid: row.nettValid.toString(),
-      total: row.total.toFixed(2),
+      notPaid: row.notPaid,
+      paid: row.paid,
+      cancel: row.cancel,
+      hosRefund: row.hosRefund,
+      proRefund: row.proRefund,
+      hosValid: row.hosValid,
+      proValid: row.proValid,
+      nettValid: row.nettValid,
+      total: row.total,
       doctorSessionTime: row.doctorSessionTimes.join(' / '),
     }));
 
     // Same Total footer row as the on-screen / print table.
     if (result.totals) {
       mappedData.push({
-        no: result.totals.no.toString(),
+        no: result.totals.no,
         consultant: 'Total',
-        notPaid: '',
-        paid: '',
-        cancel: '',
-        hosRefund: '',
-        proRefund: '',
-        hosValid: '',
-        proValid: '',
-        nettValid: '',
-        total: result.totals.total.toFixed(2),
+        notPaid: null,
+        paid: null,
+        cancel: null,
+        hosRefund: null,
+        proRefund: null,
+        hosValid: null,
+        proValid: null,
+        nettValid: null,
+        total: result.totals.total,
         doctorSessionTime: '',
       });
     }

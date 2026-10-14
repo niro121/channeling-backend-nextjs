@@ -49,6 +49,7 @@ const NON_CASH_METHODS = [
 type Props = {
   topLevelHandoverId: string
   handoverNoString?: string | null
+  reconciliationNoString?: string | null
   reconciliationStatus?: number
   hasReconciliationIssues?: boolean
   chain: HandoverTabData[]
@@ -59,6 +60,7 @@ type Props = {
 export function ReconciliationPrint({
   topLevelHandoverId,
   handoverNoString,
+  reconciliationNoString,
   reconciliationStatus,
   hasReconciliationIssues = false,
   chain,
@@ -75,12 +77,12 @@ export function ReconciliationPrint({
 
   const generatedBy = (session?.user?.name ?? "—").toUpperCase()
 
-  const requiredByMethod: Record<string, number> = { cardCents: 0, slipCents: 0, checkCents: 0, eWalletCents: 0 }
-  for (const { handover } of chain) {
-    requiredByMethod.cardCents += handover.cardCents
-    requiredByMethod.slipCents += handover.slipCents
-    requiredByMethod.checkCents += handover.checkCents
-    requiredByMethod.eWalletCents += handover.eWalletCents
+  const topHandover = chain[0]?.handover
+  const requiredByMethod: Record<string, number> = {
+    cardCents: topHandover?.cardCents ?? 0,
+    slipCents: topHandover?.slipCents ?? 0,
+    checkCents: topHandover?.checkCents ?? 0,
+    eWalletCents: topHandover?.eWalletCents ?? 0,
   }
 
   const methodKeyMap: Record<number, string> = {
@@ -200,6 +202,9 @@ export function ReconciliationPrint({
         <div className="mb-1.5 space-y-0">
           <p>
             <span className="inline-block w-[7rem]">HANDOVER NO</span>: {(handoverNoString ?? "—").toUpperCase()}
+          </p>
+          <p>
+            <span className="inline-block w-[7rem]">RECON NO</span>: {(reconciliationNoString ?? "—").toUpperCase()}
           </p>
           <p>
             <span className="inline-block w-[7rem]">STATUS</span>: {reconciliationStatusLabel(reconciliationStatus)}
