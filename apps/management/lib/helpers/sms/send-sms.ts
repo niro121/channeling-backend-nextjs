@@ -1,7 +1,7 @@
 const MOBITEL_SMS_USER = process.env.MOBITEL_SMS_USER;
 const MOBITEL_SMS_API_PASSWORD = process.env.MOBITEL_SMS_API_PASSWORD;
 const MOBITEL_SMS_URL = process.env.MOBITEL_SMS_URL;
-const DEFAULT_FROM = 'Archmage Management';
+const DEFAULT_FROM = 'Ruhunu Hosp';
 const MOBITEL_RESULT_SUCCESS = 200;
 
 export type SendSmsResult = {
@@ -28,6 +28,7 @@ export async function sendSms(phone: string, text: string): Promise<SendSmsResul
     });
     const data = (await res.json()) as { resultcode?: number | string };
     const code = data.resultcode != null ? Number(data.resultcode) : undefined;
+    if (code !== MOBITEL_RESULT_SUCCESS) console.error('sendSms rejected', res.status, JSON.stringify(data));
     return { status: code === MOBITEL_RESULT_SUCCESS };
   } catch (e) {
     console.error('sendSms error', e);
