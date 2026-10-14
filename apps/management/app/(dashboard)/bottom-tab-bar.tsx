@@ -3,18 +3,20 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
-import { NAV_ITEMS, isNavActive } from './nav-items';
+import { visibleNavItems, isNavActive } from './nav-items';
+import { useTaskPerms } from '@/components/tasks/task-perms';
 
 /** App-style tab bar for phones and iPad portrait, clear of the home indicator. */
 export function BottomTabBar() {
   const pathname = usePathname();
+  const items = visibleNavItems(useTaskPerms());
   return (
     <nav
       className="fixed inset-x-0 bottom-0 z-40 border-t border-border/60 bg-background/95 pb-safe backdrop-blur supports-[backdrop-filter]:bg-background/80 lg:hidden"
       aria-label="Main"
     >
       <div className="mx-auto flex h-16 max-w-xl items-stretch">
-        {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
+        {items.map(({ href, label, icon: Icon }) => {
           const active = isNavActive(pathname, href);
           return (
             <Link

@@ -5,7 +5,10 @@ import Link from 'next/link';
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from '@archmage/ui';
 import { usePathname } from 'next/navigation';
 
-const PATH_NAMES: { path: string; name: string }[] = [];
+const PATH_NAMES: { path: string; name: string }[] = [
+  { path: 'tasks', name: 'Tasks' },
+  { path: 'recurring', name: 'Recurring' }
+];
 
 function isDynamicId(segment: string): boolean {
   if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(segment)) return true;

@@ -178,6 +178,17 @@ export const RESOURCES: ResourceWithOptionalActions[] = [
     customActions: [{ id: "access", name: "Sign in to Management app" }],
   },
   {
+    // Management app Task Manager (tasks live in the management DB; who may do what is decided here).
+    id: "management-tasks",
+    name: "Management App Tasks",
+    customActions: [
+      { id: "view", name: "Use tasks (own and assigned tasks; can be assigned tasks)" },
+      { id: "create", name: "Create and assign tasks" },
+      { id: "recurring", name: "Manage recurring tasks" },
+      { id: "manage-all", name: "See and manage everyone's tasks" },
+    ],
+  },
+  {
     // Management app Overview (apps/management) — one switch per channel-insights module.
     id: "management-overview",
     name: "Management App Overview",

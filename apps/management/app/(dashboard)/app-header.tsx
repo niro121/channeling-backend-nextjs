@@ -1,5 +1,6 @@
 'use client';
 
+import { Suspense } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useSession } from 'next-auth/react';
@@ -8,12 +9,14 @@ import DashboardBreadcrumb from './breadcrumbs';
 import { Profile } from './profile';
 import { NAV_ITEMS, isNavActive } from './nav-items';
 import { HEADER_ACTIONS_ID } from './header-actions';
+import { AppMenu } from './app-menu';
+import { TaskBell } from '@/components/tasks/task-bell';
 
 function initialOf(name?: string | null, email?: string | null): string {
   return (name?.trim() || email?.trim() || 'U').charAt(0).toUpperCase();
 }
 
-/** Phones/iPad portrait: large page title + avatar (→ Account). Wider screens: breadcrumbs + profile menu. */
+/** Phones/iPad portrait: menu + large page title + avatar (→ Account). Wider screens: breadcrumbs + profile menu. */
 export function AppHeader() {
   const pathname = usePathname();
   const { data: session } = useSession();
@@ -21,12 +24,16 @@ export function AppHeader() {
 
   return (
     <header className="sticky top-0 z-40 border-b border-border/60 bg-background/95 pt-safe backdrop-blur supports-[backdrop-filter]:bg-background/80">
-      <div className="flex h-14 items-center gap-4 px-4 sm:px-6">
+      <div className="flex h-14 items-center gap-2 px-4 sm:gap-4 sm:px-6">
+        <Suspense fallback={<span className="-ml-2 h-10 w-10 shrink-0 lg:hidden" />}>
+          <AppMenu />
+        </Suspense>
         <h1 className="min-w-0 flex-1 truncate text-xl font-semibold tracking-tight lg:hidden">{title}</h1>
         <div className="hidden min-w-0 flex-1 lg:block">
           <DashboardBreadcrumb />
         </div>
         <div id={HEADER_ACTIONS_ID} className="flex shrink-0 items-center gap-2" />
+        <TaskBell />
         <Link href="/account" className="shrink-0 lg:hidden" aria-label="Account">
           <Avatar className="h-9 w-9">
             <AvatarFallback className="bg-primary/10 text-sm font-medium text-primary">
