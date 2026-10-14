@@ -32,18 +32,18 @@ import type {
 const RECEIPT_TEMPLATES_PATH = "/admin/receipt-templates"
 
 export async function getActiveReceiptTemplateAction(type: string, variant: string) {
-  await requirePermission("ledger", "view")
+  await requirePermission("receipt-templates", "view")
   return getActiveReceiptTemplate(type, variant)
 }
 
 // ---------- Header templates ----------
 export async function listReceiptHeaderTemplatesAction() {
-  await requirePermission("ledger", "view")
+  await requirePermission("receipt-templates", "view")
   return listReceiptHeaderTemplates()
 }
 
 export async function getReceiptHeaderTemplateByIdAction(id: string) {
-  await requirePermission("ledger", "view")
+  await requirePermission("receipt-templates", "view")
   return getReceiptHeaderTemplateById(id)
 }
 
@@ -51,7 +51,7 @@ export async function createReceiptHeaderTemplateAction(payload: {
   name: string
   content: string
 }) {
-  await requirePermission("ledger", "edit")
+  await requirePermission("receipt-templates", "edit")
   const result = await createReceiptHeaderTemplate(payload)
   if (result.success) revalidatePath(RECEIPT_TEMPLATES_PATH)
   return result
@@ -61,14 +61,14 @@ export async function updateReceiptHeaderTemplateAction(
   id: string,
   payload: { name?: string; content?: string }
 ) {
-  await requirePermission("ledger", "edit")
+  await requirePermission("receipt-templates", "edit")
   const result = await updateReceiptHeaderTemplate(id, payload)
   if (result.success) revalidatePath(RECEIPT_TEMPLATES_PATH)
   return result
 }
 
 export async function deleteReceiptHeaderTemplateAction(id: string) {
-  await requirePermission("ledger", "edit")
+  await requirePermission("receipt-templates", "edit")
   const result = await deleteReceiptHeaderTemplate(id)
   if (result.success) {
     const session = await getServerSession(authOptions)
@@ -88,12 +88,12 @@ export async function deleteReceiptHeaderTemplateAction(id: string) {
 
 // ---------- Footer templates ----------
 export async function listReceiptFooterTemplatesAction() {
-  await requirePermission("ledger", "view")
+  await requirePermission("receipt-templates", "view")
   return listReceiptFooterTemplates()
 }
 
 export async function getReceiptFooterTemplateByIdAction(id: string) {
-  await requirePermission("ledger", "view")
+  await requirePermission("receipt-templates", "view")
   return getReceiptFooterTemplateById(id)
 }
 
@@ -101,7 +101,7 @@ export async function createReceiptFooterTemplateAction(payload: {
   name: string
   content: string
 }) {
-  await requirePermission("ledger", "edit")
+  await requirePermission("receipt-templates", "edit")
   const result = await createReceiptFooterTemplate(payload)
   if (result.success) revalidatePath(RECEIPT_TEMPLATES_PATH)
   return result
@@ -111,14 +111,14 @@ export async function updateReceiptFooterTemplateAction(
   id: string,
   payload: { name?: string; content?: string }
 ) {
-  await requirePermission("ledger", "edit")
+  await requirePermission("receipt-templates", "edit")
   const result = await updateReceiptFooterTemplate(id, payload)
   if (result.success) revalidatePath(RECEIPT_TEMPLATES_PATH)
   return result
 }
 
 export async function deleteReceiptFooterTemplateAction(id: string) {
-  await requirePermission("ledger", "edit")
+  await requirePermission("receipt-templates", "edit")
   const result = await deleteReceiptFooterTemplate(id)
   if (result.success) {
     const session = await getServerSession(authOptions)
@@ -138,12 +138,12 @@ export async function deleteReceiptFooterTemplateAction(id: string) {
 
 // ---------- Main receipt templates ----------
 export async function listReceiptTemplatesAction() {
-  await requirePermission("ledger", "view")
+  await requirePermission("receipt-templates", "view")
   return listReceiptTemplates()
 }
 
 export async function getReceiptTemplateByIdAction(id: string) {
-  await requirePermission("ledger", "view")
+  await requirePermission("receipt-templates", "view")
   return getReceiptTemplateById(id)
 }
 
@@ -158,7 +158,7 @@ export async function createReceiptTemplateAction(payload: {
   paperHeightMm?: number | null
   status?: number
 }) {
-  await requirePermission("ledger", "edit")
+  await requirePermission("receipt-templates", "edit")
   const result = await createReceiptTemplate(payload)
   if (result.success) {
     const session = await getServerSession(authOptions)
@@ -190,7 +190,7 @@ export async function updateReceiptTemplateAction(
     status?: number
   }
 ) {
-  await requirePermission("ledger", "edit")
+  await requirePermission("receipt-templates", "edit")
   const result = await updateReceiptTemplate(id, payload)
   if (result.success) {
     const session = await getServerSession(authOptions)
@@ -209,7 +209,7 @@ export async function updateReceiptTemplateAction(
 }
 
 export async function deleteReceiptTemplateAction(id: string) {
-  await requirePermission("ledger", "edit")
+  await requirePermission("receipt-templates", "edit")
   const result = await deleteReceiptTemplate(id)
   if (result.success) {
     const session = await getServerSession(authOptions)

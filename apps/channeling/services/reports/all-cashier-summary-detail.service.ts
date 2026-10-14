@@ -18,7 +18,7 @@ import type {
 import type { Prisma } from '@prisma/client';
 import {
   CASHIER_SUMMARY_ZERO_AMOUNTS as ZERO_AMOUNTS,
-  receiptToAmounts,
+  receiptAmountsForCashierSummary,
   receiptToAmountsDoctorPaymentNet,
   addCashierSummaryAmounts as addAmounts,
 } from '@/lib/cashier-summary-amounts';
@@ -91,6 +91,9 @@ function sectionKeyFromReceipt(
   }
   if (r.method === RECEIPT_METHOD.BANK_WITHDRAW) {
     return { key: 'bankWithdraw', title: 'Bank Withdrawals - Bills' };
+  }
+  if (r.method === RECEIPT_METHOD.CASH_VOUCHER || r.method === RECEIPT_METHOD.CASH_VOUCHER_CANCEL) {
+    return { key: 'cashVoucher', title: 'Cash Vouchers - Bills' };
   }
   return { key: 'other', title: 'Other Receipts' };
 }
@@ -288,7 +291,7 @@ export async function getAllCashierSummaryDetailReportService(
     const amounts =
       r.method === RECEIPT_METHOD.DOCTOR_PAYMENT || r.method === RECEIPT_METHOD.DOCTOR_CANCEL
         ? receiptToAmountsDoctorPaymentNet(r.paymentMethod, r.amount, r.type, r.whd, r.paymentLines)
-        : receiptToAmounts(r.paymentMethod, r.amount, r.type, r.paymentLines);
+        : receiptAmountsForCashierSummary(r.method, r.paymentMethod, r.amount, r.type, r.paymentLines);
     const section = sectionKeyFromReceipt(r, agentDepositCancelOrigIds);
 
     entry.receiptCount += 1;

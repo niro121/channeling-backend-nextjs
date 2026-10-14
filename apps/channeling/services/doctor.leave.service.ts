@@ -589,6 +589,7 @@ export const getOneLeaveByIdService = async (
       where: { id },
       include: {
         doctor: { select: { id: true, name: true, code: true } },
+        location: { select: { id: true, name: true } },
         createdUser: { select: { id: true, name: true } },
         updatedUser: { select: { id: true, name: true } }
       }
@@ -601,7 +602,26 @@ export const getOneLeaveByIdService = async (
       };
     }
 
-    return { success: true, data: leave };
+    let locationId = leave.locationId;
+    let location = leave.location;
+    if (!locationId) {
+      const sessionIds = normalizeDoctorLeaveSessionsJson(leave.sessions);
+      if (sessionIds.length > 0) {
+        const session = await prisma.session.findFirst({
+          where: { id: { in: sessionIds }, locationId: { not: null } },
+          select: { location: { select: { id: true, name: true } } }
+        });
+        if (session?.location) {
+          locationId = session.location.id;
+          location = session.location;
+        }
+      }
+    }
+
+    return {
+      success: true,
+      data: { ...leave, locationId, location }
+    };
   } catch (error: any) {
     console.error('getOneLeaveByIdService error:', error);
     return {

@@ -11,6 +11,7 @@ import {
   approvalRequestStatusLabel,
   type ApprovalPaymentLineSnapshot,
   type BankDepositSnapshot,
+  parseCashVoucherSnapshot,
 } from '@/types/approval-request';
 import { BOOKING_METHODS } from '@/types/channel-booking';
 import { PAYMENT_METHOD_NAMES } from '@/types/receipt';
@@ -26,6 +27,7 @@ const TYPE_LABELS: Record<string, string> = {
   [APPROVAL_REQUEST_TYPE.CHANNEL_CANCEL]: 'Cancel',
   [APPROVAL_REQUEST_TYPE.CHANNEL_REFUND]: 'Refund',
   [APPROVAL_REQUEST_TYPE.BANK_DEPOSIT]: 'Bank deposit',
+  [APPROVAL_REQUEST_TYPE.CASH_VOUCHER]: 'Cash voucher',
 };
 
 const STATUS_FILTER_MAP: Record<string, number> = {
@@ -170,7 +172,8 @@ export async function getApprovalRequestsReportService(
     typeFilter !== '__all__' &&
     (typeFilter === APPROVAL_REQUEST_TYPE.CHANNEL_CANCEL ||
       typeFilter === APPROVAL_REQUEST_TYPE.CHANNEL_REFUND ||
-      typeFilter === APPROVAL_REQUEST_TYPE.BANK_DEPOSIT)
+      typeFilter === APPROVAL_REQUEST_TYPE.BANK_DEPOSIT ||
+      typeFilter === APPROVAL_REQUEST_TYPE.CASH_VOUCHER)
       ? { type: typeFilter }
       : {};
 
@@ -247,7 +250,9 @@ export async function getApprovalRequestsReportService(
 
   const data: ApprovalRequestsReportRow[] = rows.map((row) => {
     const isDeposit = row.type === APPROVAL_REQUEST_TYPE.BANK_DEPOSIT;
+    const isVoucher = row.type === APPROVAL_REQUEST_TYPE.CASH_VOUCHER;
     const snap = depositSnapshot(row.paymentLines);
+    const voucherSnap = isVoucher ? parseCashVoucherSnapshot(row.paymentLines) : null;
     const doctorName =
       formatDoctorName(row.booking?.doctor) || formatDoctorName(row.booking?.session?.doctor);
     const patientName = `${row.booking?.title ?? ''} ${row.booking?.name ?? ''}`.trim();
@@ -273,8 +278,18 @@ export async function getApprovalRequestsReportService(
       .filter(Boolean)
       .join(' · ');
 
-    const details = isDeposit ? bankLabel : patientName || '—';
-    const detailsSub = isDeposit
+    const voucherTypes = (voucherSnap?.lines ?? [])
+      .map((line) => paymentMethodLabel(line.payment_method))
+      .filter((label): label is string => Boolean(label))
+      .join(', ');
+    const details = isVoucher
+      ? voucherSnap?.reconciled_account_name || 'Cash voucher'
+      : isDeposit
+        ? bankLabel
+        : patientName || '—';
+    const detailsSub = isVoucher
+      ? [voucherSnap?.branch_name, voucherTypes, row.receipt?.receiptNoString].filter(Boolean).join(' · ')
+      : isDeposit
       ? bankSub
       : [
           doctorName || null,
@@ -293,8 +308,10 @@ export async function getApprovalRequestsReportService(
       typeLabel: typeLabel(row.type),
       status: row.status,
       statusLabel: approvalRequestStatusLabel(row.status),
-      channelType: isDeposit ? '—' : channelTypeLabel(row.booking?.method),
-      paymentMode: resolvePaymentMode({
+      channelType: isDeposit || isVoucher ? '—' : channelTypeLabel(row.booking?.method),
+      paymentMode: isVoucher
+        ? voucherTypes || '—'
+        : resolvePaymentMode({
         isDeposit,
         receiptPaymentMethod: row.booking?.receiptPaymentMethod,
         receiptMethod: row.receipt?.paymentMethod,

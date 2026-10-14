@@ -214,6 +214,8 @@ model Doctor {
   addressLine2       String?
   city               String?
   registrationNumber String?
+  tinNumber          String?
+  nic                String?
   qualification      String
   referralCharge     Float
   sessionNoPrefix    String?
@@ -581,10 +583,10 @@ model FloatRequest {
   @@index([floatNoString])
 }
 
-/// Approval: channel cancel/refund (request → approve → requester executes)
-/// or bank deposit (request → approve posts ledger receipt).
+/// Approval: channel cancel/refund (request → approve → requester executes),
+/// bank deposit, or cash voucher (request → approve posts ledger receipt).
 /// status: 0=PENDING, 1=APPROVED, 2=REJECTED, 3=WITHDRAWN, 4=COMPLETED
-/// type: channel_cancel | channel_refund | bank_deposit
+/// type: channel_cancel | channel_refund | bank_deposit | cash_voucher
 model ApprovalRequest {
   id              String   @id @default(auto()) @map("_id") @db.ObjectId
   type            String
@@ -601,6 +603,8 @@ model ApprovalRequest {
   professionalFee Float    @default(0)
   hospitalFee     Float    @default(0)
   paymentLines    Json?
+  /// Channel cancel/refund checklist ticked by the requester before approval.
+  confirmations   Json?
   bankAccountId   String?  @db.ObjectId
   bankAccount     BankAccount? @relation("ApprovalRequestBankAccount", fields: [bankAccountId], references: [id], onDelete: SetNull)
   locationId      String?  @db.ObjectId
@@ -745,11 +749,29 @@ model Notification {
   referenceType String?   // e.g. FloatRequest, ShiftHandover
   referenceId   String?   @db.ObjectId // id of the related entity for deep link
   readAt        DateTime? // null = unread
+  /// Set by the push worker (services/push-worker.service.ts) when it claims this row; unset = not pushed yet.
+  pushedAt      DateTime?
   createdAt     DateTime  @default(now())
 
   @@index([userId])
   @@index([userId, readAt])
   @@index([createdAt(sort: Desc)])
+}
+
+// Web Push subscriptions for the management PWA (one per installed app / browser per user).
+// Sent from services/web-push.service.ts when a notification is created.
+model WebPushSubscription {
+  id         String    @id @default(auto()) @map("_id") @db.ObjectId
+  userId     String    @db.ObjectId
+  endpoint   String    @unique
+  p256dh     String
+  auth       String
+  userAgent  String?
+  platform   String?   // ios | android | desktop
+  createdAt  DateTime  @default(now())
+  lastUsedAt DateTime?
+
+  @@index([userId])
 }
 
 model ActivityLog {
@@ -1388,6 +1410,15 @@ model Sequence {
   id        String   @id @default(auto()) @map("_id") @db.ObjectId
   scopeKey  String   @unique
   lastValue Int      @default(0)
+  updatedAt DateTime @updatedAt
+}
+
+/// Short-lived mutex so cash-voucher balance checks and posts for one account cannot overlap.
+model CashVoucherAccountLock {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  accountId String   @unique @db.ObjectId
+  owner     String
+  expiresAt DateTime
   updatedAt DateTime @updatedAt
 }
 

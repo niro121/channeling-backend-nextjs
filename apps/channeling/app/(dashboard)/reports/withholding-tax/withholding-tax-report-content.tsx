@@ -26,16 +26,18 @@ type Props = {
 };
 
 const PDF_HEADERS = [
-  'S.No',
-  'Doc Date',
+  'No',
+  'Date',
   'Doc No',
   'Consultant',
   'Speciality',
+  'TIN / NIC',
+  'Address',
   'Remarks',
-  'Total Amt',
-  'Tax %',
-  'Holding Tax',
-  'Net Amt',
+  'Total',
+  'Tax',
+  'WHT',
+  'Net',
 ] as const;
 
 function pdfText(value: string | number | null | undefined): string {
@@ -58,14 +60,57 @@ function twoLineDate(value: Date | null): React.ReactNode {
 function twoLineConsultant(value: string | null | undefined): React.ReactNode {
   const name = (value ?? '').trim();
   if (!name || name === '-') return '-';
-  const parts = name.split(/\s+/);
-  if (parts.length < 2) return name;
+  return name;
+}
+
+function twoLineAddress(value: string | null | undefined): React.ReactNode {
+  const address = (value ?? '').trim();
+  if (!address || address === '-') return '-';
+  const comma = address.indexOf(',');
+  if (comma > 0 && comma < address.length - 1) {
+    return (
+      <>
+        {address.slice(0, comma + 1).trim()}
+        <br />
+        {address.slice(comma + 1).trim()}
+      </>
+    );
+  }
+  const parts = address.split(/\s+/);
+  if (parts.length < 2) return address;
   const mid = Math.ceil(parts.length / 2);
   return (
     <>
       {parts.slice(0, mid).join(' ')}
       <br />
       {parts.slice(mid).join(' ')}
+    </>
+  );
+}
+
+/** Wrap only after "-" or "/" so receipt numbers stay readable. */
+function breakableText(value: string | null | undefined): React.ReactNode {
+  const text = pdfText(value);
+  if (text === '-') return '-';
+  const parts = text.split(/([-/])/);
+  return parts.map((part, index) =>
+    part === '-' || part === '/' ? (
+      <React.Fragment key={index}>
+        {part}
+        <wbr />
+      </React.Fragment>
+    ) : (
+      <React.Fragment key={index}>{part}</React.Fragment>
+    )
+  );
+}
+
+function tinNicCell(tin: string | null | undefined, nic: string | null | undefined): React.ReactNode {
+  return (
+    <>
+      <span className="wht-id-label">TIN</span> {pdfText(tin)}
+      <br />
+      <span className="wht-id-label">NIC</span> {pdfText(nic)}
     </>
   );
 }
@@ -84,6 +129,8 @@ function renderWithholdingTaxPrint(rows: WithholdingTaxReportRow[]) {
         <col className="wht-col-doc" />
         <col className="wht-col-name" />
         <col className="wht-col-spec" />
+        <col className="wht-col-id" />
+        <col className="wht-col-address" />
         <col className="wht-col-remarks" />
         <col className="wht-col-amt" />
         <col className="wht-col-tax" />
@@ -100,29 +147,33 @@ function renderWithholdingTaxPrint(rows: WithholdingTaxReportRow[]) {
       <tbody>
         {rows.map((row) => (
           <tr key={row.id}>
-            <td>{pdfText(row.sNo)}</td>
+            <td className="wht-nowrap">{pdfText(row.sNo)}</td>
             <td className="wht-two-line">{twoLineDate(row.docDate)}</td>
-            <td>{pdfText(row.docNo)}</td>
-            <td className="wht-two-line">{twoLineConsultant(row.consultant)}</td>
-            <td>{pdfText(row.speciality)}</td>
-            <td className="wht-remarks">{pdfText(row.remarks)}</td>
-            <td>{pdfText(row.totalAmt ?? 0)}</td>
-            <td>{pdfText(row.taxPercent ?? 0)}</td>
-            <td>{pdfText(row.holdingTax ?? 0)}</td>
-            <td>{pdfText(row.netAmt ?? 0)}</td>
+            <td className="wht-doc">{breakableText(row.docNo)}</td>
+            <td className="wht-wrap">{twoLineConsultant(row.consultant)}</td>
+            <td className="wht-wrap">{pdfText(row.speciality)}</td>
+            <td className="wht-id">{tinNicCell(row.tinNumber, row.nic)}</td>
+            <td className="wht-address">{twoLineAddress(row.address)}</td>
+            <td className="wht-remarks">{breakableText(row.remarks)}</td>
+            <td className="wht-amt">{formatLKR(row.totalAmt ?? 0)}</td>
+            <td className="wht-amt">{Number(row.taxPercent ?? 0).toFixed(2)}</td>
+            <td className="wht-amt">{formatLKR(row.holdingTax ?? 0)}</td>
+            <td className="wht-amt">{formatLKR(row.netAmt ?? 0)}</td>
           </tr>
         ))}
         <tr className="rpt-print-total">
-          <td>Total</td>
+          <td className="wht-nowrap">Total</td>
           <td />
           <td />
           <td />
           <td />
           <td />
-          <td>{String(totalAmt)}</td>
           <td />
-          <td>{String(holdingTax)}</td>
-          <td>{String(netAmt)}</td>
+          <td />
+          <td className="wht-amt">{formatLKR(totalAmt)}</td>
+          <td />
+          <td className="wht-amt">{formatLKR(holdingTax)}</td>
+          <td className="wht-amt">{formatLKR(netAmt)}</td>
         </tr>
       </tbody>
     </table>
@@ -193,25 +244,31 @@ function ContentInner({
             border-collapse: collapse !important;
             border: 0.5pt solid #000 !important;
           }
-          .withholding-tax-report-root .rpt-print-root table.wht-pdf-table col.wht-col-no { width: 4% !important; }
-          .withholding-tax-report-root .rpt-print-root table.wht-pdf-table col.wht-col-date { width: 10% !important; }
-          .withholding-tax-report-root .rpt-print-root table.wht-pdf-table col.wht-col-doc { width: 8% !important; }
+          .withholding-tax-report-root .rpt-print-root table.wht-pdf-table thead {
+            display: table-header-group !important;
+          }
+          .withholding-tax-report-root .rpt-print-root table.wht-pdf-table col.wht-col-no { width: 5% !important; }
+          .withholding-tax-report-root .rpt-print-root table.wht-pdf-table col.wht-col-date { width: 8% !important; }
+          .withholding-tax-report-root .rpt-print-root table.wht-pdf-table col.wht-col-doc { width: 12% !important; }
           .withholding-tax-report-root .rpt-print-root table.wht-pdf-table col.wht-col-name { width: 11% !important; }
-          .withholding-tax-report-root .rpt-print-root table.wht-pdf-table col.wht-col-spec { width: 11% !important; }
-          .withholding-tax-report-root .rpt-print-root table.wht-pdf-table col.wht-col-remarks { width: 26% !important; }
+          .withholding-tax-report-root .rpt-print-root table.wht-pdf-table col.wht-col-spec { width: 10% !important; }
+          .withholding-tax-report-root .rpt-print-root table.wht-pdf-table col.wht-col-id { width: 11% !important; }
+          .withholding-tax-report-root .rpt-print-root table.wht-pdf-table col.wht-col-address { width: 7% !important; }
+          .withholding-tax-report-root .rpt-print-root table.wht-pdf-table col.wht-col-remarks { width: 8% !important; }
           .withholding-tax-report-root .rpt-print-root table.wht-pdf-table col.wht-col-amt { width: 8% !important; }
-          .withholding-tax-report-root .rpt-print-root table.wht-pdf-table col.wht-col-tax { width: 6% !important; }
+          .withholding-tax-report-root .rpt-print-root table.wht-pdf-table col.wht-col-tax { width: 4% !important; }
           .withholding-tax-report-root .rpt-print-root table.wht-pdf-table th,
           .withholding-tax-report-root .rpt-print-root table.wht-pdf-table td {
-            font-size: 7pt !important;
+            font-size: 8pt !important;
             font-weight: 400 !important;
-            padding: 1mm 0.8mm !important;
-            line-height: 1.2 !important;
+            padding: 1.2mm 1mm !important;
+            line-height: 1.25 !important;
             text-align: left !important;
             white-space: normal !important;
             word-break: normal !important;
-            overflow-wrap: break-word !important;
-            overflow: hidden !important;
+            overflow-wrap: normal !important;
+            hyphens: manual !important;
+            overflow: visible !important;
             border: 0.5pt solid #000 !important;
             color: #000 !important;
             background: #fff !important;
@@ -221,20 +278,27 @@ function ContentInner({
             print-color-adjust: exact !important;
           }
           .withholding-tax-report-root .rpt-print-root table.wht-pdf-table thead th {
-            font-size: 6.5pt !important;
+            font-size: 7.5pt !important;
             font-weight: 700 !important;
             background: #e8e8e8 !important;
             vertical-align: middle !important;
           }
-          .withholding-tax-report-root .rpt-print-root table.wht-pdf-table td.wht-remarks {
-            white-space: normal !important;
+          .withholding-tax-report-root .rpt-print-root table.wht-pdf-table th {
+            white-space: nowrap !important;
+            overflow-wrap: normal !important;
             word-break: normal !important;
-            overflow-wrap: break-word !important;
           }
-          .withholding-tax-report-root .rpt-print-root table.wht-pdf-table td:nth-child(n+7) {
+          .withholding-tax-report-root .rpt-print-root table.wht-pdf-table td.wht-nowrap {
+            white-space: nowrap !important;
+          }
+          .withholding-tax-report-root .rpt-print-root table.wht-pdf-table td.wht-amt {
             text-align: right !important;
             white-space: nowrap !important;
             font-variant-numeric: tabular-nums !important;
+            font-size: 7.5pt !important;
+          }
+          .withholding-tax-report-root .rpt-print-root table.wht-pdf-table td.wht-id .wht-id-label {
+            font-weight: 700 !important;
           }
           .withholding-tax-report-root .rpt-print-root table.wht-pdf-table th:first-child,
           .withholding-tax-report-root .rpt-print-root table.wht-pdf-table td:first-child {
@@ -261,7 +325,8 @@ function ContentInner({
       filterButtonLabel="Search"
       skipFetchWhenNoParams={true}
       printPageSize="A4 portrait"
-      printPageMargins="7mm 5mm 18mm"
+      printPageMargins="6mm 4mm 16mm"
+      exportOrientation="portrait"
       containerClassName="container mx-auto py-3 space-y-4 withholding-tax-report-root"
       generationDetails={{
         generatedBy: currentUserName,
@@ -398,22 +463,27 @@ function ContentInner({
       }
       exportData={async () => exportWithholdingTaxReportData(buildQuery())}
       columns={WithholdingTaxReportColumns}
-      exportColumns={['S.No', 'Doc Date', 'Doc No', 'Consultant', 'Speciality', 'Remarks', 'Total Amt', 'Tax %', 'Holding Tax', 'Net Amt']}
-      exportKeys={['sNo', 'docDate', 'docNo', 'consultant', 'speciality', 'remarks', 'totalAmt', 'taxPercent', 'holdingTax', 'netAmt']}
+      exportColumns={['S.No', 'Doc Date', 'Doc No', 'Consultant', 'Speciality', 'TIN Number', 'NIC', 'Address', 'Remarks', 'Total Amt', 'Tax %', 'Holding Tax', 'Net Amt']}
+      exportKeys={['sNo', 'docDate', 'docNo', 'consultant', 'speciality', 'tinNumber', 'nic', 'address', 'remarks', 'totalAmt', 'taxPercent', 'holdingTax', 'netAmt']}
       exportTitle="Withholding Tax Report"
       exportFileName="withholding-tax-report"
       excelColumnNumberFormats={[
-        undefined, // S.No
+        '0', // S.No
         undefined, // Doc Date
         undefined, // Doc No
         undefined, // Consultant
         undefined, // Speciality
+        undefined, // TIN Number
+        undefined, // NIC
+        undefined, // Address
         undefined, // Remarks
-        '#,##0.00', // Total Amt
+        '"LKR "#,##0.00', // Total Amt
         '0.00', // Tax %
-        '#,##0.00', // Holding Tax
-        '#,##0.00', // Net Amt
+        '"LKR "#,##0.00', // Holding Tax
+        '"LKR "#,##0.00', // Net Amt
       ]}
+      excelColumnWidths={[6, 18, 22, 22, 16, 16, 16, 28, 28, 16, 8, 16, 16]}
+      excelExtraWrapColumnIndexes={[2, 3, 4, 5, 6, 7, 8]}
       tableClassName="text-[11px] [&_th]:px-1.5 [&_td]:px-1.5 [&_th]:border-r [&_th:last-child]:border-r-0 [&_td]:border-r [&_td:last-child]:border-r-0"
       getRowId={(row) => row.id}
       showPrintButton={true}
@@ -424,6 +494,9 @@ function ContentInner({
         return (
           <TableRow className="bg-muted/50 font-bold hover:bg-muted/50">
             <TableCell className="font-bold">Total</TableCell>
+            <TableCell />
+            <TableCell />
+            <TableCell />
             <TableCell />
             <TableCell />
             <TableCell />

@@ -335,6 +335,7 @@ export async function printBookingReceiptService(
             consultant: details.consultant,
             appointment_date: details.appointmentDate,
             appointment_time: details.appointmentTime,
+            session_location_name: sessionLocationName,
             patient_name: details.name,
             phone: details.phone,
             channel_no: paidReceipt?.receiptNoString?.trim() || details.billNo,

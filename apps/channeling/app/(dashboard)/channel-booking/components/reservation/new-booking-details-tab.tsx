@@ -16,6 +16,11 @@ import type { AgencyDetailsForChannelBooking } from "@/services/channel-booking/
 import type { AgencyBookLeafUsage } from "@/services/channel-booking/reference/get-agency-book-leaf-usage.service"
 import type { DiscountForBookingOption } from "@/services/channel-booking/reference/get-discounts-for-booking.service"
 import { useChannelBooking, type ChannelBookingRecord } from "../../context/channel-booking-context"
+import {
+  MIXED_PAYMENT_LINE_METHODS,
+  canUseBookingPaymentMethod,
+  pickAllowedBookingPaymentMethodId,
+} from "@/lib/booking-payment-permissions"
 import { usePermissions } from "@/components/hooks/use-permissions"
 import { useToast } from "@/components/hooks/use-toast"
 import {
@@ -153,8 +158,25 @@ export function NewBookingDetailsTab() {
     setReferredStaffId,
   } = useChannelBooking()
   const { toast } = useToast()
-  const { has } = usePermissions()
+  const { has, permissions, isAdmin } = usePermissions()
   const canForcedBooking = has("channel-booking-forced-booking", "view")
+  const allowedPaymentMethods = useMemo(() => {
+    const serverAllowedIds = initialData?.allowedBookingPaymentMethodIds
+    return NEW_CHANNEL_PAYMENT_METHODS.filter((method) => {
+      if (serverAllowedIds != null) return serverAllowedIds.includes(method.id)
+      return canUseBookingPaymentMethod(permissions, method.id, isAdmin)
+    })
+  }, [initialData?.allowedBookingPaymentMethodIds, permissions, isAdmin])
+  const allowedPaymentMethodIds = useMemo(
+    () => allowedPaymentMethods.map((method) => method.id),
+    [allowedPaymentMethods]
+  )
+  const mixedLineMethods = useMemo(
+    () => MIXED_PAYMENT_LINE_METHODS.filter((line) => allowedPaymentMethodIds.includes(line.uiId)),
+    [allowedPaymentMethodIds]
+  )
+  const allowedPaymentMethodIdsRef = useRef(allowedPaymentMethodIds)
+  allowedPaymentMethodIdsRef.current = allowedPaymentMethodIds
   const appliedDefaultBookingMethod = useRef(false)
   const [paymentMethodId, setPaymentMethodId] = useState<string>("0")
   const [discountSchemeId, setDiscountSchemeId] = useState<string>("")
@@ -177,6 +199,8 @@ export function NewBookingDetailsTab() {
   const [areaOpen, setAreaOpen] = useState(false)
   const [agencyOpen, setAgencyOpen] = useState(false)
   const agencyListRef = useRef<HTMLDivElement | null>(null)
+  const [staffOpen, setStaffOpen] = useState(false)
+  const staffListRef = useRef<HTMLDivElement | null>(null)
   const [agentBookingSuccess, setAgentBookingSuccess] = useState<AgentBookingSuccessInfo | null>(null)
   const [saving, setSaving] = useState(false)
   const [mixedDialogOpen, setMixedDialogOpen] = useState(false)
@@ -337,21 +361,21 @@ export function NewBookingDetailsTab() {
   // Apply user's default preferred booking method once when initial data is loaded
   useEffect(() => {
     if (initialDataLoading || appliedDefaultBookingMethod.current) return
-    const defaultId = initialData?.defaultBookingMethod
-    if (defaultId != null && defaultId >= 0 && defaultId <= 8) {
-      setPaymentMethodId(String(defaultId))
-      appliedDefaultBookingMethod.current = true
-    }
-  }, [initialDataLoading, initialData?.defaultBookingMethod])
+    const nextId = pickAllowedBookingPaymentMethodId(
+      initialData?.defaultBookingMethod,
+      allowedPaymentMethodIds
+    )
+    if (nextId != null) setPaymentMethodId(String(nextId))
+    appliedDefaultBookingMethod.current = true
+  }, [initialDataLoading, initialData?.defaultBookingMethod, allowedPaymentMethodIds])
 
   // Reset reservation form whenever session, doctor, specialty, or reservation details change (including when reservation is cleared)
   useEffect(() => {
-    const defaultId = initialData?.defaultBookingMethod
-    setPaymentMethodId(
-      defaultId != null && defaultId >= 0 && defaultId <= 8
-        ? String(defaultId)
-        : "0"
+    const nextId = pickAllowedBookingPaymentMethodId(
+      initialData?.defaultBookingMethod,
+      allowedPaymentMethodIdsRef.current
     )
+    setPaymentMethodId(nextId == null ? "" : String(nextId))
     setDiscountSchemeId("")
     setVoucherCode("")
     setVoucherValid(null)
@@ -387,6 +411,18 @@ export function NewBookingDetailsTab() {
     setForcedBookingExpanded(false)
     setInvalidFields({})
   }, [selectedSession?.id, selectedDoctor?.id, selectedSpecialityId, reservationDetails, setSelectedAgencyId, setReferredDoctorId, setReferredAgencyId, setReferredStaffId])
+
+  useEffect(() => {
+    setPaymentMethodId((current) => {
+      const currentId = Number(current)
+      if (current !== "" && allowedPaymentMethodIds.includes(currentId)) return current
+      const nextId = pickAllowedBookingPaymentMethodId(
+        initialData?.defaultBookingMethod,
+        allowedPaymentMethodIds
+      )
+      return nextId == null ? "" : String(nextId)
+    })
+  }, [allowedPaymentMethodIds, initialData?.defaultBookingMethod])
 
   // Reset booking-type–specific fields when payment method changes
   useEffect(() => {
@@ -648,6 +684,14 @@ export function NewBookingDetailsTab() {
 
   async function handleBookNow() {
     if (!selectedSession || !selectedDoctor) return
+    if (paymentMethodId === "" || !allowedPaymentMethodIds.includes(Number(paymentMethodId))) {
+      toast({
+        title: "Payment method not allowed",
+        description: "Your group is not allowed to book with this payment method.",
+        variant: "destructive",
+      })
+      return
+    }
     const missingPatient = !patientName.trim() || !titleId || !sexId || !isPhoneValid
     if (missingPatient || !selectedArea) {
       setInvalidFields({
@@ -728,6 +772,31 @@ export function NewBookingDetailsTab() {
     }
     setInvalidFields({})
     if (isMixed) {
+      if (mixedLineMethods.length < 2) {
+        toast({
+          title: "Mixed payment not available",
+          description: "Mixed payment needs at least two allowed methods: Cash, Card, Slip, or E-wallet.",
+          variant: "destructive",
+        })
+        return
+      }
+      const allowedLineValues = mixedLineMethods.map((line) => line.value)
+      setMixedLines((prev) =>
+        prev.map((line, idx) => {
+          if (allowedLineValues.some((value) => value === line.payment_method)) return line
+          const fallback = allowedLineValues[Math.min(idx, Math.max(allowedLineValues.length - 1, 0))]
+          if (fallback == null) return line
+          return {
+            ...line,
+            payment_method: fallback,
+            bank_id: "",
+            card: "",
+            slip_ref: "",
+            slip_date: "",
+            ewallet_ref: "",
+          }
+        })
+      )
       setMixedDialogOpen(true)
       return
     }
@@ -776,6 +845,14 @@ export function NewBookingDetailsTab() {
       return
     }
     for (const [idx, line] of lines.entries()) {
+      if (!mixedLineMethods.some((method) => method.value === line.payment_method)) {
+        toast({
+          title: "Payment method not allowed",
+          description: `Mixed payment line ${idx + 1} uses a method this group cannot book with.`,
+          variant: "destructive",
+        })
+        return
+      }
       if (line.payment_method === SAVE_PAYMENT_TYPE_CREDIT_CARD) {
         if (!line.bank?.id) {
           toast({
@@ -879,19 +956,24 @@ export function NewBookingDetailsTab() {
       {/* Row 1: Payment | Discount Scheme (booking method) */}
       <div className="grid grid-cols-2 gap-x-3">
         <Select
-          value={paymentMethodId}
+          value={
+            paymentMethodId !== "" && allowedPaymentMethodIds.includes(Number(paymentMethodId))
+              ? paymentMethodId
+              : undefined
+          }
           onValueChange={(value) => {
             setPaymentMethodId(value)
             setDiscountSchemeId("")
           }}
+          disabled={allowedPaymentMethods.length === 0}
         >
           <SelectTrigger className={fieldClass}>
             <span className="flex items-center gap-2 min-w-0 flex-1">
-              <SelectValue placeholder="Payment" />
+              <SelectValue placeholder={allowedPaymentMethods.length === 0 ? "No payment methods" : "Payment"} />
             </span>
           </SelectTrigger>
           <SelectContent>
-            {NEW_CHANNEL_PAYMENT_METHODS.map((m) => {
+            {allowedPaymentMethods.map((m) => {
               const Icon = PAYMENT_ICON_MAP[m.icon]
               return (
                 <SelectItem key={m.id} value={String(m.id)} className="text-xs">
@@ -956,6 +1038,11 @@ export function NewBookingDetailsTab() {
           </div>
         )}
       </div>
+      {allowedPaymentMethods.length === 0 ? (
+        <p className="text-[11px] text-muted-foreground">
+          This group has no payment methods for a new booking. Turn them on under User Groups, Channel Booking – Payment methods.
+        </p>
+      ) : null}
 
       {/* Voucher code input: shown when selected discount scheme is voucher-based */}
       {isVoucherScheme && (
@@ -1194,23 +1281,90 @@ export function NewBookingDetailsTab() {
       )}
       {isStaff && (
         <div className="space-y-0.5">
-          <Select
-            value={staffId || undefined}
-            onValueChange={setStaffId}
-          >
-            <SelectTrigger
-              className={`${fieldClass} ${staffError ? errorClass : ""} ${!staffId ? "text-placeholder" : ""}`}
+          <Popover open={staffOpen} onOpenChange={setStaffOpen}>
+            <PopoverTrigger asChild>
+              <Button
+                type="button"
+                variant="outline"
+                role="combobox"
+                aria-expanded={staffOpen}
+                className={cn(
+                  fieldClass,
+                  "w-full justify-between font-normal",
+                  staffError && errorClass,
+                  !staffId && "text-placeholder"
+                )}
+              >
+                <span className="min-w-0 truncate">
+                  {selectedStaff
+                    ? selectedStaff.code
+                      ? `${selectedStaff.name} (${selectedStaff.code})`
+                      : selectedStaff.name
+                    : "Select Staff Member"}
+                </span>
+                <ChevronsUpDown className="ml-2 h-3.5 w-3.5 shrink-0 opacity-50" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent
+              className="w-[var(--radix-popover-trigger-width)] p-0 overflow-hidden"
+              align="start"
             >
-              <SelectValue placeholder="Select Staff Member" />
-            </SelectTrigger>
-            <SelectContent>
-              {staffOptions.map((s) => (
-                <SelectItem key={s.id} value={s.id} className="text-xs">
-                  {s.name} {s.code ? `(${s.code})` : ""}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+              <Command
+                className="h-auto overflow-hidden rounded-md"
+                filter={(value, search, keywords) => {
+                  const query = search.trim().toLowerCase()
+                  if (!query) return 1
+                  const haystack = [value, ...(keywords ?? [])].join(" ").toLowerCase()
+                  return haystack.includes(query) ? 1 : 0
+                }}
+              >
+                <CommandInput
+                  placeholder="Search staff name or code..."
+                  className="h-8 text-xs"
+                  onValueChange={() => {
+                    requestAnimationFrame(() => {
+                      setTimeout(() => {
+                        staffListRef.current?.scrollTo({ top: 0 })
+                      }, 0)
+                    })
+                  }}
+                />
+                <CommandList
+                  ref={staffListRef}
+                  className="max-h-[240px] overflow-y-auto overscroll-contain"
+                >
+                  <CommandEmpty className="text-xs py-4 text-center text-muted-foreground">
+                    No staff found.
+                  </CommandEmpty>
+                  <CommandGroup className="overflow-visible">
+                    {staffOptions.map((s) => {
+                      const label = s.code ? `${s.name} (${s.code})` : s.name
+                      return (
+                        <CommandItem
+                          key={s.id}
+                          value={`${label} ${s.id}`}
+                          keywords={[s.name, s.code, label].filter(Boolean)}
+                          className="text-xs scroll-mt-0"
+                          onSelect={() => {
+                            setStaffId(s.id)
+                            setStaffOpen(false)
+                          }}
+                        >
+                          <Check
+                            className={cn(
+                              "mr-2 h-3.5 w-3.5",
+                              staffId === s.id ? "opacity-100" : "opacity-0"
+                            )}
+                          />
+                          {label}
+                        </CommandItem>
+                      )
+                    })}
+                  </CommandGroup>
+                </CommandList>
+              </Command>
+            </PopoverContent>
+          </Popover>
         </div>
       )}
       {isCard && (
@@ -1866,10 +2020,11 @@ export function NewBookingDetailsTab() {
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="0" className="text-xs">Cash</SelectItem>
-                          <SelectItem value="1" className="text-xs">Credit Card</SelectItem>
-                          <SelectItem value="2" className="text-xs">Slip</SelectItem>
-                          <SelectItem value="6" className="text-xs">E-Wallet</SelectItem>
+                          {mixedLineMethods.map((method) => (
+                            <SelectItem key={method.value} value={String(method.value)} className="text-xs">
+                              {method.label}
+                            </SelectItem>
+                          ))}
                         </SelectContent>
                       </Select>
                     </div>

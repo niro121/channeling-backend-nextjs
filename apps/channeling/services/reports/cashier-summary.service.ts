@@ -19,6 +19,7 @@ import type { Prisma } from '@prisma/client';
 import {
   CASHIER_SUMMARY_ZERO_AMOUNTS as ZERO_AMOUNTS,
   CASHIER_SUMMARY_DETAIL_IN_SUMMARY_KEYS,
+  receiptAmountsForCashierSummary,
   receiptToAmounts,
   receiptToAmountsDoctorPaymentNet,
   addCashierSummaryAmounts as addAmounts,
@@ -682,6 +683,42 @@ export async function getCashierSummaryReportService(
     totals: incomeExpenseTotals,
   });
   grandTotals = addAmounts(grandTotals, incomeExpenseTotals);
+
+  const cashVouchers = await prisma.receipt.findMany({
+    where: {
+      ...baseWhere,
+      method: { in: [RECEIPT_METHOD.CASH_VOUCHER, RECEIPT_METHOD.CASH_VOUCHER_CANCEL] },
+    },
+    include: {
+      paymentLines: { select: { paymentMethod: true, amount: true } },
+      shift: { select: { id: true, startedAt: true, endedAt: true, user: { select: { id: true, name: true, staff: { select: { code: true } } } } } },
+    },
+    orderBy: { createdAt: 'asc' },
+  });
+  const cashVoucherRows: CashierSummaryReportLineItem[] = cashVouchers.map((r) => {
+    const amounts = receiptAmountsForCashierSummary(r.method, r.paymentMethod, r.amount, r.type, r.paymentLines);
+    return {
+      txCreated: r.createdAt,
+      ...shiftLabelFields(r.shift),
+      sessionDateTime: null,
+      billId: null,
+      receiptId: r.receiptNoString,
+      patient: null,
+      consultant: null,
+      name: r.remarks || r.receiptNoString,
+      type: r.method === RECEIPT_METHOD.CASH_VOUCHER ? 'Cash Voucher' : 'Cash Voucher Cancel',
+      ...amounts,
+    };
+  });
+  collectShifts(cashVouchers);
+  const cashVoucherTotals = cashVoucherRows.reduce((acc, r) => addAmounts(acc, r), ZERO_AMOUNTS);
+  sections.push({
+    key: 'cashVoucher',
+    title: 'Cash Vouchers - Bills',
+    rows: rowsForFormat('cashVoucher', cashVoucherRows),
+    totals: cashVoucherTotals,
+  });
+  grandTotals = addAmounts(grandTotals, cashVoucherTotals);
 
   return {
     success: true,

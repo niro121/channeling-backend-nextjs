@@ -1,16 +1,18 @@
 import { Permissions } from "@/types/user-group"
+import { inheritedPrivilegeAllows } from "@/lib/inherited-privileges"
 import { canAddLedgerTransactionType } from "@/lib/ledger-type-permissions"
 import { canAccessReportPath } from "@/lib/report-privileges"
 
 // Map routes to resources
 export const ROUTE_TO_RESOURCE: Record<string, string> = {
   "/users": "users",
-  "/user-groups": "users", // User groups are part of users management
+  "/user-groups": "user-groups",
   "/channel-booking": "channel-booking",
-  "/channel-room-dashboard": "channel-booking",
+  "/channel-room-dashboard": "channel-room-dashboard",
   "/sessions": "sessions",
   "/doctors": "doctors",
   "/doctor-sessions": "doctor-sessions",
+  "/doctor-sessions/bulk-price-change": "bulk-price-change",
   "/departments": "departments",
   "/patients": "patients",
   "/staff": "staff",
@@ -28,8 +30,13 @@ export const ROUTE_TO_RESOURCE: Record<string, string> = {
   "/sms-playground": "sms-playground",
   "/sms-templates": "sms-templates",
   "/reports": "reports",
+  "/reports/sms-activity": "sms-activity",
   "/admin/api-clients": "api-clients",
-  "/admin/receipt-templates": "ledger",
+  "/admin/knowledge-hub": "knowledge-hub",
+  "/admin/monitor": "server-monitor",
+  "/admin/seed": "database-seeds",
+  "/admin/run-e2e": "run-e2e",
+  "/admin/receipt-templates": "receipt-templates",
   "/accounting": "accounting",
   "/ledger": "ledger",
   "/bank-accounts": "bank-accounts",
@@ -71,9 +78,10 @@ export function hasPermission(
   action: string
 ): boolean {
   if (!permissions) return false
-  const resourcePermissions = permissions[resource]
-  if (!resourcePermissions) return false
-  return resourcePermissions[action] === true
+  const specific = permissions[resource]?.[action]
+  if (specific === true) return true
+  if (specific === false) return false
+  return inheritedPrivilegeAllows(permissions, resource, action)
 }
 
 function normalizeRoute(route: string): string {
@@ -108,6 +116,9 @@ export function canAccessRoute(
   route: string
 ): boolean {
   const path = normalizeRoute(route)
+  if (path === "/reports/sms-activity" || path.startsWith("/reports/sms-activity/")) {
+    return hasPermission(permissions, "sms-activity", "view")
+  }
   if (path === "/reports" || path.startsWith("/reports/")) {
     return canAccessReportPath(permissions, path)
   }
@@ -125,8 +136,10 @@ export function canAccessRoute(
       hasPermission(permissions, resource, "approve-channel-cancel") ||
       hasPermission(permissions, resource, "approve-channel-refund") ||
       hasPermission(permissions, resource, "approve-bank-deposit") ||
+      hasPermission(permissions, resource, "approve-cash-voucher") ||
       hasPermission(permissions, "channel-booking", "edit") ||
-      canAddLedgerTransactionType(permissions, "BANK_DEPOSIT")
+      canAddLedgerTransactionType(permissions, "BANK_DEPOSIT") ||
+      canAddLedgerTransactionType(permissions, "CASH_VOUCHER")
     )
   }
   return hasPermission(permissions, resource, action)

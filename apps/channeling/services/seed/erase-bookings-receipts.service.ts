@@ -19,6 +19,10 @@ const BOOKING_RECEIPT_SCOPE_SUFFIXES = [
   "legerwithdraw",
   "branchincome",
   "branchexpense",
+  "bankdeposit",
+  "bankwithdraw",
+  "cashvoucher",
+  "cashvouchercancel",
 ]
 
 function isBookingOrReceiptScope(scopeKey: string): boolean {

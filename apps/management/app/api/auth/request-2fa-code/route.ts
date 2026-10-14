@@ -6,7 +6,6 @@ import { generateSixDigitCode, generateTotpSecret, generateTotpURI } from '@/lib
 import { send2faSms, send2faEmail } from '@/lib/helpers/2fa/send-2fa-code';
 import crypto from 'crypto';
 import { isDashboardLoginUserType } from '@/lib/roles';
-import { canAccessManagementApp } from '@/lib/auth-app-access';
 
 const APP_NAME = process.env.NEXT_PUBLIC_APP_NAME || 'Archmage Management';
 
@@ -40,7 +39,7 @@ export async function POST(request: Request) {
     const valid = await argon2.verify(user.password, password);
     if (!valid) return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });
 
-    if (!isDashboardLoginUserType(user.userType) || !canAccessManagementApp(user)) {
+    if (!isDashboardLoginUserType(user.userType)) {
       return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });
     }
 

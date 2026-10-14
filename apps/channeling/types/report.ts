@@ -557,6 +557,9 @@ export type WithholdingTaxReportRow = {
   docNo: string;
   consultant: string;
   speciality: string;
+  tinNumber: string;
+  nic: string;
+  address: string;
   remarks: string;
   totalAmt: number;
   taxPercent: number;
@@ -565,11 +568,14 @@ export type WithholdingTaxReportRow = {
 };
 
 export type WithholdingTaxReportExportRow = {
-  sNo: string;
+  sNo: string | number;
   docDate: string;
   docNo: string;
   consultant: string;
   speciality: string;
+  tinNumber: string;
+  nic: string;
+  address: string;
   remarks: string;
   totalAmt: number;
   taxPercent: number | null;

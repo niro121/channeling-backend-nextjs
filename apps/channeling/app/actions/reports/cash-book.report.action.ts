@@ -25,6 +25,7 @@ export async function getCashBookReportData(query: CashBookReportQuery): Promise
       totalRecords: 0,
       openingBalanceCents: 0,
       closingBalanceCents: 0,
+      closingBalancesByType: [],
       cashBookName: '-',
       cashBookCode: null,
       message: msg,
@@ -79,6 +80,16 @@ export async function exportCashBookReportData(
         credit: '',
         balance: formatCents(result.closingBalanceCents),
       },
+      ...result.closingBalancesByType.map((typeBalance) => ({
+        date: '',
+        journalNo: '',
+        account: '',
+        description: 'Closing Balance',
+        paymentType: typeBalance.label,
+        debit: '',
+        credit: '',
+        balance: formatCents(typeBalance.balanceCents),
+      })),
     ];
 
     const session = await getServerSession(authOptions);

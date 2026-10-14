@@ -5,7 +5,6 @@ import * as argon2 from 'argon2';
 import { Permissions } from '@archmage/shared';
 import { verifyTotp } from '@/lib/helpers/2fa/totp';
 import { isDashboardLoginUserType } from '@/lib/roles';
-import { assertManagementAppAccess } from '@/lib/auth-app-access';
 
 const getSecret = () => {
   if (process.env.NEXTAUTH_SECRET) return process.env.NEXTAUTH_SECRET;
@@ -67,7 +66,6 @@ export const authOptions: NextAuthOptions = {
               });
               if (!user) throw new Error('Invalid or expired 2FA. Please try again.');
               if (!isDashboardLoginUserType(user.userType)) throw new Error('Invalid credentials');
-              assertManagementAppAccess(user);
 
               const totpSecret = user.twoFactorSecret ?? user.twoFactorPendingSecret ?? process.env.TOTP_SECRET;
               if (!totpSecret) throw new Error('Invalid or expired 2FA. Please try again.');
@@ -101,7 +99,6 @@ export const authOptions: NextAuthOptions = {
             if (!user?.password) throw new Error('Invalid credentials');
             if (!await argon2.verify(user.password, credentials.password)) throw new Error('Invalid credentials');
             if (!isDashboardLoginUserType(user.userType)) throw new Error('Invalid credentials');
-            assertManagementAppAccess(user);
             if (!user.twoFactorExpires || user.twoFactorExpires < new Date()) throw new Error('2FA code expired.');
 
             const storedCode = user.twoFactorTempCode != null ? String(user.twoFactorTempCode) : '';
@@ -126,7 +123,6 @@ export const authOptions: NextAuthOptions = {
           if (!user?.password) throw new Error('Invalid credentials');
           if (!await argon2.verify(user.password, credentials.password)) throw new Error('Invalid credentials');
           if (!isDashboardLoginUserType(user.userType)) throw new Error('Invalid credentials');
-          assertManagementAppAccess(user);
           if (user.mustChangePassword) return null;
 
           const group = user.userGroup;

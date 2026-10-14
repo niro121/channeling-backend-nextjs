@@ -37,35 +37,36 @@ export async function fetchDoctorAppSessionsForDoctor(
       status: { in: [0, 1] },
     }
 
-    const [records, countRows] = await Promise.all([
-      prisma.session.findMany({
-        where,
-        include: {
-          doctor: { select: { id: true, title: true, name: true } },
-          location: { select: { id: true, name: true, city: true } },
-          room: { select: { id: true, number: true } },
-        },
-        orderBy: [{ date: "asc" }, { startTime: "asc" }],
-      }),
-      prisma.booking.groupBy({
-        by: ["sessionId", "status"],
-        where: {
-          session: { doctorId, date: dateFilter, status: { in: [0, 1] } },
-          status: { in: [0, 1] },
-        },
-        _count: { id: true },
-      }),
-    ])
+    const records = await prisma.session.findMany({
+      where,
+      include: {
+        doctor: { select: { id: true, title: true, name: true } },
+        location: { select: { id: true, name: true, city: true } },
+        room: { select: { id: true, number: true } },
+      },
+      orderBy: [{ date: "asc" }, { startTime: "asc" }],
+    })
 
     if (records.length === 0) {
       return { success: true, data: [] }
     }
 
+    // Count by sessionId (indexed); a `session` relation filter would $lookup every Booking on MongoDB
     const scopeKeys = records.map((r) => appointmentSequenceScopeKey(r.id))
-    const seqRows = await prisma.sequence.findMany({
-      where: { scopeKey: { in: scopeKeys } },
-      select: { scopeKey: true, lastValue: true },
-    })
+    const [countRows, seqRows] = await Promise.all([
+      prisma.booking.groupBy({
+        by: ["sessionId", "status"],
+        where: {
+          sessionId: { in: records.map((r) => r.id) },
+          status: { in: [0, 1] },
+        },
+        _count: { id: true },
+      }),
+      prisma.sequence.findMany({
+        where: { scopeKey: { in: scopeKeys } },
+        select: { scopeKey: true, lastValue: true },
+      }),
+    ])
     const seqLastByScope = new Map(seqRows.map((s) => [s.scopeKey, s.lastValue]))
 
     const countBySession = new Map<string, { paid: number; pending: number }>()

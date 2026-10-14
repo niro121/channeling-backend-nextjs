@@ -1,6 +1,8 @@
 "use server"
 
+import type { Prisma } from "@prisma/client"
 import prisma from "@/lib/prisma"
+import { parseReportDateTimeSl } from "@/lib/parse-report-datetime"
 import { HANDOVER_STATUS, RECONCILIATION_STATUS } from "@/types/handover"
 import { RECEIPT_PAYMENT_METHOD } from "@/types/receipt"
 import { REFERENCE_TYPES } from "@/types/accounting"
@@ -13,6 +15,13 @@ import {
 import { getTillBalanceBreakdown } from "@/services/accounting/balance.service"
 import { createJournalEntry } from "@/services/accounting.service"
 import { createAccount } from "@/services/accounting/account.service"
+import {
+  BRANCH_RECONCILED_LEGACY_NAME,
+  branchReconciledAccountCode,
+  branchReconciledAccountName,
+  isBranchReconciledCashAccount,
+  legacyBranchReconciledAccountCode,
+} from "@/services/accounting/account/branch-reconciled-account.constants"
 import { PAYMENT_METHOD_NAMES } from "@/types/receipt"
 import { signedReceiptAmountToCents } from "@/lib/format-money"
 import { formatSlipDate } from "@/lib/slip-date"
@@ -295,6 +304,34 @@ function buildWhereForTab(tab: ReconciliationListTab) {
   }
 }
 
+/**
+ * Inclusive Sri Lanka calendar-day range.
+ * Matches a row when any date shown on the reconciliation list falls in the range:
+ * handover date, requested, reconciled, or rejected.
+ */
+function reconciliationListDateFilter(
+  dateFrom?: string | null,
+  dateTo?: string | null
+): Prisma.ShiftHandoverWhereInput | null {
+  const from = dateFrom?.trim() ? parseReportDateTimeSl(dateFrom.trim(), false) : null
+  const to = dateTo?.trim() ? parseReportDateTimeSl(dateTo.trim(), true) : null
+  if (!from && !to) return null
+  const range = (): Prisma.DateTimeFilter => {
+    const filter: Prisma.DateTimeFilter = {}
+    if (from) filter.gte = from
+    if (to) filter.lte = to
+    return filter
+  }
+  return {
+    OR: [
+      { createdAt: range() },
+      { reconciliationRequestedAt: range() },
+      { nonCashReconciledAt: range() },
+      { reconciliationRejectedAt: range() },
+    ],
+  }
+}
+
 /** List handovers by tab with DB-level pagination. Optional filters: date range, fromUserId, toUserId, assignedToUserId (restrict to assignee). */
 export async function listHandoversForReconciliation(params: {
   page?: number
@@ -305,10 +342,8 @@ export async function listHandoversForReconciliation(params: {
   dateTo?: string | null
   fromUserId?: string | null
   toUserId?: string | null
-  /** When set, only handovers assigned to this user (or legacy unassigned) are returned for the open tab. */
+  /** When set, only handovers assigned to this user are returned. */
   assignedToUserId?: string | null
-  /** Admin bypass: do not filter by assignee. */
-  viewAllAssigned?: boolean
 }): Promise<{ data: HandoverForReconciliationList[]; totalRecords: number }> {
   const page = Math.max(1, params.page ?? 1)
   const limit = Math.min(100, Math.max(1, params.limit ?? 20))
@@ -316,18 +351,13 @@ export async function listHandoversForReconciliation(params: {
   const tab = params.tab ?? "reconciliation"
   const where = buildWhereForTab(tab)
 
-  const and: Record<string, unknown>[] = []
+  const and: Prisma.ShiftHandoverWhereInput[] = []
 
-  if (params.dateFrom || params.dateTo) {
-    const from = params.dateFrom ? new Date(params.dateFrom + "T00:00:00.000Z") : undefined
-    const to = params.dateTo ? new Date(params.dateTo + "T23:59:59.999Z") : undefined
-    if (from && to) and.push({ createdAt: { gte: from, lte: to } })
-    else if (from) and.push({ createdAt: { gte: from } })
-    else if (to) and.push({ createdAt: { lte: to } })
-  }
+  const dateFilter = reconciliationListDateFilter(params.dateFrom, params.dateTo)
+  if (dateFilter) and.push(dateFilter)
   if (params.fromUserId && params.fromUserId !== "__all__") and.push({ fromUserId: params.fromUserId })
   if (params.toUserId && params.toUserId !== "__all__") and.push({ toUserId: params.toUserId })
-  if (!params.viewAllAssigned && params.assignedToUserId) {
+  if (params.assignedToUserId) {
     and.push({ reconciliationAssignedToUserId: params.assignedToUserId })
   }
 
@@ -371,8 +401,7 @@ export async function listHandoversForReconciliation(params: {
     select: reconciliationListSelect,
   })
   let topLevel = all.filter((h) => h.forwardedToHandoverId == null)
-  // Legacy rows without assignee: include for assignee filter only if assignedToUserId matches requestedBy fallback is not applied — exclude unassigned from personal queue
-  if (!params.viewAllAssigned && params.assignedToUserId) {
+  if (params.assignedToUserId) {
     topLevel = topLevel.filter((h) => h.reconciliationAssignedToUserId === params.assignedToUserId)
   }
   totalRecords = topLevel.length
@@ -514,7 +543,7 @@ export async function getReconcilerUserOptions(): Promise<
 /** Get full reconciliation document: top-level handover + chain + receipts per handover. Does not auto-send to reconciliation. */
 export async function getReconciliationDocument(
   topLevelHandoverId: string,
-  _requestedByUserId?: string | null
+  requestedByUserId?: string | null
 ): Promise<
   | {
       success: true
@@ -568,6 +597,9 @@ export async function getReconciliationDocument(
     return { success: false, error: "Handover has not been sent to reconciliation yet." }
   }
   if (top.forwardedToHandoverId) return { success: false, error: "Use the top-level handover document, not an included one." }
+  if (requestedByUserId && top.reconciliationAssignedToUserId !== requestedByUserId) {
+    return { success: false, error: "This reconciliation is not assigned to you." }
+  }
 
   let chainHandovers = await getPreviousHandoversForHandoverDetail({
     handoverId: topLevelHandoverId,
@@ -692,20 +724,69 @@ export async function getReconciliationJournals(
 }
 
 /**
- * Get or create the single "Reconciled" account for the branch (location).
+ * Get or create the single reconciled cash account for the branch.
+ * Name/code follow the branch cash book: "Reconciled - {branch name}", "REC-{branch code}".
  * One account per branch; holds verified non-cash after reconciliation.
  * Business rule: this account's balance must not go below zero (other flows that credit it must check before posting).
  */
 async function getOrCreateBranchReconciledAccount(locationId: string): Promise<
   { success: true; accountId: string } | { success: false; error: string }
 > {
-  const name = "Reconciled"
-  const code = `REC-${locationId}`
-  const existing = await prisma.account.findFirst({
-    where: { type: "CASH", locationId, name, isActive: true },
-    select: { id: true },
+  const location = await prisma.location.findUnique({
+    where: { id: locationId },
+    select: { id: true, name: true, code: true },
   })
-  if (existing) return { success: true, accountId: existing.id }
+  if (!location) return { success: false, error: "Branch location was not found for the reconciled account." }
+  const locationCode = location.code?.trim() ?? ""
+  if (!locationCode) return { success: false, error: "Branch code is required to name the reconciled account." }
+
+  const name = branchReconciledAccountName(location.name)
+  const code = branchReconciledAccountCode(locationCode)
+  const legacyCode = legacyBranchReconciledAccountCode(location.id)
+
+  const candidates = await prisma.account.findMany({
+    where: {
+      type: "CASH",
+      locationId,
+      userId: null,
+      OR: [
+        { name: BRANCH_RECONCILED_LEGACY_NAME },
+        { name },
+        { code: legacyCode },
+        { code },
+      ],
+    },
+    select: { id: true, name: true, code: true, isActive: true, createdAt: true },
+    orderBy: { createdAt: "asc" },
+  })
+  const reconciled = candidates.filter((account) => isBranchReconciledCashAccount(account))
+  const active = reconciled.filter((account) => account.isActive)
+  const pool = active.length > 0 ? active : reconciled
+  if (pool.length > 1) {
+    return {
+      success: false,
+      error: "More than one reconciled cash account exists for this branch. Deactivate the duplicate in Accounting.",
+    }
+  }
+
+  const existing = pool[0]
+  if (existing) {
+    if (existing.name !== name || existing.code !== code || !existing.isActive) {
+      try {
+        await prisma.account.update({
+          where: { id: existing.id },
+          data: { name, code, isActive: true },
+        })
+      } catch (error) {
+        const prismaCode = (error as { code?: string }).code
+        if (prismaCode === "P2002") {
+          return { success: false, error: `Account code ${code} is already used.` }
+        }
+        throw error
+      }
+    }
+    return { success: true, accountId: existing.id }
+  }
 
   const result = await createAccount({
     type: "CASH",

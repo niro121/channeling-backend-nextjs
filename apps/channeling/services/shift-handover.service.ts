@@ -1307,10 +1307,16 @@ export async function getHandoversToMe(toUserId: string) {
 /** Handovers approved by me that still need a reconciler assigned (PENDING, or IN_RECONCILIATION with no assignee). Top-level only. */
 export async function getHandoversApprovedByMeNotReconciled(toUserId: string) {
   // Do not filter reconciliationStatus in Mongo where (null vs 0 mismatch). Filter in memory.
+  // Exclude reconciled/forwarded rows in the query so the fetch doesn't grow with every past handover.
+  // On MongoDB `field: null` doesn't match a missing field, hence the isSet: false branch.
   const results = await prisma.shiftHandover.findMany({
     where: {
       toUserId,
       status: HANDOVER_STATUS.APPROVED,
+      AND: [
+        { OR: [{ nonCashReconciledAt: null }, { nonCashReconciledAt: { isSet: false } }] },
+        { OR: [{ forwardedToHandoverId: null }, { forwardedToHandoverId: { isSet: false } }] },
+      ],
     },
     orderBy: { createdAt: "desc" },
     include: {
@@ -1318,7 +1324,7 @@ export async function getHandoversApprovedByMeNotReconciled(toUserId: string) {
       shift: { select: { id: true, startedAt: true, userId: true, user: { select: { id: true, name: true } } } },
     },
   })
-  const filtered = results.filter((r) => {
+  return results.filter((r) => {
     if (r.nonCashReconciledAt != null) return false
     if (r.forwardedToHandoverId != null) return false
     const recon = r.reconciliationStatus ?? RECONCILIATION_STATUS.PENDING
@@ -1328,25 +1334,6 @@ export async function getHandoversApprovedByMeNotReconciled(toUserId: string) {
     if (recon === RECONCILIATION_STATUS.IN_RECONCILIATION && !r.reconciliationAssignedToUserId) return true
     return false
   })
-  console.log(
-    "[getHandoversApprovedByMeNotReconciled] toUserId:",
-    toUserId,
-    "raw:",
-    results.map((r) => ({
-      id: r.id,
-      recon: r.reconciliationStatus,
-      assigned: r.reconciliationAssignedToUserId,
-      nonCashAt: r.nonCashReconciledAt,
-      fwd: r.forwardedToHandoverId,
-      card: r.cardCents,
-      cash: r.cashCents,
-    })),
-    "after filter:",
-    filtered.length,
-    "ids:",
-    filtered.map((r) => r.id)
-  )
-  return filtered
 }
 
 /** Single handover by id. Access (participant vs view-any) is enforced in the action. */

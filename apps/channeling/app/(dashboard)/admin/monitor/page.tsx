@@ -1,15 +1,10 @@
 import { redirect } from "next/navigation"
-import { fetchServerSession } from "@/lib/session"
-import { userTypes } from "@/lib/roles"
+import { checkRouteAccess } from "@/lib/server-permissions"
 import { MonitorDashboard } from "./monitor-dashboard"
 
 export default async function AdminMonitorPage() {
-  const session = await fetchServerSession()
-  if (!session?.user) {
-    redirect("/login")
-  }
-  const userType = (session.user as { userType?: number }).userType
-  if (userType !== userTypes.admin) {
+  const canView = await checkRouteAccess("/admin/monitor")
+  if (!canView) {
     redirect("/unauthorized-access")
   }
 

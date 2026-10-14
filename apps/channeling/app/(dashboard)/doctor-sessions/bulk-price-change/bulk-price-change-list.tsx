@@ -11,6 +11,7 @@ import { CreateBulkPriceChangeDialog } from './create-bulk-price-change-dialog';
 import { BulkPriceChangeDetailDialog } from './bulk-price-change-detail-dialog';
 import { BulkPriceChangeListProvider } from './bulk-price-change-context';
 import type { BulkPriceChangeListRow } from './record-actions';
+import { usePermissions } from '@/components/hooks/use-permissions';
 
 type BulkPriceChangeListProps = {
   initialData: BulkPriceChangeListRow[];
@@ -18,6 +19,7 @@ type BulkPriceChangeListProps = {
 
 export function BulkPriceChangeList({ initialData }: BulkPriceChangeListProps) {
   const router = useRouter();
+  const { has } = usePermissions();
   const [createOpen, setCreateOpen] = useState(false);
   const [detailOpen, setDetailOpen] = useState(false);
   const [detailBulkId, setDetailBulkId] = useState<string | null>(null);
@@ -63,10 +65,12 @@ export function BulkPriceChangeList({ initialData }: BulkPriceChangeListProps) {
         toolbarLeft={<div className="flex-1 min-w-0" />}
         toolbarRight={
           <div className="flex items-center gap-2 shrink-0">
-            <Button size="sm" className="gap-1.5 h-9" onClick={() => setCreateOpen(true)}>
-              <Plus className="h-4 w-4" />
-              <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">Add New</span>
-            </Button>
+            {has('bulk-price-change', 'edit') ? (
+              <Button size="sm" className="gap-1.5 h-9" onClick={() => setCreateOpen(true)}>
+                <Plus className="h-4 w-4" />
+                <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">Add New</span>
+              </Button>
+            ) : null}
           </div>
         }
       />

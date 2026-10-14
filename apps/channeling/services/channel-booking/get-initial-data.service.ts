@@ -9,6 +9,9 @@ import { getAreasForChannelBookingService } from "./reference/get-areas.service"
 import { getDiscountsForBookingService } from "./reference/get-discounts-for-booking.service"
 import { getBanksForChannelBookingService } from "./reference/get-banks.service"
 import { getStaffOptionsForChannelBookingService } from "./reference/get-staff-options.service"
+import { allowedBookingPaymentMethodIds } from "@/lib/booking-payment-permissions"
+import { userTypes } from "@/lib/roles"
+import type { Permissions } from "@/types/user-group"
 import type { ChannelBookingSpecialityOption } from "./reference/get-specialities.service"
 import type { ChannelBookingDoctorOption } from "./reference/get-doctors.service"
 import type { ChannelBookingLocationOption } from "./reference/get-locations.service"
@@ -38,6 +41,8 @@ export type ChannelBookingInitialData = {
   userUseDefaultLocation: boolean
   /** When userUseDefaultLocation is true, this is the location id to auto-select (first booking location or saved default). */
   userDefaultLocationId: string | null
+  /** Payment method ids this user may use on a new booking. Read from the user group, not the login session. */
+  allowedBookingPaymentMethodIds: number[]
 }
 
 /**
@@ -58,20 +63,29 @@ export async function getChannelBookingInitialDataService(
     let userBookingLocationIds: string[] = []
     let userUseDefaultLocation = false
     let userDefaultLocationId: string | null = null
+    let paymentMethodIds = allowedBookingPaymentMethodIds(null, false)
     if (userId) {
       const prisma = (await import("@/lib/prisma")).default
       const u = await prisma.user.findUnique({
         where: { id: userId },
         select: {
+          userType: true,
           defaultBookingMethod: true,
           checkedDefaultLocation: true,
           defaultLocation: true,
           bookingLocations: { select: { locationId: true } },
+          userGroup: { select: { permissions: true } },
         },
       })
       if (u?.defaultBookingMethod != null && u.defaultBookingMethod >= 0 && u.defaultBookingMethod <= 7) {
         defaultBookingMethod = u.defaultBookingMethod
       }
+      const groupPermissions = u?.userGroup?.permissions
+      const permissions =
+        groupPermissions && typeof groupPermissions === "object" && !Array.isArray(groupPermissions)
+          ? (groupPermissions as Permissions)
+          : null
+      paymentMethodIds = allowedBookingPaymentMethodIds(permissions, u?.userType === userTypes.admin)
       const allowedIds = (u?.bookingLocations ?? []).map((b) => b.locationId).filter(Boolean)
       userBookingLocationIds = allowedIds
       userUseDefaultLocation = u?.checkedDefaultLocation ?? false
@@ -137,6 +151,7 @@ export async function getChannelBookingInitialDataService(
       userBookingLocationIds,
       userUseDefaultLocation,
       userDefaultLocationId,
+      allowedBookingPaymentMethodIds: paymentMethodIds,
     }
     return { success: true, data }
   } catch (error: unknown) {

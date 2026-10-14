@@ -45,6 +45,12 @@ function mapReceiptCategoryToMethods(category?: string): number[] | null {
       return [RECEIPT_METHOD.BANK_DEPOSIT];
     case 'bank_withdraw':
       return [RECEIPT_METHOD.BANK_WITHDRAW];
+    case 'cash_voucher_ledger':
+      return [RECEIPT_METHOD.CASH_VOUCHER, RECEIPT_METHOD.CASH_VOUCHER_CANCEL];
+    case 'cash_voucher':
+      return [RECEIPT_METHOD.CASH_VOUCHER];
+    case 'cash_voucher_cancel':
+      return [RECEIPT_METHOD.CASH_VOUCHER_CANCEL];
     case 'doctor_payments':
       return [RECEIPT_METHOD.DOCTOR_PAYMENT, RECEIPT_METHOD.DOCTOR_CANCEL];
     case 'doctor_payment':

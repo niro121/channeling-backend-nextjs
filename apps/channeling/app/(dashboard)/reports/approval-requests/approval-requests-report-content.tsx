@@ -35,6 +35,7 @@ const TYPE_OPTIONS = [
   { id: APPROVAL_REQUEST_TYPE.CHANNEL_CANCEL, name: 'Cancellations' },
   { id: APPROVAL_REQUEST_TYPE.CHANNEL_REFUND, name: 'Refunds' },
   { id: APPROVAL_REQUEST_TYPE.BANK_DEPOSIT, name: 'Bank deposits' },
+  { id: APPROVAL_REQUEST_TYPE.CASH_VOUCHER, name: 'Cash vouchers' },
 ];
 
 const STATUS_OPTIONS = [

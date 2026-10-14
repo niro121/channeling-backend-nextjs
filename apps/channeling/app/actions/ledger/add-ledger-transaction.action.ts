@@ -6,7 +6,7 @@ import prisma from "@/lib/prisma"
 import { assertCanAddLedgerTransactionType } from "@/lib/server-permissions"
 import { logActivityNonBlocking } from "@/lib/activity-log"
 import { createLedgerReceipt } from "@/services/ledger/create-ledger-receipt.service"
-import { requestBankDepositApproval } from "@/services/approval-request.service"
+import { requestBankDepositApproval, requestCashVoucherApproval } from "@/services/approval-request.service"
 import {
   type LedgerTransactionType,
   LEDGER_TRANSACTION_TYPES,
@@ -38,6 +38,15 @@ const addLedgerTransactionSchema = z.object({
   slipImageContentType: z.string().optional().nullable(),
   slipImageName: z.string().optional().nullable(),
   shiftBillAttachmentId: z.string().optional().nullable(),
+  cashVoucherAccountId: z.string().optional().nullable(),
+  cashVoucherLines: z
+    .array(
+      z.object({
+        paymentMethod: z.number(),
+        amount: z.number().positive(),
+      })
+    )
+    .optional(),
 })
 
 export type AddLedgerTransactionResult =
@@ -184,6 +193,37 @@ export async function addLedgerTransaction(
       }
     }
   }
+  if (transactionType === "CASH_VOUCHER") {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { userLocationId: true },
+    })
+    const voucherLocationId = user?.userLocationId?.trim() ?? ""
+    if (!voucherLocationId) {
+      return {
+        success: false,
+        message: "You must have a branch assigned to record cash vouchers.",
+        errorCode: "VALIDATION",
+      }
+    }
+    if (!parsed.data.cashVoucherAccountId?.trim()) {
+      return { success: false, message: "Select a reconciliation account.", errorCode: "VALIDATION" }
+    }
+    const pending = await requestCashVoucherApproval(
+      {
+        reconciledAccountId: parsed.data.cashVoucherAccountId.trim(),
+        lines: parsed.data.cashVoucherLines ?? [],
+        remarks,
+        userLocationId: voucherLocationId,
+      },
+      userId
+    )
+    if (!pending.success) {
+      return { success: false, message: pending.message, errorCode: pending.errorCode }
+    }
+    return { success: true, pendingApproval: true, requestId: pending.data?.id ?? "" }
+  }
+
   if (transactionType === "BANK_DEPOSIT" && !parsed.data.bankAccountId?.trim()) {
     return { success: false, message: "Bank account is required for bank deposit.", errorCode: "VALIDATION" }
   }

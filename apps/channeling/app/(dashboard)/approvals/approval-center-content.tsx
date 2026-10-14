@@ -45,6 +45,7 @@ import {
   ChevronRight,
   ChevronsLeft,
   ChevronsRight,
+  Check,
   Loader2,
   Search,
 } from "lucide-react"
@@ -78,6 +79,7 @@ function statusBadge(status: ApprovalRequestStatus) {
 function typeLabel(type: string) {
   if (type === APPROVAL_REQUEST_TYPE.CHANNEL_CANCEL) return "Cancel"
   if (type === APPROVAL_REQUEST_TYPE.BANK_DEPOSIT) return "Bank deposit"
+  if (type === APPROVAL_REQUEST_TYPE.CASH_VOUCHER) return "Cash voucher"
   return "Refund"
 }
 
@@ -285,7 +287,8 @@ export function ApprovalCenterContent({
         toast({
           title: "Approved",
           description:
-            row.type === APPROVAL_REQUEST_TYPE.BANK_DEPOSIT
+            row.type === APPROVAL_REQUEST_TYPE.BANK_DEPOSIT ||
+            row.type === APPROVAL_REQUEST_TYPE.CASH_VOUCHER
               ? `Posted to ledger${result.data?.receiptNoString ? ` as ${result.data.receiptNoString}` : ""}.`
               : "The requester can now complete this on the booking.",
         })
@@ -353,6 +356,7 @@ export function ApprovalCenterContent({
   const showCancelType = view === "mine" || access.canSeeCancels
   const showRefundType = view === "mine" || access.canSeeRefunds
   const showDepositType = view === "mine" || access.canSeeDeposits
+  const showVoucherType = view === "mine" || access.canSeeCashVouchers
 
   return (
     <div className="space-y-4">
@@ -360,7 +364,7 @@ export function ApprovalCenterContent({
         <h1 className="text-xl font-semibold">Approval Center</h1>
         <p className="text-sm text-muted-foreground">
           {view === "attend"
-            ? "Pending requests waiting for approval. Bank deposits post to the ledger when you approve."
+            ? "Pending requests waiting for approval. Bank deposits and cash vouchers post to the ledger when you approve."
             : "Requests you have sent."}
         </p>
       </div>
@@ -419,6 +423,9 @@ export function ApprovalCenterContent({
               )}
               {showDepositType && (
                 <SelectItem value={APPROVAL_REQUEST_TYPE.BANK_DEPOSIT}>Bank deposits</SelectItem>
+              )}
+              {showVoucherType && (
+                <SelectItem value={APPROVAL_REQUEST_TYPE.CASH_VOUCHER}>Cash vouchers</SelectItem>
               )}
             </SelectContent>
           </Select>
@@ -484,21 +491,24 @@ export function ApprovalCenterContent({
               {rows.map((row) => {
                 const isOwn = row.requestedById === currentUserId
                 const isDeposit = row.type === APPROVAL_REQUEST_TYPE.BANK_DEPOSIT
+                const isVoucher = row.type === APPROVAL_REQUEST_TYPE.CASH_VOUCHER
+                const isImmediate = isDeposit || isVoucher
                 const canActOnType =
                   (row.type === APPROVAL_REQUEST_TYPE.CHANNEL_CANCEL && access.canApproveCancel) ||
                   (row.type === APPROVAL_REQUEST_TYPE.CHANNEL_REFUND && access.canApproveRefund) ||
-                  (isDeposit && access.canApproveBankDeposit)
+                  (isDeposit && access.canApproveBankDeposit) ||
+                  (isVoucher && access.canApproveCashVoucher)
                 const canApprove =
                   !isOwn && row.status === APPROVAL_REQUEST_STATUS.PENDING && canActOnType
                 const canReject =
                   !isOwn &&
                   canActOnType &&
                   (row.status === APPROVAL_REQUEST_STATUS.PENDING ||
-                    (!isDeposit && row.status === APPROVAL_REQUEST_STATUS.APPROVED))
+                    (!isImmediate && row.status === APPROVAL_REQUEST_STATUS.APPROVED))
                 const canWithdraw =
                   isOwn &&
                   (row.status === APPROVAL_REQUEST_STATUS.PENDING ||
-                    (!isDeposit && row.status === APPROVAL_REQUEST_STATUS.APPROVED))
+                    (!isImmediate && row.status === APPROVAL_REQUEST_STATUS.APPROVED))
                 return (
                   <tr key={row.id} className="border-b last:border-0">
                     <td className="p-2">
@@ -512,7 +522,7 @@ export function ApprovalCenterContent({
                     <td className="p-2 whitespace-nowrap">{row.paymentTypeName}</td>
                     <td className="p-2 whitespace-nowrap">{row.paymentMethodName}</td>
                     <td className="p-2">
-                      {isDeposit ? (
+                      {isImmediate ? (
                         <span className="text-muted-foreground">—</span>
                       ) : (
                         <span title={row.doctorName}>{row.doctorName || "—"}</span>
@@ -539,8 +549,18 @@ export function ApprovalCenterContent({
                     </td>
                     <td className="p-2 whitespace-nowrap">{formatRs(row.amount)}</td>
                     <td className="p-2">{statusBadge(row.status)}</td>
-                    <td className="p-2 max-w-[220px]">
+                    <td className="p-2 max-w-[280px]">
                       <p className="truncate" title={row.remarks}>{row.remarks}</p>
+                      {row.checkedConfirmations.length > 0 ? (
+                        <ul className="mt-1 space-y-0.5 text-xs text-muted-foreground">
+                          {row.checkedConfirmations.map((label) => (
+                            <li key={label} className="flex items-start gap-1 whitespace-normal">
+                              <Check className="mt-0.5 size-3 shrink-0 text-emerald-600" aria-hidden />
+                              <span>{label}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      ) : null}
                       {row.rejectReason ? (
                         <p className="text-xs text-destructive truncate" title={row.rejectReason}>
                           Rejected: {row.rejectReason}

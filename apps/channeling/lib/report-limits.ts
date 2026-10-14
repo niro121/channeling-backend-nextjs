@@ -21,6 +21,7 @@ type ReportLimitKey =
   | 'withholding_tax'
   | 'cash_book'
   | 'bank_deposits'
+  | 'cash_vouchers'
   | 'completed_handovers'
   | 'approval_requests'
   | 'channel_report_receipt_wise'

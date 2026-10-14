@@ -47,6 +47,7 @@ import {
 } from "@/components/ui/select";
 import { Loader2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { printDoctorPaymentReceiptById } from "../doctor-payment-print-dialog";
 
 function formatSessionTime(unixSec: number): string {
   const d = new Date(unixSec * 1000);
@@ -456,6 +457,16 @@ export function MakeDoctorPaymentClient({
       });
       if (res.success) {
         toast({ title: `Payment completed. Receipt: ${res.receiptNoString}` });
+        const printed = await printDoctorPaymentReceiptById(res.receiptId);
+        if (!printed.success) {
+          toast({
+            title: "Print failed",
+            description: printed.message ?? "Could not print the receipt.",
+            variant: "destructive",
+          });
+        }
+        // Let the print iframe call print() before this page unmounts.
+        await new Promise((resolve) => window.setTimeout(resolve, 400));
         router.push("/doctor-payments");
         router.refresh();
       } else {

@@ -308,7 +308,7 @@ export const REPORT_PRIVILEGES: ReportPrivilege[] = [
     action: "daily-returns-summary",
     name: "Daily Returns Summary",
     description:
-      "Receipt-based daily float summary by receipt type (Settlement, Refund, Doctor Payment, Agency Deposit, Branch Income, Bank Deposit, etc.) for a selected date.",
+      "Receipt-based daily float summary by receipt type (Settlement, Refund, Doctor Payment, Agency Deposit, Branch Income, Bank Deposit, Cash Voucher, etc.) for a selected date.",
     route: "/reports/daily-returns-summary",
     category: "Cashier",
     rank: 30,
@@ -341,6 +341,15 @@ export const REPORT_PRIVILEGES: ReportPrivilege[] = [
     rank: 33,
   },
   {
+    id: "39b",
+    action: "cash-vouchers",
+    name: "Cash Vouchers",
+    description: "Lists cash voucher receipts that convert reconciled non-cash balances into till cash.",
+    route: "/reports/cash-vouchers",
+    category: "Cashier",
+    rank: 33.5,
+  },
+  {
     id: "40b",
     action: "completed-handovers",
     name: "Handovers Report",
@@ -355,7 +364,7 @@ export const REPORT_PRIVILEGES: ReportPrivilege[] = [
     action: "approval-requests",
     name: "Approval Requests Report",
     description:
-      "View Approval Center cancellations, refunds, and bank deposits for a period, including who requested, approved, and rejected each item.",
+      "View Approval Center cancellations, refunds, bank deposits, and cash vouchers for a period, including who requested, approved, and rejected each item.",
     route: "/reports/approval-requests",
     category: "Cashier",
     rank: 35,
@@ -394,6 +403,20 @@ export const REPORT_PERMISSION_ACTIONS: { id: string; name: string }[] = [
   { id: "view", name: "View reports list" },
   ...REPORT_PRIVILEGES.map((report) => ({ id: report.action, name: report.name })),
 ]
+
+/** Reports that load the shared user dropdown. Any one of these is enough. */
+export const REPORTS_WITH_USER_OPTIONS = [
+  "user-activity",
+  "channel-transfer",
+  "channel-agent-reference-book",
+  "cashier-summary",
+  "all-cashier-summary-detail",
+  "bank-deposits",
+  "cash-vouchers",
+  "completed-handovers",
+  "approval-requests",
+  "agent-history-credit-limit-update",
+] as const
 
 const PRIVILEGE_BY_ACTION = new Map(REPORT_PRIVILEGES.map((report) => [report.action, report]))
 const PRIVILEGE_BY_ROUTE = new Map(REPORT_PRIVILEGES.map((report) => [report.route, report]))
@@ -453,8 +476,8 @@ export function canOpenReportsCatalog(permissions: Permissions | null | undefine
 
 /**
  * Catalog and each report route.
- * Screens under /reports that are not in the catalog (session views, SMS activity)
- * stay on View reports list.
+ * Screens under /reports that are not in the catalog (session views)
+ * stay on View reports list. SMS Activity has its own privilege.
  */
 export function canAccessReportPath(
   permissions: Permissions | null | undefined,

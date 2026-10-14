@@ -1,16 +1,11 @@
 import { redirect } from "next/navigation";
-import { fetchServerSession } from "@/lib/session";
-import { userTypes } from "@/lib/roles";
+import { checkRouteAccess } from "@/lib/server-permissions";
 import { TransactionFlowDiagram } from "./transaction-flow-diagram";
 import { BackButton } from "@/components/common/back-button";
 
 export default async function AdminTransactionFlowPage() {
-  const session = await fetchServerSession();
-  if (!session?.user) {
-    redirect("/login");
-  }
-  const userType = (session.user as { userType?: number }).userType;
-  if (userType !== userTypes.admin) {
+  const canView = await checkRouteAccess("/admin/knowledge-hub");
+  if (!canView) {
     redirect("/unauthorized-access");
   }
 

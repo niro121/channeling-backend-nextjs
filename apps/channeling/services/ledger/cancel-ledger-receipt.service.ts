@@ -24,6 +24,12 @@ import {
 } from "@/services/accounting.service"
 import { requireActiveShift, getCurrentShift } from "@/services/shift.service"
 import { updateAgentBalance } from "@/services/channel-booking/helpers/update-agent-balance"
+import {
+  cashVoucherLinesFromReceipt,
+  tillCashCentsWithTx,
+  withCashVoucherAccountLocks,
+} from "@/services/ledger/cash-voucher.service"
+import { RECEIPT_PAYMENT_METHOD } from "@/types/receipt"
 
 const JOURNAL_SEQUENCE_SCOPE = "journal"
 
@@ -36,6 +42,8 @@ const LEDGER_METHODS = [
   RECEIPT_METHOD.BRANCH_EXPENSE,
   RECEIPT_METHOD.BANK_DEPOSIT,
   RECEIPT_METHOD.BANK_WITHDRAW,
+  RECEIPT_METHOD.CASH_VOUCHER,
+  RECEIPT_METHOD.CASH_VOUCHER_CANCEL,
 ] as const
 
 /** Map ledger receipt method to its reverse (for cancel). */
@@ -57,6 +65,10 @@ function getReverseMethod(method: number): number {
       return RECEIPT_METHOD.BANK_WITHDRAW
     case RECEIPT_METHOD.BANK_WITHDRAW:
       return RECEIPT_METHOD.BANK_DEPOSIT
+    case RECEIPT_METHOD.CASH_VOUCHER:
+      return RECEIPT_METHOD.CASH_VOUCHER_CANCEL
+    case RECEIPT_METHOD.CASH_VOUCHER_CANCEL:
+      return RECEIPT_METHOD.CASH_VOUCHER
     default:
       throw new Error(`Cannot cancel: method ${method} is not a ledger type`)
   }
@@ -68,6 +80,7 @@ export type CancelLedgerReceiptInput = {
   cancelReason: string
   allowLedgerCancel?: boolean
   allowBankDepositCancel?: boolean
+  allowCashVoucherCancel?: boolean
 }
 
 export type CancelLedgerReceiptResult =
@@ -93,6 +106,7 @@ export async function cancelLedgerReceiptService(
       location: { select: { id: true } },
       userLocation: { select: { id: true } },
       agency: { select: { id: true } },
+      paymentLines: { select: { paymentMethod: true, amount: true, bank: true } },
     },
   })
 
@@ -106,7 +120,23 @@ export async function cancelLedgerReceiptService(
     return { success: false, errorCode: "INVALID", message: "This receipt type cannot be canceled." }
   }
   const isBankDeposit = original.method === RECEIPT_METHOD.BANK_DEPOSIT
-  if (isBankDeposit) {
+  const isCashVoucher = original.method === RECEIPT_METHOD.CASH_VOUCHER
+  if (isCashVoucher) {
+    if (!input.allowCashVoucherCancel) {
+      return {
+        success: false,
+        errorCode: "FORBIDDEN",
+        message: "You don't have permission to cancel cash vouchers.",
+      }
+    }
+    if (!original.bankId) {
+      return {
+        success: false,
+        errorCode: "INVALID",
+        message: "This cash voucher has no reconciliation account. Cannot cancel.",
+      }
+    }
+  } else if (isBankDeposit) {
     if (!input.allowBankDepositCancel) {
       return {
         success: false,
@@ -121,7 +151,7 @@ export async function cancelLedgerReceiptService(
         message: "This bank deposit has no bank account. Cannot cancel.",
       }
     }
-  } else if (!input.allowLedgerCancel) {
+  } else if (!isCashVoucher && !input.allowLedgerCancel) {
     return {
       success: false,
       errorCode: "FORBIDDEN",
@@ -149,22 +179,42 @@ export async function cancelLedgerReceiptService(
 
   const isBankReverse =
     reverseMethod === RECEIPT_METHOD.BANK_DEPOSIT || reverseMethod === RECEIPT_METHOD.BANK_WITHDRAW
+  const isCashVoucherReverse = reverseMethod === RECEIPT_METHOD.CASH_VOUCHER_CANCEL
   const needCashierAccount =
     reverseMethod === RECEIPT_METHOD.BRANCH_INCOME ||
     reverseMethod === RECEIPT_METHOD.BRANCH_EXPENSE ||
     reverseMethod === RECEIPT_METHOD.AGENCY_DEPOSIT ||
     reverseMethod === RECEIPT_METHOD.AGENCY_WITHDRAW ||
-    isBankReverse
+    isBankReverse ||
+    isCashVoucherReverse
   const isAgency =
     reverseMethod === RECEIPT_METHOD.DEBIT_NOTE ||
     reverseMethod === RECEIPT_METHOD.CREDIT_NOTE ||
     reverseMethod === RECEIPT_METHOD.AGENCY_DEPOSIT ||
     reverseMethod === RECEIPT_METHOD.AGENCY_WITHDRAW
 
-  const tillUserId = isBankDeposit ? (original.createdBy ?? input.canceledBy) : input.canceledBy
-  const tillLocationId = isBankDeposit
-    ? (original.userLocationId ?? original.locationId ?? branchId)
-    : undefined
+  const tillUserId =
+    isBankDeposit || isCashVoucher ? (original.createdBy ?? input.canceledBy) : input.canceledBy
+  const tillLocationId = isCashVoucher
+    ? (original.userLocationId ?? undefined)
+    : isBankDeposit
+      ? (original.userLocationId ?? original.locationId ?? branchId)
+      : undefined
+  if (isCashVoucher && !tillLocationId) {
+    return {
+      success: false,
+      errorCode: "INVALID",
+      message: "This cash voucher has no till location. Cannot cancel.",
+    }
+  }
+  const voucherLines = isCashVoucher ? cashVoucherLinesFromReceipt(original) : []
+  if (isCashVoucher && voucherLines.length === 0) {
+    return {
+      success: false,
+      errorCode: "INVALID",
+      message: "This cash voucher has no conversion lines. Cannot cancel.",
+    }
+  }
 
   let accounts = await resolveReceiptJournalAccounts({
     locationId: branchId,
@@ -196,6 +246,9 @@ export async function cancelLedgerReceiptService(
     return { success: false, errorCode: reqResult.errorCode ?? "ACCOUNTS", message: reqResult.error ?? "Failed to resolve accounts." }
   }
   accounts = reqResult.accounts
+  if (isCashVoucher) {
+    accounts.reconciledAccountId = original.bankId
+  }
 
   if (
     (reverseMethod === RECEIPT_METHOD.DEBIT_NOTE || reverseMethod === RECEIPT_METHOD.CREDIT_NOTE) &&
@@ -230,6 +283,22 @@ export async function cancelLedgerReceiptService(
     }
   }
 
+  if (isCashVoucher && accounts.cashierAccountId) {
+    const amountCents = Math.round(Math.abs(original.amount) * 100)
+    const breakdown = await getTillBalanceBreakdownForAccount(accounts.cashierAccountId)
+    const tillCashCents = getTillBalanceCentsByMethod(breakdown, RECEIPT_PAYMENT_METHOD.CASH)
+    if (tillCashCents < amountCents) {
+      return {
+        success: false,
+        errorCode: "INSUFFICIENT_TILL_BALANCE",
+        message:
+          tillCashCents <= 0
+            ? "Till has no cash balance. Cannot cancel this voucher until the till has enough cash."
+            : `Insufficient cash balance in till. Available: ${formatCents(tillCashCents)} LKR, required: ${formatCents(amountCents)} LKR.`,
+      }
+    }
+  }
+
   const journalNumberResult = await getNextSequenceNumber(JOURNAL_SEQUENCE_SCOPE, { startFrom: 1 })
   const journalNumber = journalNumberResult.success ? journalNumberResult.value : 0
 
@@ -249,12 +318,38 @@ export async function cancelLedgerReceiptService(
     agencyId: original.agencyId ?? null,
     createdBy: input.canceledBy,
     locationId: branchId,
-    userLocationId: isAgency || isBankReverse ? branchId : undefined,
+    userLocationId: isCashVoucher
+      ? (original.userLocationId ?? undefined)
+      : isAgency || isBankReverse
+        ? branchId
+        : undefined,
     shiftId: shiftId ?? undefined,
+    paymentLines: isCashVoucher
+      ? voucherLines.map((line) => ({
+          paymentMethod: line.paymentMethod,
+          amount: -(line.amountCents / 100),
+          bank: original.bank ?? "",
+        }))
+      : undefined,
   }
 
-  const result = await prisma.$transaction(
+  const postReversal = () =>
+    prisma.$transaction(
     async (tx) => {
+      if (isCashVoucher && accounts!.cashierAccountId) {
+        const amountCents = Math.round(Math.abs(original.amount) * 100)
+        const tillCashCents = await tillCashCentsWithTx(tx, accounts!.cashierAccountId)
+        if (tillCashCents < amountCents) {
+          throw Object.assign(
+            new Error(
+              tillCashCents <= 0
+                ? "Till has no cash balance. Cannot cancel this voucher until the till has enough cash."
+                : `Insufficient cash balance in till. Available: ${formatCents(tillCashCents)} LKR, required: ${formatCents(amountCents)} LKR.`
+            ),
+            { errorCode: "INSUFFICIENT_TILL_BALANCE" }
+          )
+        }
+      }
       const r = await createReceiptWithoutBooking(tx as Pick<PrismaClient, "receipt">, reverseParams)
       if (!r.success) return r
 
@@ -264,15 +359,27 @@ export async function cancelLedgerReceiptService(
       })
 
       const journalInput = buildReceiptJournalEntryInput(r.receipt, accounts!)
-      if (isBankDeposit && !journalInput) {
-        throw new Error("Could not build reversal journal for this bank deposit.")
+      if ((isBankDeposit || isCashVoucher) && !journalInput) {
+        throw new Error(
+          isCashVoucher
+            ? "Could not build reversal journal for this cash voucher."
+            : "Could not build reversal journal for this bank deposit."
+        )
       }
-      if (isBankDeposit && journalNumber <= 0) {
+      if ((isBankDeposit || isCashVoucher) && journalNumber <= 0) {
         throw new Error("Could not allocate a journal number for this reversal.")
       }
       if (journalInput && journalNumber > 0) {
         const jResult = await createJournalEntryInTransaction(tx as unknown as AccountingTx, journalInput, journalNumber)
         if (!jResult.success) throw new Error(jResult.error ?? "Journal entry failed")
+      }
+      if (isCashVoucher && accounts!.cashierAccountId) {
+        const cashAfter = await tillCashCentsWithTx(tx, accounts!.cashierAccountId)
+        if (cashAfter < 0) {
+          throw Object.assign(new Error("Insufficient cash balance in till. Cannot cancel this voucher."), {
+            errorCode: "INSUFFICIENT_TILL_BALANCE",
+          })
+        }
       }
 
       await tx.receipt.update({
@@ -291,6 +398,24 @@ export async function cancelLedgerReceiptService(
     },
     { timeout: 15000 }
   )
+
+  let result: Awaited<ReturnType<typeof postReversal>>
+  try {
+    result =
+      isCashVoucher && original.bankId && accounts.cashierAccountId
+        ? await withCashVoucherAccountLocks([original.bankId, accounts.cashierAccountId], postReversal)
+        : await postReversal()
+  } catch (err) {
+    const errorCode =
+      err && typeof err === "object" && "errorCode" in err && typeof err.errorCode === "string"
+        ? err.errorCode
+        : "SERVER"
+    return {
+      success: false,
+      errorCode,
+      message: err instanceof Error ? err.message : "Cancel failed.",
+    }
+  }
 
   if (!result.success) {
     const failed = result as { success: false; errorCode?: string; message?: string };

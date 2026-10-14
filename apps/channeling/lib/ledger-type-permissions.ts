@@ -15,6 +15,7 @@ export const LEDGER_TYPE_ADD_ACTION: Record<LedgerTransactionType, string> = {
   AGENCY_DEPOSIT: "add-agency-deposit",
   AGENCY_WITHDRAW: "add-agency-withdraw",
   BANK_DEPOSIT: "add-bank-deposit",
+  CASH_VOUCHER: "add-cash-voucher",
 }
 
 export const LEDGER_TYPE_ADD_ACTIONS = Object.values(LEDGER_TYPE_ADD_ACTION)
@@ -76,6 +77,7 @@ export const CANCELABLE_LEDGER_METHODS = [
   RECEIPT_METHOD.AGENCY_DEPOSIT,
   RECEIPT_METHOD.AGENCY_WITHDRAW,
   RECEIPT_METHOD.BANK_DEPOSIT,
+  RECEIPT_METHOD.CASH_VOUCHER,
 ] as const
 
 /**
@@ -92,6 +94,9 @@ export function canCancelLedgerReceiptMethod(
   if (!ledger) return false
   if (method === RECEIPT_METHOD.BANK_DEPOSIT) {
     return ledger["cancel-bank-deposit"] === true
+  }
+  if (method === RECEIPT_METHOD.CASH_VOUCHER) {
+    return ledger["cancel-cash-voucher"] === true
   }
   const type = LEDGER_TYPE_BY_RECEIPT_METHOD[method]
   if (!type) return false
