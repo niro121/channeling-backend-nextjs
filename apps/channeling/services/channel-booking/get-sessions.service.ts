@@ -38,39 +38,35 @@ export async function getSessionsForChannelBookingService(
       where.locationId = locationId
     }
 
-    // Run both queries in parallel (counts include both active and on-leave sessions)
-    const [records, countRows] = await Promise.all([
-      prisma.session.findMany({
-        where,
-        include: {
-          doctor: { select: { id: true, title: true, name: true } },
-          location: { select: { id: true, name: true, city: true } },
-          room: { select: { id: true, number: true } },
-        },
-        orderBy: [{ date: "asc" }, { startTime: "asc" }],
-      }),
+    const records = await prisma.session.findMany({
+      where,
+      include: {
+        doctor: { select: { id: true, title: true, name: true } },
+        location: { select: { id: true, name: true, city: true } },
+        room: { select: { id: true, number: true } },
+      },
+      orderBy: [{ date: "asc" }, { startTime: "asc" }],
+    })
+
+    if (records.length === 0) return { success: true, data: [] }
+
+    // Count by sessionId (uses the sessionId+appointmentNo index). Filtering bookings through the
+    // `session` relation makes Prisma $lookup every Booking on MongoDB — a full collection scan.
+    const scopeKeys = records.map((r) => appointmentSequenceScopeKey(r.id))
+    const [countRows, seqRows] = await Promise.all([
       prisma.booking.groupBy({
         by: ["sessionId", "status"],
         where: {
-          session: {
-            doctorId,
-            date: { gte: fromDate },
-            status: { in: [0, 1] },
-            ...(locationId ? { locationId } : {}),
-          },
+          sessionId: { in: records.map((r) => r.id) },
           status: { in: [0, 1] },
         },
         _count: { id: true },
       }),
+      prisma.sequence.findMany({
+        where: { scopeKey: { in: scopeKeys } },
+        select: { scopeKey: true, lastValue: true },
+      }),
     ])
-
-    if (records.length === 0) return { success: true, data: [] }
-
-    const scopeKeys = records.map((r) => appointmentSequenceScopeKey(r.id))
-    const seqRows = await prisma.sequence.findMany({
-      where: { scopeKey: { in: scopeKeys } },
-      select: { scopeKey: true, lastValue: true },
-    })
     const seqLastByScope = new Map(seqRows.map((s) => [s.scopeKey, s.lastValue]))
 
     const countBySession = new Map<string, { paid: number; pending: number }>()
