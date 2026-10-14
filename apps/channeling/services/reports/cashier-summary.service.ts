@@ -24,6 +24,7 @@ import {
   receiptToAmountsDoctorPaymentNet,
   addCashierSummaryAmounts as addAmounts,
 } from '@/lib/cashier-summary-amounts';
+import { formatDateSriLanka, formatDateTimeSriLanka } from '@/lib/utils';
 
 const MAX_RANGE_DAYS = getReportMaxRangeDays('cashier_summary', 62);
 const MAX_RECEIPTS_SCAN = getReportMaxRecords('cashier_summary', 50000);
@@ -46,15 +47,22 @@ function bookingDisplayId(booking: { id: string; bookingid_string?: string | nul
   return (booking.bookingid_string ?? booking.receiptNoString ?? booking.id) || null;
 }
 
+function capitalMeridiem(value: string): string {
+  return value.replace(/\b(am|pm)\b/gi, (m) => m.toUpperCase());
+}
+
 function formatSessionDateTime(session: { date: Date; startTime?: Date | null } | null): string | null {
   if (!session) return null;
   const d = session.date instanceof Date ? session.date : new Date(session.date);
+  if (Number.isNaN(d.getTime())) return null;
+  const dateLabel = formatDateSriLanka(d);
   const t = session.startTime instanceof Date ? session.startTime : session.startTime;
-  if (t != null) {
-    const tDate = t instanceof Date ? t : new Date(Number(t) * 1000);
-    return `${d.toLocaleDateString('en-CA', { dateStyle: 'short' })} ${tDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`;
-  }
-  return d.toLocaleDateString('en-CA', { dateStyle: 'short' });
+  if (t == null) return dateLabel;
+  const tDate = t instanceof Date ? t : new Date(Number(t) * 1000);
+  if (Number.isNaN(tDate.getTime())) return dateLabel;
+  const timeLabel = formatDateTimeSriLanka(tDate).split(', ')[1];
+  if (!timeLabel) return dateLabel;
+  return `${dateLabel}, ${capitalMeridiem(timeLabel)}`;
 }
 
 type ShiftLabelSource = {
@@ -70,10 +78,8 @@ function formatShiftUserLabel(shift: ShiftLabelSource): string | null {
 
 function formatShiftLabel(shift: ShiftLabelSource): string | null {
   if (!shift) return null;
-  const start = new Date(shift.startedAt).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' });
-  const end = shift.endedAt
-    ? new Date(shift.endedAt).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' })
-    : 'Ongoing';
+  const start = capitalMeridiem(formatDateTimeSriLanka(shift.startedAt));
+  const end = shift.endedAt ? capitalMeridiem(formatDateTimeSriLanka(shift.endedAt)) : 'Ongoing';
   const userName = formatShiftUserLabel(shift) ?? 'Unknown user';
   return `${userName} (${start} - ${end})`;
 }
