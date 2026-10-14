@@ -418,3 +418,35 @@ export async function deleteManageRoster(id: string): Promise<{
     };
   }
 }
+
+/** Lightweight manage-roster options for cross-module filters.
+ * Option `id` is the business **code** (e.g. CHN) — same key Staff.employment.roster
+ * and Roster & Shifts snapshots should store (not Mongo ObjectId).
+ */
+export async function getManageRosterOptions(): Promise<{
+  success: boolean;
+  data?: Array<{ id: string; name: string }>;
+  error?: { message?: string };
+}> {
+  try {
+    const rows = await prisma.manageRoster.findMany({
+      select: { name: true, code: true },
+      orderBy: { name: 'asc' }
+    });
+    return {
+      success: true,
+      data: rows
+        .filter((row) => Boolean(row.code?.trim()))
+        .map((row) => ({
+          id: row.code.trim().toUpperCase(),
+          name: `${row.name} (${row.code.trim().toUpperCase()})`
+        }))
+    };
+  } catch (error: any) {
+    console.error('getManageRosterOptions error:', error);
+    return {
+      success: false,
+      error: { message: error.message || 'Failed to load roster options' }
+    };
+  }
+}

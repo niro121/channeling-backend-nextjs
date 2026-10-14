@@ -3,7 +3,7 @@
 import React, { useRef, useState } from 'react';
 import { Form, Formik, FormikHelpers } from 'formik';
 import * as Yup from 'yup';
-import { Ban, RefreshCw, Save } from 'lucide-react';
+import { RefreshCw } from 'lucide-react';
 import {
   Button,
   Checkbox,
@@ -30,6 +30,7 @@ import {
   createNewUserGroup,
   updateUserGroup
 } from '@/app/actions/user-usergrp-actions/user-group.actions';
+import { CustomFormSubmitBtns } from '@/components/custom/custom-form-submit-btns';
 
 type UserGroupFormProps = {
   userGroup: UserGroup | null;
@@ -491,12 +492,10 @@ export default function UserGroupForm({
             <Separator />
 
             <div className="flex flex-col sm:flex-row justify-end gap-3">
-              <Button
-                size="sm"
-                variant="outline"
-                className="w-full sm:w-24 gap-1 border-red-500 text-red-500 transition-colors ease-in-out duration-100 hover:bg-red-500 hover:text-white"
-                type="button"
-                onClick={() => {
+              <CustomFormSubmitBtns
+                loading={loading}
+                showSave={!!sessionUserType}
+                onCancel={() => {
                   if (dialogContext) {
                     setDialogOpen(false);
                     formik.resetForm({ values: initialValues });
@@ -504,38 +503,15 @@ export default function UserGroupForm({
                     router.push('/user-groups');
                   }
                 }}
-                disabled={loading}
-              >
-                <Ban className="h-4 w-4" />
-                <span>Cancel</span>
-              </Button>
-              <Button
-                disabled={!sessionUserType || loading}
-                size="sm"
-                type="button"
-                className="w-full sm:w-auto gap-1 text-white px-6 transition-colors ease-in-out duration-100 hover:text-black"
-                onClick={() => {
+                onSave={() => {
                   saveAndCloseRef.current = false;
                   formik.submitForm();
                 }}
-              >
-                <Save className="h-4 w-4" />
-                <span>Save</span>
-              </Button>
-              <Button
-                disabled={!sessionUserType || loading}
-                size="sm"
-                type="button"
-                variant="secondary"
-                className="w-full sm:w-auto gap-1 px-6"
-                onClick={() => {
+                onSaveAndClose={() => {
                   saveAndCloseRef.current = true;
                   formik.submitForm();
                 }}
-              >
-                <Save className="h-4 w-4" />
-                <span>Save and Close</span>
-              </Button>
+              />
             </div>
           </div>
         </Form>

@@ -23,6 +23,8 @@ import {
   MIN_PASSWORD_LENGTH,
   PASSWORD_REGEX,
 } from '@/lib/validations/password';
+import { toAuditUser, type AuditUser } from '@/lib/audit-user';
+import { resolveAuthUsers } from '@/lib/helpers/resolve-auth-users.helper';
 
 const MOBILE_VALIDATION_MESSAGE = 'Mobile Number Ex: 07x xxxxxxx';
 
@@ -90,15 +92,52 @@ const userUpdateSchema = userSchema
     }
   );
 
-function keywordWhere(keyword: string) {
+async function keywordWhere(keyword: string) {
   const trimmed = keyword.trim();
   if (!trimmed) return {};
+
+  const matchingStaff = await prisma.staff.findMany({
+    where: {
+      OR: [
+        { name: { contains: trimmed, mode: 'insensitive' } },
+        { code: { contains: trimmed, mode: 'insensitive' } },
+      ],
+    },
+    select: { id: true },
+  });
+  const matchingStaffIds = matchingStaff.map((staff) => staff.id);
 
   return {
     OR: [
       { name: { contains: trimmed, mode: 'insensitive' as const } },
       { email: { contains: trimmed, mode: 'insensitive' as const } },
       { username: { contains: trimmed, mode: 'insensitive' as const } },
+      ...(matchingStaffIds.length
+        ? [{ staffId: { in: matchingStaffIds } }]
+        : []),
+    ],
+  };
+}
+
+async function buildUsersWhere({
+  keyword = '',
+  userId,
+  status,
+}: {
+  keyword?: string;
+  userId?: string;
+  status?: string;
+}) {
+  const statusFilter =
+    status === '0' || status === '1' ? { status: parseInt(status, 10) } : {};
+  const keywordFilter = await keywordWhere(keyword);
+
+  return {
+    AND: [
+      hrmUserListWhere,
+      ...(Object.keys(keywordFilter).length ? [keywordFilter] : []),
+      ...(userId ? [{ id: userId }] : []),
+      ...(Object.keys(statusFilter).length ? [statusFilter] : []),
     ],
   };
 }
@@ -170,17 +209,14 @@ export async function getUsers({
   page,
   limit,
   keyword,
+  userId,
+  status,
 }: GetUsersQuery): Promise<GetUsersReturn> {
-  const defaultPerPage =
-    Number.parseInt(process.env.DEFAULT_PER_PAGE ?? '10', 10) || 10;
-  const validLimit = limit > 0 ? limit : defaultPerPage;
+  const validLimit = limit > 0 ? limit : 10;
   const skip = page * validLimit;
 
   try {
-    const where = {
-      ...hrmUserListWhere,
-      ...keywordWhere(keyword),
-    };
+    const where = await buildUsersWhere({ keyword, userId, status });
 
     const records = await authPrisma.user.findMany({
       skip,
@@ -193,12 +229,48 @@ export async function getUsers({
     });
 
     const totalRecords = await authPrisma.user.count({ where });
-    const data = (await attachStaffNames(records as HrmUser[])) as HrmUser[];
+    const recordsWithUsers = await resolveAuthUsers(records);
+    const data = (await attachStaffNames(
+      recordsWithUsers as HrmUser[]
+    )) as HrmUser[];
 
     return { data, totalRecords };
   } catch (error) {
     console.error('getUsers error', error);
     throw new Error('Error getting data');
+  }
+}
+
+export async function getAllUsersOptionsService(options?: {
+  activeOnly?: boolean;
+}) {
+  try {
+    const activeOnly = options?.activeOnly !== false;
+    const records = await authPrisma.user.findMany({
+      where: {
+        ...hrmUserListWhere,
+        ...(activeOnly ? { status: 1 } : {}),
+      },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+      },
+      orderBy: { name: 'asc' },
+    });
+
+    return {
+      data: records.map((user) => ({
+        id: user.id,
+        name: user.name || user.email,
+      })),
+      totalRecords: records.length,
+    };
+  } catch (error: unknown) {
+    console.error('getAllUsersOptionsService error', error);
+    const message =
+      error instanceof Error ? error.message : 'Error getting user options';
+    throw new Error(message);
   }
 }
 
@@ -236,18 +308,21 @@ export async function deleteOneUser(id: string) {
   }
 }
 
-export async function saveUser(payload: {
-  name: string;
-  email: string;
-  username?: string | null;
-  phone?: string | null;
-  twoFactorEnabled?: boolean;
-  password: string;
-  userType: number;
-  status?: number;
-  userGroupId?: string | null;
-  staffId: string;
-}): Promise<{
+export async function saveUser(
+  payload: {
+    name: string;
+    email: string;
+    username?: string | null;
+    phone?: string | null;
+    twoFactorEnabled?: boolean;
+    password: string;
+    userType: number;
+    status?: number;
+    userGroupId?: string | null;
+    staffId: string;
+  },
+  user?: AuditUser
+): Promise<{
   success: boolean;
   data?: { id: string };
   message?: string;
@@ -272,6 +347,7 @@ export async function saveUser(payload: {
     const data = parsed.data;
     await assertHrmUserGroupId(data.userGroupId);
     await assertStaffId(data.staffId);
+    const auditUser = toAuditUser(user);
 
     const result = await authPrisma.user.create({
       data: {
@@ -286,6 +362,10 @@ export async function saveUser(payload: {
         userGroupId: data.userGroupId,
         staffId: data.staffId,
         mustChangePassword: true,
+        ...(auditUser?.id && {
+          createdBy: auditUser.id,
+          updatedBy: auditUser.id,
+        }),
       },
     });
 
@@ -332,7 +412,8 @@ export async function updateOneUser(
     status?: number;
     userGroupId?: string | null;
     staffId: string;
-  }
+  },
+  user?: AuditUser
 ): Promise<{
   success: boolean;
   data?: { id: string };
@@ -359,6 +440,7 @@ export async function updateOneUser(
     }
 
     const data = parsed.data;
+    const auditUser = toAuditUser(user);
 
     if (data.userGroupId !== undefined) {
       await assertHrmUserGroupId(data.userGroupId);
@@ -380,6 +462,7 @@ export async function updateOneUser(
     if (data.userGroupId !== undefined) updateData.userGroupId = data.userGroupId;
     updateData.staffId = data.staffId;
     updateData.updatedAt = new Date();
+    if (auditUser?.id) updateData.updatedBy = auditUser.id;
 
     const result = await authPrisma.user.update({
       where: { id },
@@ -482,5 +565,37 @@ export async function updateUserPassword(
         message: error instanceof Error ? error.message : 'Failed to update password',
       },
     };
+  }
+}
+
+export async function getUsersForExport({
+  keyword = '',
+  userId,
+  status,
+}: {
+  keyword?: string;
+  userId?: string;
+  status?: string;
+}): Promise<GetUsersReturn> {
+  try {
+    const where = await buildUsersWhere({ keyword, userId, status });
+
+    const records = await authPrisma.user.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      include: {
+        userGroup: { select: { id: true, name: true, app: true } },
+      },
+    });
+
+    const recordsWithUsers = await resolveAuthUsers(records);
+    const data = (await attachStaffNames(
+      recordsWithUsers as HrmUser[]
+    )) as HrmUser[];
+
+    return { data, totalRecords: data.length };
+  } catch (error) {
+    console.error('getUsersForExport error', error);
+    throw new Error('Error getting data');
   }
 }

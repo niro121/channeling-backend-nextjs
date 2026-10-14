@@ -19,22 +19,28 @@ export type UserGroup = {
   permissions: Permissions;
   twoFactorEnabled?: boolean;
   twoFactorMethods?: TwoFactorMethodId[];
+  createdBy?: string | null;
+  updatedBy?: string | null;
   createdAt?: Date;
   updatedAt?: Date;
-  createdUser?: { name?: string } | null;
-  updatedUser?: { name?: string } | null;
+  createdUser?: { id?: string; name?: string; email?: string } | null;
+  updatedUser?: { id?: string; name?: string; email?: string } | null;
 };
 
 export type GetUserGroupsParams = {
   page?: string;
   limit?: string;
   keyword?: string;
+  userGroupId?: string;
+  status?: string;
 };
 
 export type GetUserGroupsQuery = {
   page: number;
   limit: number;
   keyword: string;
+  userGroupId?: string;
+  status?: string;
 };
 
 export type GetUserGroupsReturn = {

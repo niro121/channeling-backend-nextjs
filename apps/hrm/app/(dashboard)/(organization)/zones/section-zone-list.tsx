@@ -1,36 +1,33 @@
 'use client';
 
 import { useMemo } from 'react';
-import { Plus, Search } from 'lucide-react';
-import { Button, Input, useToast } from '@archmage/ui';
+import { Plus } from 'lucide-react';
+import { Button, useToast } from '@archmage/ui';
 import { cn } from '@/lib/utils';
-import { ZONE_STATUS_OPTIONS, zoneStatusLabel } from '@/types/zone';
+import { buttonStyles } from '@/lib/utils/common-styles';
+import { zoneStatusLabel } from '@/types/zone';
 import { SyncZonesButton } from './sync-zones-button';
 import { useZoneUi } from './zone-ui-context';
 
 export default function SectionZoneList() {
   const { toast } = useToast();
-  const {
-    records,
-    locationOptions,
-    selectedId,
-    setSelectedId,
-    startNewZone,
-    search,
-    setSearch,
-    statusFilter,
-    setStatusFilter,
-    locationFilter,
-    setLocationFilter
-  } = useZoneUi();
+  const { records, selectedId, setSelectedId, startNewZone, filters } =
+    useZoneUi();
 
   const filteredRecords = useMemo(() => {
-    const query = search.trim().toLowerCase();
+    const query = (filters.search ?? '').trim().toLowerCase();
+    const locationId =
+      filters.locationId && filters.locationId !== '__all__'
+        ? filters.locationId
+        : '';
+    const status =
+      filters.status && filters.status !== '__all__' ? filters.status : '';
+
     return records.filter((record) => {
-      if (statusFilter !== '' && String(record.status) !== statusFilter) {
+      if (status !== '' && String(record.status) !== status) {
         return false;
       }
-      if (locationFilter !== '' && record.locationId !== locationFilter) {
+      if (locationId !== '' && record.locationId !== locationId) {
         return false;
       }
       if (!query) return true;
@@ -42,13 +39,14 @@ export default function SectionZoneList() {
         record.locationCode.toLowerCase().includes(query)
       );
     });
-  }, [records, search, statusFilter, locationFilter]);
+  }, [records, filters]);
 
   const handleAdd = () => {
     startNewZone();
     toast({
       title: 'Add new zone',
-      description: 'Enter the zone details in the form on the right, then click Save.'
+      description:
+        'Enter the zone details in the form on the right, then click Save.'
     });
     requestAnimationFrame(() => {
       document
@@ -65,58 +63,22 @@ export default function SectionZoneList() {
         </h2>
         <div className="flex items-center gap-2">
           <SyncZonesButton />
-          <Button type="button" size="sm" className="h-8 gap-1.5 px-3" onClick={handleAdd}>
+          <Button
+            type="button"
+            size="sm"
+            className={cn('gap-1.5 px-3', buttonStyles.save)}
+            onClick={handleAdd}
+          >
             <Plus className="h-4 w-4" />
             Add
           </Button>
         </div>
       </div>
 
-      <div className="space-y-2 border-b border-primary/10 px-3 py-3">
-        <div className="relative w-full">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search by name, code, or location..."
-            className="w-full rounded-md border-primary/15 pl-9"
-            aria-label="Search zones"
-          />
-        </div>
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-          <select
-            value={locationFilter}
-            onChange={(e) => setLocationFilter(e.target.value)}
-            className="h-9 w-full rounded-md border border-primary/15 bg-background px-3 text-sm text-foreground"
-            aria-label="Filter by location"
-          >
-            <option value="">All locations</option>
-            {locationOptions.map((opt) => (
-              <option key={opt.id} value={opt.id}>
-                {opt.name} ({opt.code})
-              </option>
-            ))}
-          </select>
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="h-9 w-full rounded-md border border-primary/15 bg-background px-3 text-sm text-foreground"
-            aria-label="Filter by status"
-          >
-            <option value="">All statuses</option>
-            {ZONE_STATUS_OPTIONS.map((opt) => (
-              <option key={opt.id} value={opt.id}>
-                {opt.name}
-              </option>
-            ))}
-          </select>
-        </div>
-      </div>
-
       <div className="flex-1 overflow-y-auto px-3 py-3">
         {filteredRecords.length === 0 ? (
           <p className="px-2 py-6 text-center text-sm text-muted-foreground">
-            No zones found.
+            No zones match the current filters.
           </p>
         ) : (
           <ul className="flex flex-col gap-2">

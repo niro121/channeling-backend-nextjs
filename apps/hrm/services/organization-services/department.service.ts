@@ -421,3 +421,25 @@ export async function setDepartmentMigrateSourceId(
     };
   }
 }
+
+/** Lightweight published-department options for cross-module filters. */
+export async function getDepartmentOptions(): Promise<{
+  success: boolean;
+  data?: Array<{ id: string; name: string }>;
+  error?: { message?: string };
+}> {
+  try {
+    const rows = await prisma.department.findMany({
+      where: { status: 1 },
+      select: { id: true, name: true },
+      orderBy: { name: 'asc' }
+    });
+    return { success: true, data: rows };
+  } catch (error: any) {
+    console.error('getDepartmentOptions error:', error);
+    return {
+      success: false,
+      error: { message: error.message || 'Failed to load department options' }
+    };
+  }
+}

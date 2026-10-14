@@ -6,11 +6,14 @@ import { authPrisma } from '@archmage/db-auth';
 import { fetchServerSession } from '@/lib/session';
 import { requirePermission } from '@/lib/server-permissions';
 import { logActivityNonBlocking } from '@/lib/activity-log';
+import { getAuditUser } from '@/lib/audit-user';
 import {
   deleteOneUser,
   deleteUsers,
+  getAllUsersOptionsService,
   getUserById,
   getUsers,
+  getUsersForExport,
   saveUser,
   updateOneUser,
   updateUserPassword,
@@ -92,6 +95,10 @@ function stripUserPayload(payload: HrmUser) {
   delete payload.userGroup;
   delete payload.staff;
   delete payload.confirmPassword;
+  delete payload.createdBy;
+  delete payload.updatedBy;
+  delete payload.createdUser;
+  delete payload.updatedUser;
 }
 
 export async function getAllUsers(filter: GetUsersParams) {
@@ -99,11 +106,13 @@ export async function getAllUsers(filter: GetUsersParams) {
 
   try {
     const newFilter: GetUsersQuery = {
-      page: filter.page ? parseInt(filter.page, 10) : 0,
+      page: filter.page ? parseInt(filter.page, 10) :  parseInt(process.env.DEFAULT_PAGE ?? '0', 10) || 0,
       limit: filter.limit
         ? parseInt(filter.limit, 10)
         : parseInt(process.env.DEFAULT_PAGE_SIZE ?? '10', 10) || 10,
       keyword: filter.keyword ?? '',
+      userId: filter.userId,
+      status: filter.status,
     };
 
     return await getUsers(newFilter);
@@ -171,19 +180,23 @@ export async function createNewUser(payload: HrmUser) {
   try {
     stripUserPayload(payload);
     const hashedPassword = await hashPassword(payload.password);
+    const auditUser = await getAuditUser();
 
-    const result = await saveUser({
-      name: payload.name,
-      email: payload.email,
-      username: payload.username ?? null,
-      phone: payload.phone ?? null,
-      twoFactorEnabled: payload.twoFactorEnabled ?? false,
-      password: hashedPassword,
-      userType: payload.userType,
-      status: payload.status,
-      userGroupId: payload.userGroupId,
-      staffId: payload.staffId ?? '',
-    });
+    const result = await saveUser(
+      {
+        name: payload.name,
+        email: payload.email,
+        username: payload.username ?? null,
+        phone: payload.phone ?? null,
+        twoFactorEnabled: payload.twoFactorEnabled ?? false,
+        password: hashedPassword,
+        userType: payload.userType,
+        status: payload.status,
+        userGroupId: payload.userGroupId,
+        staffId: payload.staffId ?? '',
+      },
+      auditUser
+    );
 
     if (!result.success) {
       return {
@@ -232,17 +245,22 @@ export async function updateUser(id: string, payload: HrmUser) {
 
   try {
     stripUserPayload(payload);
+    const auditUser = await getAuditUser();
 
-    const result = await updateOneUser(id, {
-      name: payload.name,
-      email: payload.email,
-      username: payload.username ?? null,
-      phone: payload.phone ?? null,
-      twoFactorEnabled: payload.twoFactorEnabled,
-      status: payload.status,
-      userGroupId: payload.userGroupId,
-      staffId: payload.staffId ?? '',
-    });
+    const result = await updateOneUser(
+      id,
+      {
+        name: payload.name,
+        email: payload.email,
+        username: payload.username ?? null,
+        phone: payload.phone ?? null,
+        twoFactorEnabled: payload.twoFactorEnabled,
+        status: payload.status,
+        userGroupId: payload.userGroupId,
+        staffId: payload.staffId ?? '',
+      },
+      auditUser
+    );
 
     if (!result.success) {
       const issues = result.error?.issues ?? {};
@@ -354,14 +372,35 @@ export async function fetchUserById(id: string) {
   return user;
 }
 
-export async function getUsersExport(params: { keyword?: string }) {
+export async function getAllUsersOptions(options?: {
+  activeOnly?: boolean;
+}) {
   await requirePermission('users', 'view');
 
   try {
-    const response = await getAllUsers({
-      page: '0',
-      limit: '1000000',
+    return await getAllUsersOptionsService(options);
+  } catch (error: unknown) {
+    console.error('getAllUsersOptions error', error);
+    const message =
+      error instanceof Error
+        ? error.message
+        : 'Error getting user options. Please try again later';
+    throw new Error(message);
+  }
+}
+
+export async function getUsersExport(params: {
+  keyword?: string;
+  userId?: string;
+  status?: string;
+}) {
+  await requirePermission('users', 'view');
+
+  try {
+    const response = await getUsersForExport({
       keyword: params.keyword ?? '',
+      userId: params.userId,
+      status: params.status,
     });
 
     if (!response.data?.length) {

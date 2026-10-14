@@ -7,11 +7,16 @@ import {
   getLinkedLocationOptionsAction,
   getZoneListAction
 } from '@/app/actions/organization-actions/zone.actions';
+import { ZONE_STATUS_OPTIONS } from '@/types/zone';
 import ZoneWorkspace from './zone-workspace';
+import type { ZoneListFilters } from './section-zone-filters';
 
 type SearchParams = {
   searchParams?: Promise<{
     id?: string;
+    search?: string;
+    locationId?: string;
+    status?: string;
   }>;
 };
 
@@ -41,6 +46,19 @@ export default async function ZonesPage({ searchParams }: SearchParams) {
     : (locationsRes.data ?? []);
 
   const params = await searchParams;
+  const locationIds = new Set(locationOptions.map((loc) => loc.id));
+  const statusIds = new Set(ZONE_STATUS_OPTIONS.map((opt) => opt.id as string));
+
+  const initialFilters: ZoneListFilters = {
+    search: params?.search?.trim() || undefined,
+    locationId:
+      params?.locationId && locationIds.has(params.locationId)
+        ? params.locationId
+        : undefined,
+    status:
+      params?.status && statusIds.has(params.status) ? params.status : undefined
+  };
+
   const defaultSelected =
     params?.id && records.some((r) => r.id === params.id)
       ? params.id
@@ -51,6 +69,7 @@ export default async function ZonesPage({ searchParams }: SearchParams) {
       initialRecords={records}
       locationOptions={locationOptions}
       initialSelectedId={defaultSelected}
+      initialFilters={initialFilters}
     />
   );
 }

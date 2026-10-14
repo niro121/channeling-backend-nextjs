@@ -4,11 +4,19 @@ import { authOptions } from '@/lib/auth';
 import { logActivityNonBlocking } from '@/lib/activity-log';
 import { checkRouteAccess } from '@/lib/server-permissions';
 import { getLocationListAction } from '@/app/actions/organization-actions/location.actions';
+import {
+  BRANCH_TYPE_OPTIONS,
+  LOCATION_STATUS_OPTIONS
+} from '@/types/location';
 import LocationWorkspace from './location-workspace';
+import type { LocationListFilters } from './section-location-filters';
 
 type SearchParams = {
   searchParams?: Promise<{
     id?: string;
+    search?: string;
+    branchType?: string;
+    status?: string;
   }>;
 };
 
@@ -32,6 +40,24 @@ export default async function LocationsPage({ searchParams }: SearchParams) {
   const records = listRes.isError ? [] : (listRes.data ?? []);
 
   const params = await searchParams;
+
+  const branchTypeIds = new Set(
+    BRANCH_TYPE_OPTIONS.map((opt) => opt.id as string)
+  );
+  const statusIds = new Set(
+    LOCATION_STATUS_OPTIONS.map((opt) => opt.id as string)
+  );
+
+  const initialFilters: LocationListFilters = {
+    search: params?.search?.trim() || undefined,
+    branchType:
+      params?.branchType && branchTypeIds.has(params.branchType)
+        ? params.branchType
+        : undefined,
+    status:
+      params?.status && statusIds.has(params.status) ? params.status : undefined
+  };
+
   const defaultSelected =
     params?.id && records.some((r) => r.id === params.id)
       ? params.id
@@ -41,6 +67,7 @@ export default async function LocationsPage({ searchParams }: SearchParams) {
     <LocationWorkspace
       initialRecords={records}
       initialSelectedId={defaultSelected}
+      initialFilters={initialFilters}
     />
   );
 }

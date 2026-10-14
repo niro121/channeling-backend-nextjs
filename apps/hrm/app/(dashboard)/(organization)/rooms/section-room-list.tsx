@@ -1,47 +1,38 @@
 'use client';
 
 import { useMemo } from 'react';
-import { Plus, Search } from 'lucide-react';
-import { Button, Input, useToast } from '@archmage/ui';
+import { Plus } from 'lucide-react';
+import { Button, useToast } from '@archmage/ui';
 import { cn } from '@/lib/utils';
-import { ROOM_STATUS_OPTIONS, roomStatusLabel } from '@/types/room';
+import { roomStatusLabel } from '@/types/room';
 import { SyncRoomsButton } from './sync-rooms-button';
 import { useRoomUi } from './room-ui-context';
+import { buttonStyles } from '@/lib/utils/common-styles';
 
 export default function SectionRoomList() {
   const { toast } = useToast();
-  const {
-    records,
-    locationOptions,
-    zoneOptions,
-    selectedId,
-    setSelectedId,
-    startNewRoom,
-    search,
-    setSearch,
-    statusFilter,
-    setStatusFilter,
-    locationFilter,
-    setLocationFilter,
-    zoneFilter,
-    setZoneFilter
-  } = useRoomUi();
-
-  const zonesForFilter = useMemo(() => {
-    if (!locationFilter) return zoneOptions;
-    return zoneOptions.filter((zone) => zone.locationId === locationFilter);
-  }, [zoneOptions, locationFilter]);
+  const { records, selectedId, setSelectedId, startNewRoom, filters } =
+    useRoomUi();
 
   const filteredRecords = useMemo(() => {
-    const query = search.trim().toLowerCase();
+    const query = (filters.search ?? '').trim().toLowerCase();
+    const locationId =
+      filters.locationId && filters.locationId !== '__all__'
+        ? filters.locationId
+        : '';
+    const zoneId =
+      filters.zoneId && filters.zoneId !== '__all__' ? filters.zoneId : '';
+    const status =
+      filters.status && filters.status !== '__all__' ? filters.status : '';
+
     return records.filter((record) => {
-      if (statusFilter !== '' && String(record.status) !== statusFilter) {
+      if (status !== '' && String(record.status) !== status) {
         return false;
       }
-      if (locationFilter !== '' && record.locationId !== locationFilter) {
+      if (locationId !== '' && record.locationId !== locationId) {
         return false;
       }
-      if (zoneFilter !== '' && record.zoneId !== zoneFilter) {
+      if (zoneId !== '' && record.zoneId !== zoneId) {
         return false;
       }
       if (!query) return true;
@@ -53,7 +44,7 @@ export default function SectionRoomList() {
         record.zoneName.toLowerCase().includes(query)
       );
     });
-  }, [records, search, statusFilter, locationFilter, zoneFilter]);
+  }, [records, filters]);
 
   const handleAdd = () => {
     startNewRoom();
@@ -68,11 +59,6 @@ export default function SectionRoomList() {
     });
   };
 
-  const handleLocationFilterChange = (value: string) => {
-    setLocationFilter(value);
-    setZoneFilter('');
-  };
-
   return (
     <div className="flex h-full min-h-[32rem] flex-col rounded-lg border border-primary/15 bg-card">
       <div className="flex items-center justify-between gap-3 border-b border-primary/10 px-3 py-3">
@@ -81,71 +67,17 @@ export default function SectionRoomList() {
         </h2>
         <div className="flex items-center gap-2">
           <SyncRoomsButton />
-          <Button type="button" size="sm" className="h-8 gap-1.5 px-3" onClick={handleAdd}>
+          <Button type="button" size="sm" className={buttonStyles.save} onClick={handleAdd}>
             <Plus className="h-4 w-4" />
             Add
           </Button>
         </div>
       </div>
 
-      <div className="space-y-2 border-b border-primary/10 px-3 py-3">
-        <div className="relative w-full">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search by number, code, or location..."
-            className="w-full rounded-md border-primary/15 pl-9"
-            aria-label="Search rooms"
-          />
-        </div>
-        <div className="grid grid-cols-1 gap-2">
-          <select
-            value={locationFilter}
-            onChange={(e) => handleLocationFilterChange(e.target.value)}
-            className="h-9 w-full rounded-md border border-primary/15 bg-background px-3 text-sm text-foreground"
-            aria-label="Filter by location"
-          >
-            <option value="">All locations</option>
-            {locationOptions.map((opt) => (
-              <option key={opt.id} value={opt.id}>
-                {opt.name} ({opt.code})
-              </option>
-            ))}
-          </select>
-          <select
-            value={zoneFilter}
-            onChange={(e) => setZoneFilter(e.target.value)}
-            className="h-9 w-full rounded-md border border-primary/15 bg-background px-3 text-sm text-foreground"
-            aria-label="Filter by zone"
-          >
-            <option value="">All zones</option>
-            {zonesForFilter.map((opt) => (
-              <option key={opt.id} value={opt.id}>
-                {opt.name} ({opt.code})
-              </option>
-            ))}
-          </select>
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="h-9 w-full rounded-md border border-primary/15 bg-background px-3 text-sm text-foreground"
-            aria-label="Filter by status"
-          >
-            <option value="">All statuses</option>
-            {ROOM_STATUS_OPTIONS.map((opt) => (
-              <option key={opt.id} value={opt.id}>
-                {opt.name}
-              </option>
-            ))}
-          </select>
-        </div>
-      </div>
-
       <div className="flex-1 overflow-y-auto px-3 py-3">
         {filteredRecords.length === 0 ? (
           <p className="px-2 py-6 text-center text-sm text-muted-foreground">
-            No rooms found.
+            No rooms match the current filters.
           </p>
         ) : (
           <ul className="flex flex-col gap-2">

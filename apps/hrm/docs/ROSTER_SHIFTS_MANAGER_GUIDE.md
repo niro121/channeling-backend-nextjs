@@ -53,13 +53,13 @@ Pages must not call Prisma. No business rules in components. Next: **D11 Public 
 - After **Publish**, cells are immutable except via **Roster Amendments** (apply on Approve). Draft periods stay editable.
 - **Statuses:** period header Draft → Published; each cell follows the period, **Amended** after an approved amendment; Assignment Active / Pending / Inactive; Night / Overnight / Holiday **do not** get a second independent workflow — they show the allocation (and payroll flags).
 - Night / Overnight / Holiday are **registers of allocations** (shift-type flags or holiday date). **Add** only if that staff + date has no cell. Phase 0 status dropdowns stay until wiring; they **map to the cell/period**, they are not a second approval engine.
-- Holiday dates: owned by **HR Administration** (`HolidayCalendar` CRUD on `/holiday-calendar`). Public Holiday Shifts **reads** that master. Further Staff/Roster master wiring (department, unit, designation, roster group, grade) is tracked in `HR_ADMINISTRATION_GUIDE.md` §31–32 — finish remaining HR Admin masters before a broad integration wave.
+- Holiday dates: owned by **HR Administration** (`HolidayCalendar` CRUD on `/holiday-calendar`). Public Holiday Shifts **reads** that master. **Manage Rosters** group-code wiring for filters/snapshots is upcoming — see **§1.1** and `HR_ADMINISTRATION_GUIDE.md` §26 / §32 (INT-R3). Other masters (department, unit, designation, grade) remain on the same integration backlog.
 - Grant Lieu Leave / Send to Payroll: **flags only** in v1 (no Leave Entitlement write, no payroll engine).
 - Duty attendance: store Present / Late / Absent. RFID / finger-scan engine is in `STAFF_ATTENDANCE_ARCHITECTURE.md`. HR confirms sync from **Daily Attendance → Confirm to Duty Roster** (never auto from punches).
 - Overnight: **store** Day 1 / Day 2 / Total hours + attendance allocation date; service still computes from start/end.
 - **Uniqueness:** one shift per staff per calendar date (hospital-wide).
 - Permissions: keep **one** `shift-roster` resource. `edit` = allocate / save draft / swap. `add` or `edit` = publish and amendment approve. View-only cannot publish.
-- **Defer:** drag-and-drop persist, Create Fixed Roster, OT Process Staff Shift, Leave Application overlap; HR Admin master consumption beyond holidays (see `HR_ADMINISTRATION_GUIDE.md` §32); **Manage Shifts** HR Admin screen (not required — keep Shift Types; §34).
+- **Defer / upcoming (do not block completed D-slices):** drag-and-drop persist, Create Fixed Roster, OT Process Staff Shift, Leave Application overlap; **Manage Rosters code integration** (§1.1); other HR Admin masters beyond holidays (`HR_ADMINISTRATION_GUIDE.md` §32); **Manage Shifts** HR Admin screen (not required — keep Shift Types; §34).
 
 ---
 
@@ -116,9 +116,41 @@ Legacy mocks place **Manage Shifts** under HR Administration (templates filtered
 | Dual masters | **Do not** run Manage Shifts CRUD alongside Shift Types |
 | If product later needs roster-scoped catalogs | Prefer extend `ShiftType` (Option A) or replace with one HR master (Option B); then wire option loaders — details in §34 |
 
-Until §34 Option A/B ships, **no Roster & Shifts refactor** is needed for Manage Shifts. Integration work that *is* planned: consume Manage Rosters / Designations / Grades / Departments (see HR Admin guide §32).
+Until §34 Option A/B ships, **no Roster & Shifts refactor** is needed for Manage Shifts.
 
-**Module build order (dynamic):** shared Phase 1 types + schema → Shift Types CRUD → Shift Assignment CRUD → Roster **read** → Roster **draft write** (sheet allocate; drag persist later) → Publish / copy / fill → point Duty Roster at the same store → Amendments → Night / Overnight → Holiday. Do not persist Night/Holiday/Duty as separate copies of the week.
+### 1.1 Upcoming — Manage Rosters connection (integration wave)
+
+Roster & Shifts **operational screens are complete**. Remaining work with HR Admin Manage Rosters is **integration only** — do not reopen grid/register structure.
+
+**Why connect?** Manage Rosters owns the **group catalog** (`CHN`). Staff membership and Roster & Shifts filters/snapshots must use that same group key so scheduling matches who belongs to which team.
+
+**Connection (intended):**
+
+```
+Manage Rosters (CHN)
+        →  Staff.employment.roster = "CHN"
+        →  ShiftRoster / filters / allocation snapshots use "CHN"
+           Period IDs stay SR-n
+```
+
+**Today:** roster filter options are often distinct free-text values from staff/allocations; Staff Employment still uses placeholder `ROSTER_OPTIONS`. Manage Rosters CRUD is live but not yet the option source here.
+
+**Upcoming deliverables (this module group):**
+
+| ID | Work | Notes |
+|----|------|--------|
+| **INT-R3** | Load roster filter / create-period options from `ManageRoster` | Option `id` = **code** (`CHN`); label = name (optional code). Prefer after Staff INT-S3 so membership already uses codes. |
+| **INT-R3b** | New period + allocation snapshots write roster **code** | Keep `roster` as string field (no Prisma FK required). Dual-read old placeholders if present during transition. |
+| **INT-R4** | Enforce `shiftsPerPersonPerDay` from Manage Rosters | On allocate / fill / publish where product requires; do not invent a second rule store. |
+| — | Do **not** change | `SR-n` period codes; one `shift-roster` permission; Shift Types as template master; sidebar group boundaries |
+
+**Locked storage key:** store **`ManageRoster.code`**, never ObjectId, on staff membership and Roster & Shifts roster strings. Other apps that filter by roster (e.g. Payroll) should follow the same **code** convention when those consumers are aligned — track that in the owning module guide; do not change Roster & Shifts screens for that alone.
+
+Full backlog IDs: `HR_ADMINISTRATION_GUIDE.md` §26, §29 (R6–R9), §32 (INT-S3, INT-R3–R6).
+
+Overtime **Process Staff Shift** stays sample/toast until the roster **read** service exists (dynamic slice D4+).
+
+**Module build order (dynamic):** shared Phase 1 types + schema → Shift Types CRUD → Shift Assignment CRUD → Roster **read** → Roster **draft write** (sheet allocate; drag persist later) → Publish / copy / fill → point Duty Roster at the same store → Amendments → Night / Overnight → Holiday. Do not persist Night/Holiday/Duty as separate copies of the week. **After screens are live:** Manage Rosters code integration (§1.1) before broader master wiring.
 
 ---
 
@@ -791,7 +823,7 @@ Key files under `app/(dashboard)/(roster-shifts)/public-holiday-shifts/`:
 - Print / PDF / Excel on the **table toolbar only**.
 - **Bulk Assign Holiday Duty** requires **≥1** selected row (else toast), same as Shift Assignment.
 - Green banner: holidays sourced from the Holiday Date master under HR Administration (`/holiday-calendar`).
-- Roster filters for department / unit / designation / roster group / grade still use placeholders or snapshots until the HR Admin integration wave (`HR_ADMINISTRATION_GUIDE.md` §32).
+- Roster **group** filter: today may still be distinct/placeholder strings; **upcoming** load from Manage Rosters **codes** — see §1.1 (INT-R3). Department / unit / designation / grade remain on the broader HR Admin integration backlog (`HR_ADMINISTRATION_GUIDE.md` §32).
 
 ### 2H.2 Form sheets
 
@@ -1333,8 +1365,8 @@ HolidayCalendar 1──* RosterAllocation   (optional holidayId on the cell)
 | Holiday on the cell | Optional `holidayId`; `payRate` (`1.50` \| `2.00` \| `2.50`); `holidayAllowance`; `grantLieuLeave`; `sendToPayroll` |
 | Night extras on the cell | Night hours / OT / allowances as stored floats when the shift type is night; consecutive nights **computed** in the service (not a stored counter as source of truth) |
 | Hours / OT | Stored floats on the allocation; derive from shift type duration when creating the cell |
-| Snapshots | Department / unit / roster **strings** on `ShiftRoster` and on each allocation (same pattern as Overtime) |
-| Staff roster field | Keep employment `roster` string; no Roster master FK in v1 |
+| Snapshots | Department / unit / roster **strings** on `ShiftRoster` and on each allocation (same pattern as Overtime). **Upcoming:** roster string = `ManageRoster.code` (§1.1) |
+| Staff roster field | Keep employment `roster` as a **string**; upcoming value = Manage Roster **code** (Staff INT-S3). No Prisma FK required in v1 |
 | Publish lock | After `published`, allocate / swap / edit **rejected** in service except via approved `RosterAmendment` |
 | Permissions | One resource `shift-roster`. View-only cannot publish |
 | Derived screens | Night / Overnight / Holiday query `RosterAllocation`; **Add** creates an allocation only if staff+date is empty |
@@ -1559,8 +1591,10 @@ Auto Assign that **creates week cells** waits for D5.
 | Leave overlap | Tick Leave vs real `LeaveApplication` — keep independent in v1 |
 | RFID / attendance engine | See `STAFF_ATTENDANCE_ARCHITECTURE.md`; enum on the cell is enough for D7; confirm sync is HR-gated |
 | Real Holiday Date master | **Done** — HR Administration `/holiday-calendar`; keep Roster as read consumer |
-| Department / Unit / Designation / Roster / Grade masters | Tracked in `HR_ADMINISTRATION_GUIDE.md` §31–32 (finish remaining masters, then integration wave) |
-| Roster master FK on Staff | Keep employment `roster` string until Manage Rosters integration (R6) |
+| Department / Unit / Designation / Grade masters | Tracked in `HR_ADMINISTRATION_GUIDE.md` §31–32 |
+| **Manage Rosters integration (INT-R3 / R7)** | **Upcoming** — load roster options from Manage Rosters **codes**; snapshots use code; see **§1.1**. Prefer after Staff INT-S3 |
+| Enforce `shiftsPerPersonPerDay` (INT-R4 / R8) | **Upcoming** after INT-R3 |
+| Staff employment roster value | String field stays; upcoming value = Manage Roster **code** (Staff R6 / INT-S3) — not ObjectId, not a Prisma FK |
 | HR Admin Manage Shifts | **Not required** for current system; deferred — `HR_ADMINISTRATION_GUIDE.md` §34. Keep `/shift-types` as template master until Option A/B is locked |
 | If Manage Shifts (A/B) ships later | Shared roster-scoped option loaders; deprecate dual editors; Assignment / Duty / grids / Night / Overnight / PH follow §34 follow-up table |
 | Multi-step approval | **Not** in v1 |
@@ -1574,7 +1608,7 @@ Auto Assign that **creates week cells** waits for D5.
 - Do not trust client `status` or audit fields on save.
 - Cell Leave is **not** a Leave Application. `grantLieuLeave` is **not** a Leave Entitlement write.
 - Shift type codes are **`SHF-n`**. Chips may still **display** D/E/N labels from the type; those labels are not primary keys.
-- Staff employment `roster` is a display/filter string until a Roster master exists.
+- Staff employment `roster` is a string today (often placeholders). **Upcoming:** same field stores `ManageRoster.code` — see §1.1 / HR Admin INT-S3. No Prisma FK required.
 - Overtime must not call a fake roster API — wait for D4+ read service.
 - Mongo: enforce hospital-wide `staffId+date` uniqueness in Prisma **and** handle fill/copy as upsert/shift, not insert-on-top of published weeks.
 

@@ -1,7 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { fetchServerSession } from '@/lib/session';
+import { getAuditUser } from '@/lib/audit-user';
 import { requirePermission } from '@/lib/server-permissions';
 import { logActivityNonBlocking } from '@/lib/activity-log';
 import {
@@ -15,6 +15,7 @@ import {
   getAllUserGroupsOptionsService,
   getUserGroupById,
   getUserGroups,
+  getUserGroupsForExport,
   saveUserGroup,
   updateOneUserGroup,
 } from '@/services/user-usergrp-services/user-group.service';
@@ -24,6 +25,8 @@ function stripUserGroupPayload(payload: UserGroup) {
   delete payload.createdAt;
   delete payload.updatedAt;
   delete payload.app;
+  delete payload.createdBy;
+  delete payload.updatedBy;
   delete payload.createdUser;
   delete payload.updatedUser;
 }
@@ -33,11 +36,15 @@ export async function getAllUserGroups(filter: GetUserGroupsParams) {
 
   try {
     const newFilter: GetUserGroupsQuery = {
-      page: filter.page ? parseInt(filter.page, 10) : 0,
+      page: filter.page
+        ? parseInt(filter.page, 10)
+        : parseInt(process.env.DEFAULT_PAGE ?? '0', 10) || 0,
       limit: filter.limit
         ? parseInt(filter.limit, 10)
-        : parseInt(process.env.DEFAULT_PAGE_SIZE ?? '100', 10) || 100,
+        : parseInt(process.env.DEFAULT_PER_PAGE ?? '10', 10) || 10,
       keyword: filter.keyword ?? '',
+      userGroupId: filter.userGroupId,
+      status: filter.status,
     };
 
     return await getUserGroups(newFilter);
@@ -54,6 +61,16 @@ export async function bulkDeleteUserGroups(ids: string[]) {
 
   try {
     await deleteUserGroups(ids);
+    const auditUser = await getAuditUser();
+    if (auditUser?.id) {
+      logActivityNonBlocking({
+        userId: auditUser.id,
+        action: 'user-groups.userGroup.bulkDeleted',
+        entityType: 'UserGroup',
+        importance: 'high',
+        metadata: { count: ids.length },
+      });
+    }
     revalidatePath('/user-groups');
     return true;
   } catch (error: unknown) {
@@ -69,6 +86,16 @@ export async function deleteUserGroup(id: string) {
 
   try {
     await deleteOneUserGroup(id);
+    const auditUser = await getAuditUser();
+    if (auditUser?.id) {
+      logActivityNonBlocking({
+        userId: auditUser.id,
+        action: 'user-groups.userGroup.deleted',
+        entityType: 'UserGroup',
+        entityId: id,
+        importance: 'high',
+      });
+    }
     revalidatePath('/user-groups');
     return true;
   } catch (error: unknown) {
@@ -85,11 +112,11 @@ export async function createNewUserGroup(payload: UserGroup) {
   try {
     stripUserGroupPayload(payload);
 
-    const result = await saveUserGroup(payload);
-    const session = await fetchServerSession();
-    if (session?.user?.id) {
+    const auditUser = await getAuditUser();
+    const result = await saveUserGroup(payload, auditUser);
+    if (auditUser?.id) {
       logActivityNonBlocking({
-        userId: session.user.id,
+        userId: auditUser.id,
         action: 'user-groups.userGroup.created',
         entityType: 'UserGroup',
         entityId: result.id,
@@ -124,11 +151,11 @@ export async function updateUserGroup(id: string, payload: UserGroup) {
   try {
     stripUserGroupPayload(payload);
 
-    await updateOneUserGroup(id, payload);
-    const session = await fetchServerSession();
-    if (session?.user?.id) {
+    const auditUser = await getAuditUser();
+    await updateOneUserGroup(id, payload, auditUser);
+    if (auditUser?.id) {
       logActivityNonBlocking({
-        userId: session.user.id,
+        userId: auditUser.id,
         action: 'user-groups.userGroup.updated',
         entityType: 'UserGroup',
         entityId: id,
@@ -172,11 +199,13 @@ export async function fetchUserGroupById(id: string) {
   return userGroup;
 }
 
-export async function getAllUserGroupsOptions() {
+export async function getAllUserGroupsOptions(options?: {
+  activeOnly?: boolean;
+}) {
   await requirePermission('users', 'view');
 
   try {
-    return await getAllUserGroupsOptionsService();
+    return await getAllUserGroupsOptionsService(options);
   } catch (error: unknown) {
     console.error('getAllUserGroupsOptions error', error);
     const message =
@@ -187,14 +216,18 @@ export async function getAllUserGroupsOptions() {
   }
 }
 
-export async function getUserGroupsExport(params: { keyword?: string }) {
+export async function getUserGroupsExport(params: {
+  keyword?: string;
+  userGroupId?: string;
+  status?: string;
+}) {
   await requirePermission('users', 'view');
 
   try {
-    const response = await getAllUserGroups({
-      page: '0',
-      limit: '1000000',
+    const response = await getUserGroupsForExport({
       keyword: params.keyword ?? '',
+      userGroupId: params.userGroupId,
+      status: params.status,
     });
 
     if (!response.data?.length) {
