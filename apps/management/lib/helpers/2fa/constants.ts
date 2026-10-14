@@ -14,3 +14,6 @@ export const ERROR_2FA_REQUIRED = '2FA_REQUIRED';
 export const TWO_FA_PENDING_EXPIRY_MINUTES = Number(process.env.TWO_FA_PENDING_EXPIRY_MINUTES) || 10;
 /** Default expiry for SMS/EMAIL code (minutes) */
 export const TWO_FA_CODE_EXPIRY_MINUTES = Number(process.env.TWO_FA_CODE_EXPIRY_MINUTES) || 5;
+
+/** Display name in 2FA SMS text and authenticator-app labels (NEXT_PUBLIC_APP_NAME, e.g. "Ruhunu Management") */
+export const APP_DISPLAY_NAME = process.env.NEXT_PUBLIC_APP_NAME || 'Ruhunu Management';

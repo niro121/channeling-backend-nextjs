@@ -1,13 +1,13 @@
 import { NextResponse } from 'next/server';
 import { authPrisma } from '@archmage/db-auth';
 import * as argon2 from 'argon2';
-import { TWO_FACTOR_METHODS, TWO_FA_PENDING_EXPIRY_MINUTES, TWO_FA_CODE_EXPIRY_MINUTES } from '@/lib/helpers/2fa/constants';
+import { TWO_FACTOR_METHODS, TWO_FA_PENDING_EXPIRY_MINUTES, TWO_FA_CODE_EXPIRY_MINUTES, APP_DISPLAY_NAME } from '@/lib/helpers/2fa/constants';
 import { generateSixDigitCode, generateTotpSecret, generateTotpURI } from '@/lib/helpers/2fa/totp';
 import { send2faSms, send2faEmail } from '@/lib/helpers/2fa/send-2fa-code';
 import crypto from 'crypto';
 import { isDashboardLoginUserType } from '@/lib/roles';
 
-const APP_NAME = process.env.NEXT_PUBLIC_APP_NAME || 'Archmage Management';
+const APP_NAME = APP_DISPLAY_NAME;
 
 export async function POST(request: Request) {
   try {
