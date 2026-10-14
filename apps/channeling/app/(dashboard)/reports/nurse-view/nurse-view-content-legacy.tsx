@@ -85,6 +85,32 @@ export default function NurseViewReportContentLegacy({
 
   const handlePrint = () => {
     if (!sessionData) return;
+    const styleId = 'nurse-view-print-page';
+    let el = document.getElementById(styleId) as HTMLStyleElement | null;
+    if (!el) {
+      el = document.createElement('style');
+      el.id = styleId;
+      document.head.appendChild(el);
+    }
+    el.textContent = `
+      @media print {
+        @page {
+          size: auto;
+          margin: 8mm 10mm;
+          @top-left { content: ""; }
+          @top-center { content: ""; }
+          @top-right { content: ""; }
+          @bottom-left { content: ""; }
+          @bottom-right { content: ""; }
+        }
+      }
+    `;
+    document.body.classList.add('print-nurse-view');
+    const cleanup = () => {
+      document.body.classList.remove('print-nurse-view');
+      el?.remove();
+    };
+    window.addEventListener('afterprint', cleanup, { once: true });
     window.print();
   };
 
@@ -175,16 +201,22 @@ export default function NurseViewReportContentLegacy({
   return (
     <div className="nurse-view-print-root container mx-auto py-6 space-y-6 print:py-0">
       <style>{`
+        .nurse-view-dot-header { display: none; }
         @media print {
-          .nurse-view-print-root,
-          .nurse-view-print-root.container {
+          body.print-nurse-view .nurse-view-print-root,
+          body.print-nurse-view .nurse-view-print-root.container {
             width: 100% !important;
             max-width: none !important;
             margin: 0 !important;
-            padding: 0 !important;
+            padding: 2mm 4mm !important;
+            background: #fff !important;
+            color: #000 !important;
+            font-family: "Courier New", Courier, monospace !important;
+            font-size: 12px !important;
+            line-height: 1.3 !important;
           }
-          .nurse-view-print-root > .print\\:shadow-none,
-          .nurse-view-print-root [class*="p-6"] {
+          body.print-nurse-view .nurse-view-print-root > .print\\:shadow-none,
+          body.print-nurse-view .nurse-view-print-root [class*="p-6"] {
             width: 100% !important;
             max-width: none !important;
             margin: 0 !important;
@@ -193,49 +225,100 @@ export default function NurseViewReportContentLegacy({
             box-shadow: none !important;
             background: #fff !important;
           }
-          .nurse-view-print-root .rpt-print-root,
-          .nurse-view-print-root .rpt-print-header,
-          .nurse-view-print-root .rpt-print-summary,
-          .nurse-view-print-root .rpt-print-body {
+          body.print-nurse-view .nurse-view-print-root .rpt-print-header {
+            display: none !important;
+          }
+          body.print-nurse-view .nurse-view-dot-header {
+            display: block !important;
+            margin: 0 0 6px !important;
+            color: #000 !important;
+            background: #fff !important;
+          }
+          body.print-nurse-view .nurse-view-dot-header .print-title {
+            text-align: center !important;
+            font-weight: 700 !important;
+            font-size: 16px !important;
+            letter-spacing: 0.04em !important;
+            margin: 0 0 4px !important;
+          }
+          body.print-nurse-view .nurse-view-dot-header p {
+            margin: 0 !important;
+          }
+          body.print-nurse-view .nurse-view-dot-header .nv-label {
+            display: inline-block !important;
+            width: 7.2rem !important;
+          }
+          body.print-nurse-view .nurse-view-print-root .rpt-print-root,
+          body.print-nurse-view .nurse-view-print-root .rpt-print-body {
             width: 100% !important;
             max-width: none !important;
-            margin-left: 0 !important;
-            margin-right: 0 !important;
+            margin: 0 !important;
+            color: #000 !important;
+            background: #fff !important;
+            font-family: "Courier New", Courier, monospace !important;
             box-sizing: border-box !important;
           }
-          .nurse-view-print-root .overflow-x-auto,
-          .nurse-view-print-root .rounded-md {
+          body.print-nurse-view .nurse-view-print-root .overflow-x-auto,
+          body.print-nurse-view .nurse-view-print-root .rounded-md {
             overflow: visible !important;
             width: 100% !important;
             max-width: none !important;
+            border: 0 !important;
             border-radius: 0 !important;
             box-shadow: none !important;
           }
-          .nurse-view-print-root .rpt-print-root table.nv-print-table {
+          body.print-nurse-view .nurse-view-print-root .rpt-print-root table.nv-print-table {
             width: 100% !important;
             max-width: 100% !important;
             table-layout: fixed !important;
             border-collapse: collapse !important;
           }
-          .nurse-view-print-root .rpt-print-root table.nv-print-table thead {
+          body.print-nurse-view .nurse-view-print-root .rpt-print-root table.nv-print-table thead {
             display: table-header-group !important;
           }
-          .nurse-view-print-root .rpt-print-root table.nv-print-table th,
-          .nurse-view-print-root .rpt-print-root table.nv-print-table td {
+          body.print-nurse-view .nurse-view-print-root .rpt-print-root table.nv-print-table th,
+          body.print-nurse-view .nurse-view-print-root .rpt-print-root table.nv-print-table td {
+            border: 0 !important;
+            border-top: 1px solid #000 !important;
+            background: #fff !important;
+            color: #000 !important;
+            padding: 1px 2px !important;
+            font-family: "Courier New", Courier, monospace !important;
+            font-size: 11px !important;
+            font-weight: 400 !important;
+            line-height: 1.3 !important;
             overflow: hidden !important;
             word-break: break-word !important;
             overflow-wrap: anywhere !important;
+            white-space: normal !important;
             box-sizing: border-box !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+          body.print-nurse-view .nurse-view-print-root .rpt-print-root table.nv-print-table thead th {
+            font-weight: 700 !important;
+            background: #fff !important;
+          }
+          body.print-nurse-view .nurse-view-print-root .rpt-print-root table.nv-print-table tbody tr:last-child td {
+            border-bottom: 1px solid #000 !important;
+          }
+          body.print-nurse-view .nurse-view-print-root .rpt-print-root table.nv-print-table th *,
+          body.print-nurse-view .nurse-view-print-root .rpt-print-root table.nv-print-table td * {
+            color: #000 !important;
+            font-family: inherit !important;
+            font-size: inherit !important;
+            line-height: inherit !important;
           }
           ${NURSE_VIEW_COLUMN_WIDTH_PERCENTS.map(
             (width, index) =>
-              `.nurse-view-print-root .rpt-print-root table.nv-print-table th:nth-child(${index + 1}),
-          .nurse-view-print-root .rpt-print-root table.nv-print-table td:nth-child(${index + 1}) { width: ${width}% !important; }`
+              `body.print-nurse-view .nurse-view-print-root .rpt-print-root table.nv-print-table th:nth-child(${index + 1}),
+          body.print-nurse-view .nurse-view-print-root .rpt-print-root table.nv-print-table td:nth-child(${index + 1}) { width: ${width}% !important; }`
           ).join('\n')}
-          .nurse-view-print-root input[type="checkbox"] {
+          body.print-nurse-view .nurse-view-print-root input[type="checkbox"] {
             width: 3.2mm !important;
             height: 3.2mm !important;
             margin: 0 !important;
+            accent-color: #000 !important;
           }
         }
       `}</style>
@@ -319,7 +402,7 @@ export default function NurseViewReportContentLegacy({
           </div>
         </CardHeader>
         <CardContent className="print:p-0">
-          {/* Session Details (screen only — print uses ReportPrintLayout summary) */}
+          {/* Session details stay on screen. Print uses the compact dot-matrix header. */}
           <div className="mb-6 space-y-2 print:hidden">
             <div className="grid grid-cols-2 gap-4">
               <div>
@@ -360,6 +443,28 @@ export default function NurseViewReportContentLegacy({
             generatedAt={new Date().toLocaleString()}
             summaryItems={printSummaryItems}
           >
+          <div className="nurse-view-dot-header font-mono text-[11px] leading-snug text-black">
+            <p className="print-title">NURSE VIEW REPORT</p>
+            <p>
+              <span className="nv-label">BRANCH</span>: {sessionData.location?.name || '-'}
+            </p>
+            <p>
+              <span className="nv-label">DATE</span>: {formatDate(sessionData.date)}
+            </p>
+            <p>
+              <span className="nv-label">SESSION</span>:{' '}
+              {formatTime(sessionData.startTime)} - {formatTime(sessionData.endTime)}
+            </p>
+            <p>
+              <span className="nv-label">DEPT</span>: {sessionData.department?.name || '-'}
+            </p>
+            <p>
+              <span className="nv-label">CONSULTANT</span>:{' '}
+              {sessionData.doctor
+                ? `${sessionData.doctor.title} ${sessionData.doctor.name}`.trim()
+                : '-'}
+            </p>
+          </div>
           <div className="mt-6 print:mt-0">
             <div className="rounded-md border overflow-x-auto">
               <table className="nv-print-table w-full border-collapse">
