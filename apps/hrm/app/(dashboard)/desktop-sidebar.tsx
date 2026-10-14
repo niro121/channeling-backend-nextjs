@@ -39,6 +39,25 @@ import {
   ScrollText,
   TabletSmartphone,
   Fingerprint,
+  Wallet,
+  PlayCircle,
+  Cog,
+  ListChecks,
+  Percent,
+  Banknote,
+  CirclePlus,
+  CircleMinus,
+  FileText,
+  Landmark,
+  History,
+  BriefcaseBusiness,
+  ClipboardPenLine,
+  Megaphone,
+  Inbox,
+  FolderOpen,
+  UserCheck,
+  Star,
+  Mail,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { canAccessRoute } from "@/lib/permissions";
@@ -370,11 +389,225 @@ export function DesktopSidebar({ session, className }: { session: Session | null
             </SidebarCollapsible>
           </SidebarGroup>
         )}
+        {(hasAccess('/payroll') ||
+          hasAccess('/salary-generation') ||
+          hasAccess('/salary-processing') ||
+          hasAccess('/assign-paysheet-component') ||
+          hasAccess('/bulk-assign-paysheet-component') ||
+          hasAccess('/performance-allowance') ||
+          hasAccess('/loans-advances') ||
+          hasAccess('/salary-structures') ||
+          hasAccess('/allowances') ||
+          hasAccess('/deductions') ||
+          hasAccess('/payslips') ||
+          hasAccess('/bank-transfer-file') ||
+          hasAccess('/salary-history')) && (
+          <SidebarGroup label="Payroll">
+            <SidebarCollapsible
+              label="Payroll"
+              icon={<Wallet className="h-5 w-5" />}
+              paths={[
+                '/payroll',
+                '/salary-structures',
+                '/allowances',
+                '/deductions',
+                '/assign-paysheet-component',
+                '/bulk-assign-paysheet-component',
+                '/performance-allowance',
+                '/loans-advances',
+                '/salary-generation',
+                '/salary-processing',
+                '/payslips',
+                '/bank-transfer-file',
+                '/salary-history'
+              ]}
+              defaultOpen
+            >
+              {hasAccess('/payroll') && (
+                <NavLink
+                  href="/payroll"
+                  label="Guide"
+                  icon={<BookOpen className="h-5 w-5" />}
+                />
+              )}
+              {hasAccess('/salary-structures') && (
+                <NavLink
+                  href="/salary-structures"
+                  label="Salary Structures"
+                  icon={<Layers className="h-5 w-5" />}
+                />
+              )}
+              {hasAccess('/allowances') && (
+                <NavLink
+                  href="/allowances"
+                  label="Allowances"
+                  icon={<CirclePlus className="h-5 w-5" />}
+                />
+              )}
+              {hasAccess('/deductions') && (
+                <NavLink
+                  href="/deductions"
+                  label="Deductions"
+                  icon={<CircleMinus className="h-5 w-5" />}
+                />
+              )}
+              {hasAccess('/assign-paysheet-component') && (
+                <NavLink
+                  href="/assign-paysheet-component"
+                  label="Assign Paysheet Component"
+                  icon={<ListChecks className="h-5 w-5" />}
+                />
+              )}
+              {hasAccess('/bulk-assign-paysheet-component') && (
+                <NavLink
+                  href="/bulk-assign-paysheet-component"
+                  label="Bulk assign paysheet component"
+                  icon={<Users className="h-5 w-5" />}
+                />
+              )}
+              {hasAccess('/performance-allowance') && (
+                <NavLink
+                  href="/performance-allowance"
+                  label="Performance Allowance"
+                  icon={<Percent className="h-5 w-5" />}
+                />
+              )}
+              {hasAccess('/loans-advances') && (
+                <NavLink
+                  href="/loans-advances"
+                  label="Loans & Advances"
+                  icon={<Banknote className="h-5 w-5" />}
+                />
+              )}
+              {hasAccess('/salary-generation') && (
+                <NavLink
+                  href="/salary-generation"
+                  label="Salary Generation"
+                  icon={<PlayCircle className="h-5 w-5" />}
+                />
+              )}
+              {hasAccess('/salary-processing') && (
+                <NavLink
+                  href="/salary-processing"
+                  label="Salary Processing"
+                  icon={<Cog className="h-5 w-5" />}
+                />
+              )}
+              {hasAccess('/payslips') && (
+                <NavLink
+                  href="/payslips"
+                  label="Payslips"
+                  icon={<FileText className="h-5 w-5" />}
+                />
+              )}
+              {hasAccess('/bank-transfer-file') && (
+                <NavLink
+                  href="/bank-transfer-file"
+                  label="Bank Transfer File"
+                  icon={<Landmark className="h-5 w-5" />}
+                />
+              )}
+              {hasAccess('/salary-history') && (
+                <NavLink
+                  href="/salary-history"
+                  label="Salary History"
+                  icon={<History className="h-5 w-5" />}
+                />
+              )}
+            </SidebarCollapsible>
+          </SidebarGroup>
+        )}
+        {(hasAccess('/vacancy-requests') ||
+          hasAccess('/job-posts') ||
+          hasAccess('/applications') ||
+          hasAccess('/resume-bank') ||
+          hasAccess('/shortlisting') ||
+          hasAccess('/interview-schedule') ||
+          hasAccess('/evaluation') ||
+          hasAccess('/appointment-letters')) && (
+          <SidebarGroup label="Recruitment">
+            <SidebarCollapsible
+              label="Recruitment"
+              icon={<BriefcaseBusiness className="h-5 w-5" />}
+              paths={[
+                '/vacancy-requests',
+                '/job-posts',
+                '/applications',
+                '/resume-bank',
+                '/shortlisting',
+                '/interview-schedule',
+                '/evaluation',
+                '/appointment-letters'
+              ]}
+              defaultOpen
+            >
+              {hasAccess('/vacancy-requests') && (
+                <NavLink
+                  href="/vacancy-requests"
+                  label="Vacancy Requests"
+                  icon={<ClipboardPenLine className="h-5 w-5" />}
+                />
+              )}
+              {hasAccess('/job-posts') && (
+                <NavLink
+                  href="/job-posts"
+                  label="Job Posts"
+                  icon={<Megaphone className="h-5 w-5" />}
+                />
+              )}
+              {hasAccess('/applications') && (
+                <NavLink
+                  href="/applications"
+                  label="Applications"
+                  icon={<Inbox className="h-5 w-5" />}
+                />
+              )}
+              {hasAccess('/resume-bank') && (
+                <NavLink
+                  href="/resume-bank"
+                  label="Resume Bank"
+                  icon={<FolderOpen className="h-5 w-5" />}
+                />
+              )}
+              {hasAccess('/shortlisting') && (
+                <NavLink
+                  href="/shortlisting"
+                  label="Shortlisting"
+                  icon={<UserCheck className="h-5 w-5" />}
+                />
+              )}
+              {hasAccess('/interview-schedule') && (
+                <NavLink
+                  href="/interview-schedule"
+                  label="Interview Schedule"
+                  icon={<CalendarClock className="h-5 w-5" />}
+                />
+              )}
+              {hasAccess('/evaluation') && (
+                <NavLink
+                  href="/evaluation"
+                  label="Evaluation"
+                  icon={<Star className="h-5 w-5" />}
+                />
+              )}
+              {hasAccess('/appointment-letters') && (
+                <NavLink
+                  href="/appointment-letters"
+                  label="Appointment Letters"
+                  icon={<Mail className="h-5 w-5" />}
+                />
+              )}
+            </SidebarCollapsible>
+          </SidebarGroup>
+        )}
         {(hasAccess('/holiday-calendar') ||
           hasAccess('/designations') ||
           hasAccess('/staff-grades') ||
           hasAccess('/staff-specialities') ||
-          hasAccess('/manage-rosters')) && (
+          hasAccess('/manage-rosters') ||
+          hasAccess('/paysheet-components') ||
+          hasAccess('/hrm-variables') ||
+          hasAccess('/salary-cycles')) && (
           <SidebarGroup label="HR Administration">
             <SidebarCollapsible
               label="HR Administration"
@@ -384,7 +617,10 @@ export function DesktopSidebar({ session, className }: { session: Session | null
                 '/designations',
                 '/staff-grades',
                 '/staff-specialities',
-                '/manage-rosters'
+                '/manage-rosters',
+                '/paysheet-components',
+                '/hrm-variables',
+                '/salary-cycles'
               ]}
               defaultOpen
             >
@@ -421,6 +657,27 @@ export function DesktopSidebar({ session, className }: { session: Session | null
                   href="/manage-rosters"
                   label="Manage Rosters"
                   icon={<ClipboardList className="h-5 w-5" />}
+                />
+              )}
+              {hasAccess('/paysheet-components') && (
+                <NavLink
+                  href="/paysheet-components"
+                  label="Paysheet Components"
+                  icon={<ListChecks className="h-5 w-5" />}
+                />
+              )}
+              {hasAccess('/hrm-variables') && (
+                <NavLink
+                  href="/hrm-variables"
+                  label="HRM Variable (EPF/ETF/PAYE)"
+                  icon={<Percent className="h-5 w-5" />}
+                />
+              )}
+              {hasAccess('/salary-cycles') && (
+                <NavLink
+                  href="/salary-cycles"
+                  label="Salary Cycle"
+                  icon={<CalendarRange className="h-5 w-5" />}
                 />
               )}
             </SidebarCollapsible>

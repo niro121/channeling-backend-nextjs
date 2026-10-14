@@ -4,7 +4,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Form, Formik, FormikHelpers } from 'formik';
 import * as Yup from 'yup';
 import { useRouter } from 'next/navigation';
-import { Ban, Save } from 'lucide-react';
+import { Save } from 'lucide-react';
 import {
   Button,
   Combobox,
@@ -33,6 +33,7 @@ import {
   updateUserPasswordAction
 } from '@/app/actions/user-usergrp-actions/user.actions';
 import { getStaffOptionsAction } from '@/app/actions/staff-actions/staff.actions';
+import { CustomFormSubmitBtns } from '@/components/custom/custom-form-submit-btns';
 
 type UserFormProps = {
   user: HrmUser | null;
@@ -448,40 +449,24 @@ export default function UserForm({ user, userGroupOptions }: UserFormProps) {
     </div>
   );
 
-  const renderFormActions = (onCancel: () => void, isSaving: boolean) => (
-    <div className="flex flex-wrap items-center justify-end gap-2 pt-4">
-      <Button
-        type="button"
-        variant="outline"
-        onClick={onCancel}
-        disabled={isSaving}
-        className="gap-1.5"
-      >
-        <Ban className="h-4 w-4" />
-        Cancel
-      </Button>
-      <Button
-        type="submit"
-        disabled={isSaving}
-        className="gap-1.5"
-        onClick={() => {
+  const renderFormActions = (
+    onCancel: () => void,
+    isSaving: boolean,
+    submitForm: () => void | Promise<void>
+  ) => (
+    <div className="flex flex-col sm:flex-row justify-end gap-3 pt-4">
+      <CustomFormSubmitBtns
+        loading={isSaving}
+        onCancel={onCancel}
+        onSave={() => {
           saveAndCloseRef.current = false;
+          void submitForm();
         }}
-      >
-        <Save className="h-4 w-4" />
-        {isSaving ? 'Saving...' : 'Save'}
-      </Button>
-      <Button
-        type="submit"
-        disabled={isSaving}
-        className="gap-1.5"
-        onClick={() => {
+        onSaveAndClose={() => {
           saveAndCloseRef.current = true;
+          void submitForm();
         }}
-      >
-        <Save className="h-4 w-4" />
-        {isSaving ? 'Saving...' : 'Save & Close'}
-      </Button>
+      />
     </div>
   );
 
@@ -506,7 +491,8 @@ export default function UserForm({ user, userGroupOptions }: UserFormProps) {
                 {renderFormActions(
                   () =>
                     dialogContext ? setDialogOpen(false) : router.push('/users'),
-                  loading
+                  loading,
+                  formik.submitForm
                 )}
               </Form>
             )}
@@ -591,7 +577,8 @@ export default function UserForm({ user, userGroupOptions }: UserFormProps) {
           </div>
           {renderFormActions(
             () => (dialogContext ? setDialogOpen(false) : router.push('/users')),
-            loading
+            loading,
+            formik.submitForm
           )}
         </Form>
       )}

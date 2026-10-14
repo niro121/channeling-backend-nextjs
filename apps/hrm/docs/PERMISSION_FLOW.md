@@ -210,7 +210,10 @@ From `lib/permissions.ts` / `RESOURCES` (keep these in sync when editing).
 | `/staff-grades` | `staff-grades` | Area / Staff Grade |
 | `/staff-specialities` | `staff-specialities` | Staff Specialities |
 | `/manage-rosters` | `manage-rosters` | Manage Rosters |
-| `/shift-types` | `shift-roster` | Shift Types *(Roster & Shifts template master — not HR Admin; Manage Shifts deferred — HR_ADMINISTRATION_GUIDE §34)* |
+| `/paysheet-components` | `paysheet-components` | Paysheet Components |
+| `/hrm-variables` | `hrm-variables` | HRM Variable (EPF/ETF/PAYE) |
+| `/salary-cycles` | `salary-cycles` | Salary Cycle |
+| `/shift-types` | `shift-roster` | Shift Types *(Roster & Shifts template master — not HR Admin; Manage Shifts deferred — HR_ADMINISTRATION_GUIDE section 34)* |
 | `/leave-requests` | `leave-requests` | Leave Requests |
 | `/leave-types` | `leave-types` | Leave Types |
 | `/leave-entitlement` | `leave-entitlement` | Leave Entitlement |
@@ -227,8 +230,20 @@ From `lib/permissions.ts` / `RESOURCES` (keep these in sync when editing).
 | `/attendance-devices` | `attendance` | Staff Attendance (same grant) |
 | `/attendance-corrections` | `attendance` | Staff Attendance (same grant) |
 | `/attendance-summary` | `attendance` | Staff Attendance (same grant) |
-| `/payroll` | `payroll` | Payroll |
-| `/salary-structures` | `salary-structures` | Salary Structures *(planned HR Admin — see HR_ADMINISTRATION_GUIDE §31)* |
+| `/attendance-logs` | `attendance` | Staff Attendance (same grant) |
+| `/payroll` | `payroll` | Payroll — **Guide** hub (`view`) |
+| `/salary-generation` | `payroll` | Payroll (same grant) |
+| `/salary-processing` | `payroll` | Payroll (same grant) |
+| `/assign-paysheet-component` | `payroll` | Payroll (same grant) |
+| `/bulk-assign-paysheet-component` | `payroll` | Payroll (same grant) |
+| `/performance-allowance` | `payroll` | Payroll (same grant) |
+| `/loans-advances` | `payroll` | Payroll (same grant) |
+| `/salary-structures` | `payroll` | Payroll (same grant) |
+| `/allowances` | `payroll` | Payroll (same grant) |
+| `/deductions` | `payroll` | Payroll (same grant) |
+| `/payslips` | `payroll` | Payroll (same grant) |
+| `/bank-transfer-file` | `payroll` | Payroll (same grant) |
+| `/salary-history` | `payroll` | Payroll (same grant) |
 | `/reports` | `reports` | Reports |
 | `/users` | `users` | Users & User Groups |
 | `/user-groups` | `users` | (same resource) |

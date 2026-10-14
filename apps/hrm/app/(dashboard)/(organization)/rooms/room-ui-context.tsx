@@ -14,6 +14,7 @@ import type {
   RoomUiRecord,
   RoomZoneSummary
 } from '@/types/room';
+import type { RoomListFilters } from './section-room-filters';
 
 type RoomUiContextValue = {
   records: RoomUiRecord[];
@@ -24,14 +25,7 @@ type RoomUiContextValue = {
   setSelectedId: (id: string | null) => void;
   isNew: boolean;
   setIsNew: (value: boolean) => void;
-  search: string;
-  setSearch: (value: string) => void;
-  statusFilter: string;
-  setStatusFilter: (value: string) => void;
-  locationFilter: string;
-  setLocationFilter: (value: string) => void;
-  zoneFilter: string;
-  setZoneFilter: (value: string) => void;
+  filters: RoomListFilters;
   detailFormHighlight: boolean;
   startNewRoom: () => void;
 };
@@ -43,6 +37,7 @@ type ProviderProps = {
   locationOptions: RoomLocationSummary[];
   zoneOptions: RoomZoneSummary[];
   initialSelectedId?: string | null;
+  initialFilters?: RoomListFilters;
   children: ReactNode;
 };
 
@@ -51,6 +46,7 @@ export function RoomUiProvider({
   locationOptions,
   zoneOptions,
   initialSelectedId = null,
+  initialFilters = {},
   children
 }: ProviderProps) {
   const [records, setRecords] = useState(initialRecords);
@@ -59,14 +55,15 @@ export function RoomUiProvider({
   );
   const [isNew, setIsNew] = useState(false);
   const [detailFormHighlight, setDetailFormHighlight] = useState(false);
-  const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState('');
-  const [locationFilter, setLocationFilter] = useState('');
-  const [zoneFilter, setZoneFilter] = useState('');
+  const [filters, setFilters] = useState<RoomListFilters>(initialFilters);
 
   useEffect(() => {
     setRecords(initialRecords);
   }, [initialRecords]);
+
+  useEffect(() => {
+    setFilters(initialFilters);
+  }, [initialFilters]);
 
   useEffect(() => {
     setSelectedIdState(initialSelectedId);
@@ -101,14 +98,7 @@ export function RoomUiProvider({
       setSelectedId,
       isNew,
       setIsNew,
-      search,
-      setSearch,
-      statusFilter,
-      setStatusFilter,
-      locationFilter,
-      setLocationFilter,
-      zoneFilter,
-      setZoneFilter,
+      filters,
       detailFormHighlight,
       startNewRoom
     }),
@@ -119,10 +109,7 @@ export function RoomUiProvider({
       selectedId,
       setSelectedId,
       isNew,
-      search,
-      statusFilter,
-      locationFilter,
-      zoneFilter,
+      filters,
       detailFormHighlight,
       startNewRoom
     ]

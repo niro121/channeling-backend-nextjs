@@ -16,6 +16,8 @@ interface FilterWrapperProps {
   showClearButton?: boolean;
   /** Label for the Clear button (default: "Clear"). */
   clearButtonLabel?: string;
+  /** Query keys to keep on Clear (e.g. tab `kind`). */
+  preserveQueryKeys?: string[];
   /** Called when the Apply/Search button is clicked. Receives the new URLSearchParams for immediate fetch. */
   onApplyClick?: (params?: URLSearchParams) => void;
   /** Called when filter values change (e.g. user changed dropdown). Use to clear list until Search is clicked. */
@@ -44,6 +46,7 @@ export function FilterWrapper({
   showApplyButton = true,
   showClearButton = false,
   clearButtonLabel = "Clear",
+  preserveQueryKeys = [],
   onApplyClick,
   onValuesChange,
   children,
@@ -59,14 +62,21 @@ export function FilterWrapper({
   const isInitialMount = React.useRef(true);
   const expectedParamsKeyRef = React.useRef<string | null>(null);
   const applyingTimeoutRef = React.useRef<number | null>(null);
+  const onValuesChangeRef = React.useRef(onValuesChange);
 
+  React.useEffect(() => {
+    onValuesChangeRef.current = onValuesChange;
+  });
+
+  // Only notify when filter values change — not when the callback identity changes
+  // (inline handlers from parents would otherwise infinite-loop via setState).
   React.useEffect(() => {
     if (isInitialMount.current) {
       isInitialMount.current = false;
       return;
     }
-    onValuesChange?.(values);
-  }, [values, onValuesChange]);
+    onValuesChangeRef.current?.(values);
+  }, [values]);
 
   React.useEffect(() => {
     if (!isApplying) return;
@@ -146,13 +156,19 @@ export function FilterWrapper({
         input.value = "";
       });
     }
+    const params = new URLSearchParams();
+    for (const key of preserveQueryKeys) {
+      const value = searchParams.get(key);
+      if (value) params.set(key, value);
+    }
+    const queryString = params.toString();
     startTransition(() => {
-      router.push(pathname);
+      router.push(queryString ? `${pathname}?${queryString}` : pathname);
     });
   };
 
   return (
-    <div className="flex flex-wrap items-center gap-3">
+    <div className="flex flex-wrap items-end gap-3">
       {children({ values, setValue })}
 
       {(showApplyButton || showClearButton) && (
