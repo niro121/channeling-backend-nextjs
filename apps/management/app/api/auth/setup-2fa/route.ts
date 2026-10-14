@@ -3,9 +3,9 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { authPrisma } from '@archmage/db-auth';
 import { generateTotpSecret, generateTotpURI } from '@/lib/helpers/2fa/totp';
-import { TWO_FACTOR_METHODS } from '@/lib/helpers/2fa/constants';
+import { TWO_FACTOR_METHODS, APP_DISPLAY_NAME } from '@/lib/helpers/2fa/constants';
 
-const APP_NAME = process.env.NEXT_PUBLIC_APP_NAME || 'Archmage Management';
+const APP_NAME = APP_DISPLAY_NAME;
 
 export async function POST() {
   const session = await getServerSession(authOptions);
