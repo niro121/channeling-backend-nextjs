@@ -156,6 +156,8 @@ model Staff {
   migrateSourceId String? // Legacy staff Mongo id (Sails) for migrate import lookup
   /// Denormalized from hrDetails.fingerPrintRfid for punch lookup / uniqueness among active staff.
   fingerPrintRfid String?
+  /// Wave 9 — set when staff is created from an accepted AppointmentLetter.
+  appointmentLetterId String? @unique @db.ObjectId
   hrDetails       StaffHrDetails?
   personnelDetails StaffPersonnelDetails?
   employmentDetails StaffEmploymentDetails?
@@ -1750,6 +1752,9 @@ model AppointmentLetter {
   /// Object storage key — populated in Wave 10 document storage.
   letterFileKey String?
 
+  /// Wave 9 — Staff created from this letter (onboarding handoff).
+  staffId String? @db.ObjectId
+
   evaluation Evaluation @relation(fields: [evaluationId], references: [id])
 
   createdAt DateTime @default(now())
@@ -1768,6 +1773,7 @@ model AppointmentLetter {
   @@index([letterDate])
   @@index([status])
   @@index([letterGenerated])
+  @@index([staffId])
   @@index([createdAt(sort: Desc)])
 }
 

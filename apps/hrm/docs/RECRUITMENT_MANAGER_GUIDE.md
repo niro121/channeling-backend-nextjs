@@ -139,7 +139,7 @@ Resume Bank ──add-to-job──► Application
  Appointment Letter (draft → issued → accepted | declined)
         │
         ▼
-   Staff onboarding (`/staff?from=appointment&…`)
+   Staff onboarding (`/staff/onboard?letterId=…` → create with prefill or browse list)
 ```
 
 **Do not dynamize out of order.** Later modules depend on stable IDs and status transitions from earlier ones.  
@@ -334,6 +334,16 @@ All under `app/(dashboard)/(recruitment)/`.
 | Status gating | See helpers in `types/recruitment.ts` (`canGenerate…`, `canSend…`, etc.) |
 | Footer | Evaluation ← (end of recruitment chain) |
 
+### 6.9 Staff handoff — `/staff/onboard`
+
+| Concern | Detail |
+|---------|--------|
+| Entry | Appointment Letters UserPlus (accepted only) → `/staff/onboard?letterId=` |
+| Choice | **Create with prefill** → `/staff/add?from=appointment&letterId=` · **Browse list** → `/staff?keyword=` |
+| Prefill | Name, email, phone, join date from letter + Application; NIC left for HR |
+| Link | `Staff.appointmentLetterId` + `AppointmentLetter.staffId`; blocks double onboard |
+| Service | `staff-onboard.service.ts` + `staff-onboard.actions.ts`; createStaffOption `appointmentLetterId` |
+
 ---
 
 ## 7. Shared UI conventions
@@ -378,7 +388,7 @@ All under `app/(dashboard)/(recruitment)/`.
 | Shortlisting footer | `/interview-schedule` |
 | Interview Schedule star / footer | `/evaluation?interviewId=` |
 | Evaluation mail / footer | `/appointment-letters?evaluationId=` |
-| Appointment Letters onboard | `/staff?from=appointment&letterId=` |
+| Appointment Letters onboard | `/staff/onboard?letterId=` → `/staff/add?from=appointment&letterId=` or `/staff?keyword=` |
 
 When dynamizing, keep these query params and resolve server-side to real records.
 

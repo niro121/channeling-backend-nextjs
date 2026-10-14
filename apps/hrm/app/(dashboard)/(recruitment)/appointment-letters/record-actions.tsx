@@ -296,7 +296,7 @@ export default function AppointmentLetterRecordActions({
             asChild
           >
             <Link
-              href={`/staff?from=appointment&letterId=${encodeURIComponent(record.id)}&candidate=${encodeURIComponent(record.candidateName)}`}
+              href={`/staff/onboard?letterId=${encodeURIComponent(record.id)}&candidate=${encodeURIComponent(record.candidateName)}`}
             >
               <UserPlus className="h-4 w-4" />
             </Link>

@@ -109,6 +109,38 @@ export async function createStaffAction(
     delete (payload as any).updatedUser;
 
     const auditUser = await getAuditUser();
+    const appointmentLetterId = options?.appointmentLetterId?.trim();
+
+    if (appointmentLetterId) {
+      const { getAppointmentLetterOnboardContext } = await import(
+        '@/services/recruitment-services/staff-onboard.service'
+      );
+      const onboardCtx = await getAppointmentLetterOnboardContext(
+        appointmentLetterId
+      );
+      if (!onboardCtx.success || !onboardCtx.data) {
+        return {
+          isError: true,
+          errors: {
+            message:
+              onboardCtx.error?.message ??
+              'Unable to validate appointment letter for onboarding'
+          },
+          data: {}
+        };
+      }
+      if (onboardCtx.data.letter.alreadyOnboarded) {
+        return {
+          isError: true,
+          errors: {
+            message:
+              'This appointment letter is already linked to a staff member'
+          },
+          data: {}
+        };
+      }
+    }
+
     const result = await createStaff(payload, auditUser);
     if (!result.success) {
       return {
@@ -141,6 +173,24 @@ export async function createStaffAction(
           },
           data: {}
         };
+      }
+    }
+
+    if (hrmStaffId && appointmentLetterId) {
+      const { linkStaffToAppointmentLetter } = await import(
+        '@/services/recruitment-services/staff-onboard.service'
+      );
+      const linked = await linkStaffToAppointmentLetter(
+        hrmStaffId,
+        appointmentLetterId,
+        auditUser
+      );
+      if (!linked.success) {
+        channelingWarning =
+          linked.error?.message ??
+          'Staff was created but could not be linked to the appointment letter.';
+      } else {
+        revalidatePath('/appointment-letters');
       }
     }
 
