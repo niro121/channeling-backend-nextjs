@@ -20,11 +20,14 @@ model User {
 }
 
 model Location {
-  id     String @id @default(auto()) @map("_id") @db.ObjectId
-  name   String
-  code   String @unique
-  status Int
-  users  User[] @relation("LocationToUser")
+  id           String @id @default(auto()) @map("_id") @db.ObjectId
+  name         String
+  code         String @unique
+  status       Int
+  addressLine1 String?
+  addressLine2 String?
+  city         String?
+  users        User[] @relation("LocationToUser")
 }
 
 /// Banks for payment dropdowns (Channeling Tag type = 4).
