@@ -5,7 +5,7 @@ const globalForPrisma = globalThis as unknown as {
   channelingPrismaSchemaVersion?: string;
 };
 
-const CHANNELING_PRISMA_SCHEMA_VERSION = 'dpay-channeling-location-address-v1';
+const CHANNELING_PRISMA_SCHEMA_VERSION = 'dpay-channeling-staff-code-v1';
 
 export function getChannelingPrisma(): PrismaClient {
   if (!process.env.CHANNELING_DATABASE_URL?.trim()) {

@@ -162,6 +162,42 @@ export async function getLocationLetterhead(
   }
 }
 
+/**
+ * Staff code for a receipt print line.
+ * Channeling staff code for that login, then the Channeling or auth username.
+ */
+export async function resolveUserPrintCode(
+  authUserId: string | null | undefined
+): Promise<string> {
+  const id = authUserId?.trim();
+  if (!id) return '';
+
+  try {
+    const authUser = await authPrisma.user.findUnique({
+      where: { id },
+      select: { email: true, username: true },
+    });
+    if (!authUser) return '';
+
+    if (process.env.CHANNELING_DATABASE_URL?.trim() && authUser.email) {
+      const channeling = getChannelingPrisma();
+      const user = await channeling.user.findFirst({
+        where: { email: authUser.email, status: 1 },
+        select: { username: true, staff: { select: { code: true } } },
+      });
+      const staffCode = user?.staff?.code?.trim();
+      if (staffCode) return staffCode;
+      const channelingUsername = user?.username?.trim();
+      if (channelingUsername) return channelingUsername;
+    }
+
+    return authUser.username?.trim() || '';
+  } catch (error: unknown) {
+    console.error('resolveUserPrintCode error', error);
+    return '';
+  }
+}
+
 /** Display helper: "Ruhunu Hospital (RH)" */
 export function formatIssuedLocation(input: {
   locationName?: string | null;

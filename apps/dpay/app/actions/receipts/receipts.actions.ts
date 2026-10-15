@@ -39,7 +39,15 @@ export async function markPatientReceiptPrintedAction(receiptId: string) {
 export async function getPatientReceiptPrintSlipAction(receiptId: string) {
   const session = await fetchServerSession();
   if (!session?.user?.id) {
-    return { kind: 'payment' as const, originalReceiptNumber: '' };
+    return {
+      kind: 'payment' as const,
+      originalReceiptNumber: '',
+      createdByCode: '',
+      printedByCode: '',
+      canceledByCode: '',
+      createdAt: '',
+      patientName: '',
+    };
   }
 
   const [canViewReceipts, canViewBills] = await Promise.all([
@@ -47,10 +55,18 @@ export async function getPatientReceiptPrintSlipAction(receiptId: string) {
     checkPermission('patient-bills', 'view'),
   ]);
   if (!canViewReceipts && !canViewBills) {
-    return { kind: 'payment' as const, originalReceiptNumber: '' };
+    return {
+      kind: 'payment' as const,
+      originalReceiptNumber: '',
+      createdByCode: '',
+      printedByCode: '',
+      canceledByCode: '',
+      createdAt: '',
+      patientName: '',
+    };
   }
 
-  return getPatientReceiptPrintSlip(receiptId);
+  return getPatientReceiptPrintSlip(receiptId, session.user.id);
 }
 
 /** Branch name and address for the print letterhead. Empty when it cannot be resolved. */

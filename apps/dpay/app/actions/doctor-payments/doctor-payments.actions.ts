@@ -10,6 +10,7 @@ import { getDoctorPayments } from '@/services/doctor-payments/get-doctor-payment
 import { getDoctorPaymentById } from '@/services/doctor-payments/get-doctor-payment.service';
 import { cancelDoctorPayment } from '@/services/doctor-payments/cancel-doctor-payment.service';
 import { markDoctorPaymentPrinted } from '@/services/doctor-payments/mark-doctor-payment-printed.service';
+import { getDoctorPaymentPrintSlip } from '@/services/doctor-payments/get-doctor-payment-print-slip.service';
 import type {
   GetDoctorPaymentsParams,
   ProcessDoctorPaymentInput,
@@ -39,6 +40,18 @@ export async function markDoctorPaymentPrintedAction(paymentId: string) {
   }
 
   return markDoctorPaymentPrinted(paymentId);
+}
+
+/** Staff codes for the doctor payment receipt. Does not change the payment. */
+export async function getDoctorPaymentPrintSlipAction(paymentId: string) {
+  const empty = { createdByCode: '', canceledByCode: '', printedByCode: '' };
+  const session = await fetchServerSession();
+  if (!session?.user?.id) return empty;
+
+  const canView = await checkPermission('doctor-payments', 'view');
+  if (!canView) return empty;
+
+  return getDoctorPaymentPrintSlip(paymentId, session.user.id);
 }
 
 export async function getDoctorsForPaymentAction() {
