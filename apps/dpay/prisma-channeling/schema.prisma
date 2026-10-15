@@ -16,7 +16,15 @@ model User {
   username       String?
   status         Int
   userLocationId String?   @db.ObjectId
+  staffId        String?   @db.ObjectId
   userLocation   Location? @relation("LocationToUser", fields: [userLocationId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  staff          Staff?    @relation("UserToStaff", fields: [staffId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model Staff {
+  id    String @id @default(auto()) @map("_id") @db.ObjectId
+  code  String @unique
+  users User[] @relation("UserToStaff")
 }
 
 model Location {

@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { format } from 'date-fns';
 import { Info, Printer } from 'lucide-react';
 import { RECEIPT_PAYMENT_METHOD } from '@archmage/shared';
@@ -40,14 +40,18 @@ function DetailRow({
   label,
   value,
   highlight,
+  separated,
 }: {
   label: string;
   value: string;
   highlight?: boolean;
+  separated?: boolean;
 }) {
   return (
-    <div className="flex items-start justify-between gap-3 py-2 border-b border-border/60 last:border-0">
-      <span className="text-xs text-muted-foreground shrink-0">{label}</span>
+    <div
+      className={`grid grid-cols-[9.5rem_1fr] items-start gap-3 py-2 border-b border-border/60 last:border-0 ${separated ? 'mt-2 border-t' : ''}`}
+    >
+      <span className="text-xs text-muted-foreground">{label}</span>
       <span
         className={`text-xs text-right font-medium ${highlight ? 'font-semibold text-emerald-700' : 'text-foreground'}`}
       >
@@ -64,6 +68,37 @@ export function PaymentDetailsDialog({
   onOpenChange,
   title = 'Payment Details',
 }: PaymentDetailsDialogProps) {
+  const [printSlip, setPrintSlip] = useState<{
+    createdByCode: string;
+    printedByCode: string;
+    canceledByCode: string;
+    createdAt: string;
+    patientName: string;
+    kind: 'payment' | 'cancel' | 'refund';
+  } | null>(null);
+
+  useEffect(() => {
+    if (!open || !receipt?.id) {
+      setPrintSlip(null);
+      return;
+    }
+    let cancelled = false;
+    getPatientReceiptPrintSlipAction(receipt.id).then((slip) => {
+      if (cancelled) return;
+      setPrintSlip({
+        createdByCode: slip.createdByCode,
+        printedByCode: slip.printedByCode,
+        canceledByCode: slip.canceledByCode,
+        createdAt: slip.createdAt,
+        patientName: slip.patientName,
+        kind: slip.kind,
+      });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [open, receipt?.id]);
+
   const handlePrint = useCallback(async () => {
     if (!receipt) return;
     const [letterhead, printed, slip] = await Promise.all([
@@ -78,6 +113,11 @@ export function PaymentDetailsDialog({
         isDuplicate: printed.success && printed.isDuplicate,
         slip: slip.kind,
         originalReceiptNumber: slip.originalReceiptNumber,
+        createdByCode: slip.createdByCode,
+        printedByCode: slip.printedByCode,
+        canceledByCode: slip.canceledByCode,
+        createdAt: slip.createdAt,
+        patientName: slip.patientName,
       }),
       { width: '148mm', height: '210mm' }
     );
@@ -92,8 +132,14 @@ export function PaymentDetailsDialog({
   const canceledAt = receipt.canceledAt
     ? format(new Date(receipt.canceledAt), 'yyyy-MM-dd HH:mm:ss')
     : null;
-  const canceledBy = receipt.canceledByName?.trim() || null;
-  const createdBy = receipt.createdByName?.trim() || null;
+  const createdBy = printSlip?.createdByCode?.trim() || '—';
+  const createdAt = printSlip?.createdAt
+    ? format(new Date(printSlip.createdAt), 'yyyy-MM-dd HH:mm:ss')
+    : null;
+  const printedBy = printSlip?.printedByCode?.trim() || '—';
+  const canceledBy = printSlip?.canceledByCode?.trim() || '—';
+  const isRefundSlip = printSlip?.kind === 'refund';
+  const patientName = printSlip?.patientName?.trim() || '';
   const code = parsePaymentMethodCode(receipt.paymentMethod);
   const bank = receipt.bank?.trim();
   const cardReference = receipt.cardReference?.trim();
@@ -122,11 +168,13 @@ export function PaymentDetailsDialog({
           <div className="rounded-md border border-border/70 bg-muted/20 px-3">
             <DetailRow label="Receipt Number" value={receipt.receiptNumber} highlight />
             <DetailRow label="BHT Number" value={bxtNumber} />
+            {patientName ? <DetailRow label="Patient" value={patientName} /> : null}
             {issuedLocation !== '—' ? (
               <DetailRow label="Issued Location" value={issuedLocation} />
             ) : null}
             <DetailRow label="Payment Date" value={paymentDate} />
             <DetailRow label="Amount Paid" value={formatLkr(receipt.amountPaid)} highlight />
+            <DetailRow label="Outstanding" value={formatLkr(receipt.outstandingAfter)} />
             <DetailRow label="Payment Method" value={paymentMethodLabel(receipt.paymentMethod)} />
             {bank ? <DetailRow label="Bank" value={bank} /> : null}
             {code === RECEIPT_PAYMENT_METHOD.CREDIT_CARD && cardReference ? (
@@ -151,7 +199,14 @@ export function PaymentDetailsDialog({
               <DetailRow label="Reference" value={paymentReferenceDisplay(receipt)} />
             ) : null}
             <DetailRow label="Remarks" value={remarks} />
-            <DetailRow label="Created By" value={createdBy || '—'} />
+            {status !== 'cancelled' ? (
+              <>
+                <DetailRow label={isRefundSlip ? 'Refund by' : 'Created By'} value={createdBy} />
+                {createdAt ? (
+                  <DetailRow label={isRefundSlip ? 'Refund at' : 'Created At'} value={createdAt} />
+                ) : null}
+              </>
+            ) : null}
             {receipt.cancelReceiptNumber?.trim() ? (
               <DetailRow
                 label="Refund Receipt"
@@ -170,9 +225,10 @@ export function PaymentDetailsDialog({
                 {canceledAt ? (
                   <DetailRow label="Cancelled At" value={canceledAt} />
                 ) : null}
-                <DetailRow label="Cancelled By" value={canceledBy || '—'} />
+                <DetailRow label="Cancelled By" value={canceledBy} />
               </>
             ) : null}
+            <DetailRow label="Printed By" value={printedBy} separated />
           </div>
         </div>
 

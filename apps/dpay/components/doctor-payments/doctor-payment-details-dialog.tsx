@@ -18,6 +18,7 @@ import {
 } from '@archmage/ui';
 import {
   getDoctorPaymentByIdAction,
+  getDoctorPaymentPrintSlipAction,
   markDoctorPaymentPrintedAction,
 } from '@/app/actions/doctor-payments/doctor-payments.actions';
 import { getReceiptLetterheadAction } from '@/app/actions/receipts/receipts.actions';
@@ -44,8 +45,8 @@ function DetailRow({
   highlight?: boolean;
 }) {
   return (
-    <div className="flex items-start justify-between gap-3 py-2 border-b border-border/60 last:border-0">
-      <span className="text-xs text-muted-foreground shrink-0">{label}</span>
+    <div className="grid grid-cols-[9.5rem_1fr] items-start gap-3 py-2 border-b border-border/60 last:border-0">
+      <span className="text-xs text-muted-foreground">{label}</span>
       <span
         className={`text-xs text-right font-medium ${highlight ? 'font-semibold text-emerald-700' : 'text-foreground'}`}
       >
@@ -63,10 +64,16 @@ export function DoctorPaymentDetailsDialog({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [detail, setDetail] = useState<DoctorPaymentDetail | null>(null);
+  const [printSlip, setPrintSlip] = useState<{
+    createdByCode: string;
+    canceledByCode: string;
+    printedByCode: string;
+  } | null>(null);
 
   useEffect(() => {
     if (!open || !paymentId) {
       setDetail(null);
+      setPrintSlip(null);
       setError(null);
       setLoading(false);
       return;
@@ -76,9 +83,13 @@ export function DoctorPaymentDetailsDialog({
     setLoading(true);
     setError(null);
 
-    getDoctorPaymentByIdAction(paymentId)
-      .then((data) => {
+    Promise.all([
+      getDoctorPaymentByIdAction(paymentId),
+      getDoctorPaymentPrintSlipAction(paymentId),
+    ])
+      .then(([data, slip]) => {
         if (cancelled) return;
+        setPrintSlip(slip);
         if (!data) {
           setDetail(null);
           setError('Doctor payment not found.');
@@ -102,14 +113,18 @@ export function DoctorPaymentDetailsDialog({
 
   const handlePrint = useCallback(async () => {
     if (!detail) return;
-    const [letterhead, printed] = await Promise.all([
+    const [letterhead, printed, slip] = await Promise.all([
       getReceiptLetterheadAction(detail.locationId),
       markDoctorPaymentPrintedAction(detail.id),
+      getDoctorPaymentPrintSlipAction(detail.id),
     ]);
     printDoctorPayment(detail, {
       locationName: letterhead.locationName,
       addressLine: letterhead.addressLine,
       isDuplicate: printed.success && printed.isDuplicate,
+      createdByCode: slip.createdByCode,
+      canceledByCode: slip.canceledByCode,
+      printedByCode: slip.printedByCode,
     });
   }, [detail]);
 
@@ -183,17 +198,31 @@ export function DoctorPaymentDetailsDialog({
                     }
                   />
                 ) : null}
-                {detail.status === 'cancelled' && detail.canceledAt ? (
-                  <DetailRow
-                    label="Cancelled At"
-                    value={format(new Date(detail.canceledAt), 'yyyy-MM-dd HH:mm')}
-                  />
-                ) : null}
-                <DetailRow label="Created By" value={detail.createdBy} />
-                <DetailRow
-                  label="Created"
-                  value={format(new Date(detail.createdAt), 'yyyy-MM-dd HH:mm')}
-                />
+                {detail.status === 'cancelled' ? (
+                  <>
+                    <DetailRow
+                      label="Cancelled by"
+                      value={printSlip?.canceledByCode?.trim() || '—'}
+                    />
+                    {detail.canceledAt ? (
+                      <DetailRow
+                        label="Cancelled at"
+                        value={format(new Date(detail.canceledAt), 'yyyy-MM-dd HH:mm')}
+                      />
+                    ) : null}
+                  </>
+                ) : (
+                  <>
+                    <DetailRow
+                      label={detail.status === 'refund' ? 'Refund by' : 'Created By'}
+                      value={printSlip?.createdByCode?.trim() || '—'}
+                    />
+                    <DetailRow
+                      label={detail.status === 'refund' ? 'Refund at' : 'Created at'}
+                      value={format(new Date(detail.createdAt), 'yyyy-MM-dd HH:mm')}
+                    />
+                  </>
+                )}
               </div>
 
               <div>
@@ -228,6 +257,13 @@ export function DoctorPaymentDetailsDialog({
                     </Table>
                   </div>
                 )}
+              </div>
+
+              <div className="w-full rounded-md border border-border/70 bg-muted/20 px-3">
+                <DetailRow
+                  label="Printed by"
+                  value={printSlip?.printedByCode?.trim() || '—'}
+                />
               </div>
             </>
           ) : null}

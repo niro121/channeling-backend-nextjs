@@ -73,6 +73,11 @@ export function ReceiptRecordActions({ row }: ReceiptRecordActionsProps) {
         isDuplicate: printed.success && printed.isDuplicate,
         slip: slip.kind,
         originalReceiptNumber: slip.originalReceiptNumber,
+        createdByCode: slip.createdByCode,
+        printedByCode: slip.printedByCode,
+        canceledByCode: slip.canceledByCode,
+        createdAt: slip.createdAt,
+        patientName: slip.patientName,
       }),
       { width: '148mm', height: '210mm' }
     );
