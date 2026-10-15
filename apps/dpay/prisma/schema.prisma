@@ -141,6 +141,10 @@ model PatientBillReceipt {
   createdBy        String?   @db.ObjectId
   createdByName    String?
   createdAt        DateTime  @default(now())
+  /// Times this slip was printed. Missing on older receipts means not yet printed.
+  printCount       Int?
+  /// Set on the first print only.
+  printedAt        DateTime?
 
   bill PatientBill @relation(fields: [billId], references: [id], onDelete: Cascade)
 }
@@ -180,6 +184,10 @@ model DoctorPayment {
   createdByName        String?
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt
+  /// Times this slip was printed. Missing on older payments means not yet printed.
+  printCount           Int?
+  /// Set on the first print only.
+  printedAt            DateTime?
 
   items     DoctorPaymentItem[]
   lineItems PatientBillItem[]
