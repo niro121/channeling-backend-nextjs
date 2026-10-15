@@ -19,6 +19,11 @@ import {
   paymentReferenceDisplay,
 } from '@/lib/receipts/helpers';
 import { formatIssuedLocation } from '@/lib/location';
+import {
+  getPatientReceiptPrintSlipAction,
+  getReceiptLetterheadAction,
+  markPatientReceiptPrintedAction,
+} from '@/app/actions/receipts/receipts.actions';
 import { buildReceiptPrintHtml, printReceiptHtml } from '@/lib/receipts/print-receipt';
 import { ReceiptStatusBadge } from '@/components/receipts/receipt-status-badge';
 
@@ -59,9 +64,23 @@ export function PaymentDetailsDialog({
   onOpenChange,
   title = 'Payment Details',
 }: PaymentDetailsDialogProps) {
-  const handlePrint = useCallback(() => {
+  const handlePrint = useCallback(async () => {
     if (!receipt) return;
-    printReceiptHtml(buildReceiptPrintHtml(receipt, bxtNumber));
+    const [letterhead, printed, slip] = await Promise.all([
+      getReceiptLetterheadAction(receipt.locationId),
+      markPatientReceiptPrintedAction(receipt.id),
+      getPatientReceiptPrintSlipAction(receipt.id),
+    ]);
+    printReceiptHtml(
+      buildReceiptPrintHtml(receipt, bxtNumber, {
+        locationName: letterhead.locationName,
+        addressLine: letterhead.addressLine,
+        isDuplicate: printed.success && printed.isDuplicate,
+        slip: slip.kind,
+        originalReceiptNumber: slip.originalReceiptNumber,
+      }),
+      { width: '148mm', height: '210mm' }
+    );
   }, [receipt, bxtNumber]);
 
   if (!receipt) return null;

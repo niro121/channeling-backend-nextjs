@@ -32,7 +32,7 @@ import { getCashierSummaryReportData } from '@/app/actions/reports/cashier-summa
 import { cashierSummarySectionShowsDetailRows } from '@/lib/cashier-summary-amounts';
 import { formatReceiptAmount } from '@/lib/format-money';
 import { formatReportRangeLabel } from '@/lib/format-report-range-label';
-import { formatExportFileName } from '@/lib/utils';
+import { formatDateTimeSriLanka, formatExportFileName } from '@/lib/utils';
 import { ReportGenerationDetailsCard } from '@/components/common/report-generation-details';
 import {
   ReportPrintLayout,
@@ -757,9 +757,7 @@ function SectionBlock({
                   <TableCell className="py-0.5 text-[11px] text-center tabular-nums">{idx + 1}</TableCell>
                   <TableCell className="ucs-tx-shift py-0.5 text-[11px] align-top text-left">
                     <div className="ucs-stack-line whitespace-nowrap">
-                      {row.txCreated instanceof Date
-                        ? row.txCreated.toLocaleString()
-                        : String(row.txCreated ?? '')}
+                      {formatDateTimeSriLanka(row.txCreated, { withSeconds: true })}
                     </div>
                     {/* Screen: full shift range; print: user name + code only */}
                     <div className="ucs-stack-line ucs-tx-full text-[9px] text-muted-foreground leading-tight mt-0.5">

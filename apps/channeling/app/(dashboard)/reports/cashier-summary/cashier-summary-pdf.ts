@@ -13,6 +13,7 @@ import {
   type BrandedPdfSummaryItem,
 } from '@/components/common/report-print';
 import { cashierSummarySectionShowsDetailRows } from '@/lib/cashier-summary-amounts';
+import { formatDateTimeSriLanka } from '@/lib/utils';
 import { formatReceiptAmount } from '@/lib/format-money';
 import type {
   CashierSummaryPaymentAmounts,
@@ -82,10 +83,7 @@ function amountCells(amounts: CashierSummaryPaymentAmounts): string[] {
 }
 
 function txLabel(row: CashierSummaryReportLineItem): string {
-  const tx =
-    row.txCreated instanceof Date
-      ? row.txCreated.toLocaleString()
-      : String(row.txCreated ?? '—');
+  const tx = row.txCreated ? formatDateTimeSriLanka(row.txCreated, { withSeconds: true }) : '—';
   // Match print: date/time + user name/code only (no shift start–end range)
   return `${tx}\n${row.shiftUserLabel ?? '—'}`;
 }

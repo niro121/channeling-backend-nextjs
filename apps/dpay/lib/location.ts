@@ -115,6 +115,53 @@ export async function getUserLocationConfig(
   }
 }
 
+/** One line for the receipt letterhead, from the Channeling location address. */
+export function formatLocationAddress(input: {
+  addressLine1?: string | null;
+  addressLine2?: string | null;
+  city?: string | null;
+}): string {
+  const parts = [input.addressLine1, input.addressLine2, input.city]
+    .map((value) => value?.trim() || '')
+    .filter(Boolean);
+  return [...new Set(parts)].join(', ');
+}
+
+export type LocationLetterhead = {
+  /** Current Channeling location name. Empty when it cannot be read. */
+  locationName: string;
+  /** addressLine1, addressLine2, and city. Empty when it cannot be read. */
+  addressLine: string;
+};
+
+/**
+ * Name and address of the branch stored on the receipt (Channeling Location).
+ * Read at print time, same as the channeling booking receipt. Does not update the receipt.
+ */
+export async function getLocationLetterhead(
+  locationId: string | null | undefined
+): Promise<LocationLetterhead> {
+  const empty = { locationName: '', addressLine: '' };
+  const id = locationId?.trim();
+  if (!id || !process.env.CHANNELING_DATABASE_URL?.trim()) return empty;
+
+  try {
+    const prisma = getChannelingPrisma();
+    const location = await prisma.location.findUnique({
+      where: { id },
+      select: { name: true, addressLine1: true, addressLine2: true, city: true },
+    });
+    if (!location) return empty;
+    return {
+      locationName: location.name?.trim() || '',
+      addressLine: formatLocationAddress(location),
+    };
+  } catch (error: unknown) {
+    console.error('getLocationLetterhead error', error);
+    return empty;
+  }
+}
+
 /** Display helper: "Ruhunu Hospital (RH)" */
 export function formatIssuedLocation(input: {
   locationName?: string | null;

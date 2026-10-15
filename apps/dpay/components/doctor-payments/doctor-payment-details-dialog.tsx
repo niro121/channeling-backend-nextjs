@@ -16,7 +16,11 @@ import {
   TableHeader,
   TableRow,
 } from '@archmage/ui';
-import { getDoctorPaymentByIdAction } from '@/app/actions/doctor-payments/doctor-payments.actions';
+import {
+  getDoctorPaymentByIdAction,
+  markDoctorPaymentPrintedAction,
+} from '@/app/actions/doctor-payments/doctor-payments.actions';
+import { getReceiptLetterheadAction } from '@/app/actions/receipts/receipts.actions';
 import { DoctorPaymentStatusBadge } from '@/components/doctor-payments/status-badge';
 import { formatLkr } from '@/lib/patient-bills/calculations';
 import { paymentMethodLabel, paymentReferenceDisplay } from '@/lib/receipts/helpers';
@@ -96,9 +100,17 @@ export function DoctorPaymentDetailsDialog({
     };
   }, [open, paymentId]);
 
-  const handlePrint = useCallback(() => {
+  const handlePrint = useCallback(async () => {
     if (!detail) return;
-    printDoctorPayment(detail);
+    const [letterhead, printed] = await Promise.all([
+      getReceiptLetterheadAction(detail.locationId),
+      markDoctorPaymentPrintedAction(detail.id),
+    ]);
+    printDoctorPayment(detail, {
+      locationName: letterhead.locationName,
+      addressLine: letterhead.addressLine,
+      isDuplicate: printed.success && printed.isDuplicate,
+    });
   }, [detail]);
 
   const issuedLocation = detail

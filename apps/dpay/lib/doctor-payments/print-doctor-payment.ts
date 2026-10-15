@@ -135,58 +135,160 @@ function getDoctorPaymentDetailRows(detail: DoctorPaymentDetail): DetailRow[] {
     }
   }
 
-  if (detail.bills.length > 0) {
-    rows.push({
-      label: 'Included Bills',
-      value: detail.bills
-        .map(
-          (bill) =>
-            `${bill.billNumber} · ${bill.patientName} · ${formatLkr(bill.payableAmount)}`
-        )
-        .join(' | '),
-    });
-  }
-
   return rows;
 }
 
-export function buildDoctorPaymentPrintHtml(detail: DoctorPaymentDetail) {
-  const title =
-    detail.status === 'refund'
-      ? 'Doctor Payment Refund'
-      : detail.status === 'cancelled'
-        ? 'Doctor Payment (Cancelled)'
-        : 'Doctor Payment Receipt';
+export type DoctorPaymentPrintLetterhead = {
+  locationName?: string | null;
+  addressLine?: string | null;
+  isDuplicate?: boolean;
+};
 
+const LETTERHEAD_PHONE = '091 7694059 / 60';
+const LETTERHEAD_EMAIL = 'info@ruhunuhospital.lk';
+const LETTERHEAD_WEB = 'www.ruhunuhospital.lk';
+
+function invoiceRow(label: string, value: string, strong = false): string {
+  const valueClass = strong ? 'value strong' : 'value';
+  const labelHtml = strong ? `<strong>${escapeHtml(label)}</strong>` : escapeHtml(label);
+  return `<tr>
+    <td class="label">${labelHtml}</td>
+    <td class="colon">:</td>
+    <td class="${valueClass}">${escapeHtml(value)}</td>
+  </tr>`;
+}
+
+export function buildDoctorPaymentPrintHtml(
+  detail: DoctorPaymentDetail,
+  letterhead?: DoctorPaymentPrintLetterhead
+) {
+  const status = detail.status ?? 'paid';
   const rowsHtml = getDoctorPaymentDetailRows(detail)
-    .map((row) => {
-      const valueClass = row.highlight ? 'value highlight' : 'value';
-      return `<div class="row"><span class="label">${escapeHtml(row.label)}</span><span class="${valueClass}">${escapeHtml(row.value)}</span></div>`;
-    })
+    .filter((row) => row.label !== 'Status')
+    .map((row) => invoiceRow(row.label, row.value, Boolean(row.highlight)))
     .join('\n    ');
 
+  const hospitalName =
+    letterhead?.locationName?.trim() || detail.locationName?.trim() || 'Ruhunu Hospital';
+  const addressLine = letterhead?.addressLine?.trim() || 'Karapitiya, Galle';
+
+  const title =
+    status === 'cancelled'
+      ? 'Cancel Receipt'
+      : status === 'refund'
+        ? 'Refund Receipt'
+        : 'Doctor Payment Receipt';
+
+  let banner = '';
+  if (letterhead?.isDuplicate) {
+    banner = status === 'refund' ? '**Duplicate Copy**' : '**Duplicate**';
+  } else if (status === 'cancelled') {
+    banner = '**Canceled**';
+  }
+  const bannerHtml = banner ? `<div class="status-banner">${escapeHtml(banner)}</div>` : '';
+
+  const billRows = detail.bills
+    .map(
+      (bill) => `<tr>
+        <td>${escapeHtml(bill.billNumber)}</td>
+        <td>${escapeHtml(bill.patientName)}</td>
+        <td class="amount">${escapeHtml(formatLkr(bill.payableAmount))}</td>
+      </tr>`
+    )
+    .join('');
+  const billsHtml =
+    detail.bills.length > 0
+      ? `<table class="bills">
+          <thead>
+            <tr>
+              <th>Bill No</th>
+              <th>Patient</th>
+              <th class="amount">Amount</th>
+            </tr>
+          </thead>
+          <tbody>${billRows}</tbody>
+        </table>`
+      : '';
+
   return `<!DOCTYPE html>
-<html>
+<html lang="en">
   <head>
     <meta charset="utf-8" />
     <title>${escapeHtml(title)} ${escapeHtml(detail.receiptNumber)}</title>
     <style>
-      body { font-family: system-ui, sans-serif; padding: 24px; color: #111; max-width: 480px; margin: 0 auto; }
-      h1 { font-size: 18px; margin: 0 0 16px; }
-      .row { display: flex; justify-content: space-between; gap: 16px; padding: 8px 0; border-bottom: 1px solid #e5e7eb; font-size: 13px; }
-      .label { color: #6b7280; flex-shrink: 0; }
-      .value { font-weight: 600; text-align: right; word-break: break-word; }
-      .highlight { color: #047857; font-weight: 700; }
+      @page { size: A5 portrait; margin: 7mm 8mm; }
+      html, body { margin: 0; padding: 0; width: 100%; background: #fff; }
+      * { color: #000 !important; background: transparent !important; box-shadow: none !important; }
+      body {
+        font-family: Verdana, Geneva, Tahoma, sans-serif;
+        font-size: 13pt;
+        line-height: 1.4;
+        color: #000;
+        padding: 0;
+      }
+      .invoice-wrap { width: 100%; max-width: 100%; margin: 0 auto; text-align: center; }
+      .hospital-name { font-size: 16pt; font-weight: 700; margin: 0; line-height: 1.25; }
+      .contact { font-size: 10.5pt; font-weight: 600; margin: 2px 0 0; line-height: 1.4; }
+      .bill-title { font-size: 15pt; font-weight: 700; margin: 10px 0 5px; }
+      .status-banner { font-size: 13pt; font-weight: 700; margin: 3px 0 8px; }
+      .invoice-fields {
+        margin: 0 auto;
+        border-collapse: collapse;
+        text-align: left;
+        width: auto;
+        max-width: 100%;
+      }
+      .invoice-fields td {
+        border: none;
+        padding: 2.5px 0;
+        font-size: 12.5pt;
+        vertical-align: top;
+        line-height: 1.4;
+      }
+      .invoice-fields .label { width: 48mm; min-width: 44mm; padding-right: 6px; white-space: nowrap; }
+      .invoice-fields .colon { width: 5mm; padding-right: 8px; text-align: center; }
+      .invoice-fields .value { font-weight: 400; }
+      .invoice-fields .strong { font-weight: 700; }
+      .bills {
+        width: 100%;
+        border-collapse: collapse;
+        margin: 10px 0 0;
+        text-align: left;
+        font-size: 11pt;
+      }
+      .bills th, .bills td {
+        border-bottom: 1px solid #000;
+        padding: 3px 6px 3px 0;
+        vertical-align: top;
+      }
+      .bills th { font-weight: 700; }
+      .bills .amount { text-align: right; white-space: nowrap; padding-right: 0; }
     </style>
   </head>
   <body>
-    <h1>${escapeHtml(title)}</h1>
-    ${rowsHtml}
+    <div class="invoice-wrap">
+      <div class="hospital-name">${escapeHtml(hospitalName)}</div>
+      <div class="hospital-name">${escapeHtml(addressLine)}</div>
+      <p class="contact">Phone : ${escapeHtml(LETTERHEAD_PHONE)}</p>
+      <p class="contact">Email : ${escapeHtml(LETTERHEAD_EMAIL)} | Web : ${escapeHtml(LETTERHEAD_WEB)}</p>
+      <div class="bill-title">${escapeHtml(title)}</div>
+      ${bannerHtml}
+      <table class="invoice-fields"><tbody>
+        ${rowsHtml}
+      </tbody></table>
+      ${billsHtml}
+    </div>
   </body>
 </html>`;
 }
 
-/** Same iframe print path as patient bill receipts. */
-export function printDoctorPayment(detail: DoctorPaymentDetail) {
-  printReceiptHtml(buildDoctorPaymentPrintHtml(detail));
+/** A5 print, same iframe size as the patient receipt. */
+export function printDoctorPayment(
+  detail: DoctorPaymentDetail,
+  letterhead?: DoctorPaymentPrintLetterhead
+) {
+  printReceiptHtml(buildDoctorPaymentPrintHtml(detail, letterhead), {
+    width: '148mm',
+    height: '210mm',
+  });
 }
