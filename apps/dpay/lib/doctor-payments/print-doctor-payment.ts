@@ -97,14 +97,18 @@ function getDoctorPaymentDetailRows(detail: DoctorPaymentDetail): DetailRow[] {
     });
   }
 
-  rows.push(
-    { label: 'Remarks', value: detail.remarks?.trim() || '—' },
-    { label: 'Created By', value: detail.createdBy },
-    {
-      label: 'Created',
-      value: format(new Date(detail.createdAt), 'yyyy-MM-dd HH:mm'),
-    }
-  );
+  const isRefund = detail.status === 'refund';
+  const isCancelled = detail.status === 'cancelled';
+  rows.push({ label: 'Remarks', value: detail.remarks?.trim() || '—' });
+  if (!isCancelled) {
+    rows.push(
+      { label: isRefund ? 'Refund by' : 'Created By', value: detail.createdBy },
+      {
+        label: isRefund ? 'Refund at' : 'Created at',
+        value: format(new Date(detail.createdAt), 'yyyy-MM-dd HH:mm'),
+      }
+    );
+  }
 
   if (detail.cancelReceiptNumber?.trim()) {
     rows.push({
@@ -127,9 +131,10 @@ function getDoctorPaymentDetailRows(detail: DoctorPaymentDetail): DetailRow[] {
     if (detail.cancelReason?.trim()) {
       rows.push({ label: 'Cancel Reason', value: detail.cancelReason.trim() });
     }
+    rows.push({ label: 'Cancelled by', value: '—' });
     if (detail.canceledAt) {
       rows.push({
-        label: 'Cancelled At',
+        label: 'Cancelled at',
         value: format(new Date(detail.canceledAt), 'yyyy-MM-dd HH:mm'),
       });
     }
@@ -142,16 +147,20 @@ export type DoctorPaymentPrintLetterhead = {
   locationName?: string | null;
   addressLine?: string | null;
   isDuplicate?: boolean;
+  createdByCode?: string | null;
+  canceledByCode?: string | null;
+  printedByCode?: string | null;
 };
 
 const LETTERHEAD_PHONE = '091 7694059 / 60';
 const LETTERHEAD_EMAIL = 'info@ruhunuhospital.lk';
 const LETTERHEAD_WEB = 'www.ruhunuhospital.lk';
 
-function invoiceRow(label: string, value: string, strong = false): string {
+function invoiceRow(label: string, value: string, strong = false, separated = false): string {
   const valueClass = strong ? 'value strong' : 'value';
   const labelHtml = strong ? `<strong>${escapeHtml(label)}</strong>` : escapeHtml(label);
-  return `<tr>
+  const rowClass = separated ? ' class="printed-by"' : '';
+  return `<tr${rowClass}>
     <td class="label">${labelHtml}</td>
     <td class="colon">:</td>
     <td class="${valueClass}">${escapeHtml(value)}</td>
@@ -165,8 +174,31 @@ export function buildDoctorPaymentPrintHtml(
   const status = detail.status ?? 'paid';
   const rowsHtml = getDoctorPaymentDetailRows(detail)
     .filter((row) => row.label !== 'Status')
-    .map((row) => invoiceRow(row.label, row.value, Boolean(row.highlight)))
+    .map((row) =>
+      invoiceRow(
+        row.label,
+        row.label === 'Created By' || row.label === 'Refund by'
+          ? letterhead?.createdByCode?.trim() || '—'
+          : row.label === 'Cancelled by'
+            ? letterhead?.canceledByCode?.trim() || '—'
+            : row.value,
+        Boolean(row.highlight)
+      )
+    )
     .join('\n    ');
+  const printedByHtml = invoiceRow(
+    'Printed by',
+    letterhead?.printedByCode?.trim() || '—',
+    false,
+    true
+  );
+  const isCancelOrRefund = status === 'cancelled' || status === 'refund';
+  const refundReceivedHtml = isCancelOrRefund
+    ? `<tr><td class="refund-received-title" colspan="3">Refund Received By</td></tr>
+        ${invoiceRow('Name', '')}
+        ${invoiceRow('Signature', '')}
+        ${invoiceRow('Phone No', '')}`
+    : '';
 
   const hospitalName =
     letterhead?.locationName?.trim() || detail.locationName?.trim() || 'Ruhunu Hospital';
@@ -198,7 +230,7 @@ export function buildDoctorPaymentPrintHtml(
     .join('');
   const billsHtml =
     detail.bills.length > 0
-      ? `<table class="bills">
+      ? `<tr class="bills-embed"><td colspan="3"><table class="bills">
           <thead>
             <tr>
               <th>Bill No</th>
@@ -207,7 +239,7 @@ export function buildDoctorPaymentPrintHtml(
             </tr>
           </thead>
           <tbody>${billRows}</tbody>
-        </table>`
+        </table></td></tr>`
       : '';
 
   return `<!DOCTYPE html>
@@ -245,8 +277,8 @@ export function buildDoctorPaymentPrintHtml(
         vertical-align: top;
         line-height: 1.4;
       }
-      .invoice-fields .label { width: 48mm; min-width: 44mm; padding-right: 6px; white-space: nowrap; }
-      .invoice-fields .colon { width: 5mm; padding-right: 8px; text-align: center; }
+      .invoice-fields .label { width: 48mm; min-width: 48mm; max-width: 48mm; padding-right: 6px; white-space: nowrap; }
+      .invoice-fields .colon { width: 5mm; min-width: 5mm; max-width: 5mm; padding-right: 8px; text-align: center; }
       .invoice-fields .value { font-weight: 400; }
       .invoice-fields .strong { font-weight: 700; }
       .bills {
@@ -263,6 +295,13 @@ export function buildDoctorPaymentPrintHtml(
       }
       .bills th { font-weight: 700; }
       .bills .amount { text-align: right; white-space: nowrap; padding-right: 0; }
+      .invoice-fields tr.bills-embed > td { padding: 8px 0 0; }
+      .invoice-fields tr.printed-by td { padding-top: 12px; }
+      .invoice-fields .refund-received-title {
+        text-align: center;
+        padding-top: 12px;
+        padding-bottom: 4px;
+      }
     </style>
   </head>
   <body>
@@ -273,10 +312,18 @@ export function buildDoctorPaymentPrintHtml(
       <p class="contact">Email : ${escapeHtml(LETTERHEAD_EMAIL)} | Web : ${escapeHtml(LETTERHEAD_WEB)}</p>
       <div class="bill-title">${escapeHtml(title)}</div>
       ${bannerHtml}
-      <table class="invoice-fields"><tbody>
+      <table class="invoice-fields">
+        <colgroup>
+          <col class="label" />
+          <col class="colon" />
+          <col class="value" />
+        </colgroup>
+        <tbody>
         ${rowsHtml}
+        ${billsHtml}
+        ${refundReceivedHtml}
+        ${printedByHtml}
       </tbody></table>
-      ${billsHtml}
     </div>
   </body>
 </html>`;

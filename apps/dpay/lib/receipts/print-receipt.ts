@@ -30,6 +30,11 @@ export type ReceiptPrintLetterhead = {
   slip?: 'payment' | 'cancel' | 'refund';
   /** Original payment number shown on a cancel or refund slip. */
   originalReceiptNumber?: string | null;
+  createdByCode?: string | null;
+  printedByCode?: string | null;
+  canceledByCode?: string | null;
+  createdAt?: string | null;
+  patientName?: string | null;
 };
 
 type ReceiptDetailRow = {
@@ -153,18 +158,74 @@ function getReceiptDetailRows(
 }
 
 
-function invoiceRow(label: string, value: string, strong = false): string {
+function invoiceRow(label: string, value: string, strong = false, separated = false): string {
   const valueClass = strong ? 'value strong' : 'value';
   const labelHtml = strong ? `<strong>${escapeHtml(label)}</strong>` : escapeHtml(label);
-  return `<tr>
+  const rowClass = separated ? ' class="printed-by"' : '';
+  return `<tr${rowClass}>
     <td class="label">${labelHtml}</td>
     <td class="colon">:</td>
     <td class="${valueClass}">${escapeHtml(value)}</td>
   </tr>`;
 }
 
-function paymentPrintRows(receipt: PatientBillReceipt, bxtNumber: string): ReceiptDetailRow[] {
-  return getReceiptDetailRows(receipt, bxtNumber).filter((row) => row.label !== 'Status');
+function paymentPrintRows(
+  receipt: PatientBillReceipt,
+  bxtNumber: string,
+  letterhead?: ReceiptPrintLetterhead
+): ReceiptDetailRow[] {
+  const rows = getReceiptDetailRows(receipt, bxtNumber).filter((row) => row.label !== 'Status');
+
+  const patientName = letterhead?.patientName?.trim();
+  if (patientName) {
+    const bhtIndex = rows.findIndex((row) => row.label === 'BHT Number');
+    rows.splice(bhtIndex + 1, 0, { label: 'Patient', value: patientName });
+  }
+
+  const amountIndex = rows.findIndex((row) => row.label === 'Amount Paid');
+  if (amountIndex >= 0) {
+    rows.splice(amountIndex + 1, 0, {
+      label: 'Outstanding',
+      value: formatLkr(receipt.outstandingAfter),
+    });
+  }
+
+  const createdIndex = rows.findIndex((row) => row.label === 'Created By');
+  const isCancelReceipt = (receipt.status ?? 'active') === 'cancelled';
+  if (createdIndex >= 0 && isCancelReceipt) {
+    rows.splice(createdIndex, 1);
+  } else if (createdIndex >= 0) {
+    const isRefundSlip = letterhead?.slip === 'refund';
+    rows[createdIndex] = {
+      ...rows[createdIndex],
+      label: isRefundSlip ? 'Refund by' : 'Created By',
+      value: letterhead?.createdByCode?.trim() || '—',
+    };
+    const createdAt = letterhead?.createdAt
+      ? format(new Date(letterhead.createdAt), 'yyyy-MM-dd HH:mm:ss')
+      : '';
+    if (createdAt) {
+      rows.splice(createdIndex + 1, 0, {
+        label: isRefundSlip ? 'Refund at' : 'Created At',
+        value: createdAt,
+      });
+    }
+  }
+
+  const cancelledIndex = rows.findIndex((row) => row.label === 'Cancelled By');
+  if (cancelledIndex >= 0) {
+    rows[cancelledIndex] = {
+      ...rows[cancelledIndex],
+      value: letterhead?.canceledByCode?.trim() || '—',
+    };
+  }
+
+  rows.push({
+    label: 'Printed By',
+    value: letterhead?.printedByCode?.trim() || '—',
+  });
+
+  return rows;
 }
 
 export function buildReceiptPrintHtml(
@@ -176,10 +237,22 @@ export function buildReceiptPrintHtml(
   let slip = letterhead?.slip ?? (status === 'refund' ? 'refund' : 'payment');
   if (status === 'refund' && slip === 'payment') slip = 'refund';
   const isCancelOrRefund = slip === 'cancel' || slip === 'refund';
-  const rows = paymentPrintRows(receipt, bxtNumber);
-  const rowsHtml = rows
+  const rows = paymentPrintRows(receipt, bxtNumber, letterhead);
+  const detailRows = rows.filter((row) => row.label !== 'Printed By');
+  const printedByRow = rows.find((row) => row.label === 'Printed By');
+  const rowsHtml = detailRows
     .map((row) => invoiceRow(row.label, row.value, Boolean(row.highlight)))
     .join('\n    ');
+  const printedByHtml = printedByRow
+    ? invoiceRow(printedByRow.label, printedByRow.value, false, true)
+    : '';
+  const showRefundReceived = isCancelOrRefund || status === 'cancelled';
+  const refundReceivedHtml = showRefundReceived
+    ? `<tr><td class="refund-received-title" colspan="3">Refund Received By</td></tr>
+        ${invoiceRow('Name', '')}
+        ${invoiceRow('Signature', '')}
+        ${invoiceRow('Phone No', '')}`
+    : '';
 
   const hospitalName =
     letterhead?.locationName?.trim() || receipt.locationName?.trim() || 'Ruhunu Hospital';
@@ -236,10 +309,16 @@ export function buildReceiptPrintHtml(
         vertical-align: top;
         line-height: 1.4;
       }
-      .invoice-fields .label { width: 48mm; min-width: 44mm; padding-right: 6px; white-space: nowrap; }
-      .invoice-fields .colon { width: 5mm; padding-right: 8px; text-align: center; }
+      .invoice-fields .label { width: 48mm; min-width: 48mm; max-width: 48mm; padding-right: 6px; white-space: nowrap; }
+      .invoice-fields .colon { width: 5mm; min-width: 5mm; max-width: 5mm; padding-right: 8px; text-align: center; }
       .invoice-fields .value { font-weight: 400; }
       .invoice-fields .strong { font-weight: 700; }
+      .invoice-fields tr.printed-by td { padding-top: 12px; }
+      .invoice-fields .refund-received-title {
+        text-align: center;
+        padding-top: 12px;
+        padding-bottom: 4px;
+      }
     </style>
   </head>
   <body>
@@ -250,8 +329,16 @@ export function buildReceiptPrintHtml(
       <p class="contact">Email : ${escapeHtml(RECEIPT_LETTERHEAD_EMAIL)} | Web : ${escapeHtml(RECEIPT_LETTERHEAD_WEB)}</p>
       <div class="bill-title">${escapeHtml(title)}</div>
       ${bannerHtml}
-      <table class="invoice-fields"><tbody>
+      <table class="invoice-fields">
+        <colgroup>
+          <col class="label" />
+          <col class="colon" />
+          <col class="value" />
+        </colgroup>
+        <tbody>
         ${rowsHtml}
+        ${refundReceivedHtml}
+        ${printedByHtml}
       </tbody></table>
     </div>
   </body>
