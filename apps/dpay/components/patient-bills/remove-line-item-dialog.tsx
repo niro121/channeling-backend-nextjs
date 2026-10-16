@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
 import {
@@ -10,6 +10,8 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  Label,
+  Textarea,
   useToast,
 } from '@archmage/ui';
 import type { BillLineItem } from '@/types/patient-bill';
@@ -32,13 +34,28 @@ export function RemoveLineItemDialog({
   const router = useRouter();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
+  const [remark, setRemark] = useState('');
+
+  useEffect(() => {
+    if (open) setRemark('');
+  }, [open, lineItem?.id]);
 
   const handleRemove = async () => {
     if (!lineItem) return;
 
+    const trimmed = remark.trim();
+    if (!trimmed) {
+      toast({
+        variant: 'destructive',
+        title: 'Remark required',
+        description: 'Please enter a remark for removing this line item.',
+      });
+      return;
+    }
+
     setLoading(true);
     try {
-      const result = await removePatientBillLineItemAction(billId, lineItem.id);
+      const result = await removePatientBillLineItemAction(billId, lineItem.id, trimmed);
       if (!result.success) {
         toast({
           variant: 'destructive',
@@ -88,6 +105,20 @@ export function RemoveLineItemDialog({
               <p className="text-muted-foreground">{lineItem.description}</p>
               <p className="font-semibold tabular-nums">{formatLkr(lineItem.amount)}</p>
             </div>
+            <div className="space-y-1">
+              <Label htmlFor="remove-line-item-remark" className="text-xs font-medium">
+                Remark (required)
+              </Label>
+              <Textarea
+                id="remove-line-item-remark"
+                placeholder="e.g. Charge entered in error"
+                value={remark}
+                onChange={(e) => setRemark(e.target.value)}
+                rows={3}
+                className="resize-none text-sm"
+                disabled={loading}
+              />
+            </div>
           </div>
         ) : null}
 
@@ -104,7 +135,7 @@ export function RemoveLineItemDialog({
             type="button"
             variant="destructive"
             onClick={handleRemove}
-            disabled={loading || !lineItem}
+            disabled={loading || !lineItem || !remark.trim()}
           >
             {loading ? (
               <>

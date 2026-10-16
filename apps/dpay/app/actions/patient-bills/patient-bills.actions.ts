@@ -185,14 +185,19 @@ export async function addPatientBillLineItemAction(input: AddPatientBillLineItem
   return result;
 }
 
-export async function removePatientBillLineItemAction(billId: string, lineItemId: string) {
+export async function removePatientBillLineItemAction(
+  billId: string,
+  lineItemId: string,
+  deleteRemark: string
+) {
   await requirePermission('patient-bills', 'edit');
   const session = await fetchServerSession();
   const result = await removePatientBillLineItem(
     billId,
     lineItemId,
     session?.user?.id ?? null,
-    session?.user?.name ?? null
+    session?.user?.name ?? null,
+    deleteRemark
   );
 
   if (result.success) {
@@ -206,7 +211,7 @@ export async function removePatientBillLineItemAction(billId: string, lineItemId
         entityType: 'PatientBillItem',
         entityId: lineItemId,
         importance: 'high',
-        metadata: { billId },
+        metadata: { billId, deleteRemark: deleteRemark.trim() },
       });
     }
   }

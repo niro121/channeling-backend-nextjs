@@ -170,6 +170,7 @@ export type BillLineItem = {
   doctorPaymentId?: string | null;
   deletedAt?: string | null;
   deletedByName?: string | null;
+  deleteRemark?: string | null;
 };
 
 export type AddPatientBillLineItemInput = {
@@ -200,6 +201,7 @@ export type BillLineItemHistoryEntry = {
   previousDescription?: string | null;
   previousAmount?: number | null;
   previousSortOrder?: number | null;
+  deleteRemark?: string | null;
 };
 
 export type GeneratedBillNumbers = {

@@ -39,6 +39,7 @@ export function mapLineItemHistoryRecord(record: {
   previousDescription?: string | null;
   previousAmount?: number | null;
   previousSortOrder?: number | null;
+  deleteRemark?: string | null;
 }): BillLineItemHistoryEntry {
   return {
     id: record.id,
@@ -53,5 +54,6 @@ export function mapLineItemHistoryRecord(record: {
     previousDescription: record.previousDescription ?? null,
     previousAmount: record.previousAmount ?? null,
     previousSortOrder: record.previousSortOrder ?? null,
+    deleteRemark: record.deleteRemark ?? null,
   };
 }
