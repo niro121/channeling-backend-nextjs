@@ -15,6 +15,12 @@ export type SendEmailResult = {
   messageId?: string;
 };
 
+export type SendEmailAttachment = {
+  filename: string;
+  content: Buffer | Uint8Array;
+  contentType?: string;
+};
+
 export type SendEmailOptions = {
   /** Override sender (default: SMTP_FROM or "Archmage HRM") */
   from?: string;
@@ -23,6 +29,7 @@ export type SendEmailOptions = {
   replyTo?: string;
   cc?: string | string[];
   bcc?: string | string[];
+  attachments?: SendEmailAttachment[];
 };
 
 function resolvePort(): number {
@@ -72,7 +79,14 @@ export async function sendEmail(
       html: options.html,
       replyTo: options.replyTo,
       cc: options.cc,
-      bcc: options.bcc
+      bcc: options.bcc,
+      attachments: options.attachments?.map((file) => ({
+        filename: file.filename,
+        content: Buffer.isBuffer(file.content)
+          ? file.content
+          : Buffer.from(file.content),
+        contentType: file.contentType
+      }))
     });
 
     return { status: true, messageId: info.messageId };

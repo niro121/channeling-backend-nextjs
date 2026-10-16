@@ -1234,6 +1234,10 @@ export type AppointmentLetterRecord = {
   status: AppointmentLetterStatus;
   letterGenerated: boolean;
   declineReason?: string;
+  /** Object storage key for generated PDF (Wave 10). */
+  letterFileKey?: string | null;
+  /** Linked Staff id after onboard (Wave 9). */
+  staffId?: string | null;
   createdAt: string;
   createdBy: string;
   updatedAt: string;

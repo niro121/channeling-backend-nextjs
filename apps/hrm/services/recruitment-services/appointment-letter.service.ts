@@ -6,10 +6,15 @@ import prisma, { Prisma } from '@/lib/prisma';
 import type { AuditUser } from '@/lib/audit-user';
 import { toAuditUser } from '@/lib/audit-user';
 import { generateRecordCode } from '@/lib/conventions/record-code-generator';
+import {
+  appointmentLetterPdfFileName,
+  ensureAppointmentLetterPdf
+} from '@/lib/helpers/recruitment/ensure-appointment-letter-pdf';
 import { sendEmail } from '@/lib/helpers/email';
 import { sendSms } from '@/lib/helpers/sms';
 import { resolveAuthUsers } from '@/lib/helpers/resolve-auth-users.helper';
 import { mapAppointmentLetterRecord } from '@/lib/mappers/appointment-letter.mapper';
+import { presignGetUrl } from '@/lib/s3';
 import { appointmentLetterEmailTemplate } from '@/lib/templates/email/appointment-letter';
 import { appointmentLetterSmsTemplate } from '@/lib/templates/sms/appointment-letter';
 import {
@@ -631,6 +636,7 @@ export async function generateAppointmentLetter(
   success: boolean;
   data?: AppointmentLetterRecord;
   message?: string;
+  pdfStored?: boolean;
   error?: { message?: string };
 }> {
   try {
@@ -661,11 +667,25 @@ export async function generateAppointmentLetter(
       }
     });
 
-    const [withUsers] = await resolveAuthUsers([updated]);
+    const pdf = await ensureAppointmentLetterPdf(
+      {
+        ...updated,
+        letterFileKey: existing.letterFileKey
+      },
+      { force: true, persist: true }
+    );
+
+    const refreshed = pdf.success
+      ? await prisma.appointmentLetter.findUnique({ where: { id } })
+      : updated;
+    const [withUsers] = await resolveAuthUsers([refreshed ?? updated]);
     return {
       success: true,
       data: mapAppointmentLetterRecord(withUsers),
-      message: 'Letter generated'
+      pdfStored: pdf.success,
+      message: pdf.success
+        ? 'Letter generated and PDF stored'
+        : `Letter generated (PDF storage pending: ${pdf.error})`
     };
   } catch (error: any) {
     console.error('generateAppointmentLetter error:', error);
@@ -685,6 +705,7 @@ export async function sendAppointmentLetter(
   message?: string;
   emailed?: boolean;
   smsSent?: boolean;
+  pdfAttached?: boolean;
   error?: { message?: string };
 }> {
   try {
@@ -728,6 +749,16 @@ export async function sendAppointmentLetter(
       };
     }
 
+    const pdf = await ensureAppointmentLetterPdf(existing, {
+      force: !existing.letterFileKey,
+      persist: true
+    });
+    const pdfAttachedReady = pdf.success;
+    const failures: string[] = [];
+    if (!pdf.success) {
+      failures.push(`PDF attachment skipped: ${pdf.error}`);
+    }
+
     const templateInput = {
       candidateName: existing.candidateName,
       letterNumber: existing.letterNumber,
@@ -739,14 +770,26 @@ export async function sendAppointmentLetter(
 
     let emailed = false;
     let smsSent = false;
-    const failures: string[] = [];
+    let pdfAttached = false;
 
     if (email) {
       const content = appointmentLetterEmailTemplate(templateInput);
       const sent = await sendEmail(email, content.subject, content.text, {
-        html: content.html
+        html: content.html,
+        ...(pdf.success
+          ? {
+              attachments: [
+                {
+                  filename: appointmentLetterPdfFileName(existing.letterNumber),
+                  content: pdf.bytes,
+                  contentType: 'application/pdf'
+                }
+              ]
+            }
+          : {})
       });
       emailed = sent.status;
+      pdfAttached = Boolean(sent.status && pdf.success);
       if (!sent.status) {
         failures.push(sent.error ?? 'Email failed');
       }
@@ -781,6 +824,9 @@ export async function sendAppointmentLetter(
       where: { id },
       data: {
         status: 'issued',
+        ...(pdfAttachedReady && pdf.success
+          ? { letterFileKey: pdf.fileKey }
+          : {}),
         ...(auditUser?.id && { updatedBy: auditUser.id })
       }
     });
@@ -816,15 +862,72 @@ export async function sendAppointmentLetter(
       data: mapAppointmentLetterRecord(withUsers),
       emailed,
       smsSent,
+      pdfAttached,
       message: `Letter issued via ${channels.join(' + ')}${
-        failures.length ? ` (${failures.join('; ')})` : ''
-      }`
+        pdfAttached ? ' with PDF' : ''
+      }${failures.length ? ` (${failures.join('; ')})` : ''}`
     };
   } catch (error: any) {
     console.error('sendAppointmentLetter error:', error);
     return {
       success: false,
       error: { message: error.message || 'Failed to send appointment letter' }
+    };
+  }
+}
+
+/** Ensures PDF exists and returns a short-lived download URL. */
+export async function getAppointmentLetterDownloadUrl(id: string): Promise<{
+  success: boolean;
+  url?: string;
+  fileName?: string;
+  error?: { message?: string };
+}> {
+  try {
+    if (!id) {
+      return { success: false, error: { message: 'Invalid letter ID' } };
+    }
+    const existing = await prisma.appointmentLetter.findUnique({
+      where: { id }
+    });
+    if (!existing) {
+      return { success: false, error: { message: 'Appointment letter not found' } };
+    }
+    if (!existing.letterGenerated) {
+      return {
+        success: false,
+        error: { message: 'Generate the letter before downloading' }
+      };
+    }
+
+    const pdf = await ensureAppointmentLetterPdf(existing, {
+      force: false,
+      persist: true
+    });
+    if (!pdf.success) {
+      return {
+        success: false,
+        error: {
+          message:
+            pdf.error ||
+            'PDF is not available yet. Configure S3 storage and generate again.'
+        }
+      };
+    }
+
+    const url = await presignGetUrl(pdf.fileKey);
+    return {
+      success: true,
+      url,
+      fileName: appointmentLetterPdfFileName(existing.letterNumber)
+    };
+  } catch (error: any) {
+    console.error('getAppointmentLetterDownloadUrl error:', error);
+    return {
+      success: false,
+      error: {
+        message: error.message || 'Failed to prepare letter download'
+      }
     };
   }
 }

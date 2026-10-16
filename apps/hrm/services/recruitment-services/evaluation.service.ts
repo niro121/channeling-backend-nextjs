@@ -6,6 +6,7 @@ import prisma, { Prisma } from '@/lib/prisma';
 import type { AuditUser } from '@/lib/audit-user';
 import { toAuditUser } from '@/lib/audit-user';
 import { generateRecordCode } from '@/lib/conventions/record-code-generator';
+import { notifyCandidate } from '@/lib/helpers/recruitment/notify-candidate';
 import { resolveAuthUsers } from '@/lib/helpers/resolve-auth-users.helper';
 import {
   mapEvaluationRecord,
@@ -13,6 +14,8 @@ import {
   parseEvaluationRatings,
   type EvaluationDbRecord
 } from '@/lib/mappers/evaluation.mapper';
+import { evaluationOutcomeEmailTemplate } from '@/lib/templates/email/recruitment';
+import { evaluationOutcomeSmsTemplate } from '@/lib/templates/sms/recruitment';
 import {
   EVALUATION_CODE_PREFIX,
   EVALUATION_CRITERIA,
@@ -503,10 +506,10 @@ async function updateEvaluationContent(
       const application = await prisma.application.findUnique({
         where: { id: existing.applicationId }
       });
+      const positive =
+        data.finalDecision === 'recommended' ||
+        data.finalDecision === 'recommended_with_conditions';
       if (application && application.status === 'active') {
-        const positive =
-          data.finalDecision === 'recommended' ||
-          data.finalDecision === 'recommended_with_conditions';
         await prisma.application.update({
           where: { id: application.id },
           data: {
@@ -538,6 +541,26 @@ async function updateEvaluationContent(
             status: 'completed',
             ...(auditUser?.id && { updatedBy: auditUser.id })
           }
+        });
+      }
+
+      // Candidate-safe outcome only — no score, notes, or internal decision labels.
+      if (application) {
+        await notifyCandidate({
+          contact: {
+            email: application.candidateEmail,
+            phone: application.candidatePhone
+          },
+          email: evaluationOutcomeEmailTemplate({
+            candidateName: application.candidateName,
+            position: application.jobTitle || existing.jobTitle || 'the role',
+            progressed: positive
+          }),
+          smsText: evaluationOutcomeSmsTemplate({
+            candidateName: application.candidateName,
+            position: application.jobTitle || existing.jobTitle || 'the role',
+            progressed: positive
+          })
         });
       }
     }

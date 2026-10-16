@@ -476,7 +476,7 @@ export default function SheetResumeBankForm({
                   fileName={formik.values.resumeFileName}
                   pendingFile={pendingResumeFile}
                   disabled={saving}
-                  hint="PDF or image. Uploads to storage when you save."
+                  hint="PDF or image, max 10 MB. Uploads to storage when you save."
                   styleClasses={fieldStyleClasses}
                   onChange={(next) => {
                     setPendingResumeFile(next.pendingFile);

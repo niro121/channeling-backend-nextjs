@@ -1,14 +1,17 @@
 'use client';
 
+import { useState } from 'react';
 import { format, parseISO } from 'date-fns';
-import { Download, Printer } from 'lucide-react';
+import { Download, Loader2, Printer } from 'lucide-react';
 import { Button, CustomDialog, useToast } from '@archmage/ui';
+import { getAppointmentLetterDownloadUrlAction } from '@/app/actions/recruitment-actions/appointment-letter.actions';
 import { buttonStyles } from '@/lib/utils/common-styles';
 import {
   PROBATION_PERIOD_OPTIONS,
   VACANCY_EMPLOYMENT_TYPE_LABELS,
   type AppointmentLetterRecord
 } from '@/types/recruitment';
+import { printAppointmentLetter } from './appointment-letter-print';
 
 type DialogLetterPreviewProps = {
   open: boolean;
@@ -34,9 +37,40 @@ export default function DialogLetterPreview({
   record
 }: DialogLetterPreviewProps) {
   const { toast } = useToast();
+  const [loading, setLoading] = useState(false);
   const title = record
     ? `Appointment Letter · ${record.letterNumber}`
     : 'Appointment Letter';
+
+  const handleDownloadPdf = async () => {
+    if (!record) return;
+    setLoading(true);
+    const result = await getAppointmentLetterDownloadUrlAction(record.id);
+    setLoading(false);
+    if (result.isError || !result.data?.url) {
+      toast({
+        variant: 'destructive',
+        title: 'Download unavailable',
+        description:
+          (result.errors as { message?: string })?.message ??
+          'Configure S3 storage and generate the letter again.'
+      });
+      return;
+    }
+    window.open(result.data.url, '_blank', 'noopener,noreferrer');
+  };
+
+  const handlePrint = () => {
+    if (!record) return;
+    const ok = printAppointmentLetter(record);
+    if (!ok) {
+      toast({
+        variant: 'destructive',
+        title: 'Print blocked',
+        description: 'Allow pop-ups to print the appointment letter.'
+      });
+    }
+  };
 
   return (
     <CustomDialog open={open} setOpen={setOpen} title={title}>
@@ -71,7 +105,8 @@ export default function DialogLetterPreview({
               </p>
               <p>
                 Your remuneration will be <strong>{record.salary}</strong>.
-                Probation period: <strong>{probationLabel(record.probationPeriod)}</strong>.
+                Probation period:{' '}
+                <strong>{probationLabel(record.probationPeriod)}</strong>.
               </p>
               {record.reportingLocation ? (
                 <p>
@@ -104,26 +139,21 @@ export default function DialogLetterPreview({
                 type="button"
                 variant="outline"
                 className={`${buttonStyles.cancel.healthy} gap-1.5`}
-                onClick={() =>
-                  toast({
-                    title: 'Download',
-                    description: `PDF download for ${record.letterNumber} will be wired when document storage is available.`
-                  })
-                }
+                disabled={loading}
+                onClick={() => void handleDownloadPdf()}
               >
-                <Download className="h-4 w-4" />
+                {loading ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Download className="h-4 w-4" />
+                )}
                 PDF
               </Button>
               <Button
                 type="button"
                 variant="outline"
                 className={`${buttonStyles.saveAndClose} gap-1.5`}
-                onClick={() =>
-                  toast({
-                    title: 'Print',
-                    description: `Print for ${record.letterNumber} will be wired when document storage is available.`
-                  })
-                }
+                onClick={handlePrint}
               >
                 <Printer className="h-4 w-4" />
                 Print

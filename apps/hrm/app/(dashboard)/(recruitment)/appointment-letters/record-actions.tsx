@@ -31,6 +31,7 @@ import {
   acceptAppointmentLetterAction,
   declineAppointmentLetterAction,
   generateAppointmentLetterAction,
+  getAppointmentLetterDownloadUrlAction,
   sendAppointmentLetterAction
 } from '@/app/actions/recruitment-actions/appointment-letter.actions';
 import { usePermissions } from '@/components/hooks/use-permissions';
@@ -45,6 +46,7 @@ import {
   canSendAppointmentLetter,
   type AppointmentLetterRecord
 } from '@/types/recruitment';
+import { printAppointmentLetter } from './appointment-letter-print';
 import { useAppointmentLettersUi } from './appointment-letters-ui-context';
 
 type AppointmentLetterRecordActionsProps = {
@@ -88,10 +90,40 @@ export default function AppointmentLetterRecordActions({
     toast({
       variant: 'success',
       title: 'Letter generated',
-      description: `Appointment letter for ${result.data.record.candidateName} is ready to preview.`
+      description:
+        (result.data as { message?: string }).message ??
+        `Appointment letter for ${result.data.record.candidateName} is ready to preview.`
     });
     openLetterPreview(result.data.record);
     router.refresh();
+  };
+
+  const handleDownloadPdf = async () => {
+    setLoading(true);
+    const result = await getAppointmentLetterDownloadUrlAction(record.id);
+    setLoading(false);
+    if (result.isError || !result.data?.url) {
+      toast({
+        variant: 'destructive',
+        title: 'Download unavailable',
+        description:
+          (result.errors as { message?: string })?.message ??
+          'Configure S3 storage and generate the letter again.'
+      });
+      return;
+    }
+    window.open(result.data.url, '_blank', 'noopener,noreferrer');
+  };
+
+  const handlePrint = () => {
+    const ok = printAppointmentLetter(record);
+    if (!ok) {
+      toast({
+        variant: 'destructive',
+        title: 'Print blocked',
+        description: 'Allow pop-ups to print the appointment letter.'
+      });
+    }
   };
 
   const handleSend = async () => {
@@ -220,12 +252,8 @@ export default function AppointmentLetterRecordActions({
               variant="ghost"
               className="h-8 w-8 text-muted-foreground hover:text-foreground"
               aria-label={`Download PDF for ${record.letterNumber}`}
-              onClick={() =>
-                toast({
-                  title: 'Download',
-                  description: `PDF download for ${record.letterNumber} will be wired when document storage is available.`
-                })
-              }
+              disabled={loading}
+              onClick={() => void handleDownloadPdf()}
             >
               <Download className="h-4 w-4" />
             </Button>
@@ -235,12 +263,7 @@ export default function AppointmentLetterRecordActions({
               variant="ghost"
               className="h-8 w-8 text-muted-foreground hover:text-foreground"
               aria-label={`Print ${record.letterNumber}`}
-              onClick={() =>
-                toast({
-                  title: 'Print',
-                  description: `Print for ${record.letterNumber} will be wired when document storage is available.`
-                })
-              }
+              onClick={handlePrint}
             >
               <Printer className="h-4 w-4" />
             </Button>

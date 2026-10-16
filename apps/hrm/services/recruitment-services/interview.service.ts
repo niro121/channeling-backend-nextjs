@@ -6,8 +6,17 @@ import prisma, { Prisma } from '@/lib/prisma';
 import type { AuditUser } from '@/lib/audit-user';
 import { toAuditUser } from '@/lib/audit-user';
 import { generateRecordCode } from '@/lib/conventions/record-code-generator';
+import { notifyCandidate } from '@/lib/helpers/recruitment/notify-candidate';
 import { resolveAuthUsers } from '@/lib/helpers/resolve-auth-users.helper';
 import { mapInterviewRecord } from '@/lib/mappers/interview.mapper';
+import {
+  interviewCancelledEmailTemplate,
+  interviewRescheduledEmailTemplate
+} from '@/lib/templates/email/recruitment';
+import {
+  interviewCancelledSmsTemplate,
+  interviewRescheduledSmsTemplate
+} from '@/lib/templates/sms/recruitment';
 import {
   INTERVIEW_CODE_PREFIX,
   INTERVIEW_TYPES,
@@ -206,6 +215,14 @@ function buildInterviewWhere(
   }
 
   return and.length ? { AND: and } : {};
+}
+
+function toYmdLabel(date?: Date | null): string {
+  if (!date) return '—';
+  const y = date.getFullYear();
+  const m = `${date.getMonth() + 1}`.padStart(2, '0');
+  const d = `${date.getDate()}`.padStart(2, '0');
+  return `${y}-${m}-${d}`;
 }
 
 function historyEntry(
@@ -647,6 +664,32 @@ export async function rescheduleInterview(
           ...(auditUser?.id && { updatedBy: auditUser.id })
         }
       });
+
+      const dateLabel = toYmdLabel(updated.interviewDate);
+      const email = interviewRescheduledEmailTemplate({
+        candidateName: updated.candidateName,
+        position: updated.jobTitle,
+        interviewCode: updated.interviewCode,
+        interviewDate: dateLabel,
+        startTime: updated.startTime,
+        endTime: updated.endTime,
+        location: updated.location,
+        interviewType: updated.interviewType,
+        notesToCandidate: updated.notesToCandidate
+      });
+      await notifyCandidate({
+        contact: {
+          email: application.candidateEmail,
+          phone: application.candidatePhone
+        },
+        email,
+        smsText: interviewRescheduledSmsTemplate({
+          candidateName: updated.candidateName,
+          position: updated.jobTitle,
+          interviewDate: dateLabel,
+          startTime: updated.startTime
+        })
+      });
     }
 
     const [withUsers] = await resolveAuthUsers([updated]);
@@ -722,6 +765,24 @@ export async function cancelInterview(
           ],
           ...(auditUser?.id && { updatedBy: auditUser.id })
         }
+      });
+
+      // Candidate-facing copy omits cancelReason (may be internal).
+      const email = interviewCancelledEmailTemplate({
+        candidateName: updated.candidateName,
+        position: updated.jobTitle,
+        interviewCode: updated.interviewCode
+      });
+      await notifyCandidate({
+        contact: {
+          email: application.candidateEmail,
+          phone: application.candidatePhone
+        },
+        email,
+        smsText: interviewCancelledSmsTemplate({
+          candidateName: updated.candidateName,
+          position: updated.jobTitle
+        })
       });
     }
 

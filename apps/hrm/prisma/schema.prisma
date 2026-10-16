@@ -1749,7 +1749,7 @@ model AppointmentLetter {
   letterGenerated Boolean @default(false)
   declineReason   String?
 
-  /// Object storage key — populated in Wave 10 document storage.
+  /// Object storage key for generated appointment-letter PDF (S3).
   letterFileKey String?
 
   /// Wave 9 — Staff created from this letter (onboarding handoff).

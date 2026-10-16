@@ -39,6 +39,8 @@ export type AppointmentLetterDbRecord = {
   status: string;
   letterGenerated: boolean;
   declineReason?: string | null;
+  letterFileKey?: string | null;
+  staffId?: string | null;
   createdAt: Date;
   updatedAt: Date;
   createdUser?: { name: string } | null;
@@ -70,6 +72,8 @@ export function mapAppointmentLetterRecord(
     status: record.status as AppointmentLetterStatus,
     letterGenerated: record.letterGenerated,
     declineReason: record.declineReason ?? undefined,
+    letterFileKey: record.letterFileKey ?? null,
+    staffId: record.staffId ?? null,
     createdAt: toIso(record.createdAt),
     createdBy: record.createdUser?.name ?? '',
     updatedAt: toIso(record.updatedAt),

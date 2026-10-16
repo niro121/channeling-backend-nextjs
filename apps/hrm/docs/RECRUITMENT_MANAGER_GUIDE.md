@@ -232,10 +232,14 @@ Use existing Sequence pattern (like Staff / Leave): e.g. `VR-…`, `JP-…`, `RB
 
 `EVALUATION_CRITERIA` / ratings / scores in `types/recruitment.ts`; Wave 7 persists ratings as JSON on `Evaluation`. Optional later: criteria master table — **not required for v1**.
 
-### Documents
+### Documents & notify (Wave 10 — done)
 
-Defer to Wave 10: store object keys (S3 / local) on ResumeBank / Application / AppointmentLetter. UI already toasts for download/print.  
-Public apply (Wave 11) should call the same storage helpers once Wave 10 exists; until then, accept metadata-only or block file upload behind a feature flag.
+- **Resumes/CVs:** Application + Resume Bank use `commitPendingUpload` → S3 (`resumes/` prefix); keys on `resumeFileKey` / `resumeFileName`. Max **10 MB**; PDF or images.
+- **Appointment letter PDF:** `jspdf` builds English letter on **Generate** (force) and **Send** (if key missing); stored under `appointment-letters/` as `letterFileKey`. Download via presigned GET; Print uses browser HTML (works without S3).
+- **Send:** Email body + optional PDF attachment; SMS unchanged. Soft-warn if S3/SMTP missing — body notify can still succeed without attachment.
+- **Candidate notifications (email + SMS, no internal notes):** interview reschedule/cancel; application shortlist/reject; evaluation submit outcome; appointment letter send.
+- Env: `S3_BUCKET`, `AWS_*`, optional `S3_*_PREFIX`; SMTP/SMS already used by letter send.
+- Public apply (Wave 11) should reuse the same S3 helpers for CV upload.
 
 ---
 
@@ -315,7 +319,7 @@ All under `app/(dashboard)/(recruitment)/`.
 | Criteria | 8 consts; live overall score; cached `overallScore` on save/submit |
 | Actions | Save draft, submit confirm, preview; register View / Edit (pencil) / Mail → appointment letters |
 | Load UX | `?interviewId=` get-or-create draft from Interview; `?evaluationId=`; else first draft |
-| Submit side-effects | Interview → `completed`; Application history entry; positive decision may set Application stage → `selected` |
+| Submit side-effects | Interview → `completed`; Application history entry; positive decision may set Application stage → `selected`; candidate email/SMS outcome (no score/notes leak) |
 | Service | `evaluation.service.ts` + `evaluation.actions.ts` |
 | Footer | Interview Schedule ← → Appointment Letters |
 
@@ -325,10 +329,11 @@ All under `app/(dashboard)/(recruitment)/`.
 |---------|--------|
 | Persistence | `AppointmentLetter` model (`LETTER-*`); 1:1 FK to Evaluation; Sequence prefix `LETTER` |
 | Create/Edit | Sheet; Save Draft (candidate = submitted Evaluation without a letter) |
-| Generate | Paper icon + View dialog → sets `letterGenerated`, status → `pending_approval` when from draft; preview dialog |
-| Send | Email (`lib/helpers/email`) + SMS (`lib/helpers/sms`) using Application contact; status → `issued`; Application stage → `offer` |
+| Generate | Paper icon → sets `letterGenerated`, status → `pending_approval` when from draft; builds/stores PDF (`letterFileKey`) when S3 configured; preview dialog |
+| Send | Email (+ PDF attachment when available) + SMS using Application contact; status → `issued`; Application stage → `offer` |
+| Download / Print | Download → ensure PDF + presigned URL; Print → browser HTML (`appointment-letter-print.ts`) |
 | Accept / Decline | Accept → `accepted` + Application `hired`; Decline (+ reason) → `declined` |
-| Other | PDF/Print deferred to Wave 10; Staff onboarding link when accepted |
+| Other | Staff onboarding link when accepted (`/staff/onboard`) |
 | Load UX | `?evaluationId=` opens create sheet when no letter yet |
 | Service | `appointment-letter.service.ts` + `appointment-letter.actions.ts` |
 | Status gating | See helpers in `types/recruitment.ts` (`canGenerate…`, `canSend…`, etc.) |
@@ -433,7 +438,7 @@ Public routes call **services** directly (with machine auth), not dashboard serv
 | 2 | Cannot publish without required fields (incl. slug); close stops new applications |
 | 3–4 | Add-to-job creates Application; duplicate candidate handling |
 | 5 | Shortlist / hold / reject update Application stage + shortlist status |
-| 6 | Reschedule sets `rescheduled`; cancel notifies (when Wave 10 exists) |
+| 6 | Reschedule sets `rescheduled`; cancel/reschedule notify candidate (email/SMS) |
 | 7 | Submit locks evaluation; score matches rating average |
 | 8 | Accept unlocks Staff onboard; decline blocks generate send path |
 | 9 | Prefill Staff from letter without losing audit trail |
@@ -443,11 +448,11 @@ Public routes call **services** directly (with machine auth), not dashboard serv
 
 ---
 
-## 12. Out of scope for Phase 0 (already deferred)
+## 12. Out of scope / deferred
 
-- Real PDF generation / email sending (Wave 10)  
+- Letterhead logo / bilingual letter templates (English-only PDF for now)  
 - Criteria master CRUD  
-- Public Careers API + website cutover (Waves 11–12 — **in scope after internal pipeline**, not Phase 0)  
+- Public Careers API + website cutover (Waves 11–12)  
 - Multi-tenant institution scoping (follow Staff when added)  
 - Full channeling sync for hired staff (use existing Staff sync after onboard)
 

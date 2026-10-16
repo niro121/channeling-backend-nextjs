@@ -10,6 +10,7 @@ import {
   declineAppointmentLetter,
   generateAppointmentLetter,
   getAppointmentLetterById,
+  getAppointmentLetterDownloadUrl,
   getAppointmentLetterSummary,
   getAppointmentLetters,
   getAppointmentLettersForExport,
@@ -313,7 +314,12 @@ export async function generateAppointmentLetterAction(id: string) {
     revalidatePath(LETTERS_PATH);
     return {
       isError: false,
-      data: { saved: true, record: result.data },
+      data: {
+        saved: true,
+        record: result.data,
+        pdfStored: result.pdfStored,
+        message: result.message
+      },
       errors: {}
     };
   } catch (error: any) {
@@ -323,6 +329,38 @@ export async function generateAppointmentLetterAction(id: string) {
       data: null,
       errors: {
         message: error.message ?? 'Something went wrong. Please try again later'
+      }
+    };
+  }
+}
+
+export async function getAppointmentLetterDownloadUrlAction(id: string) {
+  try {
+    await requirePermission('recruitment', 'view');
+    const result = await getAppointmentLetterDownloadUrl(id);
+    if (!result.success || !result.url) {
+      return {
+        isError: true,
+        data: null,
+        errors: {
+          message:
+            result.error?.message ??
+            'Could not prepare PDF download. Check S3 configuration.'
+        }
+      };
+    }
+    return {
+      isError: false,
+      data: { url: result.url, fileName: result.fileName },
+      errors: {}
+    };
+  } catch (error: any) {
+    console.error('getAppointmentLetterDownloadUrlAction error:', error);
+    return {
+      isError: true,
+      data: null,
+      errors: {
+        message: error.message ?? 'Could not prepare PDF download'
       }
     };
   }
@@ -365,6 +403,7 @@ export async function sendAppointmentLetterAction(id: string) {
         record: result.data,
         emailed: result.emailed,
         smsSent: result.smsSent,
+        pdfAttached: result.pdfAttached,
         message: result.message
       },
       errors: {}
