@@ -34,6 +34,8 @@ export type CancelPatientBillResult =
  * Refund method is chosen by the user (may differ from original payment methods).
  * Closed bills stay non-editable — cancel is the supported reversal path.
  * Blocked when any line item is still linked to a non-cancelled doctor payment.
+ * Open bills are also blocked while active doctor charges remain; remove those lines first.
+ * Closed bills skip that line-item check because their lines cannot be removed.
  * Single-receipt cancel remains blocked on closed bills (use full bill cancel instead).
  */
 export async function cancelPatientBill(
@@ -96,6 +98,17 @@ export async function cancelPatientBill(
       success: false,
       message:
         'Cannot cancel this bill because doctor fees have already been paid. Cancel the related doctor payment first.',
+    };
+  }
+
+  const hasActiveLineItems = bill.lineItems.some(
+    (item) => !isDeletedLineItem({ status: normalizeLineItemStatus(item.status) })
+  );
+  if (bill.status !== 'closed' && hasActiveLineItems) {
+    return {
+      success: false,
+      message:
+        'Cannot cancel this bill while doctor charges are still on it. Remove the bill line items first.',
     };
   }
 

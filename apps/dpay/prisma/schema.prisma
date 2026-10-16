@@ -58,6 +58,7 @@ model PatientBillItem {
   deletedAt       DateTime?
   deletedBy       String?   @db.ObjectId
   deletedByName   String?
+  deleteRemark    String?
   createdBy       String?   @db.ObjectId
   createdByName   String?
   createdAt       DateTime  @default(now())
@@ -86,6 +87,7 @@ model PatientBillItemHistory {
   previousDescription String?
   previousAmount      Float?
   previousSortOrder   Int?
+  deleteRemark        String?
 
   @@index([lineItemId, changedAt])
   @@index([billId])
