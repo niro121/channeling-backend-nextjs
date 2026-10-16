@@ -57,6 +57,7 @@ type BillDetailRecord = {
     doctorPaymentId?: string | null;
     deletedAt?: Date | null;
     deletedByName?: string | null;
+    deleteRemark?: string | null;
   }>;
   receipts: Array<{
     id: string;
@@ -99,6 +100,7 @@ function mapLineItems(
       doctorPaymentId: item.doctorPaymentId ?? null,
       deletedAt: item.deletedAt?.toISOString() ?? null,
       deletedByName: item.deletedByName ?? null,
+      deleteRemark: item.deleteRemark ?? null,
     }));
 }
 
