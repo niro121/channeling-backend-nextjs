@@ -9,7 +9,8 @@ Roster & Shifts: see **`ROSTER_SHIFTS_MANAGER_GUIDE.md`** (UI-first Shift Roster
 Staff Attendance (RFID / finger-scan): see **`STAFF_ATTENDANCE_ARCHITECTURE.md`** (architecture, device install, ingest API, day rules, phased plan). In-app hub: **`/attendance`** (Guide).  
 HR Administration: see **`docs/HR_ADMINISTRATION_GUIDE.md`** (module-wise planning; Paysheet Components section 36; HRM Variable section 37; Manage Shifts deferred in section 34).  
 Payroll: see **`docs/PAYROLL_MANAGER_GUIDE.md`** (Phase 0 UI complete; dynamization Waves 0 / M1–M12; PC5 / HV5 / SC5 consumers).  
-Recruitment: see **`RECRUITMENT_MANAGER_GUIDE.md`** (Phase 0 UI complete; Waves 0–10 dynamization order: Vacancy → Job Posts → Resume Bank → Applications → Shortlisting → Interviews → Evaluation → Appointment Letters → Staff handoff → Documents).
+Recruitment: see **`RECRUITMENT_MANAGER_GUIDE.md`** (Phase 0 UI complete; Waves 0–10 dynamization order: Vacancy → Job Posts → Resume Bank → Applications → Shortlisting → Interviews → Evaluation → Appointment Letters → Staff handoff → Documents).  
+Public Careers API (Wave 11+): see **`PUBLIC_CAREERS_API_GUIDE.md`** (API User + API Clients, client credentials token, phased public release).
 
 Related Channeling docs (patterns only; do not copy Channeling’s single-form staff UI into HRM):
 

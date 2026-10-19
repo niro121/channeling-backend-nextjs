@@ -1,7 +1,7 @@
 # Recruitment Manager — Development Guide
 
 Guidance for building and dynamizing recruitment features in `apps/hrm`.  
-Use with `HRM_DEVELOPMENT_GUIDELINES.md` (layered architecture) and `PERMISSION_FLOW.md` (Auth User Group grants).
+Use with `HRM_DEVELOPMENT_GUIDELINES.md` (layered architecture), `PERMISSION_FLOW.md` (Auth User Group grants), and **`PUBLIC_CAREERS_API_GUIDE.md`** (Wave 11+ public API auth, API Users / API Clients, phased release).
 
 **Status:** Phase 0 UI complete for the full pipeline (sample data + toast-only mutations).  
 **Ownership:** HRM is the **system of record** for vacancies, job posts, applications, and hiring. The official website is a **public channel** only (display + apply).  
@@ -181,12 +181,15 @@ Implement backend + wire UI **one wave at a time**. Within each module wave: sch
 
 ### Wave 11 checklist (Public Careers API)
 
-1. Public routes under something like `apps/hrm/app/api/public/careers/…`  
-2. Machine auth (API key or OAuth client credentials — pick one pattern and document in `.env.example`)  
-3. Map published `JobPost` → public DTO (no internal fields)  
-4. `POST` apply → Application service (validation, duplicate policy, CV upload when Wave 10 ready)  
-5. Rate limiting / basic abuse controls on apply  
-6. Contract tests or smoke checklist for website team
+Full architecture: **`PUBLIC_CAREERS_API_GUIDE.md`**.
+
+1. P0–P1: API User (CustomSelectField) + API Clients module (ID/secret, acting user)  
+2. P2: `POST /api/public/careers/token` (client credentials → Bearer JWT)  
+3. Public routes under `apps/hrm/app/api/public/careers/…`  
+4. Map published `JobPost` → public DTO (no internal fields)  
+5. `POST` apply → Application service (validation, duplicate policy, CV upload / Wave 10 S3)  
+6. Scopes + `CAREERS_PUBLIC_APPLY_ENABLED` + rate limiting  
+7. Contract tests or smoke checklist for website team
 
 ### Wave 12 checklist (Website cutover)
 
