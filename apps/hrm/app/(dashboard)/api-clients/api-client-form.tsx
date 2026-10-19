@@ -52,9 +52,9 @@ const styleClasses = {
 export default function ApiClientForm({ apiClient }: ApiClientFormProps) {
   const isEdit = Boolean(apiClient?.id);
   const [loading, setLoading] = useState(false);
-  const [userOptions, setUserOptions] = useState<{ id: string; name: string }[]>(
-    []
-  );
+  const [userOptions, setUserOptions] = useState<
+    { id: string; name: string }[]
+  >([]);
   const [userOptionsLoading, setUserOptionsLoading] = useState(false);
   const [createdSecret, setCreatedSecret] = useState<{
     clientId: string;
@@ -77,10 +77,9 @@ export default function ApiClientForm({ apiClient }: ApiClientFormProps) {
     name: apiClient?.name ?? '',
     actingUserId: apiClient?.actingUserId ?? '',
     isBlocked: apiClient?.isBlocked ?? false,
-    scopes:
-      apiClient?.scopes?.length
-        ? [...apiClient.scopes]
-        : [...DEFAULT_PUBLIC_API_SCOPES]
+    scopes: apiClient?.scopes?.length
+      ? [...apiClient.scopes]
+      : [...DEFAULT_PUBLIC_API_SCOPES]
   };
 
   const validationSchema = Yup.object({
@@ -90,9 +89,7 @@ export default function ApiClientForm({ apiClient }: ApiClientFormProps) {
       .max(150, 'Must be less than 150 characters'),
     actingUserId: Yup.string().required('API User is required'),
     isBlocked: Yup.boolean().required(),
-    scopes: Yup.array()
-      .of(Yup.string())
-      .min(1, 'Select at least one scope')
+    scopes: Yup.array().of(Yup.string()).min(1, 'Select at least one scope')
   });
 
   const handleSubmit = async (
@@ -258,18 +255,21 @@ export default function ApiClientForm({ apiClient }: ApiClientFormProps) {
                   <Label className={styleClasses.labelClassName}>
                     Client ID
                   </Label>
-                  <p className={`${styleClasses.inputClassName} font-mono text-sm break-all`}>
+                  <p
+                    className={`${styleClasses.inputClassName} font-mono text-sm break-all`}
+                  >
                     {apiClient.clientId}
                   </p>
                 </div>
               ) : null}
-
-              <CustomFormSubmitBtns
-                loading={loading}
-                onCancel={() => router.push('/api-clients')}
-                onSave={() => void formik.submitForm()}
-                onSaveAndClose={() => void formik.submitForm()}
-              />
+              <div className="flex flex-col sm:flex-row justify-end gap-3 pt-4">
+                <CustomFormSubmitBtns
+                  loading={loading}
+                  onCancel={() => router.push('/api-clients')}
+                  onSave={() => void formik.submitForm()}
+                  onSaveAndClose={() => void formik.submitForm()}
+                />
+              </div>
             </div>
           </Form>
         )}
