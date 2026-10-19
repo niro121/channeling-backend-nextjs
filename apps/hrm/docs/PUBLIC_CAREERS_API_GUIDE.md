@@ -8,7 +8,7 @@ Use with:
 - `HRM_DEVELOPMENT_GUIDELINES.md` — layers, no shared Prisma across apps  
 - Channeling reference: `apps/channeling` API Clients + `/api/public/token` (same auth *shape*, Careers live in **HRM**)
 
-**Status:** Guidance only (pre-implementation).  
+**Status:** Guidance + **P0–P4 done** (through metadata apply). CV upload still pending (P5).  
 **Ownership:** HRM is system of record for job posts and applications. The website is a **public channel** (BFF → HRM HTTP only).
 
 ---
@@ -94,7 +94,7 @@ Service change required: HRM `user.service` today forces `userTypes.staff` — m
 | Create | Name + select **active API User** as `actingUserId` (`CustomSelectField`) |
 | Generate | `clientId` = UUID; `clientSecret` = high-entropy random; hash with argon2 |
 | Reveal secret | **Once** on create (and on explicit rotate) |
-| List / edit | Name, acting user, blocked flag, scopes (optional) |
+| List / edit | Name, acting user, blocked flag, **multi-select scopes** from `PUBLIC_API_SCOPES` (`lib/permissions.ts`) |
 | Block | `isBlocked = true` → token issue and Bearer verify fail immediately |
 | Rotate secret | New secret + hash; invalidate old secret |
 
@@ -140,6 +140,8 @@ model ApiClient {
 ```
 
 Defaults on create: at least `careers:read`. Add `careers:apply` when that phase is enabled for the client.
+
+**Catalog:** all allowed scope ids live in `apps/hrm/lib/permissions.ts` as `PUBLIC_API_SCOPES` (separate from dashboard `ROUTE_TO_RESOURCE`). Add future product scopes there; the API Clients multi-select and Zod validation both read from that list.
 
 ### 4.3 Existing domain (reuse)
 
@@ -214,12 +216,29 @@ Include only: title, slug, short/full description, department/designation labels
 
 ### 5.4 Apply rules
 
+`POST /api/public/careers/applications` (JSON):
+
+```json
+{
+  "jobSlug": "staff-nurse-icu",
+  "candidateName": "A. Perera",
+  "candidateEmail": "a.perera@example.com",
+  "candidatePhone": "0771234567",
+  "experienceYears": 3,
+  "qualifications": "BSc Nursing",
+  "skills": ["ICU", "ACL"]
+}
+```
+
+Success `201`: `{ "application": { "applicationId", "jobSlug", "jobTitle", "appliedDate", "acceptingApplications": true } }`
+
 - Job must be **published** and not closed/expired  
-- Duplicate policy: unique `(jobPostId, candidateEmail)` (existing Application rule)  
-- Validation: Zod in service (name, email, phone mobile rules)  
-- CV: multipart → Wave 10 `commitPendingUpload` / server-side S3 put under `resumes/`  
-- Feature flag: `CAREERS_PUBLIC_APPLY_ENABLED` (server) — reject apply with clear `503`/`403` when off  
-- Rate limiting on token + apply (implement in Wave 11 hardening)
+- Source fixed to `hospital_website`  
+- Duplicate policy: unique `(jobPostId, candidateEmail)` → HTTP `409`  
+- Validation: Zod (name, email, phone mobile rules)  
+- Feature flag: `CAREERS_PUBLIC_APPLY_ENABLED` — `503` when off  
+- CV: multipart → P5 (Wave 10 S3)  
+- Rate limiting on token + apply (Wave 11 hardening)
 
 ---
 
@@ -236,7 +255,8 @@ apps/hrm/
     public-careers-cors.ts             # PUBLIC_CAREERS_CORS_ORIGINS
 
   services/
-    api-client.service.ts              # CRUD + rotate + list API users
+    api-client-services/
+      api-client.service.ts            # CRUD + rotate + list API users
     public/
       careers-token.service.ts
     recruitment-services/
@@ -298,11 +318,11 @@ Document all new keys in `apps/hrm/.env.example` when implementing.
 
 | Phase | Deliverable | Exit criteria |
 |-------|-------------|---------------|
-| **P0** | User Type API User via CustomSelectField; service allows type 4 | Can create active API users; cannot dashboard-login as them |
-| **P1** | API Clients module + generate/rotate secret | Secret shown once; block works |
-| **P2** | `POST /token` + JWT helpers | Valid client gets token; bad/blocked get 401 |
-| **P3 (Wave 11a)** | `GET /jobs`, `GET /jobs/[slug]` | Only published/open posts; thin DTOs |
-| **P4 (Wave 11b)** | `POST /applications` (metadata) | Application appears in `/applications`; duplicates rejected |
+| **P0** | User Type API User via CustomSelectField; service allows type 4 | **Done** — create/edit API users in `/users`; cannot dashboard-login as them |
+| **P1** | API Clients module + generate/rotate secret | **Done** — `/api-clients`; secret shown once; block + rotate; scopes via `PUBLIC_API_SCOPES` |
+| **P2** | `POST /token` + JWT helpers | **Done** — `POST /api/public/careers/token`; JWT via `public-careers-auth`; blocked/bad secret → 401 |
+| **P3 (Wave 11a)** | `GET /jobs`, `GET /jobs/[slug]` | **Done** — published + not expired only; thin DTOs; scope `careers:read` |
+| **P4 (Wave 11b)** | `POST /applications` (metadata) | **Done** — slug + candidate fields; `careers:apply` + `CAREERS_PUBLIC_APPLY_ENABLED`; duplicates → 409 |
 | **P5 (Wave 11c)** | Multipart CV via S3 | `resumeFileKey` set; 10 MB / PDF+image rules |
 | **P6 (Wave 12)** | Website cutover + CMS migration | No dual write; CMS careers admin retired |
 

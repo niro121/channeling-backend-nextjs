@@ -1830,6 +1830,35 @@ model ResumeBankProfile {
 }
 
 /* ---------------------------------
+PUBLIC API CLIENTS (Careers machine auth)
+--------------------------------- */
+/// OAuth2-style client credentials for Public Careers API.
+/// actingUserId → Auth DB User.id (userType = apiUser). No cross-DB Prisma relation.
+model ApiClient {
+  id               String   @id @default(auto()) @map("_id") @db.ObjectId
+  /// OAuth client_id (UUID)
+  clientId         String   @unique
+  /// argon2 hash of client_secret — plaintext returned only once on create/rotate
+  clientSecretHash String
+  name             String
+  isBlocked        Boolean  @default(false)
+  /// Auth User.id — must be active API User (userType = 4)
+  actingUserId     String   @db.ObjectId
+  /// e.g. careers:read, careers:apply
+  scopes           String[] @default([])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy String?  @db.ObjectId
+  updatedBy String?  @db.ObjectId
+
+  @@index([isBlocked])
+  @@index([actingUserId])
+  @@index([name])
+  @@index([createdAt(sort: Desc)])
+}
+
+/* ---------------------------------
 SEQUENCE TABLE
 --------------------------------- */
 model Sequence {

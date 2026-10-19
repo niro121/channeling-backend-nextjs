@@ -1,8 +1,51 @@
 import { Permissions } from '@archmage/shared';
 
+/* -----------------------------------------------------------------------------
+ * Public API machine scopes (API Clients / Bearer tokens)
+ * Separate from dashboard User Group resources (view/add/edit/delete).
+ * Add new product scopes here as public APIs are released.
+ * -------------------------------------------------------------------------- */
+export const PUBLIC_API_SCOPES = [
+  {
+    id: 'careers:read',
+    label: 'Careers — Read jobs',
+    group: 'Careers'
+  },
+  {
+    id: 'careers:apply',
+    label: 'Careers — Submit applications',
+    group: 'Careers'
+  }
+] as const;
+
+export type PublicApiScopeId = (typeof PUBLIC_API_SCOPES)[number]['id'];
+
+/** Scope ids only — for Zod / persistence validation. */
+export const PUBLIC_API_SCOPE_IDS = PUBLIC_API_SCOPES.map(
+  (s) => s.id
+) as unknown as [PublicApiScopeId, ...PublicApiScopeId[]];
+
+/** Default scopes for a new API client (read-only Careers). */
+export const DEFAULT_PUBLIC_API_SCOPES: PublicApiScopeId[] = ['careers:read'];
+
+/** Options for CustomMultiSelect / forms. */
+export const PUBLIC_API_SCOPE_OPTIONS = PUBLIC_API_SCOPES.map((s) => ({
+  id: s.id,
+  name: s.label
+}));
+
+export function getPublicApiScopeLabel(scopeId: string): string {
+  return PUBLIC_API_SCOPES.find((s) => s.id === scopeId)?.label ?? scopeId;
+}
+
+export function isPublicApiScopeId(value: string): value is PublicApiScopeId {
+  return (PUBLIC_API_SCOPE_IDS as readonly string[]).includes(value);
+}
+
 export const ROUTE_TO_RESOURCE: Record<string, string> = {
   '/user-groups': 'users',
   '/users': 'users',
+  '/api-clients': 'users',
   '/staff': 'staff',
   // HR-Admin
   '/paysheet-components': 'paysheet-components',

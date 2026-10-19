@@ -183,12 +183,12 @@ Implement backend + wire UI **one wave at a time**. Within each module wave: sch
 
 Full architecture: **`PUBLIC_CAREERS_API_GUIDE.md`**.
 
-1. P0–P1: API User (CustomSelectField) + API Clients module (ID/secret, acting user)  
-2. P2: `POST /api/public/careers/token` (client credentials → Bearer JWT)  
-3. Public routes under `apps/hrm/app/api/public/careers/…`  
-4. Map published `JobPost` → public DTO (no internal fields)  
-5. `POST` apply → Application service (validation, duplicate policy, CV upload / Wave 10 S3)  
-6. Scopes + `CAREERS_PUBLIC_APPLY_ENABLED` + rate limiting  
+1. P0–P1: API User (CustomSelectField) + API Clients module (ID/secret, acting user) — **Done**
+2. P2: `POST /api/public/careers/token` (client credentials → Bearer JWT) — **Done**
+3. P3: `GET /api/public/careers/jobs` (+ by slug); thin public DTOs — **Done**
+4. P4: `POST /api/public/careers/applications` (metadata; flag + `careers:apply`) — **Done**
+5. P5: multipart CV via Wave 10 S3
+6. Rate limiting on token + apply (hardening)
 7. Contract tests or smoke checklist for website team
 
 ### Wave 12 checklist (Website cutover)
