@@ -8,7 +8,7 @@ Use with:
 - `HRM_DEVELOPMENT_GUIDELINES.md` — layers, no shared Prisma across apps  
 - Channeling reference: `apps/channeling` API Clients + `/api/public/token` (same auth *shape*, Careers live in **HRM**)
 
-**Status:** Guidance + **P0–P4 done** (through metadata apply). CV upload still pending (P5).  
+**Status:** Guidance + **P0–P5 done** (token, jobs, apply + optional CV). Website cutover is P6.  
 **Ownership:** HRM is system of record for job posts and applications. The website is a **public channel** (BFF → HRM HTTP only).
 
 ---
@@ -237,7 +237,8 @@ Success `201`: `{ "application": { "applicationId", "jobSlug", "jobTitle", "appl
 - Duplicate policy: unique `(jobPostId, candidateEmail)` → HTTP `409`  
 - Validation: Zod (name, email, phone mobile rules)  
 - Feature flag: `CAREERS_PUBLIC_APPLY_ENABLED` — `503` when off  
-- CV: multipart → P5 (Wave 10 S3)  
+- CV (optional): `multipart/form-data` field `resume` — PDF or image, ≤10 MB → S3 `resumes/`; response includes `hasResume`  
+- JSON body still supported for metadata-only apply  
 - Rate limiting on token + apply (Wave 11 hardening)
 
 ---
@@ -323,7 +324,7 @@ Document all new keys in `apps/hrm/.env.example` when implementing.
 | **P2** | `POST /token` + JWT helpers | **Done** — `POST /api/public/careers/token`; JWT via `public-careers-auth`; blocked/bad secret → 401 |
 | **P3 (Wave 11a)** | `GET /jobs`, `GET /jobs/[slug]` | **Done** — published + not expired only; thin DTOs; scope `careers:read` |
 | **P4 (Wave 11b)** | `POST /applications` (metadata) | **Done** — slug + candidate fields; `careers:apply` + `CAREERS_PUBLIC_APPLY_ENABLED`; duplicates → 409 |
-| **P5 (Wave 11c)** | Multipart CV via S3 | `resumeFileKey` set; 10 MB / PDF+image rules |
+| **P5 (Wave 11c)** | Multipart CV via S3 | **Done** — optional `resume` file; `resumeFileKey` set; 10 MB / PDF+image |
 | **P6 (Wave 12)** | Website cutover + CMS migration | No dual write; CMS careers admin retired |
 
 Safer default: ship **P3** to staging before enabling apply in production.

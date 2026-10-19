@@ -46,4 +46,14 @@ export type PublicApplyResult = {
   jobTitle: string;
   appliedDate: string;
   acceptingApplications: true;
+  /** True when a CV was stored on this application. */
+  hasResume: boolean;
+};
+
+/** Optional CV attached to public apply (server-side after multipart parse). */
+export type PublicApplyResumeFile = {
+  bytes: Uint8Array | Buffer;
+  fileName: string;
+  contentType: string;
+  sizeBytes: number;
 };

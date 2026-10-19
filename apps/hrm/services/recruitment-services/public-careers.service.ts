@@ -1,11 +1,16 @@
 import { z } from 'zod';
 import prisma, { Prisma } from '@/lib/prisma';
 import type { AuditUser } from '@/lib/audit-user';
+import {
+  deleteResumeQuietly,
+  putResumeBytes
+} from '@/lib/helpers/s3/put-resume-bytes';
 import { MOBILE_NUMBER_REGEX } from '@/lib/validations/phone-mobile';
 import type {
   ListPublicJobsParams,
   PublicApplyPayload,
   PublicApplyResult,
+  PublicApplyResumeFile,
   PublicJobDetail,
   PublicJobListItem
 } from '@/types/public-careers';
@@ -248,6 +253,7 @@ export type ApplyPublicJobResult =
         | 'not_found'
         | 'not_accepting'
         | 'validation_failed'
+        | 'invalid_resume'
         | 'duplicate'
         | 'server_error';
       message: string;
@@ -255,13 +261,16 @@ export type ApplyPublicJobResult =
     };
 
 /**
- * Public careers apply (metadata only — CV upload is P5).
+ * Public careers apply. Optional CV uploaded server-side to S3 (resumes/).
  * Resolves job by slug, enforces published + open, then reuses createApplication.
  */
 export async function applyPublicJob(
   payload: PublicApplyPayload,
-  actingUser: AuditUser
+  actingUser: AuditUser,
+  resume?: PublicApplyResumeFile | null
 ): Promise<ApplyPublicJobResult> {
+  let uploadedKey: string | null = null;
+
   try {
     if (!isCareersPublicApplyEnabled()) {
       return {
@@ -309,6 +318,30 @@ export async function applyPublicJob(
       };
     }
 
+    let resumeFileName = '';
+    let resumeFileKey: string | null = null;
+
+    if (resume) {
+      const uploaded = await putResumeBytes({
+        bytes: resume.bytes,
+        fileName: resume.fileName,
+        contentType: resume.contentType,
+        sizeBytes: resume.sizeBytes,
+        keySegments: ['application', 'public', job.slug]
+      });
+      if (!uploaded.success) {
+        return {
+          success: false,
+          code: 'invalid_resume',
+          message: uploaded.error,
+          issues: { resume: [uploaded.error] }
+        };
+      }
+      resumeFileName = uploaded.fileName;
+      resumeFileKey = uploaded.fileKey;
+      uploadedKey = uploaded.fileKey;
+    }
+
     const created = await createApplication(
       {
         candidateName: data.candidateName,
@@ -318,7 +351,9 @@ export async function applyPublicJob(
         qualifications: data.qualifications,
         skills: data.skills,
         jobPostId: job.id,
-        source: 'hospital_website'
+        source: 'hospital_website',
+        resumeFileName,
+        resumeFileKey
       },
       {
         id: actingUser.id,
@@ -327,6 +362,8 @@ export async function applyPublicJob(
     );
 
     if (!created.success || !created.data) {
+      if (uploadedKey) await deleteResumeQuietly(uploadedKey);
+
       const emailIssues = created.error?.issues?.candidateEmail;
       const isDuplicate =
         created.error?.message === 'Duplicate application' ||
@@ -356,10 +393,12 @@ export async function applyPublicJob(
         jobSlug: job.slug,
         jobTitle: job.jobTitle,
         appliedDate: created.data.appliedDate,
-        acceptingApplications: true
+        acceptingApplications: true,
+        hasResume: Boolean(resumeFileKey)
       }
     };
   } catch (error: unknown) {
+    if (uploadedKey) await deleteResumeQuietly(uploadedKey);
     console.error('applyPublicJob error:', error);
     return {
       success: false,
