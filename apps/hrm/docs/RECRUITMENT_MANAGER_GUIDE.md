@@ -3,9 +3,10 @@
 Guidance for building and dynamizing recruitment features in `apps/hrm`.  
 Use with `HRM_DEVELOPMENT_GUIDELINES.md` (layered architecture), `PERMISSION_FLOW.md` (Auth User Group grants), and **`PUBLIC_CAREERS_API_GUIDE.md`** (Wave 11+ public API auth, API Users / API Clients, phased release).
 
-**Status:** Phase 0 UI complete for the full pipeline (sample data + toast-only mutations).  
+**Status:** **HRM recruitment complete** — Waves 0–10 (dashboard modules) + Wave 11 (Public Careers API, playground, Postman, rate limits).  
+**Next:** **Wave 12** — website integration + CMS migration (see §4 Wave 12 checklist).  
 **Ownership:** HRM is the **system of record** for vacancies, job posts, applications, and hiring. The official website is a **public channel** only (display + apply).  
-**Build path:** UI first (done) → **Prisma models → Types/Zod → Services → Actions → wire each screen** → **Public Careers API → website cutover** in the order below.  
+**Build path:** UI → Prisma → services → actions → Public Careers API (**done**) → **website cutover (remaining)**.  
 Pages must not call Prisma. No business rules in components.
 
 ---
@@ -191,15 +192,25 @@ Full architecture: **`PUBLIC_CAREERS_API_GUIDE.md`**.
 6. API Clients **Playground** tab (token → jobs → apply smoke) — **Done**
 7. Rate limiting on token + apply (hardening) — **Done**
 8. Postman collection download — **Done**
-9. Wave 12: website cutover + CMS migration (website + migration script)
 
-### Wave 12 checklist (Website cutover)
+### Wave 12 checklist — **remaining TODO** (Website cutover)
 
-1. Website reads list/detail from HRM; apply posts to HRM  
-2. One-off migration script: CMS careers → `JobPost`; CMS applications → `Application`  
-3. Freeze or read-only legacy CMS Careers admin  
-4. Remove Careers from website admin-portal nav once verified  
-5. Confirm no remaining writes to legacy careers tables
+HRM API is ready. Work below is mostly **website / BFF + ops**, plus an optional migration script in this repo.
+
+| # | Task | Owner | Status |
+|---|------|--------|--------|
+| 1 | Website BFF: obtain token (`client_credentials`) against staging HRM | Website | **TODO** |
+| 2 | Website careers list/detail: `GET /api/public/careers/jobs` (+ by slug) | Website | **TODO** |
+| 3 | Staging smoke: API Client with `careers:read` only | Website + HRM ops | **TODO** |
+| 4 | Website apply form → `POST /applications` (JSON, then multipart CV) | Website | **TODO** |
+| 5 | Prod/staging: create API User + API Client; store secret in website secret store | HRM ops | **TODO** |
+| 6 | When apply is ready: grant `careers:apply` + set `CAREERS_PUBLIC_APPLY_ENABLED=true` | HRM ops | **TODO** |
+| 7 | Set `PUBLIC_CAREERS_CORS_ORIGINS` (and HTTPS) for production | HRM ops | **TODO** |
+| 8 | One-off migration: CMS careers → `JobPost`; CMS applications → `Application` | HRM + website | **TODO** |
+| 9 | Freeze / read-only legacy CMS Careers admin | Website | **TODO** |
+| 10 | Remove Careers from website admin-portal nav; confirm no dual writes | Website | **TODO** |
+
+Contract & smoke tools (already in HRM): `PUBLIC_CAREERS_API_GUIDE.md`, `/api-clients` Playground, `GET /api/public/careers/postman-collection`.
 
 ---
 
@@ -457,18 +468,18 @@ Public routes call **services** directly (with machine auth), not dashboard serv
 
 - Letterhead logo / bilingual letter templates (English-only PDF for now)  
 - Criteria master CRUD  
-- Public Careers API + website cutover (Waves 11–12)  
 - Multi-tenant institution scoping (follow Staff when added)  
-- Full channeling sync for hired staff (use existing Staff sync after onboard)
+- Full channeling sync for hired staff (use existing Staff sync after onboard)  
+- Redis/shared rate limiter (current limiter is in-memory per process)
 
 ---
 
 ## 13. Quick start for the next developer
 
-1. Read this guide (§2 architecture + §4 waves) and `HRM_DEVELOPMENT_GUIDELINES.md` §2 (layers) / §8 (no shared Prisma).  
-2. Confirm Auth User Group has `recruitment` grants.  
-3. Start **Wave 0 + Wave 1 (Vacancy Requests)** only.  
-4. Do not open Application / Interview PRs until Job Post IDs are stable.  
-5. Do not build website apply against HRM until Wave 4 create + Wave 11 API are ready.  
-6. Keep UI components thin — move rules into services as you replace toasts.  
-7. After Wave 2, design Job Post public fields (slug, short/full description) with the website careers page in mind — even if Wave 11 comes later.
+**HRM recruitment (Waves 0–11) is complete.** Next work is **Wave 12**.
+
+1. Read this guide §2 + §4 Wave 12 checklist, and **`PUBLIC_CAREERS_API_GUIDE.md`**.  
+2. Website: wire BFF to HRM Public Careers API (token → jobs first; apply when flagged on).  
+3. HRM ops: create API User + API Client; hand credentials to website secret store.  
+4. Optional: add a one-off CMS → HRM migration script when cutover date is set.  
+5. Do **not** share HRM Prisma / `DATABASE_URL` with the website (`HRM_DEVELOPMENT_GUIDELINES.md` §8).

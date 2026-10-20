@@ -8,7 +8,8 @@ Use with:
 - `HRM_DEVELOPMENT_GUIDELINES.md` — layers, no shared Prisma across apps  
 - Channeling reference: `apps/channeling` API Clients + `/api/public/token` (same auth *shape*, Careers live in **HRM**)
 
-**Status:** Guidance + **P0–P5 + Wave 11 hardening done** (rate limits, playground, Postman). Website cutover is **P6 / Wave 12**.  
+**Status:** **Wave 11 complete in HRM** (P0–P5 + rate limits + Playground + Postman).  
+**Remaining:** **Wave 12 / P6** — website cutover & CMS migration (see §15).  
 **Ownership:** HRM is system of record for job posts and applications. The website is a **public channel** (BFF → HRM HTTP only).
 
 ---
@@ -330,9 +331,9 @@ Document all new keys in `apps/hrm/.env.example` when implementing.
 | **P3 (Wave 11a)** | `GET /jobs`, `GET /jobs/[slug]` | **Done** — published + not expired only; thin DTOs; scope `careers:read` |
 | **P4 (Wave 11b)** | `POST /applications` (metadata) | **Done** — slug + candidate fields; `careers:apply` + `CAREERS_PUBLIC_APPLY_ENABLED`; duplicates → 409 |
 | **P5 (Wave 11c)** | Multipart CV via S3 | **Done** — optional `resume` file; `resumeFileKey` set; 10 MB / PDF+image |
-| **P6 (Wave 12)** | Website cutover + CMS migration | No dual write; CMS careers admin retired |
+| **P6 (Wave 12)** | Website cutover + CMS migration | **TODO** — no dual write; CMS careers admin retired |
 
-Safer default: ship **P3** to staging before enabling apply in production.
+HRM-side API delivery is finished. Remaining work is listed in **§15**.
 
 ---
 
@@ -389,12 +390,30 @@ Do **not** reuse Channeling’s `ApiClient` rows for Careers. Credentials and ac
 
 ---
 
-## 14. Quick start for implementers
+## 14. Quick start for website / ops (Wave 12)
 
-1. Read this guide + Recruitment guide §2 / Wave 11 checklist.  
-2. Implement **P0 → P1** (API User UX + API Clients) before public routes.  
-3. Implement **P2 → P3** and hand website a staging contract (token + GET).  
-4. Enable apply (**P4–P5**) only after read path is stable.  
-5. Wave 12 cutover last.
+1. Read this guide + `RECRUITMENT_MANAGER_GUIDE.md` §4 Wave 12 checklist.  
+2. In HRM: create **API User** → **API Client** (scopes start with `careers:read`).  
+3. Download Postman from Playground or `GET /api/public/careers/postman-collection`.  
+4. Website BFF: token → list/detail smoke on staging.  
+5. Enable apply only when ready: `careers:apply` + `CAREERS_PUBLIC_APPLY_ENABLED=true`.  
+6. Migrate CMS data; retire website Careers admin.
 
-When curl/Postman examples are added, keep them in this doc or a sibling `PUBLIC_CAREERS_API_CURL.md` (mirror Channeling’s `public-api-curl.md`).
+Playground: HRM dashboard → **API Clients** → **Playground** tab (`?tab=playground`).
+
+---
+
+## 15. Remaining TODO (Wave 12 / P6)
+
+| # | Task | Owner | Status |
+|---|------|--------|--------|
+| 1 | BFF token + `GET /jobs` (+ slug) against staging HRM | Website | **TODO** |
+| 2 | Staging smoke with `careers:read` client | Website + HRM ops | **TODO** |
+| 3 | Apply UI → `POST /applications` (JSON, then CV multipart) | Website | **TODO** |
+| 4 | Production API User + API Client; secrets in website store | HRM ops | **TODO** |
+| 5 | Enable apply: scope + `CAREERS_PUBLIC_APPLY_ENABLED=true` | HRM ops | **TODO** |
+| 6 | Production CORS (`PUBLIC_CAREERS_CORS_ORIGINS`) + HTTPS | HRM ops | **TODO** |
+| 7 | CMS → HRM migration (`JobPost` / `Application`) | HRM + website | **TODO** |
+| 8 | Read-only / remove CMS Careers admin; no dual writes | Website | **TODO** |
+
+Optional later (not blocking cutover): Redis-backed rate limiter; candidate ack email/SMS on public apply.
