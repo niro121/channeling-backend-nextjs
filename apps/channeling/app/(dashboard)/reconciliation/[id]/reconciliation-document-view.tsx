@@ -97,6 +97,8 @@ export type HandoverTabData = {
     reconciledBy?: string | null
     cannotReconcileAt?: string | null
     cannotReconcileReason?: string | null
+    /** Set when the receipt was canceled. Still tickable. */
+    canceledAt?: string | null
   }>
 }
 
@@ -753,6 +755,9 @@ export function ReconciliationDocumentView({
                                     <TableCell className="py-1.5 text-xs">{formatReceiptBank(r)}</TableCell>
                                     <TableCell className="py-1.5 text-xs font-mono">{formatReceiptReference(r)}</TableCell>
                                     <TableCell className="py-1.5 text-xs text-left align-top min-w-[10rem]">
+                                      {r.canceledAt ? (
+                                        <p className="font-medium text-amber-700 dark:text-amber-400">Canceled</p>
+                                      ) : null}
                                       {postedCannot ? (
                                         <div className="text-left">
                                           <p className="font-medium text-red-700 dark:text-red-400">Can&apos;t reconcile</p>

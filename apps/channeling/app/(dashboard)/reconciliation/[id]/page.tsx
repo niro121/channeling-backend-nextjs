@@ -61,6 +61,8 @@ export default async function ReconciliationDocumentPage({ params }: Props) {
           ? r.cannotReconcileAt.toISOString()
           : (r.cannotReconcileAt ?? null),
       cannotReconcileReason: r.cannotReconcileReason ?? null,
+      canceledAt:
+        r.canceledAt instanceof Date ? r.canceledAt.toISOString() : (r.canceledAt ?? null),
     })),
   }))
 

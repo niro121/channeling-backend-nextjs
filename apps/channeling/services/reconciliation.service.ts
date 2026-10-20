@@ -63,6 +63,8 @@ export type ReceiptForReconciliation = {
   reconciledBy?: string | null
   cannotReconcileAt?: Date | null
   cannotReconcileReason?: string | null
+  /** Set when this receipt was canceled. Still listed so the cancel and any replacement can be ticked together. */
+  canceledAt?: Date | null
 }
 
 export type ReconciliationJournalLine = {
@@ -83,7 +85,9 @@ export type ReconciliationJournal = {
 /**
  * Get receipts eligible for reconciliation for a handover.
  * Uses shiftId when set on receipts; otherwise falls back to createdBy + time window (legacy).
- * Filters in memory for canceledAt/reconciledAt so MongoDB null/missing optional fields match reliably.
+ * Filters in memory for reconciledAt so MongoDB null/missing optional fields match reliably.
+ * Canceled receipts stay on the list. A ledger cancel marks the original canceled and posts a
+ * reversal; hiding the original makes the reversal net to zero and leaves the replacement on the till.
  * Includes receipts already reconciled for this document (reconciledHandoverId is this handover
  * or the top-level document it was posted under) so UI can show them pre-ticked.
  */
@@ -148,7 +152,6 @@ export async function getReceiptsForHandoverReconciliation(
   })
   const allowedHandoverIds = new Set([handoverId, documentHandoverId].filter(Boolean))
   const eligible = raw.filter((r) => {
-    if (r.canceledAt) return false
     if (r.reconciledHandoverId && !allowedHandoverIds.has(r.reconciledHandoverId)) return false
     if (!r.reconciledHandoverId && (r.reconciledAt || r.cannotReconcileAt)) return false
     return true
@@ -182,6 +185,7 @@ export async function getReceiptsForHandoverReconciliation(
           reconciledBy: line.reconciledBy ?? r.reconciledBy ?? undefined,
           cannotReconcileAt: lineCannotAt,
           cannotReconcileReason: lineCannotReason,
+          canceledAt: r.canceledAt ?? null,
         })
         unresolvedBankIds.push(bank ? null : (line.bankId ?? r.bankId ?? null))
       }
@@ -203,6 +207,7 @@ export async function getReceiptsForHandoverReconciliation(
         reconciledBy: r.reconciledBy ?? undefined,
         cannotReconcileAt: parentCannotAt,
         cannotReconcileReason: parentCannotReason,
+        canceledAt: r.canceledAt ?? null,
       })
       unresolvedBankIds.push(bank ? null : (r.bankId ?? null))
     }
