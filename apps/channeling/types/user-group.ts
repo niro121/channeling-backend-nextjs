@@ -158,6 +158,7 @@ export const RESOURCES: ResourceWithOptionalActions[] = [
       { id: "view", name: "View" },
       { id: "submit-for-reconciliation", name: "Submit For Reconciliation" },
       { id: "approve-reconciliation", name: "Approve Reconciliation" },
+      { id: "post-approved-reconciliation", name: "Post On Approved Reconciliation" },
     ],
   },
   {
