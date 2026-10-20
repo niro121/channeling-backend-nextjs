@@ -852,10 +852,15 @@ export async function submitHandoverReconciliation(
   })
   if (!topCheck) return { success: false, error: "Handover not found." }
   if (topCheck.status !== HANDOVER_STATUS.APPROVED) return { success: false, error: "Handover is not approved." }
-  if (topCheck.nonCashReconciledAt != null) return { success: false, error: "Handover is already reconciled." }
   const reconStatus = topCheck.reconciliationStatus ?? RECONCILIATION_STATUS.PENDING
-  if (reconStatus === RECONCILIATION_STATUS.RECONCILED_APPROVED) return { success: false, error: "Handover is already reconciled." }
-  if (reconStatus !== RECONCILIATION_STATUS.IN_RECONCILIATION) {
+  // An approved document can take another post for receipts that were not on the list the first time
+  // (for example a canceled receipt). Already posted lines are skipped below.
+  const alreadyApproved =
+    reconStatus === RECONCILIATION_STATUS.RECONCILED_APPROVED || topCheck.nonCashReconciledAt != null
+  if (reconStatus === RECONCILIATION_STATUS.RECONCILED_REJECTED) {
+    return { success: false, error: "Handover was rejected. It cannot be posted." }
+  }
+  if (!alreadyApproved && reconStatus !== RECONCILIATION_STATUS.IN_RECONCILIATION) {
     return { success: false, error: "Handover has not been sent to reconciliation." }
   }
   if (topCheck.forwardedToHandoverId) return { success: false, error: "Use the top-level handover document." }
@@ -1087,7 +1092,7 @@ export async function submitHandoverReconciliation(
   const complete = remainingCount === 0
   const hasNewIssues = Object.values(newCannotByHandover).some((rows) => rows.length > 0)
 
-  if (complete) {
+  if (complete && !alreadyApproved) {
     await prisma.shiftHandover.update({
       where: { id: payload.handoverId },
       data: {
