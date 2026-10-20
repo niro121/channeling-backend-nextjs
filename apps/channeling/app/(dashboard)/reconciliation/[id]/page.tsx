@@ -33,8 +33,9 @@ export default async function ReconciliationDocumentPage({ params }: Props) {
   const isAdmin = session?.user?.userType === userTypes.admin
   const assignedTo = result.reconciliationAssignedToUserId
   const isOpen = result.reconciliationStatus === RECONCILIATION_STATUS.IN_RECONCILIATION
+  const isApproved = result.reconciliationStatus === RECONCILIATION_STATUS.RECONCILED_APPROVED
   const canActAsReconciler =
-    isOpen && (isAdmin || !assignedTo || assignedTo === session?.user?.id)
+    (isOpen || isApproved) && (isAdmin || !assignedTo || assignedTo === session?.user?.id)
 
   const chain: HandoverTabData[] = result.chain.map((tab) => ({
     handover: {
