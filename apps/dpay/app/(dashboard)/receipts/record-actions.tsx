@@ -11,6 +11,11 @@ import {
   downloadReceiptPdf,
   printReceiptHtml,
 } from '@/lib/receipts/print-receipt';
+import {
+  getPatientReceiptPrintSlipAction,
+  getReceiptLetterheadAction,
+  markPatientReceiptPrintedAction,
+} from '@/app/actions/receipts/receipts.actions';
 import { CancelPatientBillReceiptDialog } from '@/components/receipts/cancel-patient-bill-receipt-dialog';
 import { CancelActionButton } from '@/components/ui/cancel-action-button';
 import { useReceiptsView } from './receipts-view-context';
@@ -55,8 +60,27 @@ export function ReceiptRecordActions({ row }: ReceiptRecordActionsProps) {
     item.status === 'active' && !item.cancelReceiptNumber && !item.refundOfReceiptId;
   const [cancelOpen, setCancelOpen] = useState(false);
 
-  const handlePrint = () => {
-    printReceiptHtml(buildReceiptPrintHtml(receipt, item.bxtNumber));
+  const handlePrint = async () => {
+    const [letterhead, printed, slip] = await Promise.all([
+      getReceiptLetterheadAction(receipt.locationId),
+      markPatientReceiptPrintedAction(receipt.id),
+      getPatientReceiptPrintSlipAction(receipt.id),
+    ]);
+    printReceiptHtml(
+      buildReceiptPrintHtml(receipt, item.bxtNumber, {
+        locationName: letterhead.locationName,
+        addressLine: letterhead.addressLine,
+        isDuplicate: printed.success && printed.isDuplicate,
+        slip: slip.kind,
+        originalReceiptNumber: slip.originalReceiptNumber,
+        createdByCode: slip.createdByCode,
+        printedByCode: slip.printedByCode,
+        canceledByCode: slip.canceledByCode,
+        createdAt: slip.createdAt,
+        patientName: slip.patientName,
+      }),
+      { width: '148mm', height: '210mm' }
+    );
   };
 
   const handleDownload = () => {

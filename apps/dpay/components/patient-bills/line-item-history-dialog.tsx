@@ -101,6 +101,9 @@ function SnapshotTable({ entry }: { entry: BillLineItemHistoryEntry }) {
     { label: 'Description', value: entry.description?.trim() || '—' },
     { label: 'Amount', value: formatAmount(entry.amount) },
   ];
+  if (entry.action === 'deleted' && entry.deleteRemark?.trim()) {
+    rows.push({ label: 'Remark', value: entry.deleteRemark.trim() });
+  }
 
   return (
     <div className="overflow-hidden rounded-md border bg-background">
@@ -278,6 +281,12 @@ export function LineItemHistoryDialog({
                 <span className="font-medium tabular-nums">{formatLkr(lineItem.amount)}</span>
               </p>
             </div>
+            {lineItem.deleteRemark?.trim() ? (
+              <p className="mt-1">
+                <span className="text-muted-foreground">Remove remark: </span>
+                <span className="font-medium">{lineItem.deleteRemark.trim()}</span>
+              </p>
+            ) : null}
           </div>
         ) : null}
 
