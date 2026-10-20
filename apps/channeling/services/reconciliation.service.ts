@@ -603,7 +603,12 @@ export async function getReconciliationDocument(
   }
   if (top.forwardedToHandoverId) return { success: false, error: "Use the top-level handover document, not an included one." }
   if (requestedByUserId && top.reconciliationAssignedToUserId !== requestedByUserId) {
-    return { success: false, error: "This reconciliation is not assigned to you." }
+    const canOpenApproved =
+      reconStatus === RECONCILIATION_STATUS.RECONCILED_APPROVED &&
+      (await userCanPostApprovedReconciliation(requestedByUserId))
+    if (!canOpenApproved) {
+      return { success: false, error: "This reconciliation is not assigned to you." }
+    }
   }
 
   let chainHandovers = await getPreviousHandoversForHandoverDetail({
@@ -866,10 +871,17 @@ export async function submitHandoverReconciliation(
   if (topCheck.forwardedToHandoverId) return { success: false, error: "Use the top-level handover document." }
   const actor = await prisma.user.findUnique({
     where: { id: reconciledByUserId },
-    select: { userType: true },
+    select: { userType: true, userGroup: { select: { permissions: true } } },
   })
-  const isAdmin = actor?.userType === 1
-  if (
+  const isAdmin = actor?.userType === userTypes.admin
+  const actorPermissions = actor?.userGroup?.permissions as Permissions | null
+  if (alreadyApproved) {
+    if (!isAdmin && !hasPermission(actorPermissions, "reconciliation", "post-approved-reconciliation")) {
+      return { success: false, error: "You do not have permission to post on an approved reconciliation." }
+    }
+  } else if (!isAdmin && !hasPermission(actorPermissions, "reconciliation", "approve-reconciliation")) {
+    return { success: false, error: "You do not have permission to approve reconciliation." }
+  } else if (
     !isAdmin &&
     topCheck.reconciliationAssignedToUserId &&
     topCheck.reconciliationAssignedToUserId !== reconciledByUserId
@@ -1125,6 +1137,20 @@ export async function submitHandoverReconciliation(
   })
 
   return { success: true, complete, remainingCount, postedCount }
+}
+
+async function userCanPostApprovedReconciliation(userId: string): Promise<boolean> {
+  const user = await prisma.user.findFirst({
+    where: { id: userId, status: 1 },
+    select: { userType: true, userGroup: { select: { permissions: true } } },
+  })
+  if (!user) return false
+  if (user.userType === userTypes.admin) return true
+  return hasPermission(
+    user.userGroup?.permissions as Permissions | null,
+    "reconciliation",
+    "post-approved-reconciliation"
+  )
 }
 
 async function assertUserCanBeReconciler(userId: string): Promise<boolean> {

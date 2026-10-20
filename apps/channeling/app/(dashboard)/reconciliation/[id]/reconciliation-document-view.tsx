@@ -232,9 +232,13 @@ export function ReconciliationDocumentView({
     tab.receipts.some((r) => !r.reconciledAt && !r.cannotReconcileAt)
   )
   const canPostLines =
-    (isOpenForAction || (isApproved && hasOpenReceipts)) &&
-    has("reconciliation", "approve-reconciliation") &&
-    canActAsReconciler
+    (isOpenForAction &&
+      has("reconciliation", "approve-reconciliation") &&
+      canActAsReconciler) ||
+    (isApproved &&
+      hasOpenReceipts &&
+      has("reconciliation", "post-approved-reconciliation") &&
+      canActAsReconciler)
 
   const [tickedByHandoverId, setTickedByHandoverId] = useState<Record<string, Set<string>>>(() => {
     const o: Record<string, Set<string>> = {}
@@ -350,7 +354,7 @@ export function ReconciliationDocumentView({
   }
 
   const handleSubmit = async () => {
-    if (!hasBatchToPost || !canApproveReconciliation) return
+    if (!hasBatchToPost || !canPostLines) return
     setSubmitting(true)
     try {
       const tickedReceiptIdsByHandoverId: Record<string, string[]> = {}
@@ -393,7 +397,7 @@ export function ReconciliationDocumentView({
       toast({ title: "Please enter a rejection reason.", variant: "destructive" })
       return
     }
-    if (!canApproveReconciliation) return
+    if (!isOpenForAction || !canPostLines) return
     if (hasPostedReceipts) {
       toast({ title: "Cannot reject after a receipt has been posted.", variant: "destructive" })
       return
@@ -514,9 +518,11 @@ export function ReconciliationDocumentView({
           <CheckCircle2 className="h-4 w-4" />
           <AlertTitle>Already reconciled</AlertTitle>
           <AlertDescription>
-            {hasOpenReceipts
+            {hasOpenReceipts && canPostLines
               ? "This handover was reconciled. Receipts that were not posted, including a canceled receipt, can still be ticked and posted. Lines already posted stay locked."
-              : "This handover has been submitted as reconciled. The document is read-only."}
+              : hasOpenReceipts
+                ? "This handover was reconciled. Some receipts were not posted. Posting them needs the Post On Approved Reconciliation privilege."
+                : "This handover has been submitted as reconciled. The document is read-only."}
           </AlertDescription>
         </Alert>
       ) : (
@@ -1009,9 +1015,11 @@ export function ReconciliationDocumentView({
         )}
         {!canPostLines && (isOpenForAction || (isApproved && hasOpenReceipts)) && (
           <span className="text-sm text-muted-foreground">
-            {canActAsReconciler
-              ? "You do not have permission to approve or reject reconciliation."
-              : "Only the assigned reconciler can submit or reject this handover."}
+            {isApproved
+              ? "Posting on an approved reconciliation needs the Post On Approved Reconciliation privilege."
+              : canActAsReconciler
+                ? "You do not have permission to approve or reject reconciliation."
+                : "Only the assigned reconciler can submit or reject this handover."}
           </span>
         )}
       </div>
