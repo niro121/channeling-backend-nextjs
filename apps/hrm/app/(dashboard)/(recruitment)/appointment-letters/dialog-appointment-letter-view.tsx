@@ -1,8 +1,11 @@
 'use client';
 
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { format, parseISO } from 'date-fns';
 import { FileText } from 'lucide-react';
 import { Button, CustomDialog, useToast } from '@archmage/ui';
+import { generateAppointmentLetterAction } from '@/app/actions/recruitment-actions/appointment-letter.actions';
 import { buttonStyles } from '@/lib/utils/common-styles';
 import { formatDateTime } from '@/lib/utils/date';
 import {
@@ -11,10 +14,7 @@ import {
   canGenerateAppointmentLetter,
   type AppointmentLetterRecord
 } from '@/types/recruitment';
-import {
-  useAppointmentLettersUi,
-  withGeneratedFlag
-} from './appointment-letters-ui-context';
+import { useAppointmentLettersUi } from './appointment-letters-ui-context';
 import AppointmentLetterStatusBadge from './status-badge';
 
 type DialogAppointmentLetterViewProps = {
@@ -63,14 +63,12 @@ function probationLabel(id: string): string {
 export default function DialogAppointmentLetterView({
   open,
   setOpen,
-  record: rawRecord
+  record
 }: DialogAppointmentLetterViewProps) {
   const { toast } = useToast();
-  const { generatedIds, markGenerated, openLetterPreview } =
-    useAppointmentLettersUi();
-  const record = rawRecord
-    ? withGeneratedFlag(rawRecord, generatedIds)
-    : null;
+  const router = useRouter();
+  const { openLetterPreview } = useAppointmentLettersUi();
+  const [loading, setLoading] = useState(false);
 
   const title = record
     ? `View ${record.letterNumber}`
@@ -150,14 +148,33 @@ export default function DialogAppointmentLetterView({
                 <Button
                   type="button"
                   className={`${buttonStyles.save} gap-1.5`}
+                  disabled={loading}
                   onClick={() => {
-                    markGenerated(record.id);
-                    toast({
-                      title: 'Letter generated',
-                      description: `Appointment letter for ${record.candidateName} is ready to preview.`
-                    });
-                    setOpen(false);
-                    openLetterPreview({ ...record, letterGenerated: true });
+                    void (async () => {
+                      setLoading(true);
+                      const result = await generateAppointmentLetterAction(
+                        record.id
+                      );
+                      setLoading(false);
+                      if (result.isError || !result.data?.record) {
+                        toast({
+                          variant: 'destructive',
+                          title: 'Could not generate',
+                          description:
+                            (result.errors as { message?: string })?.message ??
+                            'Please try again.'
+                        });
+                        return;
+                      }
+                      toast({
+                        variant: 'success',
+                        title: 'Letter generated',
+                        description: `Appointment letter for ${result.data.record.candidateName} is ready to preview.`
+                      });
+                      setOpen(false);
+                      openLetterPreview(result.data.record);
+                      router.refresh();
+                    })();
                   }}
                 >
                   <FileText className="h-4 w-4" />

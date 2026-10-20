@@ -42,11 +42,56 @@ type UserFormProps = {
 
 type StaffOption = { id: string; name: string; code: string };
 
+const HRM_USER_TYPE_OPTIONS = [
+  { id: String(userTypes.staff), name: 'Staff' },
+  { id: String(userTypes.apiUser), name: 'API User' }
+];
+
 const styleClasses = {
   parentDiv: 'grid grid-cols-1 items-center gap-4 sm:grid-cols-4',
   labelClassName: 'text-sm text-black font-semibold capitalize',
   inputClassName: 'col-span-full sm:col-span-3'
 };
+
+function buildSettingsSchema(isApiUser: boolean) {
+  return Yup.object({
+    name: Yup.string()
+      .max(100, 'Must be less than 100 characters')
+      .required('This field is mandatory'),
+    email: Yup.string()
+      .email('Invalid email address')
+      .required('This field is mandatory'),
+    username: Yup.string()
+      .max(50, 'Must be less than 50 characters')
+      .nullable()
+      .transform((v) => (v === '' ? null : v)),
+    phone: Yup.string()
+      .nullable()
+      .transform((v) => (v === '' ? null : v))
+      .test(
+        'mobile',
+        'Mobile Number Ex: 07x xxxxxxx',
+        (v) => v == null || MOBILE_NUMBER_REGEX.test(v)
+      ),
+    userType: Yup.number()
+      .oneOf([userTypes.staff, userTypes.apiUser], 'Select Staff or API User')
+      .required('User type is required'),
+    userGroupId: isApiUser
+      ? Yup.string().nullable()
+      : Yup.string().required('User group is required'),
+    staffId: isApiUser
+      ? Yup.string().nullable()
+      : Yup.string()
+          .required('Staff member is required')
+          .test(
+            'not-empty',
+            'Staff member is required',
+            (v) => !!v && v.trim() !== ''
+          ),
+    status: Yup.number().oneOf([0, 1]).required(),
+    twoFactorEnabled: Yup.boolean()
+  });
+}
 
 export default function UserForm({ user, userGroupOptions }: UserFormProps) {
   const isEditMode = Boolean(user?.id);
@@ -77,6 +122,10 @@ export default function UserForm({ user, userGroupOptions }: UserFormProps) {
     email: user?.email ?? '',
     username: user?.username ?? '',
     phone: user?.phone ?? '',
+    userType:
+      user?.userType === userTypes.apiUser
+        ? userTypes.apiUser
+        : userTypes.staff,
     twoFactorEnabled: user?.twoFactorEnabled ?? false,
     userGroupId: user?.userGroupId ?? '',
     status: user?.status !== undefined ? user.status : 1,
@@ -94,51 +143,16 @@ export default function UserForm({ user, userGroupOptions }: UserFormProps) {
     confirmPassword: ''
   };
 
-  const settingsValidationSchema = Yup.object({
-    name: Yup.string()
-      .max(100, 'Must be less than 100 characters')
-      .required('This field is mandatory'),
-    email: Yup.string()
-      .email('Invalid email address')
-      .required('This field is mandatory'),
-    username: Yup.string()
-      .max(50, 'Must be less than 50 characters')
-      .nullable()
-      .transform((v) => (v === '' ? null : v)),
-    phone: Yup.string()
-      .nullable()
-      .transform((v) => (v === '' ? null : v))
-      .test(
-        'mobile',
-        'Mobile Number Ex: 07x xxxxxxx',
-        (v) => v == null || MOBILE_NUMBER_REGEX.test(v)
-      ),
-    userGroupId: Yup.string().required('User group is required'),
-    staffId: Yup.string()
-      .required('Staff member is required')
-      .test('not-empty', 'Staff member is required', (v) => !!v && v.trim() !== '')
-  });
-
-  const newUserValidationSchema = settingsValidationSchema.shape({
-    password: Yup.string()
-      .matches(
-        PASSWORD_REGEX,
-        'Password must contain uppercase, lowercase, numbers and special characters'
-      )
-      .min(MIN_PASSWORD_LENGTH, `Must be at least ${MIN_PASSWORD_LENGTH} characters long`)
-      .required('This field is mandatory'),
-    confirmPassword: Yup.string()
-      .oneOf([Yup.ref('password')], 'Passwords must match')
-      .required('This field is mandatory')
-  });
-
   const passwordValidationSchema = Yup.object({
     password: Yup.string()
       .matches(
         PASSWORD_REGEX,
         'Password must contain uppercase, lowercase, numbers and special characters'
       )
-      .min(MIN_PASSWORD_LENGTH, `Must be at least ${MIN_PASSWORD_LENGTH} characters long`)
+      .min(
+        MIN_PASSWORD_LENGTH,
+        `Must be at least ${MIN_PASSWORD_LENGTH} characters long`
+      )
       .required('This field is mandatory'),
     confirmPassword: Yup.string()
       .oneOf([Yup.ref('password')], 'Passwords must match')
@@ -150,6 +164,7 @@ export default function UserForm({ user, userGroupOptions }: UserFormProps) {
     { resetForm }: FormikHelpers<typeof settingsInitialValues>
   ) => {
     const closeAfterSave = saveAndCloseRef.current;
+    const isApiUser = values.userType === userTypes.apiUser;
 
     try {
       setLoading(true);
@@ -159,11 +174,11 @@ export default function UserForm({ user, userGroupOptions }: UserFormProps) {
         email: values.email,
         username: values.username || null,
         phone: values.phone || null,
-        twoFactorEnabled: values.twoFactorEnabled,
-        userType: userTypes.staff,
+        twoFactorEnabled: isApiUser ? false : values.twoFactorEnabled,
+        userType: values.userType,
         status: values.status,
-        userGroupId: values.userGroupId,
-        staffId: values.staffId,
+        userGroupId: isApiUser ? null : values.userGroupId,
+        staffId: isApiUser ? null : values.staffId,
         password: ''
       };
 
@@ -217,6 +232,7 @@ export default function UserForm({ user, userGroupOptions }: UserFormProps) {
     { resetForm }: FormikHelpers<typeof newUserInitialValues>
   ) => {
     const closeAfterSave = saveAndCloseRef.current;
+    const isApiUser = values.userType === userTypes.apiUser;
 
     try {
       setLoading(true);
@@ -226,11 +242,11 @@ export default function UserForm({ user, userGroupOptions }: UserFormProps) {
         email: values.email,
         username: values.username || null,
         phone: values.phone || null,
-        twoFactorEnabled: values.twoFactorEnabled,
-        userType: userTypes.staff,
+        twoFactorEnabled: isApiUser ? false : values.twoFactorEnabled,
+        userType: values.userType,
         status: values.status,
-        userGroupId: values.userGroupId,
-        staffId: values.staffId,
+        userGroupId: isApiUser ? null : values.userGroupId,
+        staffId: isApiUser ? null : values.staffId,
         password: values.password
       });
 
@@ -319,135 +335,175 @@ export default function UserForm({ user, userGroupOptions }: UserFormProps) {
     }
   };
 
-  const renderSettingsFields = (
-    formik: {
-      values: typeof settingsInitialValues;
-      errors: Partial<Record<keyof typeof settingsInitialValues, string>>;
-      touched: Partial<Record<keyof typeof settingsInitialValues, boolean>>;
-      handleChange: React.ChangeEventHandler<HTMLInputElement>;
-      handleBlur: React.FocusEventHandler<HTMLInputElement>;
-      setFieldValue: (field: string, value: unknown) => void;
-    }
-  ) => (
-    <div className="grid gap-4 py-4">
-      <div className="space-y-4">
-        <div>
-          <h3 className="text-lg font-semibold mb-1">Basic Information</h3>
-          <p className="text-sm text-muted-foreground mb-4">
-            Enter login details for this HRM staff user.
-          </p>
-        </div>
+  const renderSettingsFields = (formik: {
+    values: typeof settingsInitialValues;
+    errors: Partial<Record<keyof typeof settingsInitialValues, string>>;
+    touched: Partial<Record<keyof typeof settingsInitialValues, boolean>>;
+    handleChange: React.ChangeEventHandler<HTMLInputElement>;
+    handleBlur: React.FocusEventHandler<HTMLInputElement>;
+    setFieldValue: (field: string, value: unknown) => void;
+  }) => {
+    const isApiUser = formik.values.userType === userTypes.apiUser;
 
-        <CustomFormField
-          type="text"
-          id="name"
-          placeholder="Full Name"
-          value={formik.values.name}
-          onChange={formik.handleChange}
-          onBlur={formik.handleBlur}
-          required
-          styleClasses={styleClasses}
-        />
-
-        <CustomFormField
-          type="email"
-          id="email"
-          placeholder="Email"
-          value={formik.values.email}
-          onChange={formik.handleChange}
-          onBlur={formik.handleBlur}
-          required
-          styleClasses={styleClasses}
-        />
-
-        <CustomFormField
-          type="text"
-          id="username"
-          placeholder="Username (optional)"
-          value={formik.values.username ?? ''}
-          onChange={formik.handleChange}
-          onBlur={formik.handleBlur}
-          required={false}
-          styleClasses={styleClasses}
-        />
-
-        <CustomFormField
-          type="text"
-          id="phone"
-          placeholder="Mobile (optional)"
-          value={formik.values.phone ?? ''}
-          onChange={formik.handleChange}
-          onBlur={formik.handleBlur}
-          required={false}
-          styleClasses={styleClasses}
-        />
-
-        <CustomSelectField
-          id="userGroupId"
-          placeholder="User Group"
-          value={formik.values.userGroupId}
-          onChange={(value) => formik.setFieldValue('userGroupId', value)}
-          required
-          options={userGroupOptions.map((group) => ({
-            id: group.id,
-            name: group.name
-          }))}
-          styleClasses={styleClasses}
-        />
-
-        <div className={styleClasses.parentDiv}>
-          <Label className={styleClasses.labelClassName}>
-            Linked Staff <span className="text-red-600">*</span>
-          </Label>
-          <div className={styleClasses.inputClassName}>
-            <Combobox
-              label={staffOptionsLoading ? 'Loading staff...' : 'Select Staff'}
-              options={staffOptions.map((staff) => ({
-                id: staff.id,
-                name: staff.code ? `${staff.name} (${staff.code})` : staff.name
-              }))}
-              value={formik.values.staffId}
-              defaultValue=""
-              triggerClassName="w-full max-w-none font-normal!"
-              popoverClassName="w-[var(--radix-popover-trigger-width)] min-w-60"
-              onChange={(value) => formik.setFieldValue('staffId', value)}
-            />
-            {formik.touched.staffId && formik.errors.staffId ? (
-              <p className="text-sm font-medium text-destructive mt-1">
-                {formik.errors.staffId}
-              </p>
-            ) : null}
+    return (
+      <div className="grid gap-4 py-4">
+        <div className="space-y-4">
+          <div>
+            <h3 className="text-lg font-semibold mb-1">Basic Information</h3>
+            <p className="text-sm text-muted-foreground mb-4">
+              {isApiUser
+                ? 'API Users are acting identities for API Clients. They cannot sign in to the dashboard.'
+                : 'Enter login details for this HRM staff user.'}
+            </p>
           </div>
-        </div>
 
-        <CustomSelectField
-          id="status"
-          placeholder="Status"
-          value={formik.values.status?.toString()}
-          onChange={(value) => formik.setFieldValue('status', parseInt(value, 10))}
-          required
-          options={[
-            { id: '1', name: 'Active' },
-            { id: '0', name: 'Inactive' }
-          ]}
-          styleClasses={styleClasses}
-        />
-
-        <div className="flex items-center space-x-2">
-          <Switch
-            id="twoFactorEnabled"
-            checked={formik.values.twoFactorEnabled ?? false}
-            onCheckedChange={(checked) =>
-              formik.setFieldValue('twoFactorEnabled', !!checked)
-            }
+          <CustomFormField
+            type="text"
+            id="name"
+            placeholder="Full Name"
+            value={formik.values.name}
+            onChange={formik.handleChange}
+            onBlur={formik.handleBlur}
+            required
+            styleClasses={styleClasses}
           />
-          <Label htmlFor="twoFactorEnabled" className="text-sm font-medium">
-            Require 2FA for this user
-          </Label>
+
+          <CustomFormField
+            type="email"
+            id="email"
+            placeholder="Email"
+            value={formik.values.email}
+            onChange={formik.handleChange}
+            onBlur={formik.handleBlur}
+            required
+            styleClasses={styleClasses}
+          />
+
+          <CustomSelectField
+            id="userType"
+            placeholder="User Type"
+            value={String(formik.values.userType)}
+            onChange={(value) => {
+              const nextType = parseInt(value, 10);
+              formik.setFieldValue('userType', nextType);
+              if (nextType === userTypes.apiUser) {
+                formik.setFieldValue('userGroupId', '');
+                formik.setFieldValue('staffId', '');
+                formik.setFieldValue('twoFactorEnabled', false);
+              }
+            }}
+            required
+            options={HRM_USER_TYPE_OPTIONS}
+            styleClasses={styleClasses}
+          />
+
+          {!isApiUser ? (
+            <>
+              <CustomFormField
+                type="text"
+                id="username"
+                placeholder="Username (optional)"
+                value={formik.values.username ?? ''}
+                onChange={formik.handleChange}
+                onBlur={formik.handleBlur}
+                required={false}
+                styleClasses={styleClasses}
+              />
+
+              <CustomFormField
+                type="text"
+                id="phone"
+                placeholder="Mobile (optional)"
+                value={formik.values.phone ?? ''}
+                onChange={formik.handleChange}
+                onBlur={formik.handleBlur}
+                required={false}
+                styleClasses={styleClasses}
+              />
+
+              <CustomSelectField
+                id="userGroupId"
+                placeholder="User Group"
+                value={formik.values.userGroupId}
+                onChange={(value) => formik.setFieldValue('userGroupId', value)}
+                required
+                options={userGroupOptions.map((group) => ({
+                  id: group.id,
+                  name: group.name
+                }))}
+                styleClasses={styleClasses}
+              />
+
+              <div className={styleClasses.parentDiv}>
+                <Label className={styleClasses.labelClassName}>
+                  Linked Staff <span className="text-red-600">*</span>
+                </Label>
+                <div className={styleClasses.inputClassName}>
+                  <Combobox
+                    label={
+                      staffOptionsLoading ? 'Loading staff...' : 'Select Staff'
+                    }
+                    options={staffOptions.map((staff) => ({
+                      id: staff.id,
+                      name: staff.code
+                        ? `${staff.name} (${staff.code})`
+                        : staff.name
+                    }))}
+                    value={formik.values.staffId}
+                    defaultValue=""
+                    triggerClassName="w-full max-w-none font-normal!"
+                    popoverClassName="w-[var(--radix-popover-trigger-width)] min-w-60"
+                    onChange={(value) => formik.setFieldValue('staffId', value)}
+                  />
+                  {formik.touched.staffId && formik.errors.staffId ? (
+                    <p className="text-sm font-medium text-destructive mt-1">
+                      {formik.errors.staffId}
+                    </p>
+                  ) : null}
+                </div>
+              </div>
+            </>
+          ) : (
+            <p className="text-muted-foreground text-xs col-span-full rounded-md border border-border bg-muted/20 px-3 py-2">
+              User group, linked staff, username, phone, and 2FA are not used
+              for API Users. Create an API Client next to generate client ID and
+              secret.
+            </p>
+          )}
+
+          <CustomSelectField
+            id="status"
+            placeholder="Status"
+            value={formik.values.status?.toString()}
+            onChange={(value) =>
+              formik.setFieldValue('status', parseInt(value, 10))
+            }
+            required
+            options={[
+              { id: '1', name: 'Active' },
+              { id: '0', name: 'Inactive' }
+            ]}
+            styleClasses={styleClasses}
+          />
+
+          {!isApiUser ? (
+            <div className="flex items-center space-x-2">
+              <Switch
+                id="twoFactorEnabled"
+                checked={formik.values.twoFactorEnabled ?? false}
+                onCheckedChange={(checked) =>
+                  formik.setFieldValue('twoFactorEnabled', !!checked)
+                }
+              />
+              <Label htmlFor="twoFactorEnabled" className="text-sm font-medium">
+                Require 2FA for this user
+              </Label>
+            </div>
+          ) : null}
         </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   const renderFormActions = (
     onCancel: () => void,
@@ -481,7 +537,23 @@ export default function UserForm({ user, userGroupOptions }: UserFormProps) {
         <TabsContent value="settings">
           <Formik
             initialValues={settingsInitialValues}
-            validationSchema={settingsValidationSchema}
+            validate={(values) => {
+              try {
+                buildSettingsSchema(
+                  values.userType === userTypes.apiUser
+                ).validateSync(values, { abortEarly: false });
+                return {};
+              } catch (err) {
+                if (err instanceof Yup.ValidationError) {
+                  const errors: Record<string, string> = {};
+                  for (const e of err.inner) {
+                    if (e.path && !errors[e.path]) errors[e.path] = e.message;
+                  }
+                  return errors;
+                }
+                return {};
+              }
+            }}
             enableReinitialize
             onSubmit={handleSettingsSubmit}
           >
@@ -530,7 +602,11 @@ export default function UserForm({ user, userGroupOptions }: UserFormProps) {
                   />
                 </div>
                 <div className="flex justify-end border-t pt-4">
-                  <Button type="submit" disabled={passwordLoading} className="gap-1.5">
+                  <Button
+                    type="submit"
+                    disabled={passwordLoading}
+                    className="gap-1.5"
+                  >
                     <Save className="h-4 w-4" />
                     {passwordLoading ? 'Updating...' : 'Update Password'}
                   </Button>
@@ -546,7 +622,37 @@ export default function UserForm({ user, userGroupOptions }: UserFormProps) {
   return (
     <Formik
       initialValues={newUserInitialValues}
-      validationSchema={newUserValidationSchema}
+      validate={(values) => {
+        try {
+          buildSettingsSchema(values.userType === userTypes.apiUser)
+            .shape({
+              password: Yup.string()
+                .matches(
+                  PASSWORD_REGEX,
+                  'Password must contain uppercase, lowercase, numbers and special characters'
+                )
+                .min(
+                  MIN_PASSWORD_LENGTH,
+                  `Must be at least ${MIN_PASSWORD_LENGTH} characters long`
+                )
+                .required('This field is mandatory'),
+              confirmPassword: Yup.string()
+                .oneOf([Yup.ref('password')], 'Passwords must match')
+                .required('This field is mandatory')
+            })
+            .validateSync(values, { abortEarly: false });
+          return {};
+        } catch (err) {
+          if (err instanceof Yup.ValidationError) {
+            const errors: Record<string, string> = {};
+            for (const e of err.inner) {
+              if (e.path && !errors[e.path]) errors[e.path] = e.message;
+            }
+            return errors;
+          }
+          return {};
+        }
+      }}
       onSubmit={handleCreateSubmit}
     >
       {(formik) => (

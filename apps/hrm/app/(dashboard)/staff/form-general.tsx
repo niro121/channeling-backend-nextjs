@@ -244,6 +244,8 @@ type FormGeneralProps = {
   staffId?: string;
   isEditPage?: boolean;
   specialityOptions?: StaffSpecialityOption[];
+  /** Wave 9 — link create to accepted appointment letter. */
+  appointmentLetterId?: string;
   onRegisterActions?: (actions: GeneralFormActions) => void;
   onLoadingChange?: (loading: boolean) => void;
 };
@@ -278,6 +280,7 @@ export default function FormGeneral({
   staffId,
   isEditPage = false,
   specialityOptions = [],
+  appointmentLetterId,
   onRegisterActions,
   onLoadingChange
 }: FormGeneralProps) {
@@ -325,7 +328,10 @@ export default function FormGeneral({
       if (isEditPage && staffId) {
         respond = await updateStaffAction(staffId, payload, { syncToChanneling });
       } else {
-        respond = await createStaffAction(payload, { syncToChanneling });
+        respond = await createStaffAction(payload, {
+          syncToChanneling,
+          appointmentLetterId
+        });
       }
 
       if (

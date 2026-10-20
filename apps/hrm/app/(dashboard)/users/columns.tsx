@@ -3,7 +3,7 @@
 import { ColumnDef } from '@tanstack/react-table';
 import { Badge, Checkbox } from '@archmage/ui';
 import { CheckCircle2, XCircle } from 'lucide-react';
-import { userTypes } from '@archmage/shared';
+import { getUserTypeLabel, userTypes } from '@archmage/shared';
 import { formatDateTime } from '@/lib/utils/date';
 import type { HrmUser } from '@/types/user';
 import UserRecordActions from './record-actions';
@@ -43,11 +43,27 @@ export const userColumns: ColumnDef<HrmUser>[] = [
     header: 'Email',
   },
   {
+    id: 'userType',
+    header: 'Type',
+    cell: ({ row }) => (
+      <span className="text-xs whitespace-nowrap">
+        {getUserTypeLabel(row.original.userType)}
+      </span>
+    )
+  },
+  {
     id: 'userGroup',
     header: 'User Group',
     cell: ({ row }) => {
       if (row.original.userType === userTypes.admin) {
         return <span className="text-xs text-muted-foreground whitespace-nowrap">Platform Admin</span>;
+      }
+      if (row.original.userType === userTypes.apiUser) {
+        return (
+          <span className="text-xs text-muted-foreground whitespace-nowrap">
+            —
+          </span>
+        );
       }
       return row.original.userGroup?.name ?? '—';
     },
@@ -56,6 +72,7 @@ export const userColumns: ColumnDef<HrmUser>[] = [
     id: 'staff',
     header: () => <span className="text-xs text-muted-foreground whitespace-nowrap">Linked Staff</span>,
     cell: ({ row }) => {
+      if (row.original.userType === userTypes.apiUser) return '—';
       const staff = row.original.staff;
       if (!staff?.name) return '—';
       return staff.code ? `${staff.name} (${staff.code})` : staff.name;

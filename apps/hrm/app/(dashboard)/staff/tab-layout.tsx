@@ -16,7 +16,11 @@ import FormGeneral, { type GeneralFormActions } from './form-general';
 import FormHrDetail, { type HrDetailFormActions } from './form-hr-detail';
 import FormEmployment, { type EmploymentFormActions } from './form-employment';
 import SectionAdditionalDetailContent from './section-additional-detail-content';
-import type { StaffRecord, StaffWithAuthUsers } from '@/types/staff';
+import type {
+  GeneralFormValues,
+  StaffRecord,
+  StaffWithAuthUsers
+} from '@/types/staff';
 import type { StaffSpecialityOption } from '@/types/staff-speciality';
 
 type TabLayoutProps = {
@@ -24,13 +28,18 @@ type TabLayoutProps = {
   staffId?: string;
   isEditPage?: boolean;
   specialityOptions?: StaffSpecialityOption[];
+  /** Wave 9 — prefill Add Staff from appointment letter. */
+  generalPrefill?: GeneralFormValues | null;
+  appointmentLetterId?: string;
 };
 
 export default function TabLayout({
   staff,
   staffId,
   isEditPage = false,
-  specialityOptions = []
+  specialityOptions = [],
+  generalPrefill = null,
+  appointmentLetterId
 }: TabLayoutProps) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
@@ -116,10 +125,11 @@ export default function TabLayout({
       icon: <UserIcon className="w-4 h-4" />,
       form: (
         <FormGeneral
-          staff={staff}
+          staff={staff ?? generalPrefill}
           staffId={staffId}
           isEditPage={isEditPage}
           specialityOptions={specialityOptions}
+          appointmentLetterId={appointmentLetterId}
           onRegisterActions={handleRegisterGeneralActions}
           onLoadingChange={setLoading}
         />

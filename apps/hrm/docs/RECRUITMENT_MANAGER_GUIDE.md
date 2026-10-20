@@ -1,11 +1,12 @@
 # Recruitment Manager — Development Guide
 
 Guidance for building and dynamizing recruitment features in `apps/hrm`.  
-Use with `HRM_DEVELOPMENT_GUIDELINES.md` (layered architecture) and `PERMISSION_FLOW.md` (Auth User Group grants).
+Use with `HRM_DEVELOPMENT_GUIDELINES.md` (layered architecture), `PERMISSION_FLOW.md` (Auth User Group grants), and **`PUBLIC_CAREERS_API_GUIDE.md`** (Wave 11+ public API auth, API Users / API Clients, phased release).
 
-**Status:** Phase 0 UI complete for the full pipeline (sample data + toast-only mutations).  
+**Status:** **HRM recruitment complete** — Waves 0–10 (dashboard modules) + Wave 11 (Public Careers API, playground, Postman, rate limits).  
+**Next:** **Wave 12** — website integration + CMS migration (see §4 Wave 12 checklist).  
 **Ownership:** HRM is the **system of record** for vacancies, job posts, applications, and hiring. The official website is a **public channel** only (display + apply).  
-**Build path:** UI first (done) → **Prisma models → Types/Zod → Services → Actions → wire each screen** → **Public Careers API → website cutover** in the order below.  
+**Build path:** UI → Prisma → services → actions → Public Careers API (**done**) → **website cutover (remaining)**.  
 Pages must not call Prisma. No business rules in components.
 
 ---
@@ -139,7 +140,7 @@ Resume Bank ──add-to-job──► Application
  Appointment Letter (draft → issued → accepted | declined)
         │
         ▼
-   Staff onboarding (`/staff?from=appointment&…`)
+   Staff onboarding (`/staff/onboard?letterId=…` → create with prefill or browse list)
 ```
 
 **Do not dynamize out of order.** Later modules depend on stable IDs and status transitions from earlier ones.  
@@ -181,20 +182,35 @@ Implement backend + wire UI **one wave at a time**. Within each module wave: sch
 
 ### Wave 11 checklist (Public Careers API)
 
-1. Public routes under something like `apps/hrm/app/api/public/careers/…`  
-2. Machine auth (API key or OAuth client credentials — pick one pattern and document in `.env.example`)  
-3. Map published `JobPost` → public DTO (no internal fields)  
-4. `POST` apply → Application service (validation, duplicate policy, CV upload when Wave 10 ready)  
-5. Rate limiting / basic abuse controls on apply  
-6. Contract tests or smoke checklist for website team
+Full architecture: **`PUBLIC_CAREERS_API_GUIDE.md`**.
 
-### Wave 12 checklist (Website cutover)
+1. P0–P1: API User (CustomSelectField) + API Clients module (ID/secret, acting user) — **Done**
+2. P2: `POST /api/public/careers/token` (client credentials → Bearer JWT) — **Done**
+3. P3: `GET /api/public/careers/jobs` (+ by slug); thin public DTOs — **Done**
+4. P4: `POST /api/public/careers/applications` (metadata; flag + `careers:apply`) — **Done**
+5. P5: multipart CV via Wave 10 S3 — **Done**
+6. API Clients **Playground** tab (token → jobs → apply smoke) — **Done**
+7. Rate limiting on token + apply (hardening) — **Done**
+8. Postman collection download — **Done**
 
-1. Website reads list/detail from HRM; apply posts to HRM  
-2. One-off migration script: CMS careers → `JobPost`; CMS applications → `Application`  
-3. Freeze or read-only legacy CMS Careers admin  
-4. Remove Careers from website admin-portal nav once verified  
-5. Confirm no remaining writes to legacy careers tables
+### Wave 12 checklist — **remaining TODO** (Website cutover)
+
+HRM API is ready. Work below is mostly **website / BFF + ops**, plus an optional migration script in this repo.
+
+| # | Task | Owner | Status |
+|---|------|--------|--------|
+| 1 | Website BFF: obtain token (`client_credentials`) against staging HRM | Website | **TODO** |
+| 2 | Website careers list/detail: `GET /api/public/careers/jobs` (+ by slug) | Website | **TODO** |
+| 3 | Staging smoke: API Client with `careers:read` only | Website + HRM ops | **TODO** |
+| 4 | Website apply form → `POST /applications` (JSON, then multipart CV) | Website | **TODO** |
+| 5 | Prod/staging: create API User + API Client; store secret in website secret store | HRM ops | **TODO** |
+| 6 | When apply is ready: grant `careers:apply` + set `CAREERS_PUBLIC_APPLY_ENABLED=true` | HRM ops | **TODO** |
+| 7 | Set `PUBLIC_CAREERS_CORS_ORIGINS` (and HTTPS) for production | HRM ops | **TODO** |
+| 8 | One-off migration: CMS careers → `JobPost`; CMS applications → `Application` | HRM + website | **TODO** |
+| 9 | Freeze / read-only legacy CMS Careers admin | Website | **TODO** |
+| 10 | Remove Careers from website admin-portal nav; confirm no dual writes | Website | **TODO** |
+
+Contract & smoke tools (already in HRM): `PUBLIC_CAREERS_API_GUIDE.md`, `/api-clients` Playground, `GET /api/public/careers/postman-collection`.
 
 ---
 
@@ -221,22 +237,25 @@ AppointmentLetter *──1 Evaluation (or Application)
 | **ResumeBankProfile** | `profileId` (RB-*); contact + skills + preferred role/dept; `resumeFileName` / `resumeFileKey` (key in Wave 10); `linkedApplicationIds[]`; status `in_bank` \| `linked` \| `shortlisted` |
 | **Application** | `applicationId` (APP-*); FK `jobPostId` + denormalized `jobPostCode` / title / dept / designation; optional `resumeBankProfileId`; `currentStage` vs `status`; Wave 5 shortlisting fields `shortlistStatus` (`to_review` \| `shortlisted` \| `on_hold` \| `rejected`), `screeningScore`, `qualifications` / `skills`, `holdReason`; embedded `history[]`; `source` (`hospital_website` \| `resume_bank` \| …); unique `(jobPostId, candidateEmail)`; CV `resumeFileName` / `resumeFileKey`. **No separate Shortlisting model** — `/shortlisting` is a mid-pipeline view over Application. |
 | **Interview** | `interviewCode` (INT-*); FK `applicationId` + denormalized APP/JP codes; date + start/end time; panel; type; location; notes; status (`scheduled` \| `confirmed` \| `rescheduled` \| `completed` \| `no_show` \| `cancelled`); `cancelReason` |
-| **Evaluation** | `ratings` JSON; strengths/weaknesses/comments; recommendation / finalDecision; overallScore |
-| **AppointmentLetter** | `letterNumber`; salary; dates; `letterGenerated`; status; file refs |
+| **Evaluation** | `evaluationCode` (EVAL-*); 1:1 FK `interviewId`; denormalized interview/application snapshot; `ratings` JSON; strengths/weaknesses/comments; recommendation / finalDecision; cached `overallScore`; status `draft` \| `submitted` |
+| **AppointmentLetter** | `letterNumber` (LETTER-*); 1:1 FK `evaluationId`; denormalized evaluation/application snapshot; salary; dates; `letterGenerated`; status `draft` \| `pending_approval` \| `issued` \| `accepted` \| `declined`; optional `declineReason` / `letterFileKey` (Wave 10) |
 
 ### Codes / sequences
 
-Use existing Sequence pattern (like Staff / Leave): e.g. `VR-…`, `JP-…`, `RB-…`, `APP-…`, `INT-…`, `LETTER-…`.
+Use existing Sequence pattern (like Staff / Leave): e.g. `VR-…`, `JP-…`, `RB-…`, `APP-…`, `INT-…`, `EVAL-…`, `LETTER-…`.
 
 ### Evaluation criteria
 
-Phase 0: `EVALUATION_CRITERIA` / ratings / scores in `types/recruitment.ts`.  
-Phase 7+: persist ratings as JSON on `Evaluation`. Optional later: criteria master table — **not required for v1**.
+`EVALUATION_CRITERIA` / ratings / scores in `types/recruitment.ts`; Wave 7 persists ratings as JSON on `Evaluation`. Optional later: criteria master table — **not required for v1**.
 
-### Documents
+### Documents & notify (Wave 10 — done)
 
-Defer to Wave 10: store object keys (S3 / local) on ResumeBank / Application / AppointmentLetter. UI already toasts for download/print.  
-Public apply (Wave 11) should call the same storage helpers once Wave 10 exists; until then, accept metadata-only or block file upload behind a feature flag.
+- **Resumes/CVs:** Application + Resume Bank use `commitPendingUpload` → S3 (`resumes/` prefix); keys on `resumeFileKey` / `resumeFileName`. Max **10 MB**; PDF or images.
+- **Appointment letter PDF:** `jspdf` builds English letter on **Generate** (force) and **Send** (if key missing); stored under `appointment-letters/` as `letterFileKey`. Download via presigned GET; Print uses browser HTML (works without S3).
+- **Send:** Email body + optional PDF attachment; SMS unchanged. Soft-warn if S3/SMTP missing — body notify can still succeed without attachment.
+- **Candidate notifications (email + SMS, no internal notes):** interview reschedule/cancel; application shortlist/reject; evaluation submit outcome; appointment letter send.
+- Env: `S3_BUCKET`, `AWS_*`, optional `S3_*_PREFIX`; SMTP/SMS already used by letter send.
+- Public apply (Wave 11) should reuse the same S3 helpers for CV upload.
 
 ---
 
@@ -311,21 +330,40 @@ All under `app/(dashboard)/(recruitment)/`.
 
 | Concern | Detail |
 |---------|--------|
+| Persistence | `Evaluation` model (`EVAL-*`); 1:1 FK to Interview; ratings JSON (`EVALUATION_CRITERIA`); Sequence prefix `EVAL` |
 | Layout | Form (top) + register (below) on one page |
-| Criteria | 8 consts; live overall score |
+| Criteria | 8 consts; live overall score; cached `overallScore` on save/submit |
 | Actions | Save draft, submit confirm, preview; register View / Edit (pencil) / Mail → appointment letters |
-| Load UX | `?interviewId=` / `?evaluationId=`; else first draft |
+| Load UX | `?interviewId=` get-or-create draft from Interview; `?evaluationId=`; else first draft |
+| Submit side-effects | Interview → `completed`; Application history entry; positive decision may set Application stage → `selected`; candidate email/SMS outcome (no score/notes leak) |
+| Service | `evaluation.service.ts` + `evaluation.actions.ts` |
 | Footer | Interview Schedule ← → Appointment Letters |
 
 ### 6.8 Appointment Letters — `/appointment-letters`
 
 | Concern | Detail |
 |---------|--------|
-| Create/Edit | Sheet; Save Draft |
-| Generate | Paper icon + View dialog → letter preview dialog |
-| Other | PDF/Print toast; Send confirm; Accept confirm; Decline (+ reason); Staff onboarding link |
+| Persistence | `AppointmentLetter` model (`LETTER-*`); 1:1 FK to Evaluation; Sequence prefix `LETTER` |
+| Create/Edit | Sheet; Save Draft (candidate = submitted Evaluation without a letter) |
+| Generate | Paper icon → sets `letterGenerated`, status → `pending_approval` when from draft; builds/stores PDF (`letterFileKey`) when S3 configured; preview dialog |
+| Send | Email (+ PDF attachment when available) + SMS using Application contact; status → `issued`; Application stage → `offer` |
+| Download / Print | Download → ensure PDF + presigned URL; Print → browser HTML (`appointment-letter-print.ts`) |
+| Accept / Decline | Accept → `accepted` + Application `hired`; Decline (+ reason) → `declined` |
+| Other | Staff onboarding link when accepted (`/staff/onboard`) |
+| Load UX | `?evaluationId=` opens create sheet when no letter yet |
+| Service | `appointment-letter.service.ts` + `appointment-letter.actions.ts` |
 | Status gating | See helpers in `types/recruitment.ts` (`canGenerate…`, `canSend…`, etc.) |
 | Footer | Evaluation ← (end of recruitment chain) |
+
+### 6.9 Staff handoff — `/staff/onboard`
+
+| Concern | Detail |
+|---------|--------|
+| Entry | Appointment Letters UserPlus (accepted only) → `/staff/onboard?letterId=` |
+| Choice | **Create with prefill** → `/staff/add?from=appointment&letterId=` · **Browse list** → `/staff?keyword=` |
+| Prefill | Name, email, phone, join date from letter + Application; NIC left for HR |
+| Link | `Staff.appointmentLetterId` + `AppointmentLetter.staffId`; blocks double onboard |
+| Service | `staff-onboard.service.ts` + `staff-onboard.actions.ts`; createStaffOption `appointmentLetterId` |
 
 ---
 
@@ -371,7 +409,7 @@ All under `app/(dashboard)/(recruitment)/`.
 | Shortlisting footer | `/interview-schedule` |
 | Interview Schedule star / footer | `/evaluation?interviewId=` |
 | Evaluation mail / footer | `/appointment-letters?evaluationId=` |
-| Appointment Letters onboard | `/staff?from=appointment&letterId=` |
+| Appointment Letters onboard | `/staff/onboard?letterId=` → `/staff/add?from=appointment&letterId=` or `/staff?keyword=` |
 
 When dynamizing, keep these query params and resolve server-side to real records.
 
@@ -416,7 +454,7 @@ Public routes call **services** directly (with machine auth), not dashboard serv
 | 2 | Cannot publish without required fields (incl. slug); close stops new applications |
 | 3–4 | Add-to-job creates Application; duplicate candidate handling |
 | 5 | Shortlist / hold / reject update Application stage + shortlist status |
-| 6 | Reschedule sets `rescheduled`; cancel notifies (when Wave 10 exists) |
+| 6 | Reschedule sets `rescheduled`; cancel/reschedule notify candidate (email/SMS) |
 | 7 | Submit locks evaluation; score matches rating average |
 | 8 | Accept unlocks Staff onboard; decline blocks generate send path |
 | 9 | Prefill Staff from letter without losing audit trail |
@@ -426,22 +464,22 @@ Public routes call **services** directly (with machine auth), not dashboard serv
 
 ---
 
-## 12. Out of scope for Phase 0 (already deferred)
+## 12. Out of scope / deferred
 
-- Real PDF generation / email sending (Wave 10)  
+- Letterhead logo / bilingual letter templates (English-only PDF for now)  
 - Criteria master CRUD  
-- Public Careers API + website cutover (Waves 11–12 — **in scope after internal pipeline**, not Phase 0)  
 - Multi-tenant institution scoping (follow Staff when added)  
-- Full channeling sync for hired staff (use existing Staff sync after onboard)
+- Full channeling sync for hired staff (use existing Staff sync after onboard)  
+- Redis/shared rate limiter (current limiter is in-memory per process)
 
 ---
 
 ## 13. Quick start for the next developer
 
-1. Read this guide (§2 architecture + §4 waves) and `HRM_DEVELOPMENT_GUIDELINES.md` §2 (layers) / §8 (no shared Prisma).  
-2. Confirm Auth User Group has `recruitment` grants.  
-3. Start **Wave 0 + Wave 1 (Vacancy Requests)** only.  
-4. Do not open Application / Interview PRs until Job Post IDs are stable.  
-5. Do not build website apply against HRM until Wave 4 create + Wave 11 API are ready.  
-6. Keep UI components thin — move rules into services as you replace toasts.  
-7. After Wave 2, design Job Post public fields (slug, short/full description) with the website careers page in mind — even if Wave 11 comes later.
+**HRM recruitment (Waves 0–11) is complete.** Next work is **Wave 12**.
+
+1. Read this guide §2 + §4 Wave 12 checklist, and **`PUBLIC_CAREERS_API_GUIDE.md`**.  
+2. Website: wire BFF to HRM Public Careers API (token → jobs first; apply when flagged on).  
+3. HRM ops: create API User + API Client; hand credentials to website secret store.  
+4. Optional: add a one-off CMS → HRM migration script when cutover date is set.  
+5. Do **not** share HRM Prisma / `DATABASE_URL` with the website (`HRM_DEVELOPMENT_GUIDELINES.md` §8).

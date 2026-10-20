@@ -6,8 +6,17 @@ import prisma, { Prisma } from '@/lib/prisma';
 import type { AuditUser } from '@/lib/audit-user';
 import { toAuditUser } from '@/lib/audit-user';
 import { generateRecordCode } from '@/lib/conventions/record-code-generator';
+import { notifyCandidate } from '@/lib/helpers/recruitment/notify-candidate';
 import { resolveAuthUsers } from '@/lib/helpers/resolve-auth-users.helper';
 import { mapApplicationRecord } from '@/lib/mappers/application.mapper';
+import {
+  applicationRejectedEmailTemplate,
+  shortlistedEmailTemplate
+} from '@/lib/templates/email/recruitment';
+import {
+  applicationRejectedSmsTemplate,
+  shortlistedSmsTemplate
+} from '@/lib/templates/sms/recruitment';
 import { MOBILE_NUMBER_REGEX } from '@/lib/validations/phone-mobile';
 import {
   APPLICATION_CODE_PREFIX,
@@ -640,6 +649,22 @@ export async function shortlistApplication(
       });
     }
 
+    await notifyCandidate({
+      contact: {
+        email: updated.candidateEmail,
+        phone: updated.candidatePhone
+      },
+      email: shortlistedEmailTemplate({
+        candidateName: updated.candidateName,
+        position: updated.jobTitle,
+        applicationCode: updated.applicationId
+      }),
+      smsText: shortlistedSmsTemplate({
+        candidateName: updated.candidateName,
+        position: updated.jobTitle
+      })
+    });
+
     const [withUsers] = await resolveAuthUsers([updated]);
     return {
       success: true,
@@ -709,6 +734,23 @@ export async function rejectApplication(
         ],
         ...(auditUser?.id && { updatedBy: auditUser.id })
       }
+    });
+
+    // Candidate-facing copy omits rejectReason (may be internal).
+    await notifyCandidate({
+      contact: {
+        email: updated.candidateEmail,
+        phone: updated.candidatePhone
+      },
+      email: applicationRejectedEmailTemplate({
+        candidateName: updated.candidateName,
+        position: updated.jobTitle,
+        applicationCode: updated.applicationId
+      }),
+      smsText: applicationRejectedSmsTemplate({
+        candidateName: updated.candidateName,
+        position: updated.jobTitle
+      })
     });
 
     const [withUsers] = await resolveAuthUsers([updated]);

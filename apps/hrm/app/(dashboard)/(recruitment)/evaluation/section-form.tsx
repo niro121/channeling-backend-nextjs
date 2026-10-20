@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Form, Formik, type FormikHelpers } from 'formik';
 import * as Yup from 'yup';
 import { format, parseISO } from 'date-fns';
@@ -12,6 +13,10 @@ import {
   CustomSelectField,
   useToast
 } from '@archmage/ui';
+import {
+  saveEvaluationDraftAction,
+  submitEvaluationAction
+} from '@/app/actions/recruitment-actions/evaluation.actions';
 import { buttonStyles } from '@/lib/utils/common-styles';
 import { cn } from '@/lib/utils';
 import {
@@ -71,6 +76,7 @@ function MetaCard({ label, value }: { label: string; value: string }) {
 
 export default function SectionForm({ record }: SectionFormProps) {
   const { toast } = useToast();
+  const router = useRouter();
   const { openPreview, setActiveRecord } = useEvaluationUi();
   const [submitOpen, setSubmitOpen] = useState(false);
   const [pendingValues, setPendingValues] =
@@ -89,45 +95,91 @@ export default function SectionForm({ record }: SectionFormProps) {
     [record]
   );
 
-  const isLocked = record.status === 'submitted';
+  const isLocked = record.status === 'submitted' || !record.id;
 
-  const handleSaveDraft = (values: EvaluationFormValues) => {
-    const { score } = computeEvaluationScore(values.ratings);
-    toast({
-      title: 'Not saved',
-      description: `Draft evaluation for ${record.candidateName} (score ${score}) will be wired in the workflow phase.`
-    });
-    setActiveRecord({
-      ...record,
-      ...values,
-      recommendation: (values.recommendation || '') as EvaluationRecord['recommendation'],
-      finalDecision: (values.finalDecision || '') as EvaluationRecord['finalDecision'],
-      overallScore: score,
-      status: 'draft'
-    });
-  };
+  const handleSaveDraft = async (values: EvaluationFormValues) => {
+    if (!record.id) {
+      toast({
+        variant: 'destructive',
+        title: 'No evaluation selected',
+        description:
+          'Open Evaluation from Interview Schedule (star) to create a draft.'
+      });
+      return;
+    }
 
-  const handleSubmitConfirm = () => {
-    if (!pendingValues) return;
     setLoading(true);
-    const { score } = computeEvaluationScore(pendingValues.ratings);
-    toast({
-      title: 'Not saved',
-      description: `Submit evaluation for ${record.candidateName} (score ${score}) will be wired in the workflow phase.`
-    });
-    setActiveRecord({
-      ...record,
-      ...pendingValues,
-      recommendation: (pendingValues.recommendation ||
-        '') as EvaluationRecord['recommendation'],
-      finalDecision: (pendingValues.finalDecision ||
-        '') as EvaluationRecord['finalDecision'],
-      overallScore: score,
-      status: 'submitted'
+    const result = await saveEvaluationDraftAction(record.id, {
+      ratings: values.ratings,
+      strengths: values.strengths,
+      weaknesses: values.weaknesses,
+      interviewComments: values.interviewComments,
+      recommendation: values.recommendation,
+      finalDecision: values.finalDecision
     });
     setLoading(false);
+
+    if (result.isError || !result.data?.record) {
+      const message =
+        typeof result.errors === 'object' &&
+        result.errors &&
+        'message' in result.errors
+          ? String((result.errors as { message?: string }).message ?? '')
+          : '';
+      toast({
+        variant: 'destructive',
+        title: 'Could not save draft',
+        description: message || 'Please try again.'
+      });
+      return;
+    }
+
+    setActiveRecord(result.data.record);
+    toast({
+      variant: 'success',
+      title: 'Draft saved',
+      description: `${result.data.record.evaluationCode} · score ${result.data.record.overallScore}`
+    });
+    router.refresh();
+  };
+
+  const handleSubmitConfirm = async () => {
+    if (!pendingValues || !record.id) return;
+    setLoading(true);
+    const result = await submitEvaluationAction(record.id, {
+      ratings: pendingValues.ratings,
+      strengths: pendingValues.strengths,
+      weaknesses: pendingValues.weaknesses,
+      interviewComments: pendingValues.interviewComments,
+      recommendation: pendingValues.recommendation,
+      finalDecision: pendingValues.finalDecision
+    });
+    setLoading(false);
+
+    if (result.isError || !result.data?.record) {
+      const message =
+        typeof result.errors === 'object' &&
+        result.errors &&
+        'message' in result.errors
+          ? String((result.errors as { message?: string }).message ?? '')
+          : '';
+      toast({
+        variant: 'destructive',
+        title: 'Could not submit',
+        description: message || 'Please try again.'
+      });
+      return;
+    }
+
+    setActiveRecord(result.data.record);
+    toast({
+      variant: 'success',
+      title: 'Evaluation submitted',
+      description: `${result.data.record.evaluationCode} · score ${result.data.record.overallScore}`
+    });
     setSubmitOpen(false);
     setPendingValues(null);
+    router.refresh();
   };
 
   return (
@@ -412,8 +464,7 @@ export default function SectionForm({ record }: SectionFormProps) {
         description="Submitted evaluations are locked and shared with the hiring panel."
         handleContinue={handleSubmitConfirm}
         className={{
-          actionButton:
-            'bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground'
+          actionButton: buttonStyles.save
         }}
       />
     </>
