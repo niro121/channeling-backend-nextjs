@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { publicCareersCorsHeaders } from '@/lib/public-careers-cors';
+import {
+  applyRateLimitHeaders,
+  consumePublicCareersRateLimit,
+  getRequestIp
+} from '@/lib/public-careers-rate-limit';
 import { requestCareersPublicToken } from '@/services/public/careers-token.service';
 
 function parseBody(request: NextRequest): Promise<{
@@ -59,6 +64,25 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  const ip = getRequestIp(request.headers);
+  const rateKey = body.client_id?.trim()
+    ? `client:${body.client_id.trim()}`
+    : `ip:${ip}`;
+  const rate = consumePublicCareersRateLimit('token', rateKey);
+  if (!rate.ok) {
+    const res = withCors(
+      NextResponse.json(
+        {
+          error: 'rate_limit_exceeded',
+          error_description: 'Too many token requests. Try again later.'
+        },
+        { status: 429 }
+      )
+    );
+    applyRateLimitHeaders(res.headers, rate);
+    return res;
+  }
+
   const result = await requestCareersPublicToken(body);
 
   if (!result.success) {
@@ -71,19 +95,23 @@ export async function POST(request: NextRequest) {
           : result.errorDescription === 'Token signing is not configured'
             ? 503
             : 500;
-    return withCors(
+    const res = withCors(
       NextResponse.json(
         { error: result.code, error_description: result.errorDescription },
         { status }
       )
     );
+    applyRateLimitHeaders(res.headers, rate);
+    return res;
   }
 
-  return withCors(
+  const res = withCors(
     NextResponse.json({
       access_token: result.accessToken,
       token_type: 'Bearer',
       expires_in: result.expiresIn
     })
   );
+  applyRateLimitHeaders(res.headers, rate);
+  return res;
 }

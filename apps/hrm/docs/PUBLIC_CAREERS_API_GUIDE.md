@@ -8,7 +8,7 @@ Use with:
 - `HRM_DEVELOPMENT_GUIDELINES.md` — layers, no shared Prisma across apps  
 - Channeling reference: `apps/channeling` API Clients + `/api/public/token` (same auth *shape*, Careers live in **HRM**)
 
-**Status:** Guidance + **P0–P5 done** (token, jobs, apply + optional CV). Website cutover is P6.  
+**Status:** Guidance + **P0–P5 + Wave 11 hardening done** (rate limits, playground, Postman). Website cutover is **P6 / Wave 12**.  
 **Ownership:** HRM is system of record for job posts and applications. The website is a **public channel** (BFF → HRM HTTP only).
 
 ---
@@ -241,7 +241,7 @@ Success `201`: `{ "application": { "applicationId", "jobSlug", "jobTitle", "appl
 - Feature flag: `CAREERS_PUBLIC_APPLY_ENABLED` — `503` when off  
 - CV (optional): `multipart/form-data` field `resume` — PDF or image, ≤10 MB → S3 `resumes/`; response includes `hasResume`  
 - JSON body still supported for metadata-only apply  
-- Rate limiting on token + apply (Wave 11 hardening)
+- Rate limiting: `429 rate_limit_exceeded` on token + apply (per client/IP window; see env)
 
 ---
 
@@ -298,6 +298,9 @@ apps/hrm/
 | `PUBLIC_CAREERS_TOKEN_TTL_SEC` | Optional; default `3600` |
 | `PUBLIC_CAREERS_CORS_ORIGINS` | Comma-separated website origins |
 | `CAREERS_PUBLIC_APPLY_ENABLED` | `true` / `false` — gate `POST /applications` |
+| `PUBLIC_CAREERS_RATE_LIMIT_WINDOW_SEC` | Optional; default `60` |
+| `PUBLIC_CAREERS_TOKEN_RATE_LIMIT` | Optional; default `30` per window (`0` = off) |
+| `PUBLIC_CAREERS_APPLY_RATE_LIMIT` | Optional; default `20` per window (`0` = off) |
 | Existing `S3_*` / `AWS_*` | CV upload on apply |
 | Existing SMTP/SMS | Not required for public apply ack in v1 (optional later) |
 
@@ -335,14 +338,14 @@ Safer default: ship **P3** to staging before enabling apply in production.
 
 ## 10. Security checklist
 
-- [ ] Secret never logged (redact `client_secret` in request logs)  
-- [ ] HTTPS only in staging/production  
-- [ ] BFF-only consumers (CORS tight; prefer no browser→HRM)  
-- [ ] Token TTL short; no refresh token in v1 (re-auth with client credentials)  
-- [ ] Blocked client fails both token and Bearer verification  
-- [ ] Scope checks on every careers route  
-- [ ] Apply flag + rate limits  
-- [ ] Public DTOs reviewed against internal models  
+- [x] Secret never logged (no request body logging on public careers routes)  
+- [ ] HTTPS only in staging/production (ops)  
+- [ ] BFF-only consumers (set `PUBLIC_CAREERS_CORS_ORIGINS` in prod)  
+- [x] Token TTL short; no refresh token in v1 (re-auth with client credentials)  
+- [x] Blocked client fails both token and Bearer verification  
+- [x] Scope checks on every careers route  
+- [x] Apply flag + rate limits (`CAREERS_PUBLIC_APPLY_ENABLED` + in-memory limiter)  
+- [x] Public DTOs reviewed against internal models  
 
 ---
 

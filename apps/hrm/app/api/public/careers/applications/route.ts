@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requirePublicCareersScope } from '@/lib/public-careers-auth';
 import { publicCareersCorsHeaders } from '@/lib/public-careers-cors';
+import {
+  applyRateLimitHeaders,
+  consumePublicCareersRateLimit,
+  getRequestIp
+} from '@/lib/public-careers-rate-limit';
 import { applyPublicJob } from '@/services/recruitment-services/public-careers.service';
 import type {
   PublicApplyPayload,
@@ -107,6 +112,25 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  const ip = getRequestIp(request.headers);
+  const rate = consumePublicCareersRateLimit(
+    'apply',
+    `client:${auth.client.clientId}:ip:${ip}`
+  );
+  if (!rate.ok) {
+    const res = withCors(
+      NextResponse.json(
+        {
+          error: 'rate_limit_exceeded',
+          error_description: 'Too many apply requests. Try again later.'
+        },
+        { status: 429 }
+      )
+    );
+    applyRateLimitHeaders(res.headers, rate);
+    return res;
+  }
+
   let parsed: {
     payload: PublicApplyPayload;
     resume: PublicApplyResumeFile | null;
@@ -114,7 +138,7 @@ export async function POST(request: NextRequest) {
   try {
     parsed = await parseApplyRequest(request);
   } catch {
-    return withCors(
+    const res = withCors(
       NextResponse.json(
         {
           error: 'invalid_request',
@@ -123,6 +147,8 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       )
     );
+    applyRateLimitHeaders(res.headers, rate);
+    return res;
   }
 
   const result = await applyPublicJob(
@@ -147,7 +173,7 @@ export async function POST(request: NextRequest) {
               ? 400
               : 500;
 
-    return withCors(
+    const res = withCors(
       NextResponse.json(
         {
           error: result.code,
@@ -157,9 +183,13 @@ export async function POST(request: NextRequest) {
         { status }
       )
     );
+    applyRateLimitHeaders(res.headers, rate);
+    return res;
   }
 
-  return withCors(
+  const res = withCors(
     NextResponse.json({ application: result.data }, { status: 201 })
   );
+  applyRateLimitHeaders(res.headers, rate);
+  return res;
 }
