@@ -188,9 +188,10 @@ Full architecture: **`PUBLIC_CAREERS_API_GUIDE.md`**.
 3. P3: `GET /api/public/careers/jobs` (+ by slug); thin public DTOs — **Done**
 4. P4: `POST /api/public/careers/applications` (metadata; flag + `careers:apply`) — **Done**
 5. P5: multipart CV via Wave 10 S3 — **Done**
-6. Rate limiting on token + apply (hardening)
-7. Contract tests or smoke checklist for website team
-8. Wave 12: website cutover + CMS migration
+6. API Clients **Playground** tab (token → jobs → apply smoke) — **Done**
+7. Rate limiting on token + apply (hardening)
+8. Contract tests / Postman for website team
+9. Wave 12: website cutover + CMS migration
 
 ### Wave 12 checklist (Website cutover)
 

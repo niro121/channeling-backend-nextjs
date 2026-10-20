@@ -95,6 +95,8 @@ Service change required: HRM `user.service` today forces `userTypes.staff` — m
 | Generate | `clientId` = UUID; `clientSecret` = high-entropy random; hash with argon2 |
 | Reveal secret | **Once** on create (and on explicit rotate) |
 | List / edit | Name, acting user, blocked flag, **multi-select scopes** from `PUBLIC_API_SCOPES` (`lib/permissions.ts`) |
+| Playground | **Clients** + **Playground** tabs on `/api-clients` (`?tab=playground`) — live token / jobs / apply smoke tests |
+| Postman | `GET /api/public/careers/postman-collection` (also linked from Playground) — Careers collection with dynamic `baseUrl` |
 | Block | `isBlocked = true` → token issue and Bearer verify fail immediately |
 | Rotate secret | New secret + hash; invalidate old secret |
 
