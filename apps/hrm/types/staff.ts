@@ -173,6 +173,8 @@ export type StaffWithAuthUsers = StaffRecord & {
 
 export type StaffCrudOptions = {
   syncToChanneling?: boolean;
+  /** Wave 9 — link new staff to an accepted appointment letter. */
+  appointmentLetterId?: string;
 };
 
 export type StaffActionResult = {

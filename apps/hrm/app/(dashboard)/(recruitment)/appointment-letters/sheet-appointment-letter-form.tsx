@@ -1,9 +1,10 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Form, Formik, type FormikHelpers } from 'formik';
 import * as Yup from 'yup';
-import { parseISO } from 'date-fns';
+import { format, parseISO } from 'date-fns';
 import { Save, X } from 'lucide-react';
 import {
   Button,
@@ -18,24 +19,27 @@ import {
   SheetTitle,
   useToast
 } from '@archmage/ui';
+import {
+  createAppointmentLetterAction,
+  updateAppointmentLetterAction
+} from '@/app/actions/recruitment-actions/appointment-letter.actions';
 import { buttonStyles } from '@/lib/utils/common-styles';
 import {
   EMPTY_APPOINTMENT_LETTER_FORM,
   PROBATION_PERIOD_OPTIONS,
-  VACANCY_DEPARTMENT_OPTIONS,
-  VACANCY_DESIGNATION_OPTIONS,
   VACANCY_EMPLOYMENT_TYPE_LABELS,
   VACANCY_EMPLOYMENT_TYPES,
   type AppointmentLetterFormValues,
-  type AppointmentLetterRecord
+  type AppointmentLetterRecord,
+  type VacancySelectOption
 } from '@/types/recruitment';
 import type { AppointmentLetterFormMode } from './appointment-letters-ui-context';
-import { SAMPLE_APPOINTMENT_CANDIDATE_OPTIONS } from './sample-data';
 
 type SheetAppointmentLetterFormProps = {
   open: boolean;
   mode: AppointmentLetterFormMode;
   record: AppointmentLetterRecord | null;
+  evaluationOptions?: VacancySelectOption[];
   onOpenChange: (open: boolean) => void;
 };
 
@@ -46,7 +50,7 @@ const fieldStyleClasses = {
 };
 
 const validationSchema = Yup.object({
-  candidateName: Yup.string().required('Candidate is required'),
+  evaluationId: Yup.string().required('Candidate is required'),
   position: Yup.string().required('Position is required'),
   department: Yup.string().required('Department is required'),
   employmentType: Yup.string().required('Employment type is required'),
@@ -62,21 +66,6 @@ const validationSchema = Yup.object({
   termsAndConditions: Yup.string().trim()
 });
 
-const candidateOptions = SAMPLE_APPOINTMENT_CANDIDATE_OPTIONS.map((item) => ({
-  id: item.id,
-  name: item.name
-}));
-
-const positionOptions = VACANCY_DESIGNATION_OPTIONS.map((item) => ({
-  id: item.id,
-  name: item.name
-}));
-
-const departmentOptions = VACANCY_DEPARTMENT_OPTIONS.map((item) => ({
-  id: item.id,
-  name: item.name
-}));
-
 const employmentTypeOptions = VACANCY_EMPLOYMENT_TYPES.map((id) => ({
   id,
   name: VACANCY_EMPLOYMENT_TYPE_LABELS[id]
@@ -87,19 +76,41 @@ const probationOptions = PROBATION_PERIOD_OPTIONS.map((item) => ({
   name: item.name
 }));
 
+function toYmd(date: Date | null): string {
+  if (!date) return '';
+  return format(date, 'yyyy-MM-dd');
+}
+
 export default function SheetAppointmentLetterForm({
   open,
   mode,
   record,
+  evaluationOptions = [],
   onOpenChange
 }: SheetAppointmentLetterFormProps) {
   const { toast } = useToast();
+  const router = useRouter();
   const [saving, setSaving] = useState(false);
   const isEdit = mode === 'edit';
+
+  const candidateOptions = useMemo(() => {
+    const opts = [...evaluationOptions];
+    if (
+      record?.evaluationId &&
+      !opts.some((o) => o.id === record.evaluationId)
+    ) {
+      opts.unshift({
+        id: record.evaluationId,
+        name: `${record.candidateName} · ${record.position || record.evaluationCode}`
+      });
+    }
+    return opts;
+  }, [evaluationOptions, record]);
 
   const initialValues = useMemo<AppointmentLetterFormValues>(() => {
     if (!record) return EMPTY_APPOINTMENT_LETTER_FORM;
     return {
+      evaluationId: record.evaluationId,
       candidateName: record.candidateName,
       position: record.position,
       department: record.department,
@@ -120,18 +131,69 @@ export default function SheetAppointmentLetterForm({
   const handleClose = () => onOpenChange(false);
 
   const handleSubmit = async (
-    _values: AppointmentLetterFormValues,
+    values: AppointmentLetterFormValues,
     _helpers: FormikHelpers<AppointmentLetterFormValues>
   ) => {
+    if (!isEdit && !values.evaluationId) {
+      toast({
+        variant: 'destructive',
+        title: 'Candidate required',
+        description: 'Select a submitted evaluation candidate.'
+      });
+      return;
+    }
+
     setSaving(true);
     try {
+      const payload = {
+        position: values.position,
+        department: values.department,
+        employmentType: values.employmentType,
+        salary: values.salary,
+        appointmentDate: toYmd(values.reportingDate),
+        letterDate: toYmd(values.letterDate),
+        reportingLocation: values.reportingLocation,
+        reportingManager: values.reportingManager,
+        probationPeriod: values.probationPeriod,
+        benefits: values.benefits,
+        termsAndConditions: values.termsAndConditions
+      };
+
+      const result = isEdit
+        ? await updateAppointmentLetterAction(record!.id, payload)
+        : await createAppointmentLetterAction({
+            evaluationId: values.evaluationId,
+            ...payload
+          });
+
+      if (result.isError) {
+        const message =
+          typeof result.errors === 'object' &&
+          result.errors &&
+          'message' in result.errors
+            ? String((result.errors as { message?: string }).message ?? '')
+            : '';
+        toast({
+          variant: 'destructive',
+          title: isEdit ? 'Could not update' : 'Could not save draft',
+          description: message || 'Please try again.'
+        });
+        return;
+      }
+
+      const letterNo =
+        result.data?.letterNumber ??
+        result.data?.record?.letterNumber ??
+        record?.letterNumber;
       toast({
-        title: 'Not saved',
-        description: isEdit
-          ? `Update ${record?.letterNumber ?? ''} will be wired in the workflow phase.`
-          : 'Save draft appointment letter will be wired in the workflow phase.'
+        variant: 'success',
+        title: isEdit ? 'Letter updated' : 'Draft saved',
+        description: letterNo
+          ? `${letterNo} saved.`
+          : 'Appointment letter saved.'
       });
       handleClose();
+      router.refresh();
     } finally {
       setSaving(false);
     }
@@ -162,7 +224,7 @@ export default function SheetAppointmentLetterForm({
         </SheetHeader>
 
         <Formik
-          key={`${mode}-${record?.id ?? 'create'}`}
+          key={`${mode}-${record?.id ?? record?.evaluationId ?? 'create'}`}
           initialValues={initialValues}
           enableReinitialize
           validationSchema={validationSchema}
@@ -172,38 +234,45 @@ export default function SheetAppointmentLetterForm({
             <Form className="flex min-h-0 flex-1 flex-col">
               <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-6 py-4">
                 <CustomSelectField
-                  id="candidateName"
-                  placeholder="Candidate"
-                  value={formik.values.candidateName || undefined}
-                  onChange={(value) =>
-                    void formik.setFieldValue('candidateName', value)
-                  }
+                  id="evaluationId"
+                  placeholder="Candidate (from Evaluation)"
+                  value={formik.values.evaluationId || undefined}
+                  onChange={(value) => {
+                    void formik.setFieldValue('evaluationId', value);
+                    const opt = candidateOptions.find((o) => o.id === value);
+                    if (opt) {
+                      const [name, pos] = opt.name.split(' · ');
+                      void formik.setFieldValue('candidateName', name ?? '');
+                      if (pos && !formik.values.position) {
+                        void formik.setFieldValue('position', pos);
+                      }
+                    }
+                  }}
                   required
+                  disabled={isEdit}
                   options={candidateOptions}
                   styleClasses={fieldStyleClasses}
                 />
 
                 <div className="grid gap-3 sm:grid-cols-2">
-                  <CustomSelectField
+                  <CustomFormField
                     id="position"
+                    type="text"
                     placeholder="Position"
-                    value={formik.values.position || undefined}
-                    onChange={(value) =>
-                      void formik.setFieldValue('position', value)
-                    }
+                    value={formik.values.position}
+                    onChange={formik.handleChange}
+                    onBlur={formik.handleBlur}
                     required
-                    options={positionOptions}
                     styleClasses={fieldStyleClasses}
                   />
-                  <CustomSelectField
+                  <CustomFormField
                     id="department"
+                    type="text"
                     placeholder="Department"
-                    value={formik.values.department || undefined}
-                    onChange={(value) =>
-                      void formik.setFieldValue('department', value)
-                    }
+                    value={formik.values.department}
+                    onChange={formik.handleChange}
+                    onBlur={formik.handleBlur}
                     required
-                    options={departmentOptions}
                     styleClasses={fieldStyleClasses}
                   />
                 </div>

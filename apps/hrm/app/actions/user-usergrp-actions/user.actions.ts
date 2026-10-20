@@ -255,9 +255,10 @@ export async function updateUser(id: string, payload: HrmUser) {
         username: payload.username ?? null,
         phone: payload.phone ?? null,
         twoFactorEnabled: payload.twoFactorEnabled,
+        userType: payload.userType,
         status: payload.status,
         userGroupId: payload.userGroupId,
-        staffId: payload.staffId ?? '',
+        staffId: payload.staffId ?? null,
       },
       auditUser
     );

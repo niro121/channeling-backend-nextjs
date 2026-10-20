@@ -3,15 +3,19 @@ import { getServerSession } from 'next-auth';
 import { checkRouteAccess } from '@/lib/server-permissions';
 import { authOptions } from '@/lib/auth';
 import { logActivityNonBlocking } from '@/lib/activity-log';
+import {
+  getAppointmentLetterFormOptionsAction,
+  getAppointmentLetterSummaryAction,
+  getAppointmentLettersAction
+} from '@/app/actions/recruitment-actions/appointment-letter.actions';
+import { getEvaluationByIdAction } from '@/app/actions/recruitment-actions/evaluation.actions';
 import type {
   AppointmentLetterFilters,
-  AppointmentLetterRecord
+  AppointmentLetterRecord,
+  AppointmentLetterSummary,
+  VacancySelectOption
 } from '@/types/recruitment';
 import AppointmentLettersWorkspace from './appointment-letters-workspace';
-import {
-  SAMPLE_APPOINTMENT_LETTERS,
-  SAMPLE_APPOINTMENT_LETTER_SUMMARY
-} from './sample-data';
 
 type SearchParams = {
   searchParams?: Promise<{
@@ -34,55 +38,12 @@ function normalizeFilter(value?: string): string | undefined {
   return trimmed || undefined;
 }
 
-function filterLetters(
-  records: AppointmentLetterRecord[],
-  filters: AppointmentLetterFilters
-): AppointmentLetterRecord[] {
-  const letterNumber = filters.letterNumber?.toLowerCase();
-  const candidateName = filters.candidateName?.toLowerCase();
-  const position = filters.position?.toLowerCase();
-  const department = filters.department?.toLowerCase();
-  const status = filters.status?.toLowerCase();
-  const search = filters.search?.toLowerCase();
-
-  return records.filter((row) => {
-    if (
-      letterNumber &&
-      !row.letterNumber.toLowerCase().includes(letterNumber)
-    ) {
-      return false;
-    }
-    if (
-      candidateName &&
-      !row.candidateName.toLowerCase().includes(candidateName)
-    ) {
-      return false;
-    }
-    if (position && !row.position.toLowerCase().includes(position)) {
-      return false;
-    }
-    if (department && row.department.toLowerCase() !== department) {
-      return false;
-    }
-    if (filters.letterDate && row.letterDate !== filters.letterDate) {
-      return false;
-    }
-    if (status && row.status.toLowerCase() !== status) return false;
-    if (search) {
-      const haystack = [
-        row.letterNumber,
-        row.candidateName,
-        row.position,
-        row.department,
-        row.salary
-      ]
-        .join(' ')
-        .toLowerCase();
-      if (!haystack.includes(search)) return false;
-    }
-    return true;
-  });
-}
+const EMPTY_SUMMARY: AppointmentLetterSummary = {
+  offersExtended: 0,
+  pendingApproval: 0,
+  accepted: 0,
+  declined: 0
+};
 
 export default async function AppointmentLettersPage({
   searchParams
@@ -103,6 +64,7 @@ export default async function AppointmentLettersPage({
   }
 
   const params = await searchParams;
+  const evaluationId = normalizeFilter(params?.evaluationId);
   const filters: AppointmentLetterFilters = {
     letterNumber: normalizeFilter(params?.letterNumber),
     candidateName:
@@ -112,31 +74,55 @@ export default async function AppointmentLettersPage({
     department: normalizeFilter(params?.department),
     letterDate: normalizeFilter(params?.letterDate),
     status: normalizeFilter(params?.status),
-    search: normalizeFilter(params?.search)
+    search: normalizeFilter(params?.search),
+    evaluationId
   };
 
-  let filtered = filterLetters(SAMPLE_APPOINTMENT_LETTERS, filters);
-  if (params?.evaluationId) {
-    const byEval = SAMPLE_APPOINTMENT_LETTERS.filter(
-      (r) => r.evaluationId === params.evaluationId
-    );
-    if (byEval.length) filtered = byEval;
-  }
+  const [listRes, summaryRes, optionsRes] = await Promise.all([
+    getAppointmentLettersAction({
+      ...filters,
+      page: params?.page,
+      limit: process.env.DEFAULT_PER_PAGE
+    }),
+    getAppointmentLetterSummaryAction(),
+    getAppointmentLetterFormOptionsAction()
+  ]);
 
-  const pageSize = process.env.DEFAULT_PER_PAGE
-    ? Number(process.env.DEFAULT_PER_PAGE)
-    : 10;
-  const pageNumber = params?.page ? Math.max(1, Number(params.page) || 1) : 1;
-  const start = (pageNumber - 1) * pageSize;
-  const pageRecords = filtered.slice(start, start + pageSize);
+  const pageRecords = listRes.isError ? [] : (listRes.data?.data ?? []);
+  const totalRecords = listRes.isError
+    ? 0
+    : (listRes.data?.totalRecords ?? 0);
+  const summary = summaryRes.isError
+    ? EMPTY_SUMMARY
+    : (summaryRes.data ?? EMPTY_SUMMARY);
+  const evaluationOptions: VacancySelectOption[] = optionsRes.isError
+    ? []
+    : (optionsRes.data?.evaluations ?? []);
+
+  let createPrefill: Partial<AppointmentLetterRecord> | null = null;
+  if (evaluationId && pageRecords.length === 0) {
+    const evalRes = await getEvaluationByIdAction(evaluationId);
+    if (!evalRes.isError && evalRes.data) {
+      createPrefill = {
+        evaluationId: evalRes.data.id,
+        evaluationCode: evalRes.data.evaluationCode,
+        candidateName: evalRes.data.candidateName,
+        position: evalRes.data.jobTitle,
+        applicationRefId: evalRes.data.applicationRefId,
+        applicationId: evalRes.data.applicationId
+      };
+    }
+  }
 
   return (
     <AppointmentLettersWorkspace
       initialRecords={pageRecords}
-      totalRecords={filtered.length}
-      summary={SAMPLE_APPOINTMENT_LETTER_SUMMARY}
+      totalRecords={totalRecords}
+      summary={summary}
       page={params?.page}
       initialFilters={filters}
+      evaluationOptions={evaluationOptions}
+      createPrefill={createPrefill}
     />
   );
 }

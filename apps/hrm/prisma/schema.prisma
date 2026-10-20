@@ -156,6 +156,8 @@ model Staff {
   migrateSourceId String? // Legacy staff Mongo id (Sails) for migrate import lookup
   /// Denormalized from hrDetails.fingerPrintRfid for punch lookup / uniqueness among active staff.
   fingerPrintRfid String?
+  /// Wave 9 — set when staff is created from an accepted AppointmentLetter.
+  appointmentLetterId String? @unique @db.ObjectId
   hrDetails       StaffHrDetails?
   personnelDetails StaffPersonnelDetails?
   employmentDetails StaffEmploymentDetails?
@@ -1629,6 +1631,7 @@ model Interview {
   cancelReason String?
 
   application Application @relation(fields: [applicationId], references: [id])
+  evaluation  Evaluation?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1645,6 +1648,132 @@ model Interview {
   @@index([interviewType])
   @@index([status])
   @@index([interviewerPanel])
+  @@index([createdAt(sort: Desc)])
+}
+
+/// Panel evaluation against an Interview. Wave 7 Evaluation — one eval per interview.
+model Evaluation {
+  id             String @id @default(auto()) @map("_id") @db.ObjectId
+  /// Human-readable code from Sequence, e.g. EVAL-1
+  evaluationCode String @unique
+
+  interviewId String @unique @db.ObjectId
+  /// Denormalized Interview.interviewCode (INT-*).
+  interviewCode String @default("")
+
+  /// Denormalized from Interview / Application for list + form header.
+  applicationId   String @db.ObjectId
+  applicationCode String @default("")
+  candidateName   String
+  jobTitle        String @default("")
+  interviewDate   DateTime
+  interviewer     String @default("")
+  /// phone | video | in_person | panel
+  interviewType   String
+  interviewStage  String @default("")
+
+  /// Criterion id → rating (excellent|good|average|poor). Keys from EVALUATION_CRITERIA.
+  ratings Json
+
+  strengths         String @default("")
+  weaknesses        String @default("")
+  interviewComments String @default("")
+
+  /// recommended | recommended_with_conditions | hold | not_recommended | ""
+  recommendation String @default("")
+  finalDecision  String @default("")
+
+  /// Cached 0–100 from computeEvaluationScore(ratings).
+  overallScore Int @default(0)
+
+  /// draft | submitted
+  status String @default("draft")
+
+  interview          Interview           @relation(fields: [interviewId], references: [id])
+  appointmentLetter  AppointmentLetter?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy String?  @db.ObjectId // Auth User.id
+  updatedBy String?  @db.ObjectId // Auth User.id
+
+  @@index([interviewCode])
+  @@index([applicationId])
+  @@index([applicationCode])
+  @@index([candidateName])
+  @@index([jobTitle])
+  @@index([interviewDate])
+  @@index([interviewType])
+  @@index([status])
+  @@index([overallScore])
+  @@index([recommendation])
+  @@index([finalDecision])
+  @@index([createdAt(sort: Desc)])
+}
+
+/// Offer / appointment letter for a submitted Evaluation. Wave 8 Appointment Letters.
+model AppointmentLetter {
+  id           String @id @default(auto()) @map("_id") @db.ObjectId
+  /// Human-readable code from Sequence, e.g. LETTER-1
+  letterNumber String @unique
+
+  evaluationId String @unique @db.ObjectId
+  /// Denormalized Evaluation.evaluationCode (EVAL-*).
+  evaluationCode String @default("")
+
+  /// Denormalized from Evaluation / Application for list + form.
+  applicationId   String @db.ObjectId
+  applicationCode String @default("")
+  candidateName   String
+  /// Job / designation title (UI: position).
+  position        String @default("")
+  department      String @default("")
+
+  /// permanent | contract | temporary | casual
+  employmentType String @default("")
+  /// Reporting / joining date.
+  appointmentDate DateTime?
+  salary          String @default("")
+  letterDate      DateTime?
+
+  reportingLocation String @default("")
+  reportingManager  String @default("")
+  /// 3_months | 6_months | 12_months | none | free text
+  probationPeriod   String @default("")
+  benefits            String @default("")
+  termsAndConditions  String @default("")
+
+  /// draft | pending_approval | issued | accepted | declined
+  status String @default("draft")
+  /// True once letter content has been generated for preview/PDF.
+  letterGenerated Boolean @default(false)
+  declineReason   String?
+
+  /// Object storage key for generated appointment-letter PDF (S3).
+  letterFileKey String?
+
+  /// Wave 9 — Staff created from this letter (onboarding handoff).
+  staffId String? @db.ObjectId
+
+  evaluation Evaluation @relation(fields: [evaluationId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy String?  @db.ObjectId // Auth User.id
+  updatedBy String?  @db.ObjectId // Auth User.id
+
+  @@index([evaluationCode])
+  @@index([applicationId])
+  @@index([applicationCode])
+  @@index([candidateName])
+  @@index([position])
+  @@index([department])
+  @@index([employmentType])
+  @@index([appointmentDate])
+  @@index([letterDate])
+  @@index([status])
+  @@index([letterGenerated])
+  @@index([staffId])
   @@index([createdAt(sort: Desc)])
 }
 
@@ -1697,6 +1826,35 @@ model ResumeBankProfile {
   @@index([experienceYears])
   @@index([skills])
   @@index([linkedApplicationIds])
+  @@index([createdAt(sort: Desc)])
+}
+
+/* ---------------------------------
+PUBLIC API CLIENTS (Careers machine auth)
+--------------------------------- */
+/// OAuth2-style client credentials for Public Careers API.
+/// actingUserId → Auth DB User.id (userType = apiUser). No cross-DB Prisma relation.
+model ApiClient {
+  id               String   @id @default(auto()) @map("_id") @db.ObjectId
+  /// OAuth client_id (UUID)
+  clientId         String   @unique
+  /// argon2 hash of client_secret — plaintext returned only once on create/rotate
+  clientSecretHash String
+  name             String
+  isBlocked        Boolean  @default(false)
+  /// Auth User.id — must be active API User (userType = 4)
+  actingUserId     String   @db.ObjectId
+  /// e.g. careers:read, careers:apply
+  scopes           String[] @default([])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy String?  @db.ObjectId
+  updatedBy String?  @db.ObjectId
+
+  @@index([isBlocked])
+  @@index([actingUserId])
+  @@index([name])
   @@index([createdAt(sort: Desc)])
 }
 

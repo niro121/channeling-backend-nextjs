@@ -28,12 +28,41 @@ type AppointmentLettersUiContextValue = {
   closeFormSheet: () => void;
   closeView: () => void;
   closeLetterPreview: () => void;
-  markGenerated: (id: string) => void;
-  generatedIds: Set<string>;
 };
 
 const AppointmentLettersUiContext =
   createContext<AppointmentLettersUiContextValue | null>(null);
+
+function stubFromPrefill(
+  prefill: Partial<AppointmentLetterRecord>
+): AppointmentLetterRecord {
+  return {
+    id: '',
+    letterNumber: '',
+    evaluationId: prefill.evaluationId ?? '',
+    evaluationCode: prefill.evaluationCode ?? '',
+    applicationRefId: prefill.applicationRefId ?? '',
+    applicationId: prefill.applicationId ?? '',
+    candidateName: prefill.candidateName ?? '',
+    position: prefill.position ?? '',
+    department: prefill.department ?? '',
+    employmentType: (prefill.employmentType as AppointmentLetterRecord['employmentType']) || 'permanent',
+    appointmentDate: prefill.appointmentDate ?? '',
+    salary: prefill.salary ?? '',
+    letterDate: prefill.letterDate ?? '',
+    reportingLocation: prefill.reportingLocation ?? '',
+    reportingManager: prefill.reportingManager ?? '',
+    probationPeriod: prefill.probationPeriod ?? '',
+    benefits: prefill.benefits ?? '',
+    termsAndConditions: prefill.termsAndConditions ?? '',
+    status: 'draft',
+    letterGenerated: false,
+    createdAt: '',
+    createdBy: '',
+    updatedAt: '',
+    updatedBy: ''
+  };
+}
 
 export function AppointmentLettersUiProvider({
   children
@@ -45,15 +74,15 @@ export function AppointmentLettersUiProvider({
     useState<AppointmentLetterRecord | null>(null);
   const [letterPreviewRecord, setLetterPreviewRecord] =
     useState<AppointmentLetterRecord | null>(null);
-  const [generatedIds, setGeneratedIds] = useState<Set<string>>(
-    () => new Set()
-  );
 
   const openCreate = useCallback(
-    (_prefill?: Partial<AppointmentLetterRecord>) => {
+    (prefill?: Partial<AppointmentLetterRecord>) => {
       setViewRecord(null);
       setLetterPreviewRecord(null);
-      setFormSheet({ mode: 'create', record: null });
+      setFormSheet({
+        mode: 'create',
+        record: prefill ? stubFromPrefill(prefill) : null
+      });
     },
     []
   );
@@ -83,10 +112,6 @@ export function AppointmentLettersUiProvider({
     []
   );
 
-  const markGenerated = useCallback((id: string) => {
-    setGeneratedIds((prev) => new Set(prev).add(id));
-  }, []);
-
   const value = useMemo(
     () => ({
       formSheet,
@@ -98,9 +123,7 @@ export function AppointmentLettersUiProvider({
       openLetterPreview,
       closeFormSheet,
       closeView,
-      closeLetterPreview,
-      markGenerated,
-      generatedIds
+      closeLetterPreview
     }),
     [
       formSheet,
@@ -112,9 +135,7 @@ export function AppointmentLettersUiProvider({
       openLetterPreview,
       closeFormSheet,
       closeView,
-      closeLetterPreview,
-      markGenerated,
-      generatedIds
+      closeLetterPreview
     ]
   );
 
@@ -133,14 +154,4 @@ export function useAppointmentLettersUi() {
     );
   }
   return ctx;
-}
-
-export function withGeneratedFlag(
-  record: AppointmentLetterRecord,
-  generatedIds: Set<string>
-): AppointmentLetterRecord {
-  if (record.letterGenerated || generatedIds.has(record.id)) {
-    return { ...record, letterGenerated: true };
-  }
-  return record;
 }
