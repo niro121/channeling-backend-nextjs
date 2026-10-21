@@ -114,7 +114,8 @@ export default function UserGroupRecordActions<TData extends UserGroup>({
         description="This action cannot be undone. This will permanently delete this user group."
         handleContinue={onDeleteConfirmation}
         className={{
-          actionButton: buttonStyles.cancel.danger
+          actionButton: buttonStyles.delete.danger,
+          cancelButton: `h-9!`
         }}
       />
     </>

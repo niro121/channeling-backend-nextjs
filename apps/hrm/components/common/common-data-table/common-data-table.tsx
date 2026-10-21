@@ -545,7 +545,7 @@ export function CommonDataTable<TData, TValue>({
             <AlertDialogFooter>
               <AlertDialogCancel
                 disabled={loading || fetchingDescription}
-                className="cursor-pointer"
+                className="cursor-pointer h-9!"
               >
                 Cancel
               </AlertDialogCancel>
