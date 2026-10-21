@@ -24,6 +24,7 @@ type CustomAlertDialogProps = {
   loading: boolean
   className?: {
     actionButton?: string
+    cancelButton?: string
   }
 }
 
@@ -47,7 +48,7 @@ const CustomAlertDialog = ({
           <AlertDialogCancel
             onClick={() => handleVisibilityChange(false)}
             disabled={loading}
-            className="cursor-pointer"
+            className={cn("cursor-pointer", className?.cancelButton)}
           >
             Cancel
           </AlertDialogCancel>
