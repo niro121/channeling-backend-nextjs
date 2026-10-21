@@ -110,7 +110,7 @@ export function SearchTab() {
             Search
           </label>
           <Input
-            placeholder="Search (Name, Mobile, Agent Ref, Bill No (Digits Part))"
+            placeholder="Search (Name, Mobile, Reservation Id, Agent Ref, Bill No (Digits Part))"
             value={keyword}
             onChange={(e) => setKeyword(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && handleSearch()}
