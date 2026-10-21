@@ -29,6 +29,8 @@ type ReportLimitKey =
   | 'no_show_patient'
   | 'daily_returns_summary'
   | 'doctor_balance'
+  | 'dpay_doctor_balance'
+  | 'dpay_doctor_statement'
   | 'cashier_short_balance';
 
 const DEFAULT_REPORT_MAX = 10000

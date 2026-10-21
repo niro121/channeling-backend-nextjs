@@ -1383,6 +1383,41 @@ model ApiLog {
   @@index([clientId])
 }
 
+/// Tick state for a DPAY non-cash receipt on a reconciliation. The receipt stays in DPAY.
+model DpayReconciliationLine {
+  id                     String    @id @default(auto()) @map("_id") @db.ObjectId
+  /// dpay:{shiftId}:{kind}:{receiptNumber}
+  lineKey                String    @unique
+  /// Top-level handover document this tick was posted on.
+  handoverId             String    @db.ObjectId
+  shiftId                String
+  receiptNumber          String
+  kind                   String
+  paymentMethod          Int
+  amountRupees           Float
+  reconciledAt           DateTime?
+  reconciledBy           String?   @db.ObjectId
+  cannotReconcileAt      DateTime?
+  cannotReconcileBy      String?   @db.ObjectId
+  cannotReconcileReason  String?
+  createdAt              DateTime  @default(now())
+
+  @@index([handoverId])
+  @@index([shiftId])
+}
+
+/// Open incident for the server monitor. One row per outage, not one per failed call.
+model SystemAlert {
+  id         String    @id @default(auto()) @map("_id") @db.ObjectId
+  source     String
+  kind       String
+  message    String
+  createdAt  DateTime  @default(now())
+  resolvedAt DateTime?
+
+  @@index([source, resolvedAt, createdAt(sort: Desc)])
+}
+
 model Log {
   id          String    @id @default(auto()) @map("_id") @db.ObjectId
   status      LogStatus // INFO, ERROR

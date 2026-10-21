@@ -10,6 +10,7 @@ import type {
   CancelDoctorPaymentResult,
 } from '@/types/doctor-payment';
 import { generateDoctorPaymentCancelReceiptNumber } from './generate-doctor-payment-receipt-number.service';
+import { postTillJournal, requireActiveShift } from '@/lib/dpay-shift';
 
 /**
  * Cancel a doctor payment the same way patient bill receipts are cancelled:
@@ -96,6 +97,35 @@ export async function cancelDoctorPayment(
     slipDate: input.slipDate,
   });
 
+  if (!original.doctorId?.trim() || !original.doctorCode?.trim()) {
+    return {
+      success: false,
+      message: 'This doctor payment has no DPAY payable, so the till cannot be updated.',
+    };
+  }
+
+  const shiftGate = await requireActiveShift(input.canceledBy);
+  if (!shiftGate.success) return { success: false, message: shiftGate.message };
+
+  const shares = [
+    {
+      doctorId: original.doctorId,
+      doctorCode: original.doctorCode,
+      doctorName: original.doctorName,
+      amount: original.totalAmount,
+    },
+  ];
+  const journal = await postTillJournal({
+    shift: shiftGate.shift,
+    kind: 'doctor_payment_cancel',
+    referenceId: original.id,
+    description: `DPAY doctor payment cancel ${original.receiptNumber}`,
+    paymentMethod: input.refundPaymentMethod,
+    shares,
+    whtAmount: original.whtAmount,
+  });
+  if (!journal.success) return { success: false, message: journal.message };
+
   const lineItemIds = [
     ...new Set([
       ...original.lineItems.map((item) => item.id),
@@ -113,6 +143,9 @@ export async function cancelDoctorPayment(
         data: {
           receiptNumber: cancelReceiptNumber,
           doctorName: original.doctorName,
+          doctorId: original.doctorId,
+          doctorCode: original.doctorCode,
+          shiftId: shiftGate.shift.shiftId,
           paymentMethod: String(input.refundPaymentMethod),
           referenceNumber: refundMeta.referenceNumber,
           bank: refundMeta.bank,
@@ -186,6 +219,15 @@ export async function cancelDoctorPayment(
 
     return { success: true, cancelReceiptNumber };
   } catch (error) {
+    const reversed = await postTillJournal({
+      shift: shiftGate.shift,
+      kind: 'doctor_payment',
+      referenceId: original.id,
+      description: `Reverse failed DPAY doctor payment cancel ${original.receiptNumber}`,
+      paymentMethod: input.refundPaymentMethod,
+      shares,
+      whtAmount: original.whtAmount,
+    });
     console.error('cancelDoctorPayment failed', error);
     const message =
       error instanceof Error && error.message
@@ -198,6 +240,11 @@ export async function cancelDoctorPayment(
           'Server Prisma client is out of date. Restart the dpay dev server and try again.',
       };
     }
-    return { success: false, message: 'Failed to cancel doctor payment.' };
+    return {
+      success: false,
+      message: reversed.success
+        ? 'Failed to cancel doctor payment.'
+        : 'Failed to cancel doctor payment. The till could not be put back. Do not retry until it is checked.',
+    };
   }
 }

@@ -40,7 +40,13 @@ export function BillBreakdownRow({
       <td className="px-3 py-3 min-w-[220px]">
         <DoctorSearchSelect
           value={item.doctorName}
-          onChange={(doctorName) => onChange({ doctorName })}
+          onChange={(doctorName, doctor) =>
+            onChange({
+              doctorName,
+              doctorId: doctor?.id ?? null,
+              doctorCode: doctor?.code ?? null,
+            })
+          }
           placeholder="Select doctor..."
           hasError={Boolean(errors?.doctorName)}
         />

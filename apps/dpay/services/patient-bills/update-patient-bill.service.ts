@@ -1,4 +1,5 @@
 import prisma from '@/lib/prisma';
+import { requireActiveShift } from '@/lib/dpay-shift';
 import type { PatientBillDraft } from '@/types/patient-bill';
 import { isDoctorPaidLineItem } from '@/lib/doctor-payments/eligibility';
 import { draftToUpdatePayload } from '@/lib/patient-bills/mappers';
@@ -21,6 +22,9 @@ export async function updatePatientBill(
     return { success: false, message: 'Invalid bill ID' };
   }
 
+  const shiftGate = await requireActiveShift(updatedBy);
+  if (!shiftGate.success) return { success: false, message: shiftGate.message };
+
   try {
     const existing = await prisma.patientBill.findUnique({
       where: { id },
@@ -32,6 +36,8 @@ export async function updatePatientBill(
           select: {
             id: true,
             doctorName: true,
+            doctorId: true,
+            doctorCode: true,
             description: true,
             amount: true,
             sortOrder: true,
@@ -107,6 +113,8 @@ export async function updatePatientBill(
         if (existingItem) {
           const next = {
             doctorName: item.doctorName,
+            doctorId: item.doctorId ?? null,
+            doctorCode: item.doctorCode ?? null,
             description: item.description,
             amount: item.amount,
             sortOrder: item.sortOrder,
@@ -118,7 +126,10 @@ export async function updatePatientBill(
             sortOrder: existingItem.sortOrder,
           };
 
-          if (!lineItemSnapshotChanged(previous, next)) {
+          const doctorLinkChanged =
+            (existingItem.doctorId ?? null) !== (item.doctorId ?? null) ||
+            (existingItem.doctorCode ?? null) !== (item.doctorCode ?? null);
+          if (!lineItemSnapshotChanged(previous, next) && !doctorLinkChanged) {
             continue;
           }
 
@@ -154,6 +165,8 @@ export async function updatePatientBill(
               billId: id,
               sortOrder: item.sortOrder,
               doctorName: item.doctorName,
+              doctorId: item.doctorId ?? undefined,
+              doctorCode: item.doctorCode ?? undefined,
               description: item.description,
               amount: item.amount,
               createdBy: updatedBy ?? undefined,

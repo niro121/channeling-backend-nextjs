@@ -345,6 +345,10 @@ This document lists all user activities recorded in the application’s activity
 | Action | Importance | When |
 |--------|------------|------|
 | `reports.visited` | Low | User opens Reports (index) page |
+| `reports.dpay-doctor-balance.viewed` | Low | User runs the DPAY Doctor Balance report |
+| `reports.dpay-doctor-balance.exported` | Medium | User exports the DPAY Doctor Balance report |
+| `reports.dpay-doctor-statement.viewed` | Low | User runs a DPAY Doctor Statement |
+| `reports.dpay-doctor-statement.exported` | Medium | User exports a DPAY Doctor Statement |
 | `reports.agent-detail.exported` | Medium | User exports Agent Detail report |
 | `reports.doctors.exported` | Medium | User exports Doctors report |
 | `reports.channel-agent-reference-book.exported` | Medium | User exports Channel Agent Reference Book report |
