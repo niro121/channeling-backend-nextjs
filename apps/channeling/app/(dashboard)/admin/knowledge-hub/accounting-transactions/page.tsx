@@ -112,6 +112,65 @@ const SCENARIOS: Scenario[] = [
     credit: ["Doctor PAYABLE"],
     notes: ["Reverse of Doctor Payment, using net amount."],
   },
+  {
+    title: "DPAY Invoice",
+    when: "A patient bill is raised in DPAY",
+    example: "Invoice for LKR 5,000 is saved. The patient has not paid yet.",
+    debit: ["No journal"],
+    credit: ["No journal"],
+    notes: [
+      "The bill stays in DPAY. The Channeling till and the doctor payable do not move until a receipt is taken.",
+    ],
+  },
+  {
+    title: "DPAY Patient Payment",
+    when: "DPAY receipt for a patient settlement",
+    example: "Patient pays LKR 5,000. Doctor A is due 3,000 and Doctor B is due 2,000.",
+    debit: ["Shift till (cash / card / slip / cheque / e-wallet by payment method)"],
+    credit: [
+      "DPAY Doctor PAYABLE for Doctor A (DPAY-DOC-{code})",
+      "DPAY Doctor PAYABLE for Doctor B (DPAY-DOC-{code})",
+    ],
+    notes: [
+      "One credit per doctor on the bill. This is not the Channeling Doctor PAYABLE (DOC-{code}).",
+      "The account is created the first time that doctor is paid in DPAY.",
+      "Any amount above the line fees is credited to the last doctor.",
+    ],
+  },
+  {
+    title: "DPAY Patient Refund",
+    when: "A DPAY payment receipt is cancelled, a bill is cancelled, or an overpayment is refunded",
+    example: "Refund the LKR 5,000 settlement above.",
+    debit: [
+      "DPAY Doctor PAYABLE for each doctor share on that receipt",
+    ],
+    credit: ["Shift till (same payment method as the refund)"],
+    notes: ["Reverse of DPAY Patient Payment. The refund is its own DPAY receipt."],
+  },
+  {
+    title: "DPAY Doctor Payment",
+    when: "DPAY pays a doctor for bill lines",
+    example: "Pay the doctor LKR 3,000 from the till.",
+    debit: ["DPAY Doctor PAYABLE (the fee)"],
+    credit: [
+      "Shift till (the net paid out)",
+      "WHT PAYABLE (only when withholding tax is deducted)",
+    ],
+    notes: [
+      "Current DPAY doctor payments send withholding tax as zero, so the till credit equals the fee.",
+    ],
+  },
+  {
+    title: "DPAY Doctor Payment Cancel",
+    when: "A DPAY doctor payment is cancelled",
+    example: "Cancel the LKR 3,000 doctor payment.",
+    debit: [
+      "Shift till (the net that comes back)",
+      "WHT PAYABLE (only when withholding tax was deducted on the original)",
+    ],
+    credit: ["DPAY Doctor PAYABLE (the fee)"],
+    notes: ["Reverse of DPAY Doctor Payment. The cancel is its own DPAY receipt."],
+  },
 ];
 
 const ACCOUNT_NAME_PATTERNS = [
@@ -120,6 +179,8 @@ const ACCOUNT_NAME_PATTERNS = [
   "Credit Customer RECEIVABLE",
   "Branch INCOME",
   "Doctor PAYABLE",
+  "DPAY Doctor PAYABLE",
+  "WHT PAYABLE",
   "Branch EXPENSE",
   "Branch CASH book",
   "Expense Adjustment",
@@ -165,8 +226,10 @@ export default async function AdminAccountingTransactionsKnowledgePage() {
         <CardHeader>
           <CardTitle className="text-base">Scope</CardTitle>
           <CardDescription>
-            These scenarios summarize current posting behavior in receipt/journal flows. For implementation details,
-            check <code className="rounded bg-muted px-1 py-0.5">services/channel-booking/helpers/receipt-journal-entry.ts</code>.
+            These scenarios summarize current posting behavior in receipt/journal flows. Channeling receipts are in{" "}
+            <code className="rounded bg-muted px-1 py-0.5">services/channel-booking/helpers/receipt-journal-entry.ts</code>.
+            DPAY receipts are posted by{" "}
+            <code className="rounded bg-muted px-1 py-0.5">services/public/dpay-journal.service.ts</code>.
           </CardDescription>
         </CardHeader>
         <CardContent>

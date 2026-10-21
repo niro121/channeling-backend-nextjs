@@ -82,6 +82,29 @@ async function isDoctorMobileTaken(mobile: string, excludeDoctorId?: string): Pr
   );
 }
 
+function normalizeRegistrationNumber(value: string | null | undefined): string {
+  return (value ?? '').trim();
+}
+
+/** Another doctor already has this registration number. Blank is allowed on many doctors. */
+async function isDoctorRegistrationNumberTaken(
+  registrationNumber: string,
+  excludeDoctorId?: string
+): Promise<boolean> {
+  const normalized = normalizeRegistrationNumber(registrationNumber);
+  if (!normalized) return false;
+  const key = normalized.toLowerCase();
+  const doctors = await prisma.doctor.findMany({
+    where: { registrationNumber: { not: null } },
+    select: { id: true, registrationNumber: true },
+  });
+  return doctors.some(
+    (d) =>
+      d.id !== excludeDoctorId &&
+      normalizeRegistrationNumber(d.registrationNumber).toLowerCase() === key
+  );
+}
+
 type doctorInput = z.infer<typeof doctorSchema>;
 
 // ==== DOCTOR: LAST CODE ==== //
@@ -196,6 +219,18 @@ export const createDoctorService = async (
         error: {
           message: 'Mobile number is already in use by another doctor',
           issues: { mobile: ['Mobile number is already in use by another doctor'] },
+        },
+      };
+    }
+
+    if (await isDoctorRegistrationNumberTaken(data.registrationNumber ?? '')) {
+      return {
+        success: false,
+        error: {
+          message: 'Registration number is already in use by another doctor',
+          issues: {
+            registrationNumber: ['Registration number is already in use by another doctor'],
+          },
         },
       };
     }
@@ -336,6 +371,21 @@ export const updateOneDoctorService = async (
           },
         };
       }
+    }
+
+    if (
+      data.registrationNumber !== undefined &&
+      (await isDoctorRegistrationNumberTaken(data.registrationNumber ?? '', id))
+    ) {
+      return {
+        success: false,
+        error: {
+          message: 'Registration number is already in use by another doctor',
+          issues: {
+            registrationNumber: ['Registration number is already in use by another doctor'],
+          },
+        },
+      };
     }
 
     const userRelation = user?.id ? { connect: { id: user.id } } : undefined;
@@ -600,7 +650,7 @@ export const getAllDoctorsService = async ({
         createdUser: true,
         updatedUser: true,
         accounts: {
-          where: { type: 'PAYABLE', isActive: true },
+          where: { type: 'PAYABLE', isActive: true, NOT: { code: { startsWith: 'DPAY-DOC-' } } },
           take: 1,
         },
       },
@@ -698,7 +748,7 @@ export const getDoctorByIdService = async (
           updatedUser: true,
           speciality: true,
           accounts: {
-            where: { type: 'PAYABLE', isActive: true },
+            where: { type: 'PAYABLE', isActive: true, NOT: { code: { startsWith: 'DPAY-DOC-' } } },
             take: 1,
           },
         },
@@ -718,7 +768,7 @@ export const getDoctorByIdService = async (
             createdUser: true,
             updatedUser: true,
             accounts: {
-              where: { type: 'PAYABLE', isActive: true },
+              where: { type: 'PAYABLE', isActive: true, NOT: { code: { startsWith: 'DPAY-DOC-' } } },
               take: 1,
             },
           },

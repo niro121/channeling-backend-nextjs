@@ -4,7 +4,8 @@ import type { Prisma } from "@prisma/client"
 import prisma from "@/lib/prisma"
 import { parseReportDateTimeSl } from "@/lib/parse-report-datetime"
 import { HANDOVER_STATUS, RECONCILIATION_STATUS } from "@/types/handover"
-import { RECEIPT_PAYMENT_METHOD } from "@/types/receipt"
+import { RECEIPT_METHOD, RECEIPT_PAYMENT_METHOD } from "@/types/receipt"
+import { fetchDpayShiftLines, type DpayShiftLine } from "@/lib/dpay-shift-lines"
 import { REFERENCE_TYPES } from "@/types/accounting"
 import {
   getIncludedHandoversChain,
@@ -65,6 +66,33 @@ export type ReceiptForReconciliation = {
   cannotReconcileReason?: string | null
   /** Set when this receipt was canceled. Still listed so the cancel and any replacement can be ticked together. */
   canceledAt?: Date | null
+  /** DPAY lines are not Channeling receipts. The tick is stored on DpayReconciliationLine. */
+  source?: "dpay"
+  dpayKind?: string
+}
+
+const DPAY_LINE_PREFIX = "dpay:"
+
+export function isDpayReconciliationLineId(id: string): boolean {
+  return id.startsWith(DPAY_LINE_PREFIX)
+}
+
+function dpayReconciliationLineKey(shiftId: string, kind: string, receiptNumber: string): string {
+  return `${DPAY_LINE_PREFIX}${shiftId}:${kind}:${receiptNumber}`
+}
+
+function dpayKindLabel(kind: DpayShiftLine["kind"]): string {
+  if (kind === "patient_refund") return "Patient refund"
+  if (kind === "doctor_payment") return "Doctor payment"
+  if (kind === "doctor_payment_cancel") return "Doctor payment cancel"
+  return "Patient payment"
+}
+
+/** Inflow is receipt type 1. Refunds and doctor payments leave the till, so they are type 0. */
+function dpayReceiptType(kind: DpayShiftLine["kind"]): number {
+  return kind === "patient_receipt" || kind === "doctor_payment_cancel"
+    ? RECEIPT_METHOD.PAYMENT
+    : RECEIPT_METHOD.REFUND
 }
 
 export type ReconciliationJournalLine = {
@@ -97,7 +125,8 @@ export async function getReceiptsForHandoverReconciliation(
   shiftStartedAt: Date,
   handoverCreatedAt: Date,
   handoverId: string,
-  documentHandoverId: string = handoverId
+  documentHandoverId: string = handoverId,
+  preloadedDpayLines?: DpayShiftLine[]
 ): Promise<ReceiptForReconciliation[]> {
   const raw = await prisma.receipt.findMany({
     where: {
@@ -224,6 +253,48 @@ export async function getReceiptsForHandoverReconciliation(
       const name = unresolvedBankIds[i] ? nameById.get(unresolvedBankIds[i] as string) : ""
       if (name) row.bank = name
     })
+  }
+
+  const dpaySource = preloadedDpayLines ?? (await fetchDpayShiftLines([shiftId]))
+  const dpayLines = dpaySource.filter(
+    (line) => line.shiftId === shiftId && NON_CASH_METHOD_SET.has(line.paymentMethod)
+  )
+  if (dpayLines.length > 0) {
+    const lineKeys = dpayLines.map((line) =>
+      dpayReconciliationLineKey(line.shiftId, line.kind, line.receiptNumber)
+    )
+    const marks = await prisma.dpayReconciliationLine.findMany({
+      where: { lineKey: { in: lineKeys } },
+    })
+    const markByKey = new Map(marks.map((mark) => [mark.lineKey, mark]))
+    for (const line of dpayLines) {
+      const lineKey = dpayReconciliationLineKey(line.shiftId, line.kind, line.receiptNumber)
+      const mark = markByKey.get(lineKey)
+      if (mark && !allowedHandoverIds.has(mark.handoverId)) continue
+      const who = [line.patientName, line.doctorName, line.billNumber, dpayKindLabel(line.kind)]
+        .map((part) => part?.trim())
+        .filter(Boolean)
+        .join(" · ")
+      result.push({
+        id: lineKey,
+        receiptId: lineKey,
+        receiptNoString: line.receiptNumber,
+        paymentMethod: line.paymentMethod,
+        amount: Math.abs(line.amount),
+        type: dpayReceiptType(line.kind),
+        createdAt: new Date(line.at),
+        bank: "DPAY",
+        cardReference: who,
+        slipReference: who,
+        slipDate: null,
+        reconciledAt: mark?.cannotReconcileAt ? undefined : mark?.reconciledAt ?? undefined,
+        reconciledBy: mark?.reconciledBy ?? undefined,
+        cannotReconcileAt: mark?.cannotReconcileAt ?? undefined,
+        cannotReconcileReason: mark?.cannotReconcileReason ?? undefined,
+        source: "dpay",
+        dpayKind: line.kind,
+      })
+    }
   }
   return result
 }
@@ -643,19 +714,28 @@ export async function getReconciliationDocument(
     enteredBreakdown?: unknown
   }> = [top, ...normalizedChain.filter((h) => h.id !== top.id)]
 
-  const receiptsByIndex = await Promise.all(
-    allHandovers.map((h) => {
-      const shiftStartedAt = h.shift?.startedAt ?? h.createdAt
-      return getReceiptsForHandoverReconciliation(
-        h.shift.id,
-        h.fromUserId,
-        shiftStartedAt,
-        h.createdAt,
-        h.id,
-        topLevelHandoverId
-      )
-    })
-  )
+  let receiptsByIndex: ReceiptForReconciliation[][]
+  try {
+    const dpayLines = await fetchDpayShiftLines(allHandovers.map((h) => h.shift.id))
+    receiptsByIndex = await Promise.all(
+      allHandovers.map((h) => {
+        const shiftStartedAt = h.shift?.startedAt ?? h.createdAt
+        return getReceiptsForHandoverReconciliation(
+          h.shift.id,
+          h.fromUserId,
+          shiftStartedAt,
+          h.createdAt,
+          h.id,
+          topLevelHandoverId,
+          dpayLines
+        )
+      })
+    )
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "DPAY is not responding. Try again."
+    return { success: false, error: message }
+  }
+  const seenDpayLineKeys = new Set<string>()
   const chain: HandoverTabForReconciliation[] = allHandovers.map((h, i) => ({
     handover: {
       id: h.id,
@@ -668,7 +748,12 @@ export async function getReconciliationDocument(
       createdAt: h.createdAt,
       enteredBreakdown: (h.enteredBreakdown as HandoverEnteredEntries | null | undefined) ?? undefined,
     },
-    receipts: receiptsByIndex[i] ?? [],
+    receipts: (receiptsByIndex[i] ?? []).filter((row) => {
+      if (!isDpayReconciliationLineId(row.id)) return true
+      if (seenDpayLineKeys.has(row.id)) return false
+      seenDpayLineKeys.add(row.id)
+      return true
+    }),
   }))
 
   return {
@@ -1025,7 +1110,33 @@ export async function submitHandoverReconciliation(
 
   const parentIdsTouched = new Set<string>()
   for (const tab of chain) {
+    const shiftId = tab.handover.shift?.id ?? ""
     for (const row of newMatchedByHandover[tab.handover.id] ?? []) {
+      if (isDpayReconciliationLineId(row.id)) {
+        await prisma.dpayReconciliationLine.upsert({
+          where: { lineKey: row.id },
+          create: {
+            lineKey: row.id,
+            handoverId: payload.handoverId,
+            shiftId,
+            receiptNumber: row.receiptNoString,
+            kind: row.dpayKind ?? "",
+            paymentMethod: row.paymentMethod,
+            amountRupees: row.amount,
+            reconciledAt: now,
+            reconciledBy: reconciledByUserId,
+          },
+          update: {
+            handoverId: payload.handoverId,
+            reconciledAt: now,
+            reconciledBy: reconciledByUserId,
+            cannotReconcileAt: null,
+            cannotReconcileBy: null,
+            cannotReconcileReason: null,
+          },
+        })
+        continue
+      }
       if (row.id === row.receiptId) {
         await prisma.receipt.update({
           where: { id: row.receiptId },
@@ -1044,6 +1155,32 @@ export async function submitHandoverReconciliation(
       }
     }
     for (const { row, reason } of newCannotByHandover[tab.handover.id] ?? []) {
+      if (isDpayReconciliationLineId(row.id)) {
+        await prisma.dpayReconciliationLine.upsert({
+          where: { lineKey: row.id },
+          create: {
+            lineKey: row.id,
+            handoverId: payload.handoverId,
+            shiftId,
+            receiptNumber: row.receiptNoString,
+            kind: row.dpayKind ?? "",
+            paymentMethod: row.paymentMethod,
+            amountRupees: row.amount,
+            cannotReconcileAt: now,
+            cannotReconcileBy: reconciledByUserId,
+            cannotReconcileReason: reason,
+          },
+          update: {
+            handoverId: payload.handoverId,
+            reconciledAt: null,
+            reconciledBy: null,
+            cannotReconcileAt: now,
+            cannotReconcileBy: reconciledByUserId,
+            cannotReconcileReason: reason,
+          },
+        })
+        continue
+      }
       if (row.id === row.receiptId) {
         await prisma.receipt.update({
           where: { id: row.receiptId },

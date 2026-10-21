@@ -131,6 +131,13 @@ export default function DoctorForm({
     { resetForm, setFieldError }: FormikHelpers<DoctorFormValues>
   ) => {
     const closeAfterSave = saveAndCloseRef.current;
+    const showFieldIssue = (issues: { mobile?: unknown; registrationNumber?: unknown } | undefined) => {
+      for (const field of ['mobile', 'registrationNumber'] as const) {
+        const issue = issues?.[field];
+        if (!issue) continue;
+        setFieldError(field, Array.isArray(issue) ? String(issue[0]) : String(issue));
+      }
+    };
     try {
       setLoading(true);
       let respond: any;
@@ -140,9 +147,7 @@ export default function DoctorForm({
         setLoading(false);
 
         if (!respond?.success) {
-          if (respond?.error?.issues?.mobile) {
-            setFieldError('mobile', Array.isArray(respond.error.issues.mobile) ? respond.error.issues.mobile[0] : respond.error.issues.mobile);
-          }
+          showFieldIssue(respond?.error?.issues);
           toast({
             variant: 'destructive',
             title: 'Error',
@@ -163,9 +168,7 @@ export default function DoctorForm({
         setLoading(false);
 
         if (!respond?.success) {
-          if (respond?.error?.issues?.mobile) {
-            setFieldError('mobile', Array.isArray(respond.error.issues.mobile) ? respond.error.issues.mobile[0] : respond.error.issues.mobile);
-          }
+          showFieldIssue(respond?.error?.issues);
           toast({
             variant: 'destructive',
             title: 'Error',

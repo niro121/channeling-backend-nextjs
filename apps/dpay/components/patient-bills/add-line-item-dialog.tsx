@@ -35,6 +35,8 @@ export function AddLineItemDialog({ open, onOpenChange, billId }: AddLineItemDia
   const router = useRouter();
   const { toast } = useToast();
   const [doctorName, setDoctorName] = useState('');
+  const [doctorId, setDoctorId] = useState<string | null>(null);
+  const [doctorCode, setDoctorCode] = useState<string | null>(null);
   const [description, setDescription] = useState('');
   const [amount, setAmount] = useState('');
   const [errors, setErrors] = useState<LineItemFormErrors>({});
@@ -43,6 +45,8 @@ export function AddLineItemDialog({ open, onOpenChange, billId }: AddLineItemDia
   useEffect(() => {
     if (!open) return;
     setDoctorName('');
+    setDoctorId(null);
+    setDoctorCode(null);
     setDescription('');
     setAmount('');
     setErrors({});
@@ -70,6 +74,8 @@ export function AddLineItemDialog({ open, onOpenChange, billId }: AddLineItemDia
       const result = await addPatientBillLineItemAction({
         billId,
         doctorName: doctorName.trim(),
+        doctorId,
+        doctorCode,
         description: description.trim(),
         amount: parsedAmount,
       });
@@ -111,7 +117,11 @@ export function AddLineItemDialog({ open, onOpenChange, billId }: AddLineItemDia
             </Label>
             <DoctorSearchSelect
               value={doctorName}
-              onChange={setDoctorName}
+              onChange={(name, doctor) => {
+                setDoctorName(name);
+                setDoctorId(doctor?.id ?? null);
+                setDoctorCode(doctor?.code ?? null);
+              }}
               placeholder="Select doctor..."
               hasError={Boolean(errors.doctorName)}
             />

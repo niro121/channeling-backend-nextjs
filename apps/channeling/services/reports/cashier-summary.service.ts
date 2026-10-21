@@ -25,6 +25,7 @@ import {
   addCashierSummaryAmounts as addAmounts,
 } from '@/lib/cashier-summary-amounts';
 import { formatDateSriLanka, formatDateTimeSriLanka } from '@/lib/utils';
+import { fetchDpayShiftLines } from '@/lib/dpay-shift-lines';
 
 const MAX_RANGE_DAYS = getReportMaxRangeDays('cashier_summary', 62);
 const MAX_RECEIPTS_SCAN = getReportMaxRecords('cashier_summary', 50000);
@@ -725,6 +726,85 @@ export async function getCashierSummaryReportService(
     totals: cashVoucherTotals,
   });
   grandTotals = addAmounts(grandTotals, cashVoucherTotals);
+
+  const cashierIds = multiUserIds.length
+    ? multiUserIds
+    : query.userId && query.userId.trim() !== '' && query.userId !== '__all__'
+      ? [query.userId.trim()]
+      : [];
+  const dpayShifts = await prisma.shift.findMany({
+    where: {
+      ...(cashierIds.length > 0 ? { userId: { in: cashierIds } } : {}),
+      startedAt: { lte: to },
+      OR: [{ endedAt: null }, { endedAt: { gte: from } }],
+    },
+    select: {
+      id: true,
+      startedAt: true,
+      endedAt: true,
+      user: { select: { id: true, name: true, staff: { select: { code: true } } } },
+    },
+    take: 500,
+  });
+  let dpayLines: Awaited<ReturnType<typeof fetchDpayShiftLines>> = [];
+  try {
+    dpayLines = await fetchDpayShiftLines(dpayShifts.map((shift) => shift.id));
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Could not load DPAY lines for this shift.';
+    return {
+      success: false,
+      sections: [],
+      grandTotals: ZERO_AMOUNTS,
+      includedShifts: [],
+      message,
+    };
+  }
+  const shiftById = new Map(dpayShifts.map((shift) => [shift.id, shift]));
+  const methodColumn: Record<number, keyof CashierSummaryPaymentAmounts> = {
+    0: 'cash',
+    1: 'creditCard',
+    2: 'slip',
+    3: 'cheque',
+    4: 'agent',
+    5: 'agentCredit',
+    6: 'eWallet',
+  };
+  const dpayRows: CashierSummaryReportLineItem[] = dpayLines.map((line) => {
+    const amounts = { ...ZERO_AMOUNTS };
+    const column = methodColumn[line.paymentMethod] ?? 'cash';
+    const signed =
+      line.kind === 'patient_refund' || line.kind === 'doctor_payment' ? -Math.abs(line.amount) : Math.abs(line.amount);
+    amounts[column] = signed;
+    const shift = shiftById.get(line.shiftId) ?? null;
+    if (shift && !includedShiftMap.has(shift.id)) {
+      includedShiftMap.set(shift.id, {
+        id: shift.id,
+        userName: formatShiftUserLabel(shift),
+        startedAt: shift.startedAt,
+        endedAt: shift.endedAt,
+      });
+    }
+    return {
+      txCreated: new Date(line.at),
+      ...shiftLabelFields(shift),
+      sessionDateTime: null,
+      billId: line.billNumber,
+      receiptId: line.receiptNumber,
+      patient: line.patientName,
+      consultant: line.doctorName,
+      name: line.kind.replaceAll('_', ' '),
+      type: 'DPAY',
+      ...amounts,
+    };
+  });
+  const dpayTotals = dpayRows.reduce((acc, row) => addAmounts(acc, row), ZERO_AMOUNTS);
+  sections.push({
+    key: 'dpay',
+    title: 'DPAY',
+    rows: rowsForFormat('dpay', dpayRows),
+    totals: dpayTotals,
+  });
+  grandTotals = addAmounts(grandTotals, dpayTotals);
 
   return {
     success: true,

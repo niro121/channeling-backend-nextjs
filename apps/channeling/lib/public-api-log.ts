@@ -84,6 +84,24 @@ function clientIdFromBody(raw: string | null): string | null {
   }
 }
 
+export function recordOutboundApiLog(data: {
+  durationMs: number
+  method: string
+  endpoint: string
+  uuid: string
+  clientId: string | null
+  statusCode: number
+  errorStatus: boolean
+  requestBody: string | null
+  responseBody: string | null
+}) {
+  writeApiLog({
+    ...data,
+    requestBody: sanitizeBody(data.requestBody),
+    responseBody: sanitizeBody(data.responseBody),
+  })
+}
+
 function writeApiLog(data: {
   durationMs: number
   method: string
