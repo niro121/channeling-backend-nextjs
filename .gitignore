@@ -1,7 +1,7 @@
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
 # dependencies
-/node_modules
+node_modules
 /.pnp
 .pnp.js
 
@@ -9,15 +9,22 @@
 /coverage
 
 # next.js
-/.next/
+.next/
 /out/
 
 # production
 /build
+dist/
+
+# turbo
+.turbo
 
 # misc
 .DS_Store
 *.pem
+
+# backups
+/backups/
 
 # debug
 npm-debug.log*
@@ -35,3 +42,14 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# migration reports (generated)
+/temp/
+
+# playwright
+test-results/
+playwright-report/
+
+# prisma generated
+packages\db-auth\src\generated
+apps\hrm\lib\generated
