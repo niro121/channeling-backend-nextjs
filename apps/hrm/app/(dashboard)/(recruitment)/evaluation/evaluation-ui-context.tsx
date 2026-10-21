@@ -13,6 +13,8 @@ import type { EvaluationRecord } from '@/types/recruitment';
 type EvaluationUiContextValue = {
   activeRecord: EvaluationRecord;
   setActiveRecord: (record: EvaluationRecord) => void;
+  /** Load a draft into the top form, then scroll to the top of the page. */
+  editRecord: (record: EvaluationRecord) => void;
   viewRecord: EvaluationRecord | null;
   previewOpen: boolean;
   openView: (record: EvaluationRecord) => void;
@@ -39,6 +41,11 @@ export function EvaluationUiProvider({
   const [viewRecord, setViewRecord] = useState<EvaluationRecord | null>(null);
   const [previewOpen, setPreviewOpen] = useState(false);
 
+  const editRecord = useCallback((record: EvaluationRecord) => {
+    setActiveRecord(record);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, []);
+
   const openView = useCallback((record: EvaluationRecord) => {
     setPreviewOpen(false);
     setViewRecord(record);
@@ -56,6 +63,7 @@ export function EvaluationUiProvider({
     () => ({
       activeRecord,
       setActiveRecord,
+      editRecord,
       viewRecord,
       previewOpen,
       openView,
@@ -65,6 +73,7 @@ export function EvaluationUiProvider({
     }),
     [
       activeRecord,
+      editRecord,
       viewRecord,
       previewOpen,
       openView,

@@ -127,7 +127,12 @@ export function ReconciliationPrint({
         date: formatPrintDateTime(r.createdAt),
         from: fromUserLabel(tab.handover.fromUser),
         ticked: isTicked,
-        status: isCannot ? "CAN'T RECONCILE" : isPosted ? "POSTED" : isTicked ? "TICKED" : "OPEN",
+        status: [
+          r.canceledAt ? "CANCELED" : null,
+          isCannot ? "CAN'T RECONCILE" : isPosted ? "POSTED" : isTicked ? "TICKED" : "OPEN",
+        ]
+          .filter(Boolean)
+          .join(" · "),
         reason: isCannot ? reason : "",
       })
     }

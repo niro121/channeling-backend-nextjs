@@ -206,8 +206,7 @@ export default function ApplicationRecordActions({
         description={`Move ${record.candidateName} to Shortlisting?`}
         handleContinue={() => void handleShortlist()}
         className={{
-          actionButton:
-            'bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground'
+          actionButton: buttonStyles.save
         }}
       />
 

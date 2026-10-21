@@ -4,35 +4,54 @@ import { checkRouteAccess } from '@/lib/server-permissions';
 import { authOptions } from '@/lib/auth';
 import { logActivityNonBlocking } from '@/lib/activity-log';
 import {
+  getEvaluationByIdAction,
+  getEvaluationsAction,
+  getOrCreateEvaluationForInterviewAction
+} from '@/app/actions/recruitment-actions/evaluation.actions';
+import {
+  EMPTY_EVALUATION_RECORD,
   computeEvaluationScore,
   type EvaluationRecord
 } from '@/types/recruitment';
 import EvaluationWorkspace from './evaluation-workspace';
-import { SAMPLE_EVALUATIONS } from './sample-data';
 
 type SearchParams = {
   searchParams?: Promise<{
     page?: string;
     interviewId?: string;
     evaluationId?: string;
+    status?: string;
+    search?: string;
   }>;
 };
 
-function resolveActiveRecord(
+function withScore(record: EvaluationRecord): EvaluationRecord {
+  const { score } = computeEvaluationScore(record.ratings);
+  return { ...record, overallScore: score };
+}
+
+async function resolveActiveRecord(
   records: EvaluationRecord[],
   interviewId?: string,
   evaluationId?: string
-): EvaluationRecord {
+): Promise<EvaluationRecord> {
   if (evaluationId) {
-    const byEval = records.find((r) => r.id === evaluationId);
-    if (byEval) return byEval;
+    const byId = await getEvaluationByIdAction(evaluationId);
+    if (!byId.isError && byId.data) return withScore(byId.data);
   }
+
   if (interviewId) {
-    const byInterview = records.find((r) => r.interviewId === interviewId);
-    if (byInterview) return byInterview;
+    const fromInterview =
+      await getOrCreateEvaluationForInterviewAction(interviewId);
+    if (!fromInterview.isError && fromInterview.data) {
+      return withScore(fromInterview.data);
+    }
   }
+
   const draft = records.find((r) => r.status === 'draft');
-  return draft ?? records[0]!;
+  if (draft) return withScore(draft);
+  if (records[0]) return withScore(records[0]);
+  return EMPTY_EVALUATION_RECORD;
 }
 
 export default async function EvaluationPage({ searchParams }: SearchParams) {
@@ -52,28 +71,28 @@ export default async function EvaluationPage({ searchParams }: SearchParams) {
   }
 
   const params = await searchParams;
-  const pageSize = process.env.DEFAULT_PER_PAGE
-    ? Number(process.env.DEFAULT_PER_PAGE)
-    : 10;
-  const pageNumber = params?.page ? Math.max(1, Number(params.page) || 1) : 1;
-  const start = (pageNumber - 1) * pageSize;
-  const pageRecords = SAMPLE_EVALUATIONS.slice(start, start + pageSize);
+  const listRes = await getEvaluationsAction({
+    page: params?.page,
+    limit: process.env.DEFAULT_PER_PAGE,
+    status: params?.status,
+    search: params?.search
+  });
 
-  const active = resolveActiveRecord(
-    SAMPLE_EVALUATIONS,
+  const pageRecords = listRes.isError ? [] : (listRes.data?.data ?? []);
+  const totalRecords = listRes.isError
+    ? 0
+    : (listRes.data?.totalRecords ?? 0);
+
+  const initialActive = await resolveActiveRecord(
+    pageRecords,
     params?.interviewId,
     params?.evaluationId
   );
-  const { score } = computeEvaluationScore(active.ratings);
-  const initialActive: EvaluationRecord = {
-    ...active,
-    overallScore: score
-  };
 
   return (
     <EvaluationWorkspace
       initialRecords={pageRecords}
-      totalRecords={SAMPLE_EVALUATIONS.length}
+      totalRecords={totalRecords}
       initialActive={initialActive}
       page={params?.page}
     />

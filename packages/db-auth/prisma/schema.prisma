@@ -17,7 +17,7 @@ model User {
   phone    String?
 
   password String
-  userType Int     // 1 = admin, 2 = staff, 3 = doctor
+  userType Int     // 1 = admin, 2 = staff, 3 = doctor, 4 = api user (public API acting identity; no dashboard login)
   status   Int     // 0 = inactive, 1 = active
 
   // 2FA

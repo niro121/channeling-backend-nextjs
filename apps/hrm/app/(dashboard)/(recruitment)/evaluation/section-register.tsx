@@ -6,6 +6,7 @@ import {
   CommonDataTable,
   DataTableExportFeature
 } from '@/components/common/common-data-table';
+import { getEvaluationsExport } from '@/app/actions/recruitment-actions/evaluation.actions';
 import {
   EVALUATION_DECISION_LABELS,
   EVALUATION_STATUS_LABELS,
@@ -32,18 +33,19 @@ export default function SectionRegister({
   const { toast } = useToast();
 
   const handleExport = async () => {
-    if (!records.length) {
+    const response = await getEvaluationsExport({});
+    if (!response.success || !response.data?.length) {
       toast({
         title: 'Export',
-        description: 'No evaluations to export.'
+        description: response.message ?? 'No evaluations to export.'
       });
       return {
         success: false,
-        message: 'No evaluations found'
+        message: response.message ?? 'No evaluations found'
       };
     }
 
-    const data = records.map((row) => ({
+    const data = response.data.map((row) => ({
       candidateName: row.candidateName,
       jobTitle: row.jobTitle,
       interviewDate: row.interviewDate,

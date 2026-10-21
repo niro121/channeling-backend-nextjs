@@ -63,6 +63,8 @@ export type ReceiptForReconciliation = {
   reconciledBy?: string | null
   cannotReconcileAt?: Date | null
   cannotReconcileReason?: string | null
+  /** Set when this receipt was canceled. Still listed so the cancel and any replacement can be ticked together. */
+  canceledAt?: Date | null
 }
 
 export type ReconciliationJournalLine = {
@@ -83,7 +85,9 @@ export type ReconciliationJournal = {
 /**
  * Get receipts eligible for reconciliation for a handover.
  * Uses shiftId when set on receipts; otherwise falls back to createdBy + time window (legacy).
- * Filters in memory for canceledAt/reconciledAt so MongoDB null/missing optional fields match reliably.
+ * Filters in memory for reconciledAt so MongoDB null/missing optional fields match reliably.
+ * Canceled receipts stay on the list. A ledger cancel marks the original canceled and posts a
+ * reversal; hiding the original makes the reversal net to zero and leaves the replacement on the till.
  * Includes receipts already reconciled for this document (reconciledHandoverId is this handover
  * or the top-level document it was posted under) so UI can show them pre-ticked.
  */
@@ -148,7 +152,6 @@ export async function getReceiptsForHandoverReconciliation(
   })
   const allowedHandoverIds = new Set([handoverId, documentHandoverId].filter(Boolean))
   const eligible = raw.filter((r) => {
-    if (r.canceledAt) return false
     if (r.reconciledHandoverId && !allowedHandoverIds.has(r.reconciledHandoverId)) return false
     if (!r.reconciledHandoverId && (r.reconciledAt || r.cannotReconcileAt)) return false
     return true
@@ -182,6 +185,7 @@ export async function getReceiptsForHandoverReconciliation(
           reconciledBy: line.reconciledBy ?? r.reconciledBy ?? undefined,
           cannotReconcileAt: lineCannotAt,
           cannotReconcileReason: lineCannotReason,
+          canceledAt: r.canceledAt ?? null,
         })
         unresolvedBankIds.push(bank ? null : (line.bankId ?? r.bankId ?? null))
       }
@@ -203,6 +207,7 @@ export async function getReceiptsForHandoverReconciliation(
         reconciledBy: r.reconciledBy ?? undefined,
         cannotReconcileAt: parentCannotAt,
         cannotReconcileReason: parentCannotReason,
+        canceledAt: r.canceledAt ?? null,
       })
       unresolvedBankIds.push(bank ? null : (r.bankId ?? null))
     }
@@ -598,7 +603,12 @@ export async function getReconciliationDocument(
   }
   if (top.forwardedToHandoverId) return { success: false, error: "Use the top-level handover document, not an included one." }
   if (requestedByUserId && top.reconciliationAssignedToUserId !== requestedByUserId) {
-    return { success: false, error: "This reconciliation is not assigned to you." }
+    const canOpenApproved =
+      reconStatus === RECONCILIATION_STATUS.RECONCILED_APPROVED &&
+      (await userCanPostApprovedReconciliation(requestedByUserId))
+    if (!canOpenApproved) {
+      return { success: false, error: "This reconciliation is not assigned to you." }
+    }
   }
 
   let chainHandovers = await getPreviousHandoversForHandoverDetail({
@@ -847,19 +857,31 @@ export async function submitHandoverReconciliation(
   })
   if (!topCheck) return { success: false, error: "Handover not found." }
   if (topCheck.status !== HANDOVER_STATUS.APPROVED) return { success: false, error: "Handover is not approved." }
-  if (topCheck.nonCashReconciledAt != null) return { success: false, error: "Handover is already reconciled." }
   const reconStatus = topCheck.reconciliationStatus ?? RECONCILIATION_STATUS.PENDING
-  if (reconStatus === RECONCILIATION_STATUS.RECONCILED_APPROVED) return { success: false, error: "Handover is already reconciled." }
-  if (reconStatus !== RECONCILIATION_STATUS.IN_RECONCILIATION) {
+  // An approved document can take another post for receipts that were not on the list the first time
+  // (for example a canceled receipt). Already posted lines are skipped below.
+  const alreadyApproved =
+    reconStatus === RECONCILIATION_STATUS.RECONCILED_APPROVED || topCheck.nonCashReconciledAt != null
+  if (reconStatus === RECONCILIATION_STATUS.RECONCILED_REJECTED) {
+    return { success: false, error: "Handover was rejected. It cannot be posted." }
+  }
+  if (!alreadyApproved && reconStatus !== RECONCILIATION_STATUS.IN_RECONCILIATION) {
     return { success: false, error: "Handover has not been sent to reconciliation." }
   }
   if (topCheck.forwardedToHandoverId) return { success: false, error: "Use the top-level handover document." }
   const actor = await prisma.user.findUnique({
     where: { id: reconciledByUserId },
-    select: { userType: true },
+    select: { userType: true, userGroup: { select: { permissions: true } } },
   })
-  const isAdmin = actor?.userType === 1
-  if (
+  const isAdmin = actor?.userType === userTypes.admin
+  const actorPermissions = actor?.userGroup?.permissions as Permissions | null
+  if (alreadyApproved) {
+    if (!isAdmin && !hasPermission(actorPermissions, "reconciliation", "post-approved-reconciliation")) {
+      return { success: false, error: "You do not have permission to post on an approved reconciliation." }
+    }
+  } else if (!isAdmin && !hasPermission(actorPermissions, "reconciliation", "approve-reconciliation")) {
+    return { success: false, error: "You do not have permission to approve reconciliation." }
+  } else if (
     !isAdmin &&
     topCheck.reconciliationAssignedToUserId &&
     topCheck.reconciliationAssignedToUserId !== reconciledByUserId
@@ -1082,7 +1104,7 @@ export async function submitHandoverReconciliation(
   const complete = remainingCount === 0
   const hasNewIssues = Object.values(newCannotByHandover).some((rows) => rows.length > 0)
 
-  if (complete) {
+  if (complete && !alreadyApproved) {
     await prisma.shiftHandover.update({
       where: { id: payload.handoverId },
       data: {
@@ -1115,6 +1137,20 @@ export async function submitHandoverReconciliation(
   })
 
   return { success: true, complete, remainingCount, postedCount }
+}
+
+async function userCanPostApprovedReconciliation(userId: string): Promise<boolean> {
+  const user = await prisma.user.findFirst({
+    where: { id: userId, status: 1 },
+    select: { userType: true, userGroup: { select: { permissions: true } } },
+  })
+  if (!user) return false
+  if (user.userType === userTypes.admin) return true
+  return hasPermission(
+    user.userGroup?.permissions as Permissions | null,
+    "reconciliation",
+    "post-approved-reconciliation"
+  )
 }
 
 async function assertUserCanBeReconciler(userId: string): Promise<boolean> {

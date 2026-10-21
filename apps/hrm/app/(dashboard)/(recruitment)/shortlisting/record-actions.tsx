@@ -249,8 +249,7 @@ export default function ShortlistingRecordActions({
         description={`Shortlist ${record.candidateName} for interview?`}
         handleContinue={handleShortlist}
         className={{
-          actionButton:
-            'bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground'
+          actionButton: buttonStyles.save
         }}
       />
 
@@ -262,8 +261,7 @@ export default function ShortlistingRecordActions({
         description={`Place ${record.candidateName} on hold?`}
         handleContinue={handleHold}
         className={{
-          actionButton:
-            'bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground'
+          actionButton: buttonStyles.save
         }}
       />
 

@@ -6,6 +6,7 @@ import {
   CommonDataTable,
   DataTableExportFeature
 } from '@/components/common/common-data-table';
+import { getAppointmentLettersExport } from '@/app/actions/recruitment-actions/appointment-letter.actions';
 import {
   APPOINTMENT_LETTER_STATUS_LABELS,
   VACANCY_EMPLOYMENT_TYPE_LABELS,
@@ -35,18 +36,19 @@ export default function SectionRegister({
   const { toast } = useToast();
 
   const handleExport = async () => {
-    if (!records.length) {
+    const response = await getAppointmentLettersExport(initialFilters);
+    if (!response.success || !response.data?.length) {
       toast({
         title: 'Export',
-        description: 'No letters to export.'
+        description: response.message ?? 'No letters to export.'
       });
       return {
         success: false,
-        message: 'No letters found'
+        message: response.message ?? 'No letters found'
       };
     }
 
-    const data = records.map((row) => ({
+    const data = response.data.map((row) => ({
       letterNumber: row.letterNumber,
       candidateName: row.candidateName,
       position: row.position,

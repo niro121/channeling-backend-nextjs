@@ -39,6 +39,7 @@ import {
   ScrollText,
   TabletSmartphone,
   Fingerprint,
+  KeyRound,
   Wallet,
   PlayCircle,
   Cog,
@@ -163,13 +164,23 @@ export function DesktopSidebar({ session, className }: { session: Session | null
         <div className="space-y-0.5">
           <NavLink href="/welcome" label="Dashboard" icon={<LayoutGrid className="h-5 w-5" />} />
         </div>
-        {(hasAccess('/user-groups') || hasAccess('/users') || hasAccess('/staff')) && (
+        {(hasAccess('/user-groups') ||
+          hasAccess('/users') ||
+          hasAccess('/api-clients') ||
+          hasAccess('/staff')) && (
           <SidebarGroup label="Administration">
             {hasAccess('/user-groups') && (
               <NavLink href="/user-groups" label="User Groups" icon={<Users className="h-5 w-5" />} />
             )}
             {hasAccess('/users') && (
               <NavLink href="/users" label="Users" icon={<UsersRound className="h-5 w-5" />} />
+            )}
+            {hasAccess('/api-clients') && (
+              <NavLink
+                href="/api-clients"
+                label="API Clients"
+                icon={<KeyRound className="h-5 w-5" />}
+              />
             )}
             {hasAccess("/staff") && <NavLink href="/staff" label="Staff" icon={<UserCircle className="h-5 w-5" />} />}
           </SidebarGroup>

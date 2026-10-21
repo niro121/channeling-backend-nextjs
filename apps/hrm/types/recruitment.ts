@@ -964,7 +964,10 @@ export function canEvaluateInterview(record: InterviewRecord): boolean {
 
 // ─── Evaluation ──────────────────────────────────────────────────────────────
 
-/** Phase 0 static criteria — store as JSON / master later. */
+/** Sequence / record-code prefix → codes like EVAL-1 (see generateRecordCode). */
+export const EVALUATION_CODE_PREFIX = 'EVAL';
+
+/** Criteria keys stored in Evaluation.ratings JSON. */
 export const EVALUATION_CRITERIA = [
   'technical_knowledge',
   'communication',
@@ -1055,10 +1058,16 @@ export type EvaluationPreviousEntry = {
 
 export type EvaluationRecord = {
   id: string;
+  evaluationCode: string;
   interviewId: string;
   interviewCode: string;
+  /** Application Mongo ObjectId */
+  applicationRefId: string;
+  /** Denormalized Application.applicationId, e.g. APP-1 */
+  applicationId: string;
   candidateName: string;
   jobTitle: string;
+  /** yyyy-MM-dd */
   interviewDate: string;
   interviewer: string;
   interviewType: InterviewType;
@@ -1071,6 +1080,7 @@ export type EvaluationRecord = {
   finalDecision: EvaluationDecision | '';
   overallScore: number;
   status: EvaluationStatus;
+  /** Prior submitted evaluations for the same application (derived). */
   previousEvaluations: EvaluationPreviousEntry[];
   createdAt: string;
   createdBy: string;
@@ -1087,6 +1097,27 @@ export type EvaluationFormValues = {
   finalDecision: string;
 };
 
+export type EvaluationFilters = {
+  status?: string;
+  search?: string;
+  interviewType?: string;
+  decision?: string;
+};
+
+export type GetEvaluationsParams = EvaluationFilters & {
+  page?: string;
+  limit?: string;
+};
+
+export type EvaluationPayload = {
+  ratings: EvaluationRatingsMap;
+  strengths?: string;
+  weaknesses?: string;
+  interviewComments?: string;
+  recommendation?: string;
+  finalDecision?: string;
+};
+
 export const EMPTY_EVALUATION_FORM: EvaluationFormValues = {
   ratings: {},
   strengths: '',
@@ -1094,6 +1125,35 @@ export const EMPTY_EVALUATION_FORM: EvaluationFormValues = {
   interviewComments: '',
   recommendation: '',
   finalDecision: ''
+};
+
+/** Placeholder when register is empty and no interviewId is provided. */
+export const EMPTY_EVALUATION_RECORD: EvaluationRecord = {
+  id: '',
+  evaluationCode: '',
+  interviewId: '',
+  interviewCode: '',
+  applicationRefId: '',
+  applicationId: '',
+  candidateName: '',
+  jobTitle: '',
+  interviewDate: '',
+  interviewer: '',
+  interviewType: 'panel',
+  interviewStage: '',
+  ratings: {},
+  strengths: '',
+  weaknesses: '',
+  interviewComments: '',
+  recommendation: '',
+  finalDecision: '',
+  overallScore: 0,
+  status: 'draft',
+  previousEvaluations: [],
+  createdAt: '',
+  createdBy: '',
+  updatedAt: '',
+  updatedBy: ''
 };
 
 export function computeEvaluationScore(
@@ -1115,6 +1175,9 @@ export function computeEvaluationScore(
 }
 
 // ─── Appointment Letters ─────────────────────────────────────────────────────
+
+/** Sequence / record-code prefix → codes like LETTER-1 (see generateRecordCode). */
+export const APPOINTMENT_LETTER_CODE_PREFIX = 'LETTER';
 
 export const APPOINTMENT_LETTER_STATUSES = [
   'draft',
@@ -1149,12 +1212,19 @@ export type AppointmentLetterRecord = {
   id: string;
   letterNumber: string;
   evaluationId: string;
+  evaluationCode: string;
+  /** Application Mongo ObjectId */
+  applicationRefId: string;
+  /** Denormalized Application.applicationId, e.g. APP-1 */
+  applicationId: string;
   candidateName: string;
   position: string;
   department: string;
   employmentType: VacancyEmploymentType;
+  /** yyyy-MM-dd */
   appointmentDate: string;
   salary: string;
+  /** yyyy-MM-dd */
   letterDate: string;
   reportingLocation: string;
   reportingManager: string;
@@ -1163,6 +1233,11 @@ export type AppointmentLetterRecord = {
   termsAndConditions: string;
   status: AppointmentLetterStatus;
   letterGenerated: boolean;
+  declineReason?: string;
+  /** Object storage key for generated PDF (Wave 10). */
+  letterFileKey?: string | null;
+  /** Linked Staff id after onboard (Wave 9). */
+  staffId?: string | null;
   createdAt: string;
   createdBy: string;
   updatedAt: string;
@@ -1184,9 +1259,37 @@ export type AppointmentLetterFilters = {
   letterDate?: string;
   status?: string;
   search?: string;
+  evaluationId?: string;
 };
 
+export type GetAppointmentLettersParams = AppointmentLetterFilters & {
+  page?: string;
+  limit?: string;
+};
+
+export type AppointmentLetterPayload = {
+  evaluationId: string;
+  position?: string;
+  department?: string;
+  employmentType: string;
+  salary: string;
+  /** yyyy-MM-dd or Date */
+  appointmentDate: Date | string;
+  letterDate: Date | string;
+  reportingLocation?: string;
+  reportingManager?: string;
+  probationPeriod?: string;
+  benefits?: string;
+  termsAndConditions?: string;
+};
+
+export type AppointmentLetterUpdatePayload = Omit<
+  AppointmentLetterPayload,
+  'evaluationId'
+>;
+
 export type AppointmentLetterFormValues = {
+  evaluationId: string;
   candidateName: string;
   position: string;
   department: string;
@@ -1202,6 +1305,7 @@ export type AppointmentLetterFormValues = {
 };
 
 export const EMPTY_APPOINTMENT_LETTER_FORM: AppointmentLetterFormValues = {
+  evaluationId: '',
   candidateName: '',
   position: '',
   department: '',
