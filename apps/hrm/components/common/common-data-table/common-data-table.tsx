@@ -33,6 +33,7 @@ import {
 } from '@archmage/ui';
 import { ChevronDown, ChevronRight, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { buttonStyles } from '@/lib/utils/common-styles';
 import {
   Table,
   TableBody,
@@ -551,7 +552,10 @@ export function CommonDataTable<TData, TValue>({
               <AlertDialogAction
                 onClick={onDeleteConfirmation}
                 disabled={loading || fetchingDescription}
-                className="relative cursor-pointer bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                className={cn(
+                  'relative cursor-pointer gap-2',
+                  buttonStyles.delete.danger
+                )}
               >
                 Continue
                 {(loading || fetchingDescription) && (

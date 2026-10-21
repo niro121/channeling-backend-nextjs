@@ -19,6 +19,7 @@ import {
 import { TWO_FACTOR_AUTH } from '@archmage/shared';
 import { useRouter } from 'next/navigation';
 import {
+  groupPermissionResources,
   PERMISSION_ACTIONS,
   RESOURCES,
   type Permissions,
@@ -396,94 +397,116 @@ export default function UserGroupForm({
               </div>
 
               <div className="space-y-6">
-                {RESOURCES.map((resource) => {
-                  const defaultPerms = resource.customActions?.length
-                    ? Object.fromEntries(
-                        resource.customActions.map((a) => [a.id, false])
-                      )
-                    : { view: false, add: false, edit: false, delete: false };
-                  const resourcePermissions = {
-                    ...defaultPerms,
-                    ...formik.values.permissions[resource.id]
-                  };
-
-                  const actionsToShow = resource.customActions?.length
-                    ? resource.customActions
-                    : resource.actions?.length
-                      ? PERMISSION_ACTIONS.filter((a) =>
-                          resource.actions!.includes(a.id)
+                {groupPermissionResources().map((group) => {
+                  const modules = group.resources.map((resource) => {
+                    const defaultPerms = resource.customActions?.length
+                      ? Object.fromEntries(
+                          resource.customActions.map((a) => [a.id, false])
                         )
-                      : PERMISSION_ACTIONS;
+                      : { view: false, add: false, edit: false, delete: false };
+                    const resourcePermissions = {
+                      ...defaultPerms,
+                      ...formik.values.permissions[resource.id]
+                    };
 
-                  return (
-                    <div key={resource.id} className="space-y-3">
-                      <div className="flex items-center justify-between">
-                        <Label className="text-base font-semibold">
-                          {resource.name}
-                        </Label>
-                        <div className="flex items-center gap-4">
-                          <button
-                            type="button"
-                            onClick={() => handleSelectAll(formik, resource)}
-                            className="text-sm text-muted-foreground hover:text-foreground underline"
-                          >
-                            Select All
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleDeselectAll(formik, resource)}
-                            className="text-sm text-muted-foreground hover:text-foreground underline"
-                          >
-                            Deselect All
-                          </button>
+                    const actionsToShow = resource.customActions?.length
+                      ? resource.customActions
+                      : resource.actions?.length
+                        ? PERMISSION_ACTIONS.filter((a) =>
+                            resource.actions!.includes(a.id)
+                          )
+                        : PERMISSION_ACTIONS;
+
+                    return (
+                      <div key={resource.id} className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <Label className="text-base font-semibold">
+                            {resource.name}
+                          </Label>
+                          <div className="flex items-center gap-4">
+                            <button
+                              type="button"
+                              onClick={() => handleSelectAll(formik, resource)}
+                              className="text-sm text-muted-foreground hover:text-foreground underline"
+                            >
+                              Select All
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                handleDeselectAll(formik, resource)
+                              }
+                              className="text-sm text-muted-foreground hover:text-foreground underline"
+                            >
+                              Deselect All
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                          {actionsToShow.map((action) => {
+                            const actionId = action.id;
+                            const label = action.name;
+                            const description =
+                              'description' in action
+                                ? ((action as { description?: string })
+                                    .description ?? '')
+                                : '';
+
+                            return (
+                              <div
+                                key={actionId}
+                                className="flex items-center space-x-2 p-3 border rounded-md"
+                              >
+                                <Checkbox
+                                  id={`${resource.id}-${actionId}`}
+                                  checked={!!resourcePermissions[actionId]}
+                                  onCheckedChange={(checked) =>
+                                    handlePermissionChange(
+                                      formik,
+                                      resource.id,
+                                      actionId,
+                                      checked as boolean
+                                    )
+                                  }
+                                />
+                                <div className="flex-1">
+                                  <Label
+                                    htmlFor={`${resource.id}-${actionId}`}
+                                    className="text-sm font-medium cursor-pointer"
+                                  >
+                                    {label}
+                                  </Label>
+                                  {description ? (
+                                    <p className="text-xs text-muted-foreground">
+                                      {description}
+                                    </p>
+                                  ) : null}
+                                </div>
+                              </div>
+                            );
+                          })}
                         </div>
                       </div>
+                    );
+                  });
 
-                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                        {actionsToShow.map((action) => {
-                          const actionId = action.id;
-                          const label = action.name;
-                          const description =
-                            'description' in action
-                              ? ((action as { description?: string })
-                                  .description ?? '')
-                              : '';
+                  if (group.resources.length < 2) {
+                    return (
+                      <React.Fragment key={group.name}>{modules}</React.Fragment>
+                    );
+                  }
 
-                          return (
-                            <div
-                              key={actionId}
-                              className="flex items-center space-x-2 p-3 border rounded-md"
-                            >
-                              <Checkbox
-                                id={`${resource.id}-${actionId}`}
-                                checked={!!resourcePermissions[actionId]}
-                                onCheckedChange={(checked) =>
-                                  handlePermissionChange(
-                                    formik,
-                                    resource.id,
-                                    actionId,
-                                    checked as boolean
-                                  )
-                                }
-                              />
-                              <div className="flex-1">
-                                <Label
-                                  htmlFor={`${resource.id}-${actionId}`}
-                                  className="text-sm font-medium cursor-pointer"
-                                >
-                                  {label}
-                                </Label>
-                                {description ? (
-                                  <p className="text-xs text-muted-foreground">
-                                    {description}
-                                  </p>
-                                ) : null}
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
+                  return (
+                    <section
+                      key={group.name}
+                      className="space-y-4 rounded-lg border bg-muted/30 p-4"
+                    >
+                      <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                        {group.name}
+                      </p>
+                      <div className="space-y-6">{modules}</div>
+                    </section>
                   );
                 })}
               </div>

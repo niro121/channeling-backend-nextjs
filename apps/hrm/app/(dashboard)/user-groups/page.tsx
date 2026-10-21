@@ -2,7 +2,11 @@ import React, { Suspense } from 'react';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { getServerSession } from 'next-auth';
-import { BulkDeleteButton, Button, CustomDataTable } from '@archmage/ui';
+import { Button } from '@archmage/ui';
+import {
+  CommonDataTable,
+  DataTableBulkDeleteFeature
+} from '@/components/common/common-data-table';
 import { Plus } from 'lucide-react';
 import Loading from '../loading';
 import { authOptions } from '@/lib/auth';
@@ -97,7 +101,7 @@ export default async function UserGroupsPage({ searchParams }: SearchParams) {
   return (
     <div className="overflow-hidden">
       <Suspense fallback={<Loading />}>
-        <CustomDataTable
+        <CommonDataTable
           heading="User Groups"
           subHeading="Manage HRM user groups and permission matrices."
           columns={userGroupColumns}
@@ -116,8 +120,8 @@ export default async function UserGroupsPage({ searchParams }: SearchParams) {
           }
           toolbarRight={
             <div className="flex flex-col gap-3 flex-1 min-w-0">
-              <div className="flex items-start gap-2 shrink-0">
-                <BulkDeleteButton />
+              <div className="flex items-start justify-end gap-2 shrink-0">
+                <DataTableBulkDeleteFeature />
                 {canAdd ? (
                   <Link href="/user-groups/add">
                     <Button size="sm" className="gap-1.5 h-9 cursor-pointer">
@@ -140,7 +144,6 @@ export default async function UserGroupsPage({ searchParams }: SearchParams) {
               </div>
             </div>
           }
-          hideAutoBulkDelete
         />
       </Suspense>
     </div>

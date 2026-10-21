@@ -13,6 +13,7 @@ import {
 import type { UserGroup } from '@/types/user-group';
 import { deleteUserGroup } from '@/app/actions/user-usergrp-actions/user-group.actions';
 import { usePermissions } from '@/components/hooks/use-permissions';
+import { buttonStyles } from '@/lib/utils/common-styles';
 
 interface UserGroupActionsProps<TData extends UserGroup> {
   row: Row<TData>;
@@ -112,6 +113,9 @@ export default function UserGroupRecordActions<TData extends UserGroup>({
         title="Are you absolutely sure?"
         description="This action cannot be undone. This will permanently delete this user group."
         handleContinue={onDeleteConfirmation}
+        className={{
+          actionButton: buttonStyles.cancel.danger
+        }}
       />
     </>
   );

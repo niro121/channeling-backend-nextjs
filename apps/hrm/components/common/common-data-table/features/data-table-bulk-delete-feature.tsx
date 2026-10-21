@@ -26,7 +26,7 @@ export function DataTableBulkDeleteFeature({
       variant="ghost"
       size="sm"
       className={cn(
-        'h-9 min-w-[7rem] gap-1.5 text-destructive hover:bg-destructive/10 hover:text-destructive disabled:invisible cursor-pointer',
+        'h-9 min-w-[7rem] gap-1.5 text-destructive hover:bg-destructive/10 hover:text-destructive disabled:hidden cursor-pointer',
         className
       )}
       disabled={Object.keys(rowSelection).length === 0}
