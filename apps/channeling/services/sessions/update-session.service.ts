@@ -20,10 +20,13 @@ export async function updateSessionService(
   try {
     const existing = await prisma.session.findUnique({
       where: { id: sessionId },
-      select: { date: true },
+      select: { date: true, hidden: true },
     });
     if (!existing) {
       return { success: false, error: 'Session not found.' };
+    }
+    if (existing.hidden) {
+      return { success: false, error: 'A hidden session cannot be edited.' };
     }
     const sessionDateStr = moment(existing.date).format('YYYY-MM-DD');
     const todayStr = moment().format('YYYY-MM-DD');

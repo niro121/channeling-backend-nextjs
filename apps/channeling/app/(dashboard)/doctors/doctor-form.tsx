@@ -91,6 +91,7 @@ export default function DoctorForm({
     registrationNumber: doctor?.registrationNumber ?? '',
     tinNumber: doctor?.tinNumber ?? '',
     nic: doctor?.nic ?? '',
+    whtPercentage: doctor?.whtPercentage ?? 0,
     qualification: doctor?.qualification ?? '',
     referralCharge: doctor?.referralCharge ?? 0,
     sessionNoPrefix: doctor?.sessionNoPrefix ?? '',
@@ -119,6 +120,11 @@ export default function DoctorForm({
     registrationNumber: Yup.string().trim().nullable().optional(),
     tinNumber: Yup.string().trim().nullable().optional(),
     nic: Yup.string().trim().nullable().optional(),
+    whtPercentage: Yup.number()
+      .transform((value, original) => (original === '' || original == null ? 0 : value))
+      .min(0, 'Must be 0 or greater')
+      .max(100, 'Must be 100 or less')
+      .required('This field is mandatory'),
     qualification: Yup.string().trim().nullable().optional(),
     referralCharge: Yup.number().min(0, 'Must be 0 or greater').nullable().optional(),
     status: Yup.number()
@@ -131,6 +137,13 @@ export default function DoctorForm({
     { resetForm, setFieldError }: FormikHelpers<DoctorFormValues>
   ) => {
     const closeAfterSave = saveAndCloseRef.current;
+    const showFieldIssue = (issues: { mobile?: unknown; registrationNumber?: unknown } | undefined) => {
+      for (const field of ['mobile', 'registrationNumber'] as const) {
+        const issue = issues?.[field];
+        if (!issue) continue;
+        setFieldError(field, Array.isArray(issue) ? String(issue[0]) : String(issue));
+      }
+    };
     try {
       setLoading(true);
       let respond: any;
@@ -140,9 +153,7 @@ export default function DoctorForm({
         setLoading(false);
 
         if (!respond?.success) {
-          if (respond?.error?.issues?.mobile) {
-            setFieldError('mobile', Array.isArray(respond.error.issues.mobile) ? respond.error.issues.mobile[0] : respond.error.issues.mobile);
-          }
+          showFieldIssue(respond?.error?.issues);
           toast({
             variant: 'destructive',
             title: 'Error',
@@ -163,9 +174,7 @@ export default function DoctorForm({
         setLoading(false);
 
         if (!respond?.success) {
-          if (respond?.error?.issues?.mobile) {
-            setFieldError('mobile', Array.isArray(respond.error.issues.mobile) ? respond.error.issues.mobile[0] : respond.error.issues.mobile);
-          }
+          showFieldIssue(respond?.error?.issues);
           toast({
             variant: 'destructive',
             title: 'Error',
@@ -472,6 +481,33 @@ export default function DoctorForm({
                 required={false}
                 styleClasses={styleClasses}
               />
+
+              <div className={styleClasses.parentDiv}>
+                <Label htmlFor="whtPercentage" className={styleClasses.labelClassName}>
+                  WHT percentage
+                </Label>
+                <div className={styleClasses.inputClassName}>
+                  <Input
+                    className="p-2 border rounded focus-visible:ring-offset-0! w-full"
+                    type="number"
+                    id="whtPercentage"
+                    name="whtPercentage"
+                    min={0}
+                    max={100}
+                    value={formik.values.whtPercentage}
+                    onChange={formik.handleChange}
+                    onBlur={formik.handleBlur}
+                  />
+                  <p className="text-xs text-muted-foreground pt-1">
+                    Percent of bookings paid with WHT when the payment is not ticked as full WHT. 0 does not split.
+                  </p>
+                  <ErrorMessage
+                    name="whtPercentage"
+                    component="div"
+                    className="invalid-feedback text-red-600 text-sm whitespace-pre-wrap pt-1 sm:pt-0"
+                  />
+                </div>
+              </div>
 
               <CustomFormField
                 type="text"

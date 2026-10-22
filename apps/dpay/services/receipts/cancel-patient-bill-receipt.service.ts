@@ -9,6 +9,8 @@ import { isVoidablePaymentReceipt } from '@/lib/receipts/helpers';
 import type { Prisma } from '@/lib/generated/prisma';
 import type { PatientBillPaymentMethod } from '@/types/patient-bill';
 import { generateCancelReceiptNumber } from '@/services/patient-bills/generate-receipt-number.service';
+import { postTillJournal, requireActiveShift } from '@/lib/dpay-shift';
+import { parsePayableShares } from '@/lib/patient-bills/payable-shares';
 
 async function sumActiveReceiptPaidAmount(
   tx: Prisma.TransactionClient,
@@ -94,6 +96,7 @@ export async function cancelPatientBillReceipt(
       cancelReceiptNumber: true,
       refundOfReceiptId: true,
       paymentMethod: true,
+      payableShares: true,
       billId: true,
       bill: {
         select: {
@@ -173,6 +176,27 @@ export async function cancelPatientBillReceipt(
     slipDate: input.slipDate,
   });
 
+  const shares = parsePayableShares(receipt.payableShares);
+  if (!shares.length) {
+    return {
+      success: false,
+      message: 'This receipt has no doctor shares to reverse, so the till cannot be updated.',
+    };
+  }
+
+  const shiftGate = await requireActiveShift(input.canceledBy);
+  if (!shiftGate.success) return { success: false, message: shiftGate.message };
+
+  const journal = await postTillJournal({
+    shift: shiftGate.shift,
+    kind: 'patient_refund',
+    referenceId: receipt.id,
+    description: `DPAY refund ${receipt.receiptNumber}`,
+    paymentMethod: input.refundPaymentMethod,
+    shares,
+  });
+  if (!journal.success) return { success: false, message: journal.message };
+
   const canceledAt = new Date();
 
   try {
@@ -199,6 +223,8 @@ export async function cancelPatientBillReceipt(
           outstandingAfter: 0, // set after bill recalc below
           paymentDate: canceledAt,
           status: 'refund',
+          shiftId: shiftGate.shift.shiftId,
+          payableShares: shares,
           refundOfReceiptId: receipt.id,
           cancelReason: reason,
           createdBy: input.canceledBy ?? undefined,
@@ -251,6 +277,14 @@ export async function cancelPatientBillReceipt(
 
     return { success: true, ...result };
   } catch (error) {
+    await postTillJournal({
+      shift: shiftGate.shift,
+      kind: 'patient_payment',
+      referenceId: receipt.id,
+      description: `Reverse failed DPAY refund ${receipt.receiptNumber}`,
+      paymentMethod: input.refundPaymentMethod,
+      shares,
+    });
     console.error('cancelPatientBillReceipt failed', error);
     const message =
       error instanceof Error && error.message

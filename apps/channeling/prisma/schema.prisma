@@ -215,6 +215,8 @@ model Doctor {
   city               String?
   registrationNumber String?
   tinNumber          String?
+  /// Percent of bookings paid on a WHT receipt when the payment is not marked full WHT. 0 = no split.
+  whtPercentage      Float    @default(0)
   nic                String?
   qualification      String
   referralCharge     Float
@@ -354,6 +356,8 @@ model Session {
   /// Channel room board: monotonic max of completed appointment numbers (Show/No-show); not the same as appointmentNo issuance.
   channelCurrentPatientNumber Int @default(0)
   isScan                Boolean  @default(false)
+  /// Non-WHT doctor-payment bookings are moved here. Channel booking hides these unless the user can see hidden sessions.
+  hidden                Boolean  @default(false)
   migrateSourceId       String?  // Legacy session_id (Sails) for migrate import lookup
 
   createdBy String?  @db.ObjectId
@@ -1200,6 +1204,8 @@ model Receipt {
   /// Doctor paid (or payment canceled) on this receipt — method 4 / 5
   doctorId          String?   @db.ObjectId
   doctor            Doctor?   @relation("DoctorToReceipt", fields: [doctorId], references: [id], onDelete: SetNull)
+  /// Links the WHT and non-WHT receipts of one split doctor payment.
+  doctorPaymentGroupId String? @db.ObjectId
   createdBy         String?   @db.ObjectId
   shiftId           String?   @db.ObjectId
   shift             Shift?    @relation(fields: [shiftId], references: [id], onDelete: SetNull)
@@ -1239,6 +1245,7 @@ model Receipt {
   @@index([createdBy, createdAt])
   @@index([shiftId])
   @@index([doctorId])
+  @@index([doctorPaymentGroupId])
 }
 
 model ReceiptPaymentLine {
@@ -1381,6 +1388,41 @@ model ApiLog {
   @@index([createdAt(sort: Desc)])
   @@index([uuid])
   @@index([clientId])
+}
+
+/// Tick state for a DPAY non-cash receipt on a reconciliation. The receipt stays in DPAY.
+model DpayReconciliationLine {
+  id                     String    @id @default(auto()) @map("_id") @db.ObjectId
+  /// dpay:{shiftId}:{kind}:{receiptNumber}
+  lineKey                String    @unique
+  /// Top-level handover document this tick was posted on.
+  handoverId             String    @db.ObjectId
+  shiftId                String
+  receiptNumber          String
+  kind                   String
+  paymentMethod          Int
+  amountRupees           Float
+  reconciledAt           DateTime?
+  reconciledBy           String?   @db.ObjectId
+  cannotReconcileAt      DateTime?
+  cannotReconcileBy      String?   @db.ObjectId
+  cannotReconcileReason  String?
+  createdAt              DateTime  @default(now())
+
+  @@index([handoverId])
+  @@index([shiftId])
+}
+
+/// Open incident for the server monitor. One row per outage, not one per failed call.
+model SystemAlert {
+  id         String    @id @default(auto()) @map("_id") @db.ObjectId
+  source     String
+  kind       String
+  message    String
+  createdAt  DateTime  @default(now())
+  resolvedAt DateTime?
+
+  @@index([source, resolvedAt, createdAt(sort: Desc)])
 }
 
 model Log {

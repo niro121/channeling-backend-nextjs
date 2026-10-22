@@ -64,6 +64,7 @@ export function DoctorPaymentRecordActions({ row }: DoctorPaymentRecordActionsPr
         onOpenChange={setCancelOpen}
         receiptId={receiptId}
         receiptNoString={receiptNoString}
+        cancelsPair={Boolean(row.original.doctorPaymentGroupId)}
         onSuccess={() => router.refresh()}
       />
     </div>

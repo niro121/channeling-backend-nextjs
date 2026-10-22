@@ -120,7 +120,7 @@ export function ReconciliationPrint({
       const ref = formatReceiptMatchLine(r)
       const reason = (r.cannotReconcileReason ?? cannot[r.id] ?? "").trim()
       tickedReceipts.push({
-        receiptNo: r.receiptNoString,
+        receiptNo: r.source === "dpay" ? `DPAY ${r.receiptNoString}` : r.receiptNoString,
         method,
         amount: net,
         reference: ref,

@@ -81,6 +81,7 @@ export async function getChannelRoomDashboardService(params: {
         id: { in: occupiedSessionIds },
         date: { gte: dayStart, lte: dayEnd },
         status: 1,
+        hidden: { not: true },
       },
       include: {
         doctor: { select: { title: true, name: true } },

@@ -471,7 +471,7 @@ export function ChannelBookingShiftBar() {
     }
   }, [shiftDetailsOpen, shift?.id])
 
-  // When max duration is exceeded: end immediately only if the till is empty and the shift has no receipts; otherwise force handover
+  // When max duration is exceeded: end immediately only if the till is empty, the shift has no Channeling or DPAY receipts, and no handover was received onto it; otherwise force handover
   useEffect(() => {
     if (!shift) {
       forcedHandoverPromptedForShiftIdRef.current = null
@@ -484,6 +484,7 @@ export function ChannelBookingShiftBar() {
     forcedHandoverPromptedForShiftIdRef.current = shift.id
 
     let cancelled = false
+    let dpayNotice: string | null = null
     ;(async () => {
       try {
         const check = await canEndShiftWithoutHandoverAction()
@@ -502,6 +503,7 @@ export function ChannelBookingShiftBar() {
           })
           return
         }
+        if (check.reason?.startsWith("DPAY ")) dpayNotice = check.reason
       } catch {
         // Could not determine empty-close eligibility; still prompt handover below.
       }
@@ -509,8 +511,8 @@ export function ChannelBookingShiftBar() {
       handoverDialogShiftRef.current = { shiftId: shift.id, fromUserId: shift.userId }
       setEndShiftHandoverOpen(true)
       toast({
-        title: "Shift time limit ended",
-        description: "Complete handover to close this shift before starting a new one.",
+        title: dpayNotice ? "DPAY" : "Shift time limit ended",
+        description: dpayNotice ?? "Complete handover to close this shift before starting a new one.",
         variant: "destructive",
       })
     })()
@@ -578,6 +580,9 @@ export function ChannelBookingShiftBar() {
         refresh()
         toast({ title: "Shift ended", description: "No till balance — closed without a handover." })
         return
+      }
+      if (check.reason?.startsWith("DPAY ")) {
+        toast({ title: "DPAY", description: check.reason, variant: "destructive" })
       }
       handoverDialogShiftRef.current = { shiftId: shift.id, fromUserId: shift.userId }
       setEndShiftHandoverOpen(true)

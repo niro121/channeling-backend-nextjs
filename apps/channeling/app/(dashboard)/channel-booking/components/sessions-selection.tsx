@@ -260,6 +260,7 @@ export function SessionsSelection() {
                     const sessionStatus = Number(session.status)
                     const isOnLeave =
                       sessionStatus === 0 && !Number.isNaN(sessionStatus)
+                    const isHidden = session.hidden === true
                     return (
                       <li key={session.id}>
                         <button
@@ -268,9 +269,11 @@ export function SessionsSelection() {
                           className={cn(
                             "w-full grid grid-cols-[auto_auto_1fr_auto_auto_auto_auto] gap-x-2 sm:gap-x-3 items-center px-2 py-1.5 text-left text-xs transition-colors duration-150 cursor-pointer",
                             "hover:bg-primary hover:text-primary-foreground",
-                            isSelected && !isOnLeave && "bg-primary text-primary-foreground font-medium",
-                            isOnLeave && !isSelected && "text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/30",
-                            isOnLeave && isSelected && "text-red-700 dark:text-red-300 bg-red-200 dark:bg-red-900/60 font-medium"
+                            isSelected && !isOnLeave && !isHidden && "bg-primary text-primary-foreground font-medium",
+                            isOnLeave && !isHidden && !isSelected && "text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/30",
+                            isOnLeave && !isHidden && isSelected && "text-red-700 dark:text-red-300 bg-red-200 dark:bg-red-900/60 font-medium",
+                            isHidden && !isSelected && "bg-amber-50 text-amber-950 dark:bg-amber-950/40 dark:text-amber-100",
+                            isHidden && isSelected && "bg-amber-200 text-amber-950 dark:bg-amber-800/70 font-medium"
                           )}
                         >
                           <span className={cn("shrink-0 tabular-nums", isWeekend && "font-bold")}>
@@ -279,7 +282,12 @@ export function SessionsSelection() {
                           <span className="shrink-0 tabular-nums">
                             {formatSessionDateShort(session.date)}
                           </span>
-                          <span className="shrink-0 tabular-nums text-left">
+                          <span className="shrink-0 tabular-nums text-left inline-flex items-center gap-1">
+                            {isHidden ? (
+                              <span className="inline-flex h-4 min-w-4 items-center justify-center rounded bg-amber-600 px-1 text-[10px] font-bold leading-none text-white">
+                                H
+                              </span>
+                            ) : null}
                             {formatSessionStartTimeDisplay(session.startTime, session.date)}
                           </span>
                           <span className="shrink-0 tabular-nums text-right min-w-[4rem]">

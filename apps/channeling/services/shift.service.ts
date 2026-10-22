@@ -14,6 +14,7 @@ import {
   getShiftMaxHoursForRole,
 } from "@/lib/shift-duration"
 import { getUserTillsTotalCents } from "@/services/accounting/balance.service"
+import { fetchDpayShiftLines, DPAY_NOT_RESPONDING } from "@/lib/dpay-shift-lines"
 import {
   cancelOpenFloatRequestsOnEmptyShiftEnd,
   getOpenFloatsBlockingShiftEnd,
@@ -454,9 +455,44 @@ async function shiftHasReceipts(shiftId: string): Promise<boolean> {
   return count > 0
 }
 
+/** A handover was accepted onto this shift and has not been passed on. */
+async function shiftHasAttachedHandover(shiftId: string): Promise<boolean> {
+  const count = await prisma.shiftHandover.count({
+    where: {
+      toShiftId: shiftId,
+      status: HANDOVER_STATUS.APPROVED,
+      forwardedToHandoverId: null,
+    },
+  })
+  return count > 0
+}
+
+/**
+ * DPAY receipts, refunds, and doctor payments for this shift.
+ * A failed or unconfigured lookup blocks the empty close so a DPAY-only shift is not ended unseen.
+ */
+async function shiftDpayActivityBlock(shiftId: string): Promise<{ blocked: boolean; reason?: string }> {
+  try {
+    const lines = await fetchDpayShiftLines([shiftId])
+    if (lines.length > 0) {
+      return {
+        blocked: true,
+        reason: "This shift has DPAY receipts. Complete a handover to end this shift.",
+      }
+    }
+    return { blocked: false }
+  } catch (error: unknown) {
+    return {
+      blocked: true,
+      reason: error instanceof Error ? error.message : DPAY_NOT_RESPONDING,
+    }
+  }
+}
+
 /**
  * True when the shift can be closed with no ShiftHandover:
- * every till is empty (or missing), the shift has no receipts, nothing to forward,
+ * every till is empty (or missing), the shift has no Channeling or DPAY receipts,
+ * no handover was accepted onto this shift, nothing else to forward,
  * no handovers waiting to accept, and no open float requests
  * (pending approval or approved but not yet received).
  */
@@ -551,10 +587,22 @@ export async function canEndShiftWithoutHandover(
         orderBy: { startedAt: "desc" },
       })
     )?.id
+  if (receiptShiftId && (await shiftHasAttachedHandover(receiptShiftId))) {
+    return {
+      allowed: false,
+      reason: "This shift received a handover. Complete a handover to end this shift.",
+    }
+  }
   if (receiptShiftId && (await shiftHasReceipts(receiptShiftId))) {
     return {
       allowed: false,
       reason: "This shift has receipts. Complete a handover to end this shift.",
+    }
+  }
+  if (receiptShiftId) {
+    const dpay = await shiftDpayActivityBlock(receiptShiftId)
+    if (dpay.blocked) {
+      return { allowed: false, reason: dpay.reason }
     }
   }
 

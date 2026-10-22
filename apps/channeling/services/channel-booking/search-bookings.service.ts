@@ -8,7 +8,7 @@ import moment from "moment"
 const MAX_SEARCH_RESULTS = 50
 
 export type SearchBookingsParams = {
-  /** Search by name, mobile, agent ref, bill no (receiptNoString | bookingid_string). */
+  /** Search by name, mobile, agent ref, remarks (reservation id), bill no (receiptNoString | bookingid_string). */
   keyword?: string | null
   fromDate?: Date | string | null
   toDate?: Date | string | null
@@ -44,7 +44,7 @@ export type SearchBookingsResult = {
 }
 
 /**
- * Search bookings by keyword (name, phone, agencyRef, receiptNoString, bookingid_string)
+ * Search bookings by keyword (name, phone, agencyRef, remarks, receiptNoString, bookingid_string)
  * and optional date range (session date). Returns at most MAX_SEARCH_RESULTS (50);
  * if more match, truncated is true and client should show "Narrow the search".
  */
@@ -73,6 +73,7 @@ export async function searchBookingsService(
         { name: insensitive },
         { phone: { contains: keyword } },
         { agencyRef: insensitive },
+        { remarks: insensitive },
         { receiptNoString: { contains: keyword } },
         { bookingid_string: { contains: keyword } },
       ]

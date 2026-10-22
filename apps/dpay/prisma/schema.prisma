@@ -40,6 +40,9 @@ model PatientBill {
   updatedByName     String?
   updatedAt         DateTime @updatedAt
 
+  /// Channeling shift that was active when this bill was issued.
+  shiftId             String?
+
   lineItems           PatientBillItem[]
   receipts            PatientBillReceipt[]
   doctorPaymentItems  DoctorPaymentItem[]
@@ -50,6 +53,10 @@ model PatientBillItem {
   billId          String    @db.ObjectId
   sortOrder       Int
   doctorName      String
+  /// Channeling Doctor id. Used to post the DPAY doctor payable.
+  doctorId        String?
+  /// Channeling Doctor.code. Account code is DPAY-DOC-{doctorCode}.
+  doctorCode      String?
   description     String
   amount          Float
   status          String    @default("active")
@@ -142,6 +149,10 @@ model PatientBillReceipt {
   canceledByName   String?
   createdBy        String?   @db.ObjectId
   createdByName    String?
+  /// Channeling shift id for this receipt.
+  shiftId          String?
+  /// Doctor shares for this receipt. Amounts in rupees.
+  payableShares    Json?
   createdAt        DateTime  @default(now())
   /// Times this slip was printed. Missing on older receipts means not yet printed.
   printCount       Int?
@@ -155,6 +166,9 @@ model DoctorPayment {
   id                   String    @id @default(auto()) @map("_id") @db.ObjectId
   receiptNumber        String    @unique
   doctorName           String
+  /// Channeling Doctor id and code for the DPAY payable.
+  doctorId             String?
+  doctorCode           String?
   paymentMethod        String
   referenceNumber      String?
   bank                 String?
@@ -184,6 +198,8 @@ model DoctorPayment {
   canceledByName       String?
   createdBy            String?   @db.ObjectId
   createdByName        String?
+  /// Channeling shift id for this doctor payment.
+  shiftId              String?
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt
   /// Times this slip was printed. Missing on older payments means not yet printed.

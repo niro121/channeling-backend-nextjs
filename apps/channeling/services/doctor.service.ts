@@ -44,6 +44,10 @@ const doctorSchema = z.object({
   registrationNumber: z.string().trim().optional().nullable(),
   tinNumber: z.string().trim().optional().nullable(),
   nic: z.string().trim().optional().nullable(),
+  whtPercentage: z.coerce
+    .number()
+    .min(0, 'Must be 0 or greater')
+    .max(100, 'Must be 100 or less'),
   qualification: z.string().trim().optional().nullable(),
   referralCharge: z.number().min(0, 'Must be 0 or greater'),
   sessionNoPrefix: z.string().optional().nullable(),
@@ -79,6 +83,29 @@ async function isDoctorMobileTaken(mobile: string, excludeDoctorId?: string): Pr
   });
   return doctors.some(
     (d) => d.mobile && normalizeMobile(d.mobile) === normalized && d.id !== excludeDoctorId
+  );
+}
+
+function normalizeRegistrationNumber(value: string | null | undefined): string {
+  return (value ?? '').trim();
+}
+
+/** Another doctor already has this registration number. Blank is allowed on many doctors. */
+async function isDoctorRegistrationNumberTaken(
+  registrationNumber: string,
+  excludeDoctorId?: string
+): Promise<boolean> {
+  const normalized = normalizeRegistrationNumber(registrationNumber);
+  if (!normalized) return false;
+  const key = normalized.toLowerCase();
+  const doctors = await prisma.doctor.findMany({
+    where: { registrationNumber: { not: null } },
+    select: { id: true, registrationNumber: true },
+  });
+  return doctors.some(
+    (d) =>
+      d.id !== excludeDoctorId &&
+      normalizeRegistrationNumber(d.registrationNumber).toLowerCase() === key
   );
 }
 
@@ -200,6 +227,18 @@ export const createDoctorService = async (
       };
     }
 
+    if (await isDoctorRegistrationNumberTaken(data.registrationNumber ?? '')) {
+      return {
+        success: false,
+        error: {
+          message: 'Registration number is already in use by another doctor',
+          issues: {
+            registrationNumber: ['Registration number is already in use by another doctor'],
+          },
+        },
+      };
+    }
+
     const doctorCodeResult = await getNextDoctorCode();
 
     if (!doctorCodeResult.success || !doctorCodeResult.data) {
@@ -228,6 +267,7 @@ export const createDoctorService = async (
         tinNumber: data.tinNumber?.trim() || null,
         nic: data.nic?.trim() || null,
         qualification: data.qualification ?? '',
+        whtPercentage: data.whtPercentage,
         referralCharge: data.referralCharge,
         sessionNoPrefix: data.sessionNoPrefix ?? null,
         status: data.status,
@@ -338,6 +378,21 @@ export const updateOneDoctorService = async (
       }
     }
 
+    if (
+      data.registrationNumber !== undefined &&
+      (await isDoctorRegistrationNumberTaken(data.registrationNumber ?? '', id))
+    ) {
+      return {
+        success: false,
+        error: {
+          message: 'Registration number is already in use by another doctor',
+          issues: {
+            registrationNumber: ['Registration number is already in use by another doctor'],
+          },
+        },
+      };
+    }
+
     const userRelation = user?.id ? { connect: { id: user.id } } : undefined;
 
     const mobileValue =
@@ -361,6 +416,7 @@ export const updateOneDoctorService = async (
         tinNumber: data.tinNumber?.trim() || null,
         nic: data.nic?.trim() || null,
         qualification: data.qualification ?? '',
+        ...(data.whtPercentage !== undefined && { whtPercentage: data.whtPercentage }),
         referralCharge: data.referralCharge,
         sessionNoPrefix: data.sessionNoPrefix ?? null,
         status: data.status,
@@ -600,7 +656,7 @@ export const getAllDoctorsService = async ({
         createdUser: true,
         updatedUser: true,
         accounts: {
-          where: { type: 'PAYABLE', isActive: true },
+          where: { type: 'PAYABLE', isActive: true, NOT: { code: { startsWith: 'DPAY-DOC-' } } },
           take: 1,
         },
       },
@@ -698,7 +754,7 @@ export const getDoctorByIdService = async (
           updatedUser: true,
           speciality: true,
           accounts: {
-            where: { type: 'PAYABLE', isActive: true },
+            where: { type: 'PAYABLE', isActive: true, NOT: { code: { startsWith: 'DPAY-DOC-' } } },
             take: 1,
           },
         },
@@ -718,7 +774,7 @@ export const getDoctorByIdService = async (
             createdUser: true,
             updatedUser: true,
             accounts: {
-              where: { type: 'PAYABLE', isActive: true },
+              where: { type: 'PAYABLE', isActive: true, NOT: { code: { startsWith: 'DPAY-DOC-' } } },
               take: 1,
             },
           },
