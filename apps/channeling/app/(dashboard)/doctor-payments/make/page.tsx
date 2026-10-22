@@ -69,6 +69,16 @@ export default async function MakeDoctorPaymentPage({ searchParams }: MakeDoctor
   const doctors = refRes.success && refRes.doctors ? refRes.doctors : [];
   const specialities = refRes.success && refRes.specialities ? refRes.specialities : [];
   const staff = refRes.success && refRes.staff ? refRes.staff : [];
+  const doctorIds = doctors.map((doctor) => doctor.id).filter(Boolean);
+  const shareRows = doctorIds.length
+    ? await prisma.doctor.findMany({
+        where: { id: { in: doctorIds } },
+        select: { id: true, whtPercentage: true },
+      })
+    : [];
+  const doctorWhtPercentages = Object.fromEntries(
+    shareRows.map((doctor) => [doctor.id, doctor.whtPercentage ?? 0])
+  );
 
   return (
     <div className="flex-1 space-y-4 p-8 pt-6">
@@ -88,6 +98,7 @@ export default async function MakeDoctorPaymentPage({ searchParams }: MakeDoctor
           initialDateFrom={initialDateFrom}
           initialDateTo={initialDateTo}
           whtPercentage={getWhtPercentage()}
+          doctorWhtPercentages={doctorWhtPercentages}
           doctorPaymentMethodCodes={getDoctorPaymentMethodCodes()}
         />
       </div>

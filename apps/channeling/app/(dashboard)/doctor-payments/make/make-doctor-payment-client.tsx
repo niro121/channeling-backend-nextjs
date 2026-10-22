@@ -17,6 +17,7 @@ import { formatReferenceLabel } from "@/types/reference";
 import { PAYMENT_METHOD_NAMES, RECEIPT_PAYMENT_METHOD } from "@/types/receipt";
 import { useToast } from "@/components/hooks/use-toast";
 import { formatLKR } from "@/lib/format-money";
+import { planDoctorPaymentWhtSplit } from "@/lib/doctor-payment-wht-split";
 import {
   Table,
   TableBody,
@@ -145,6 +146,8 @@ type MakeDoctorPaymentClientProps = {
   /** Optional to-date; defaults to today. */
   initialDateTo?: string | null;
   whtPercentage: number;
+  /** Doctor id → percent of bookings paid with WHT when the full-WHT tick is off. */
+  doctorWhtPercentages: Record<string, number>;
   doctorPaymentMethodCodes: number[];
 };
 
@@ -159,6 +162,7 @@ export function MakeDoctorPaymentClient({
   initialDateFrom,
   initialDateTo,
   whtPercentage,
+  doctorWhtPercentages,
   doctorPaymentMethodCodes,
 }: MakeDoctorPaymentClientProps) {
   const router = useRouter();
@@ -283,9 +287,26 @@ export function MakeDoctorPaymentClient({
 
   const whtPct = Math.max(0, Math.min(100, whtPercentage));
   const payingNum = parseFloat(payingThisTime) || 0;
-  const whtAmount = wht ? (payingNum * whtPct) / 100 : 0;
-  const netAmount = Math.max(0, payingNum - whtAmount);
-  const confirmShowsWhtBreakdown = wht && whtPct > 0 && payingNum > 0 && whtAmount > 0;
+  const doctorShare = Math.max(0, Math.min(100, doctorWhtPercentages[doctorId] ?? 0));
+  const selectedDetailRows = detailRows.filter((row) => selectedForPaymentIds.has(row.id));
+  const splitPlan = planDoctorPaymentWhtSplit(selectedDetailRows, doctorShare);
+  const isBookingSplit =
+    !wht && splitPlan.whtCount > 0 && splitPlan.whtCount < selectedDetailRows.length;
+  const fullWht =
+    wht || (!wht && selectedDetailRows.length > 0 && splitPlan.whtCount >= selectedDetailRows.length);
+  const splitWhtGross = splitPlan.wht.reduce((sum, row) => sum + row.paymentRs, 0);
+  const splitRestGross = splitPlan.rest.reduce((sum, row) => sum + row.paymentRs, 0);
+  const whtAmount = fullWht
+    ? Math.round((payingNum * whtPct) / 100)
+    : isBookingSplit
+      ? Math.round((splitWhtGross * whtPct) / 100)
+      : 0;
+  const netAmount = fullWht
+    ? Math.max(0, payingNum - whtAmount)
+    : isBookingSplit
+      ? Math.max(0, splitWhtGross - whtAmount) + splitRestGross
+      : payingNum;
+  const confirmShowsWhtBreakdown = whtAmount > 0 && payingNum > 0;
 
   const currentStep = detailRows.length > 0 ? 3 : sessions.length > 0 ? 2 : 1;
 
@@ -456,7 +477,8 @@ export function MakeDoctorPaymentClient({
         userId,
       });
       if (res.success) {
-        toast({ title: `Payment completed. Receipt: ${res.receiptNoString}` });
+        const receiptNumbers = res.receipts?.map((receipt) => receipt.receiptNoString) ?? [res.receiptNoString];
+        toast({ title: `Payment completed. Receipt: ${receiptNumbers.join(", ")}` });
         const printed = await printDoctorPaymentReceiptById(res.receiptId);
         if (!printed.success) {
           toast({
@@ -842,7 +864,7 @@ export function MakeDoctorPaymentClient({
                         htmlFor="wht"
                         className={`font-normal cursor-pointer ${whtPct === 0 ? "text-muted-foreground cursor-not-allowed" : "text-muted-foreground"}`}
                       >
-                        Apply WHT at {whtPct}%
+                        Apply All WHT at {whtPct}%
                       </Label>
                     </div>
                   </div>
@@ -990,7 +1012,8 @@ export function MakeDoctorPaymentClient({
                 <AlertDialogTitle>Confirm doctor payment</AlertDialogTitle>
                 <AlertDialogDescription>
                   You are about to process the doctor payment for {selectedForPaymentIds.size} booking
-                  {selectedForPaymentIds.size !== 1 ? "s" : ""}. This will create a receipt and update the bookings.
+                  {selectedForPaymentIds.size !== 1 ? "s" : ""}. This will create{" "}
+                  {isBookingSplit ? "two receipts" : "a receipt"} and update the bookings.
                   {payingNum > 0 && Math.abs(payingNum - totalDueForPayment) > 0.005 ? (
                     <>
                       {" "}
@@ -1014,10 +1037,26 @@ export function MakeDoctorPaymentClient({
                     <dt className="text-muted-foreground">Gross (paying this time)</dt>
                     <dd className="tabular-nums font-medium">Rs. {formatLKR(payingNum)}</dd>
                   </div>
+                  {isBookingSplit ? (
+                    <div className="flex justify-between gap-4">
+                      <dt className="text-muted-foreground">
+                        WHT bookings ({splitPlan.whtCount})
+                      </dt>
+                      <dd className="tabular-nums">Rs. {formatLKR(splitWhtGross)}</dd>
+                    </div>
+                  ) : null}
                   {confirmShowsWhtBreakdown ? (
                     <div className="flex justify-between gap-4">
-                      <dt className="text-muted-foreground">Withholding tax ({whtPct}%)</dt>
+                      <dt className="text-muted-foreground">
+                        Withholding tax ({whtPct}%{isBookingSplit ? " of WHT bookings" : ""})
+                      </dt>
                       <dd className="tabular-nums text-muted-foreground">− Rs. {formatLKR(whtAmount)}</dd>
+                    </div>
+                  ) : null}
+                  {isBookingSplit ? (
+                    <div className="flex justify-between gap-4">
+                      <dt className="text-muted-foreground">Without WHT ({splitPlan.rest.length})</dt>
+                      <dd className="tabular-nums">Rs. {formatLKR(splitRestGross)}</dd>
                     </div>
                   ) : null}
                   <div className="flex justify-between gap-4 border-t border-border pt-2 mt-2">

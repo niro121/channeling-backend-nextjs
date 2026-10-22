@@ -15,6 +15,8 @@ export type Doctor = {
   city: string | null;
   registrationNumber: string | null;
   tinNumber: string | null;
+  /** Percent of bookings paid with WHT when the payment is not full WHT. */
+  whtPercentage?: number;
   nic: string | null;
   qualification: string;
   referralCharge: number;
@@ -52,6 +54,7 @@ export type DoctorFormValues = {
   tinNumber: string;
   nic: string;
   qualification: string;
+  whtPercentage: number;
   referralCharge: number;
   sessionNoPrefix: string;
   status: number; // == 0: unpublish, 1: publish == //
@@ -78,6 +81,7 @@ export type UpdateDoctorPayload = Partial<{
   tinNumber: string;
   nic: string;
   qualification: string;
+  whtPercentage: number;
   referralCharge: number;
   sessionNoPrefix: string;
   status: number; // == 0: unpublish, 1: publish == //
