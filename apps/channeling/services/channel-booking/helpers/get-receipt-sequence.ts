@@ -11,12 +11,30 @@ function pad(num: number, size: number): string {
   return String(num).padStart(size, "0")
 }
 
+/** WHT slice of a split doctor payment, and its cancel, use their own number series. */
+export type DoctorPaymentSequenceKind = "wht" | "wht_cancel"
+
+export function receiptSequenceKindFromNumber(
+  receiptNoString: string | null | undefined
+): DoctorPaymentSequenceKind | null {
+  if (!receiptNoString) return null
+  if (receiptNoString.includes("CHANN-DOC-WHT-REF")) return "wht_cancel"
+  if (receiptNoString.includes("CHANN-DOC-WHT/")) return "wht"
+  return null
+}
+
+export function isWhtDoctorPaymentNumber(receiptNoString: string | null | undefined): boolean {
+  return receiptNoString?.includes("CHANN-DOC-WHT") ?? false
+}
+
 /**
  * Location-based receipt sequence and string format (matches old system).
  * method 1 → paymentreceipts, shortcode + 'CHANN/' + pad(8)
  * method 0 → refundreceipts, shortcode + 'CHANN-REF/' + pad(8)
  * method 4 → doctorpaymentreceipts, shortcode + 'CHANN-DOC-PAY/' + pad(8)
+ * method 4 WHT slice → doctorpaymentwhtreceipts, shortcode + 'CHANN-DOC-WHT/' + pad(8)
  * method 5 → doctorpaymentcancelreceipts, shortcode + 'CHANN-DOC-REF/' + pad(8)
+ * method 5 WHT slice → doctorpaymentwhtcancelreceipts, shortcode + 'CHANN-DOC-WHT-REF/' + pad(8)
  * method 2 → legerdebits (agency debit note), shortcode + 'CHANN-AGN-DN/' + pad(5)
  * method 3 → legercredits (agency credit note), shortcode + 'CHANN-AGN-CN/' + pad(5)
  * method 6 → legerdeposit (agency deposit), shortcode + 'CHANN-AGN-DP/' + pad(5)
@@ -33,7 +51,8 @@ function pad(num: number, size: number): string {
 export async function getReceiptSequenceInfo(
   locationId: string | null,
   method: number,
-  userLocationId?: string | null
+  userLocationId?: string | null,
+  sequenceKind?: DoctorPaymentSequenceKind | null
 ): Promise<{ scopeKey: string; formatReceiptNoString: (num: number) => string }> {
   // Prefer userLocationId (cashier location) for channel pay/refund and agency ledger —
   // same as old user_location. Session location is only a fallback.
@@ -121,6 +140,16 @@ export async function getReceiptSequenceInfo(
   } else {
     scopeSuffix = "receipts"
     prefix = `${shortcode}CHANN/`
+  }
+
+  if (sequenceKind === "wht") {
+    scopeSuffix = "doctorpaymentwhtreceipts"
+    prefix = `${shortcode}CHANN-DOC-WHT/`
+    padSize = 8
+  } else if (sequenceKind === "wht_cancel") {
+    scopeSuffix = "doctorpaymentwhtcancelreceipts"
+    prefix = `${shortcode}CHANN-DOC-WHT-REF/`
+    padSize = 8
   }
 
   const scopeKey = `${sequenceLocationId}-${scopeSuffix}`

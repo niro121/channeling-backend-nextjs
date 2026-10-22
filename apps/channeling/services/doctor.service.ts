@@ -44,6 +44,10 @@ const doctorSchema = z.object({
   registrationNumber: z.string().trim().optional().nullable(),
   tinNumber: z.string().trim().optional().nullable(),
   nic: z.string().trim().optional().nullable(),
+  whtPercentage: z.coerce
+    .number()
+    .min(0, 'Must be 0 or greater')
+    .max(100, 'Must be 100 or less'),
   qualification: z.string().trim().optional().nullable(),
   referralCharge: z.number().min(0, 'Must be 0 or greater'),
   sessionNoPrefix: z.string().optional().nullable(),
@@ -263,6 +267,7 @@ export const createDoctorService = async (
         tinNumber: data.tinNumber?.trim() || null,
         nic: data.nic?.trim() || null,
         qualification: data.qualification ?? '',
+        whtPercentage: data.whtPercentage,
         referralCharge: data.referralCharge,
         sessionNoPrefix: data.sessionNoPrefix ?? null,
         status: data.status,
@@ -411,6 +416,7 @@ export const updateOneDoctorService = async (
         tinNumber: data.tinNumber?.trim() || null,
         nic: data.nic?.trim() || null,
         qualification: data.qualification ?? '',
+        ...(data.whtPercentage !== undefined && { whtPercentage: data.whtPercentage }),
         referralCharge: data.referralCharge,
         sessionNoPrefix: data.sessionNoPrefix ?? null,
         status: data.status,

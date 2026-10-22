@@ -215,6 +215,8 @@ model Doctor {
   city               String?
   registrationNumber String?
   tinNumber          String?
+  /// Percent of bookings paid on a WHT receipt when the payment is not marked full WHT. 0 = no split.
+  whtPercentage      Float    @default(0)
   nic                String?
   qualification      String
   referralCharge     Float
@@ -1200,6 +1202,8 @@ model Receipt {
   /// Doctor paid (or payment canceled) on this receipt — method 4 / 5
   doctorId          String?   @db.ObjectId
   doctor            Doctor?   @relation("DoctorToReceipt", fields: [doctorId], references: [id], onDelete: SetNull)
+  /// Links the WHT and non-WHT receipts of one split doctor payment.
+  doctorPaymentGroupId String? @db.ObjectId
   createdBy         String?   @db.ObjectId
   shiftId           String?   @db.ObjectId
   shift             Shift?    @relation(fields: [shiftId], references: [id], onDelete: SetNull)
@@ -1239,6 +1243,7 @@ model Receipt {
   @@index([createdBy, createdAt])
   @@index([shiftId])
   @@index([doctorId])
+  @@index([doctorPaymentGroupId])
 }
 
 model ReceiptPaymentLine {

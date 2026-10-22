@@ -21,6 +21,7 @@ import { formatCents } from "@/lib/format-money";
 import { getCurrentShift, getShiftRequirementFailure } from "@/services/shift.service";
 import { isShiftRequirementError, shiftRequirementMessage } from "@/lib/shift-requirement-error";
 import { parseSlipDateInput } from "@/lib/slip-date";
+import { resolveDoctorPaymentSplit } from "@/services/doctor-payment/split-doctor-payment.service";
 
 const JOURNAL_SEQUENCE_SCOPE = "journal";
 
@@ -74,8 +75,19 @@ export type ProcessDoctorPaymentInput = {
   userId: string | null;
 };
 
+export type ProcessDoctorPaymentReceipt = {
+  receiptId: string;
+  receiptNoString: string;
+  wht: boolean;
+};
+
 export type ProcessDoctorPaymentResult =
-  | { success: true; receiptId: string; receiptNoString: string }
+  | {
+      success: true;
+      receiptId: string;
+      receiptNoString: string;
+      receipts: ProcessDoctorPaymentReceipt[];
+    }
   | { success: false; errorCode: string; message: string };
 
 /**
@@ -165,10 +177,6 @@ export async function processDoctorPaymentService(
     }
   }
 
-  const whtPercentage = getWhtPercentage();
-  const whtAmount = wht ? (amount * whtPercentage) / 100 : 0;
-  const netAmount = amount - whtAmount;
-
   const existing = await prisma.booking.findMany({
     where: { id: { in: bookingIds }, doctorId },
     select: { id: true, status: true, doctorPayment: true },
@@ -198,12 +206,20 @@ export async function processDoctorPaymentService(
     }
   }
 
+  const splitDecision = await resolveDoctorPaymentSplit({ input, shiftId });
+  if (splitDecision.mode === "finished") return splitDecision.result;
+  const applyWht = splitDecision.applyWht;
+
+  const whtPercentage = getWhtPercentage();
+  const whtAmount = applyWht ? (amount * whtPercentage) / 100 : 0;
+  const netAmount = amount - whtAmount;
+
   const accountsResult = await resolveDoctorPaymentAccounts({
     doctorId,
     locationId,
     createdBy: userId,
     paymentMethod,
-    includeWhtPayable: wht && whtAmount > 0,
+    includeWhtPayable: applyWht && whtAmount > 0,
   });
   if ("error" in accountsResult) {
     return {
@@ -322,5 +338,12 @@ export async function processDoctorPaymentService(
     success: true,
     receiptId: result.receipt.id,
     receiptNoString: result.receipt.receiptNoString,
+    receipts: [
+      {
+        receiptId: result.receipt.id,
+        receiptNoString: result.receipt.receiptNoString,
+        wht: applyWht && whtAmount > 0,
+      },
+    ],
   };
 }
