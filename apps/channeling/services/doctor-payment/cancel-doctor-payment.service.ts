@@ -18,6 +18,11 @@ import {
 import { getNextSequenceNumber } from "@/services/channel-booking/helpers/sequence";
 import { receiptSequenceKindFromNumber } from "@/services/channel-booking/helpers/get-receipt-sequence";
 import { getCurrentShift, getShiftRequirementFailure } from "@/services/shift.service";
+import {
+  logHiddenSessionMoves,
+  restoreBookingsFromHiddenSession,
+  type HiddenSessionMoveLog,
+} from "@/services/doctor-payment/move-bookings-to-hidden-session";
 
 const JOURNAL_SEQUENCE_SCOPE = "journal";
 
@@ -159,8 +164,13 @@ export async function cancelDoctorPaymentService(
   }
 
   let reversals: { originalId: string; id: string; receiptNoString: string }[];
+  let restoreLogs: HiddenSessionMoveLog[] = [];
   try {
-    reversals = await prisma.$transaction(async (tx) => {
+    const canceled = await prisma.$transaction(async (tx) => {
+      const logs = await restoreBookingsFromHiddenSession(tx as PrismaClient, {
+        receiptIds: prepared.map((item) => item.original.id),
+        userId: input.canceledBy,
+      });
       const created: { originalId: string; id: string; receiptNoString: string }[] = [];
       for (const item of prepared) {
         const r = await createReceiptWithoutBooking(tx as Pick<PrismaClient, "receipt">, item.reverseParams);
@@ -200,8 +210,10 @@ export async function cancelDoctorPaymentService(
           receiptNoString: r.receipt.receiptNoString,
         });
       }
-      return created;
+      return { created, logs };
     });
+    reversals = canceled.created;
+    restoreLogs = canceled.logs;
   } catch (e) {
     return {
       success: false,
@@ -209,6 +221,8 @@ export async function cancelDoctorPaymentService(
       message: e instanceof Error && e.message.trim() ? e.message : "Cancel failed.",
     };
   }
+
+  logHiddenSessionMoves(input.canceledBy, restoreLogs);
 
   const clicked = reversals.find((row) => row.originalId === input.receiptId) ?? reversals[0];
   if (!clicked) {

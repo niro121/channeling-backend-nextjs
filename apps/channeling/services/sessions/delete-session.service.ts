@@ -16,6 +16,9 @@ export async function deleteSessionService(
     if (!session) {
       return { success: false, error: 'Session not found' };
     }
+    if (session.hidden) {
+      return { success: false, error: 'A hidden session cannot be deleted.' };
+    }
 
     const bookingCount = await prisma.booking.count({
       where: { sessionId },

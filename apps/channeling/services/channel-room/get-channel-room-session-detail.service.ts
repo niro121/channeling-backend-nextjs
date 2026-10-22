@@ -93,7 +93,7 @@ export async function getChannelRoomSessionDetailService(sessionId: string): Pro
       },
     })
 
-    if (!session) {
+    if (!session || session.hidden) {
       return { success: false, errorCode: "not_found", message: "Session not found." }
     }
 
@@ -120,6 +120,7 @@ export async function getChannelRoomSessionDetailService(sessionId: string): Pro
       where: {
         doctorId: session.doctorId ?? undefined,
         date: { gte: dayStart, lte: dayEnd },
+        hidden: { not: true },
       },
       select: {
         id: true,
