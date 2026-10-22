@@ -169,7 +169,8 @@ export async function analyseSessionsService(
         const sessiondata = await prisma.session.findMany({
           where: {
             doctorId: inputs.doctorId,
-            date: { gte: rangeStart, lte: rangeEnd }
+            date: { gte: rangeStart, lte: rangeEnd },
+            hidden: { not: true },
           },
           include: { location: true, doctor: true }
         });
@@ -350,7 +351,8 @@ export async function analyseSessionsService(
       const sessiondata = await prisma.session.findMany({
         where: {
           doctorId: inputs.doctorId,
-          date: { gte: rangeStart, lte: rangeEnd }
+          date: { gte: rangeStart, lte: rangeEnd },
+          hidden: { not: true },
         },
         include: { location: true, doctor: true }
       });
@@ -387,7 +389,8 @@ export async function analyseSessionsService(
       const sessiondata = await prisma.session.findMany({
         where: {
           doctorId: inputs.doctorId,
-          date: { gte: rangeStart, lte: rangeEnd }
+          date: { gte: rangeStart, lte: rangeEnd },
+          hidden: { not: true },
         },
         include: { location: true, doctor: true }
       });

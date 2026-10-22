@@ -7,6 +7,7 @@ import {
   appointmentSequenceScopeKey,
   effectiveAppointmentSequenceLastValue,
 } from "@/services/channel-booking/helpers/appointment-number"
+import { excludeHiddenSessionFilter } from "@/services/doctor-payment/move-bookings-to-hidden-session"
 
 export type DoctorAppSessionsDateBounds = {
   from: Date
@@ -35,6 +36,7 @@ export async function fetchDoctorAppSessionsForDoctor(
       doctorId,
       date: dateFilter,
       status: { in: [0, 1] },
+      ...excludeHiddenSessionFilter,
     }
 
     const records = await prisma.session.findMany({

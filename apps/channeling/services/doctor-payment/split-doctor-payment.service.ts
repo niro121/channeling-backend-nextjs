@@ -3,6 +3,10 @@ import prisma from "@/lib/prisma"
 import { logActivityNonBlocking } from "@/lib/activity-log"
 import { planDoctorPaymentWhtSplit, type WhtSplitBooking } from "@/lib/doctor-payment-wht-split"
 import {
+  logHiddenSessionMoves,
+  moveNonWhtBookingsToHiddenSession,
+} from "@/services/doctor-payment/move-bookings-to-hidden-session"
+import {
   createReceiptWithoutBooking,
   type CreateReceiptWithoutBookingParams,
 } from "@/services/channel-booking/helpers/create-receipt-for-booking"
@@ -271,8 +275,16 @@ async function executeSplitDoctorPayment(args: {
         },
       })
 
-      return { whtReceipt: whtReceipt.receipt, restReceipt: restReceipt.receipt }
+      const moveLogs = await moveNonWhtBookingsToHiddenSession(tx, {
+        bookingIds: restRows.map((row) => row.id),
+        doctorId: input.doctorId,
+        userId: input.userId,
+      })
+
+      return { whtReceipt: whtReceipt.receipt, restReceipt: restReceipt.receipt, moveLogs }
     })
+
+    logHiddenSessionMoves(input.userId, created.moveLogs)
 
     if (input.userId) {
       for (const receipt of [created.whtReceipt, created.restReceipt]) {

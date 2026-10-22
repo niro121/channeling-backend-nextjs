@@ -75,7 +75,7 @@ export function SessionRecordActions({ row, onRefetch }: SessionRecordActionsPro
   return (
     <>
       <DataTableRowActions>
-        {has('sessions', 'edit') && (
+        {has('sessions', 'edit') && session.hidden !== true && (
           <Button
             variant="ghost"
             size="icon"
@@ -86,7 +86,7 @@ export function SessionRecordActions({ row, onRefetch }: SessionRecordActionsPro
             <span className="sr-only">Edit</span>
           </Button>
         )}
-        {has('sessions', 'delete') && (
+        {has('sessions', 'delete') && session.hidden !== true && (
           <Button
             variant="ghost"
             size="icon"

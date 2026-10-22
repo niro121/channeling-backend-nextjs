@@ -356,6 +356,8 @@ model Session {
   /// Channel room board: monotonic max of completed appointment numbers (Show/No-show); not the same as appointmentNo issuance.
   channelCurrentPatientNumber Int @default(0)
   isScan                Boolean  @default(false)
+  /// Non-WHT doctor-payment bookings are moved here. Channel booking hides these unless the user can see hidden sessions.
+  hidden                Boolean  @default(false)
   migrateSourceId       String?  // Legacy session_id (Sails) for migrate import lookup
 
   createdBy String?  @db.ObjectId

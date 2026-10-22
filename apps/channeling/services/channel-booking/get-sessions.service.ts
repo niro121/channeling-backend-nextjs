@@ -9,6 +9,7 @@ import {
   appointmentSequenceScopeKey,
   effectiveAppointmentSequenceLastValue,
 } from "./helpers/appointment-number"
+import { excludeHiddenSessionFilter } from "@/services/doctor-payment/move-bookings-to-hidden-session"
 
 /**
  * Fetches Session records (bookable sessions) for a doctor from a given date onward.
@@ -18,7 +19,8 @@ import {
 export async function getSessionsForChannelBookingService(
   doctorId: string,
   date: Date | string,
-  locationId?: string | null
+  locationId?: string | null,
+  options?: { includeHidden?: boolean }
 ): Promise<{
   success: boolean
   data?: Session[]
@@ -36,6 +38,9 @@ export async function getSessionsForChannelBookingService(
     }
     if (locationId) {
       where.locationId = locationId
+    }
+    if (!options?.includeHidden) {
+      Object.assign(where, excludeHiddenSessionFilter)
     }
 
     const records = await prisma.session.findMany({
@@ -113,6 +118,7 @@ export async function getSessionsForChannelBookingService(
           r.startingPatientNumber
         ),
         isScan: r.isScan,
+        hidden: r.hidden === true,
         doctorId: r.doctorId,
         departmentId: r.departmentId,
         locationId: r.locationId,
@@ -154,7 +160,8 @@ export async function getSessionsForChannelBookingService(
  * Returns same Session shape as getSessionsForChannelBookingService.
  */
 export async function getSessionByIdForChannelBookingService(
-  sessionId: string
+  sessionId: string,
+  options?: { includeHidden?: boolean }
 ): Promise<{
   success: boolean
   data?: Session | null
@@ -178,6 +185,7 @@ export async function getSessionByIdForChannelBookingService(
       }),
     ])
     if (!record) return { success: true, data: null }
+    if (record.hidden === true && !options?.includeHidden) return { success: true, data: null }
 
     const seq = await prisma.sequence.findUnique({
       where: { scopeKey: appointmentSequenceScopeKey(record.id) },
@@ -220,6 +228,7 @@ export async function getSessionByIdForChannelBookingService(
         record.startingPatientNumber
       ),
       isScan: record.isScan,
+      hidden: record.hidden === true,
       doctorId: record.doctorId,
       departmentId: record.departmentId,
       locationId: record.locationId,
