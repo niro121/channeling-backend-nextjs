@@ -73,7 +73,7 @@ export type ReceiptForReconciliation = {
 
 const DPAY_LINE_PREFIX = "dpay:"
 
-export function isDpayReconciliationLineId(id: string): boolean {
+function isDpayReconciliationLineId(id: string): boolean {
   return id.startsWith(DPAY_LINE_PREFIX)
 }
 
