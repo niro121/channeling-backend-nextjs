@@ -2,7 +2,12 @@ import { withPublicApiLog } from "@/lib/public-api-log"
 import { NextRequest, NextResponse } from "next/server"
 import { publicApiCorsHeaders } from "@/lib/public-api-cors"
 import { getPublicApiClient } from "@/lib/public-api-auth"
-import { postDpayJournal, type DpayJournalKind, type DpayJournalShare } from "@/services/public/dpay-journal.service"
+import {
+  listDpayJournalsByReference,
+  postDpayJournal,
+  type DpayJournalKind,
+  type DpayJournalShare,
+} from "@/services/public/dpay-journal.service"
 
 function withCors(res: NextResponse) {
   Object.entries(publicApiCorsHeaders()).forEach(([k, v]) => res.headers.set(k, v))
@@ -19,6 +24,32 @@ const KINDS = new Set<DpayJournalKind>([
 export async function OPTIONS() {
   return withCors(new NextResponse(null, { status: 204 }))
 }
+
+/** GET /api/public/shifts/journals?referenceType=DpayReceipt&referenceId= */
+export const GET = withPublicApiLog(async function GET(request: NextRequest) {
+  const client = await getPublicApiClient(request.headers, { recheckBlocked: true })
+  if (!client) {
+    return withCors(
+      NextResponse.json(
+        { error: "invalid_token", error_description: "Missing or invalid Bearer token" },
+        { status: 401 }
+      )
+    )
+  }
+
+  const params = new URL(request.url).searchParams
+  const result = await listDpayJournalsByReference({
+    referenceType: params.get("referenceType") ?? "",
+    referenceId: params.get("referenceId") ?? "",
+  })
+  if (!result.success) {
+    return withCors(
+      NextResponse.json({ error: "invalid_request", error_description: result.message }, { status: 400 })
+    )
+  }
+
+  return withCors(NextResponse.json({ journals: result.journals }))
+})
 
 export const POST = withPublicApiLog(async function POST(request: NextRequest) {
   const client = await getPublicApiClient(request.headers, { recheckBlocked: true })

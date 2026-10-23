@@ -2,13 +2,12 @@ import prisma from '@/lib/prisma';
 import type { Prisma } from '@/lib/generated/prisma';
 import type { PatientBillPaymentMethod, PatientBillReceiptStatus } from '@/types/patient-bill';
 import { parseReportDateTimeSl } from '@/lib/parse-report-datetime';
+import { getReportMax } from '@/lib/report-limits';
 import type {
   ReceiptReportParams,
   ReceiptReportResult,
   ReceiptReportRow,
 } from '@/types/reports';
-
-const EXPORT_LIMIT = 10000;
 
 function normalizeReceiptStatus(status?: string | null): PatientBillReceiptStatus {
   if (status === 'cancelled' || status === 'refund') return status;
@@ -158,7 +157,7 @@ export async function getReceiptReportExport(
   const records = await prisma.patientBillReceipt.findMany({
     where,
     orderBy: { paymentDate: 'desc' },
-    take: EXPORT_LIMIT,
+    take: getReportMax(),
     select: receiptSelect,
   });
 

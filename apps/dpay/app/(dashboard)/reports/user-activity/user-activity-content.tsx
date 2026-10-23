@@ -43,10 +43,12 @@ import { UserActivityReportColumns, type UserActivityRow } from './columns';
 
 type UserActivityContentProps = {
   initialUserOptions: Array<{ id: string; name: string }>;
+  capLabel: string;
 };
 
 export default function UserActivityContent({
   initialUserOptions,
+  capLabel,
 }: UserActivityContentProps) {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
@@ -127,7 +129,7 @@ export default function UserActivityContent({
       toast({
         title: 'Export complete',
         description:
-          'Exported first 10,000 records. More records exist for this range.',
+          `Exported first ${capLabel} records. More records exist for this range.`,
       });
     }
 
@@ -167,8 +169,8 @@ export default function UserActivityContent({
             <div>
               <CardTitle className="text-2xl font-bold">User Activity Report</CardTitle>
               <CardDescription className="mt-1">
-                View user activity by user and date range. Display is capped at 10,000
-                records; use Export to download.
+                View user activity by user and date range. Display is capped at {capLabel} records; use
+                Export to download.
               </CardDescription>
             </div>
             <div className="flex gap-2 shrink-0">
@@ -288,7 +290,7 @@ export default function UserActivityContent({
               : totalReturned > 0
                 ? `Showing ${totalReturned} record${totalReturned === 1 ? '' : 's'}${
                     hasMore
-                      ? ' (first 10,000; more records available — use Export)'
+                      ? ` (first ${capLabel}; more records available — use Export)`
                       : ''
                   }`
                 : 'No data. Select filters and click Search.'}
