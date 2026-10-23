@@ -1,14 +1,13 @@
 import prisma from '@/lib/prisma';
 import type { Prisma } from '@/lib/generated/prisma';
 import { parseReportDateTimeSl } from '@/lib/parse-report-datetime';
+import { getReportMax } from '@/lib/report-limits';
 import type {
   PatientExcessReportParams,
   PatientExcessReportResult,
   PatientExcessReportRow,
 } from '@/types/reports';
 
-const DISPLAY_LIMIT = 10000;
-const EXPORT_LIMIT = 10000;
 
 function buildWhere(
   params: PatientExcessReportParams
@@ -73,24 +72,25 @@ export async function getPatientExcessReport(
   params: PatientExcessReportParams = {}
 ): Promise<PatientExcessReportResult> {
   const where = buildWhere(params);
+  const cap = getReportMax();
 
   const [records, totalRecords, sumRows] = await Promise.all([
     prisma.patientBill.findMany({
       where,
       orderBy: { admissionDate: 'desc' },
-      take: DISPLAY_LIMIT + 1,
+      take: cap + 1,
       select: billSelect,
     }),
     prisma.patientBill.count({ where }),
     prisma.patientBill.findMany({
       where,
       select: { paidAmount: true, totalAmount: true },
-      take: EXPORT_LIMIT,
+      take: cap,
     }),
   ]);
 
-  const hasMore = records.length > DISPLAY_LIMIT;
-  const sliced = hasMore ? records.slice(0, DISPLAY_LIMIT) : records;
+  const hasMore = records.length > cap;
+  const sliced = hasMore ? records.slice(0, cap) : records;
   const mapped = sliced.map(mapRow);
   const totalExcess = sumRows.reduce(
     (sum, row) => sum + Math.max(0, row.paidAmount - row.totalAmount),
@@ -101,7 +101,7 @@ export async function getPatientExcessReport(
     data: mapped,
     totalRecords,
     totalExcess,
-    hasMore: hasMore || totalRecords > DISPLAY_LIMIT,
+    hasMore: hasMore || totalRecords > cap,
   };
 }
 
@@ -112,7 +112,7 @@ export async function getPatientExcessReportExport(
   const records = await prisma.patientBill.findMany({
     where,
     orderBy: { admissionDate: 'desc' },
-    take: EXPORT_LIMIT,
+    take: getReportMax(),
     select: billSelect,
   });
   return records.map(mapRow);

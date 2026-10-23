@@ -5,6 +5,7 @@ import { authPrisma } from '@archmage/db-auth';
 import { requirePermission } from '@/lib/server-permissions';
 import { fetchServerSession } from '@/lib/session';
 import { logActivityNonBlocking } from '@/lib/activity-log';
+import { formatReportMax } from '@/lib/report-limits';
 import { getActivityLogsForReport } from '@/services/reports/get-user-activity-report.service';
 import type {
   ExportUserActivityData,
@@ -103,8 +104,7 @@ export async function exportUserActivityReportData(
       mapped.push({
         createdAt: '',
         userName: '',
-        action:
-          'Note: More than 10,000 records exist for this range. Only first 10,000 are included.',
+        action: `Note: More than ${formatReportMax()} records exist for this range. Only the first ${formatReportMax()} are included.`,
         entityType: '',
         entityId: '',
         ipAddress: '',

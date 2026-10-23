@@ -35,7 +35,7 @@ import {
 } from '@/components/common/date-time-range-picker';
 import { admissionListReportColumns } from './columns';
 
-export default function AdmissionListReportContent() {
+export default function AdmissionListReportContent({ capLabel }: { capLabel: string }) {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [rows, setRows] = useState<AdmissionListReportRow[]>([]);
@@ -126,7 +126,7 @@ export default function AdmissionListReportContent() {
               <CardTitle className="text-2xl font-bold">Admission List Report</CardTitle>
               <CardDescription className="mt-1">
                 Admitted patients with BHT, bill number, and patient details. Display is
-                capped at 10,000 records; use Export for PDF/Excel/Print.
+                capped at {capLabel} records; use Export for PDF/Excel/Print.
               </CardDescription>
             </div>
             <div className="shrink-0">
@@ -186,7 +186,7 @@ export default function AdmissionListReportContent() {
                 ? 'Loading...'
                 : totalRecords > 0
                   ? `Showing ${rows.length} of ${totalRecords} admission${totalRecords === 1 ? '' : 's'}${
-                      hasMore ? ' (capped at 10,000 — use Export)' : ''
+                      hasMore ? ` (capped at ${capLabel} — use Export)` : ''
                     }`
                   : 'No data. Select a date range and click Search.'}
             </CardDescription>

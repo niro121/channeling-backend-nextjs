@@ -1,14 +1,13 @@
 import prisma from '@/lib/prisma';
 import type { Prisma } from '@/lib/generated/prisma';
 import { parseReportDateTimeSl } from '@/lib/parse-report-datetime';
+import { getReportMax } from '@/lib/report-limits';
 import type {
   AdmissionListReportParams,
   AdmissionListReportResult,
   AdmissionListReportRow,
 } from '@/types/reports';
 
-const DISPLAY_LIMIT = 10000;
-const EXPORT_LIMIT = 10000;
 
 function buildWhere(
   params: AdmissionListReportParams
@@ -72,24 +71,25 @@ export async function getAdmissionListReport(
   params: AdmissionListReportParams = {}
 ): Promise<AdmissionListReportResult> {
   const where = buildWhere(params);
+  const cap = getReportMax();
 
   const [records, totalRecords] = await Promise.all([
     prisma.patientBill.findMany({
       where,
       orderBy: { admissionDate: 'desc' },
-      take: DISPLAY_LIMIT + 1,
+      take: cap + 1,
       select: billSelect,
     }),
     prisma.patientBill.count({ where }),
   ]);
 
-  const hasMore = records.length > DISPLAY_LIMIT;
-  const sliced = hasMore ? records.slice(0, DISPLAY_LIMIT) : records;
+  const hasMore = records.length > cap;
+  const sliced = hasMore ? records.slice(0, cap) : records;
 
   return {
     data: sliced.map(mapRow),
     totalRecords,
-    hasMore: hasMore || totalRecords > DISPLAY_LIMIT,
+    hasMore: hasMore || totalRecords > cap,
   };
 }
 
@@ -100,7 +100,7 @@ export async function getAdmissionListReportExport(
   const records = await prisma.patientBill.findMany({
     where,
     orderBy: { admissionDate: 'desc' },
-    take: EXPORT_LIMIT,
+    take: getReportMax(),
     select: billSelect,
   });
   return records.map(mapRow);
