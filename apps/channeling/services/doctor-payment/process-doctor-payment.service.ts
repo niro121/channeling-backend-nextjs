@@ -22,6 +22,11 @@ import { getCurrentShift, getShiftRequirementFailure } from "@/services/shift.se
 import { isShiftRequirementError, shiftRequirementMessage } from "@/lib/shift-requirement-error";
 import { parseSlipDateInput } from "@/lib/slip-date";
 import { resolveDoctorPaymentSplit } from "@/services/doctor-payment/split-doctor-payment.service";
+import {
+  logHiddenSessionMoves,
+  moveNonWhtBookingsToHiddenSession,
+  type HiddenSessionMoveLog,
+} from "@/services/doctor-payment/move-bookings-to-hidden-session";
 
 const JOURNAL_SEQUENCE_SCOPE = "journal";
 
@@ -209,6 +214,7 @@ export async function processDoctorPaymentService(
   const splitDecision = await resolveDoctorPaymentSplit({ input, shiftId });
   if (splitDecision.mode === "finished") return splitDecision.result;
   const applyWht = splitDecision.applyWht;
+  const moveToHiddenBookingIds = splitDecision.moveToHiddenBookingIds ?? [];
 
   const whtPercentage = getWhtPercentage();
   const whtAmount = applyWht ? (amount * whtPercentage) / 100 : 0;
@@ -249,9 +255,10 @@ export async function processDoctorPaymentService(
     }
   }
 
-  const remarks = handed_staff.trim()
+  const remarksBase = handed_staff.trim()
     ? `DOCTOR PAYMENT Handed: ${handed_staff.trim()}`
     : "DOCTOR PAYMENT";
+  const remarks = applyWht ? remarksBase.replace("DOCTOR PAYMENT", "DOCTOR PAYMENT WHT") : remarksBase;
 
   const receiptParams: CreateReceiptWithoutBookingParams = {
     paymentMethod,
@@ -274,14 +281,16 @@ export async function processDoctorPaymentService(
     userLocationId: locationId ?? undefined,
     shiftId,
     whd: Math.round(whtAmount),
-    whdPercentage: whtPercentage,
+    whdPercentage: applyWht ? whtPercentage : 0,
     doctorId,
+    receiptSequenceKind: applyWht ? "wht" : null,
   };
 
   const journalNumberResult = await getNextSequenceNumber(JOURNAL_SEQUENCE_SCOPE, { startFrom: 1 });
   const journalNumber = journalNumberResult.success ? journalNumberResult.value : 0;
 
   let result: Awaited<ReturnType<typeof createReceiptWithoutBooking>>;
+  let hiddenMoveLogs: HiddenSessionMoveLog[] = [];
   try {
     result = await prisma.$transaction(async (tx) => {
       const r = await createReceiptWithoutBooking(tx, receiptParams);
@@ -303,6 +312,14 @@ export async function processDoctorPaymentService(
         },
       });
 
+      if (moveToHiddenBookingIds.length > 0) {
+        hiddenMoveLogs = await moveNonWhtBookingsToHiddenSession(tx, {
+          bookingIds: moveToHiddenBookingIds,
+          doctorId,
+          userId,
+        });
+      }
+
       return r;
     });
   } catch (e) {
@@ -323,6 +340,8 @@ export async function processDoctorPaymentService(
   if (!result.success) {
     return { success: false, errorCode: result.errorCode, message: result.message };
   }
+
+  logHiddenSessionMoves(input.userId, hiddenMoveLogs);
 
   if (input.userId) {
     logActivityNonBlocking({

@@ -17,12 +17,18 @@ export function sortDoctorPaymentBookings<T extends WhtSplitBooking>(rows: T[]):
   )
 }
 
-/** How many of `count` bookings are paid with WHT. Uses the doctor's percentage, not the tax rate. */
+/**
+ * How many of `count` bookings are paid with WHT. Uses the doctor's percentage, not the tax rate.
+ * A share below one whole booking stays unpaid as WHT. That booking is the remainder and moves
+ * to the hidden session. One booking at 50% is 0, not 1.
+ */
 export function whtBookingCount(count: number, sharePercent: number): number {
   if (count <= 0) return 0
   const share = Math.max(0, Math.min(100, Number(sharePercent) || 0))
   if (share <= 0) return 0
-  return Math.min(count, Math.round((count * share) / 100))
+  const exact = (count * share) / 100
+  if (exact < 1) return 0
+  return Math.min(count, Math.round(exact))
 }
 
 export function planDoctorPaymentWhtSplit<T extends WhtSplitBooking>(rows: T[], sharePercent: number) {
