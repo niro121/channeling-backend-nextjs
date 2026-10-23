@@ -184,3 +184,96 @@ export async function postDpayJournal(input: PostDpayJournalInput): Promise<
   if (!posted.success) return { success: false, message: posted.error }
   return { success: true, journalId: posted.journalId }
 }
+
+export const DPAY_JOURNAL_REFERENCE_TYPES = ["DpayReceipt", "DpayDoctorPayment"] as const
+
+export type DpayJournalReferenceType = (typeof DPAY_JOURNAL_REFERENCE_TYPES)[number]
+
+export type DpayJournalLineView = {
+  id: string
+  accountId: string
+  accountCode: string | null
+  accountName: string
+  accountType: string
+  debitAmount: number
+  creditAmount: number
+  memo: string | null
+  paymentMethod: number | null
+}
+
+export type DpayJournalView = {
+  id: string
+  journalNumber: number | null
+  date: string
+  description: string
+  referenceType: string | null
+  referenceId: string | null
+  locationId: string | null
+  lines: DpayJournalLineView[]
+}
+
+function centsToRupees(cents: number): number {
+  return Math.round(cents) / 100
+}
+
+function isDpayJournalReferenceType(value: string): value is DpayJournalReferenceType {
+  return (DPAY_JOURNAL_REFERENCE_TYPES as readonly string[]).includes(value)
+}
+
+/**
+ * Journals already posted for one DPAY receipt or doctor payment.
+ * Amounts are rupees. Does not create journals.
+ */
+export async function listDpayJournalsByReference(input: {
+  referenceType: string
+  referenceId: string
+}): Promise<{ success: true; journals: DpayJournalView[] } | { success: false; message: string }> {
+  const referenceType = input.referenceType.trim()
+  const referenceId = input.referenceId.trim()
+  if (!referenceType || !referenceId) {
+    return { success: false, message: "referenceType and referenceId are required." }
+  }
+  if (!isDpayJournalReferenceType(referenceType)) {
+    return { success: false, message: "referenceType must be DpayReceipt or DpayDoctorPayment." }
+  }
+  if (!objectIdOrNull(referenceId)) {
+    return { success: false, message: "referenceId is not a valid id." }
+  }
+
+  const journals = await prisma.journal.findMany({
+    where: { referenceType, referenceId },
+    orderBy: { createdAt: "asc" },
+    include: {
+      journalLines: {
+        orderBy: { id: "asc" },
+        include: {
+          account: { select: { id: true, name: true, code: true, type: true } },
+        },
+      },
+    },
+  })
+
+  return {
+    success: true,
+    journals: journals.map((journal) => ({
+      id: journal.id,
+      journalNumber: journal.journalNumber,
+      date: journal.date.toISOString(),
+      description: journal.description,
+      referenceType: journal.referenceType,
+      referenceId: journal.referenceId,
+      locationId: journal.locationId,
+      lines: journal.journalLines.map((line) => ({
+        id: line.id,
+        accountId: line.accountId,
+        accountCode: line.account.code ?? null,
+        accountName: line.account.name,
+        accountType: line.account.type,
+        debitAmount: centsToRupees(line.debitAmount),
+        creditAmount: centsToRupees(line.creditAmount),
+        memo: line.memo?.trim() ? line.memo.trim() : null,
+        paymentMethod: line.paymentMethod,
+      })),
+    })),
+  }
+}

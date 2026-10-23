@@ -257,6 +257,67 @@ async function postChannelingDpayJournalOnce(input: {
   }
 }
 
+export type ChannelingDpayJournalLine = {
+  id: string;
+  accountId: string;
+  accountCode: string | null;
+  accountName: string;
+  accountType: string;
+  debitAmount: number;
+  creditAmount: number;
+  memo: string | null;
+  paymentMethod: number | null;
+};
+
+export type ChannelingDpayJournal = {
+  id: string;
+  journalNumber: number | null;
+  date: string;
+  description: string;
+  referenceType: string | null;
+  referenceId: string | null;
+  locationId: string | null;
+  lines: ChannelingDpayJournalLine[];
+};
+
+type JournalsResponse = {
+  journals?: ChannelingDpayJournal[];
+  error?: string;
+  error_description?: string;
+};
+
+async function fetchChannelingDpayJournalsOnce(input: {
+  referenceType: 'DpayReceipt' | 'DpayDoctorPayment';
+  referenceId: string;
+}): Promise<ChannelingDpayJournal[]> {
+  const query = new URLSearchParams({
+    referenceType: input.referenceType,
+    referenceId: input.referenceId,
+  });
+  const res = await channelingFetch(`/api/public/shifts/journals?${query.toString()}`);
+  const data = (await res.json().catch(() => ({}))) as JournalsResponse;
+  if (res.status >= 500) {
+    throw new Error('Channeling is not responding. Try again.');
+  }
+  if (!res.ok) {
+    throw new Error(data.error_description || data.error || 'Could not load the till journals');
+  }
+  return Array.isArray(data.journals) ? data.journals : [];
+}
+
+/** Journals Channeling already posted for one DPAY receipt or doctor payment. Amounts are rupees. */
+export async function fetchChannelingDpayJournals(input: {
+  referenceType: 'DpayReceipt' | 'DpayDoctorPayment';
+  referenceId: string;
+}): Promise<ChannelingDpayJournal[]> {
+  try {
+    return await fetchChannelingDpayJournalsOnce(input);
+  } catch (error: unknown) {
+    if (!isTransientChannelingError(error)) throw error;
+    return await fetchChannelingDpayJournalsOnce(input);
+  }
+}
+
 export async function postChannelingDpayJournal(input: {
   userId: string;
   shiftId: string;

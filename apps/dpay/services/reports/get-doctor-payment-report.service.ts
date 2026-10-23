@@ -2,13 +2,13 @@ import prisma from '@/lib/prisma';
 import type { Prisma } from '@/lib/generated/prisma';
 import type { DoctorPaymentMethod, DoctorPaymentStatus } from '@/types/doctor-payment';
 import { parseReportDateTimeSl } from '@/lib/parse-report-datetime';
+import { getReportMax } from '@/lib/report-limits';
 import type {
   DoctorPaymentReportParams,
   DoctorPaymentReportResult,
   DoctorPaymentReportRow,
 } from '@/types/reports';
 
-const EXPORT_LIMIT = 10000;
 
 function buildWhere(
   params: Pick<DoctorPaymentReportParams, 'keyword' | 'dateFrom' | 'dateTo'>
@@ -107,7 +107,7 @@ export async function getDoctorPaymentReportExport(
   const records = await prisma.doctorPayment.findMany({
     where,
     orderBy: { createdAt: 'desc' },
-    take: EXPORT_LIMIT,
+    take: getReportMax(),
   });
 
   return records.map(mapRow);

@@ -1,14 +1,13 @@
 import prisma from '@/lib/prisma';
 import type { Prisma } from '@/lib/generated/prisma';
 import { parseReportDateTimeSl } from '@/lib/parse-report-datetime';
+import { getReportMax } from '@/lib/report-limits';
 import type {
   PatientDueReportParams,
   PatientDueReportResult,
   PatientDueReportRow,
 } from '@/types/reports';
 
-const DISPLAY_LIMIT = 10000;
-const EXPORT_LIMIT = 10000;
 
 function buildWhere(
   params: PatientDueReportParams
@@ -77,12 +76,13 @@ export async function getPatientDueReport(
   params: PatientDueReportParams = {}
 ): Promise<PatientDueReportResult> {
   const where = buildWhere(params);
+  const cap = getReportMax();
 
   const [records, totalRecords, aggregate] = await Promise.all([
     prisma.patientBill.findMany({
       where,
       orderBy: { admissionDate: 'desc' },
-      take: DISPLAY_LIMIT + 1,
+      take: cap + 1,
       select: billSelect,
     }),
     prisma.patientBill.count({ where }),
@@ -92,14 +92,14 @@ export async function getPatientDueReport(
     }),
   ]);
 
-  const hasMore = records.length > DISPLAY_LIMIT;
-  const sliced = hasMore ? records.slice(0, DISPLAY_LIMIT) : records;
+  const hasMore = records.length > cap;
+  const sliced = hasMore ? records.slice(0, cap) : records;
 
   return {
     data: sliced.map(mapRow),
     totalRecords,
     totalDue: aggregate._sum.outstandingAmount ?? 0,
-    hasMore: hasMore || totalRecords > DISPLAY_LIMIT,
+    hasMore: hasMore || totalRecords > cap,
   };
 }
 
@@ -110,7 +110,7 @@ export async function getPatientDueReportExport(
   const records = await prisma.patientBill.findMany({
     where,
     orderBy: { admissionDate: 'desc' },
-    take: EXPORT_LIMIT,
+    take: getReportMax(),
     select: billSelect,
   });
   return records.map(mapRow);

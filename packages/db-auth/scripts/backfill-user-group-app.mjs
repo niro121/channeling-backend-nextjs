@@ -55,6 +55,7 @@ const DPAY_PERMISSION_KEYS = new Set([
   'doctor-payments',
   'payments',
   'receipts',
+  'receipt-manager',
   'bank-accounts',
   'ledger',
   'reconciliation',
