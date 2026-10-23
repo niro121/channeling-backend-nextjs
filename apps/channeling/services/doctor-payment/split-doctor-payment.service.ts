@@ -87,7 +87,7 @@ async function loadSplitBookings(bookingIds: string[]): Promise<WhtSplitBooking[
 }
 
 export type DoctorPaymentSplitDecision =
-  | { mode: "single"; applyWht: boolean }
+  | { mode: "single"; applyWht: boolean; moveToHiddenBookingIds?: string[] }
   | { mode: "finished"; result: ProcessDoctorPaymentResult }
 
 /**
@@ -121,7 +121,13 @@ export async function resolveDoctorPaymentSplit(args: {
   }
 
   const planned = planDoctorPaymentWhtSplit(rows, share)
-  if (planned.whtCount <= 0) return { mode: "single", applyWht: false }
+  if (planned.whtCount <= 0) {
+    return {
+      mode: "single",
+      applyWht: false,
+      moveToHiddenBookingIds: rows.map((row) => row.id),
+    }
+  }
   if (planned.whtCount >= rows.length) return { mode: "single", applyWht: true }
 
   const result = await executeSplitDoctorPayment({
