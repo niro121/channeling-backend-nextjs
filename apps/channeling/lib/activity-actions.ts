@@ -27,6 +27,8 @@ export const KNOWN_ACTIVITY_ACTIONS: string[] = [
   'channel-booking.visited',
   'channel-booking.booking.created',
   'booking.transferred',
+  'booking.moved-to-hidden-session',
+  'booking.restored-from-hidden-session',
   'booking.updated',
   'booking.settled',
   'booking.cancel.requested',

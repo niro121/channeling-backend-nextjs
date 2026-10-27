@@ -20,6 +20,7 @@ export type HiddenSessionMoveLog = {
   appointmentNo: number
   before: string
   after: string
+  remarks: string
 }
 
 function padAppointment(n: number): string {
@@ -28,6 +29,30 @@ function padAppointment(n: number): string {
 
 function bookingLabel(title: string | null | undefined, name: string | null | undefined): string {
   return [title, name].filter(Boolean).join(" ").trim() || "—"
+}
+
+function doctorDisplayName(title?: string | null, name?: string | null): string {
+  return [title, name].filter(Boolean).join(" ").trim() || "—"
+}
+
+/** Same From / To sentences as a channel transfer. The appointment number does not change. */
+function hiddenMoveDescriptions(args: {
+  appointmentNo: number
+  patient: string
+  fromDoctor: string
+  fromWhen: Date | number
+  fromHidden: boolean
+  toDoctor: string
+  toWhen: Date | number
+  toHidden: boolean
+}): { before: string; after: string } {
+  const appointment = padAppointment(args.appointmentNo)
+  const fromKind = args.fromHidden ? "hidden session" : "session"
+  const toKind = args.toHidden ? "hidden session" : "session"
+  return {
+    before: `Transfer of Appointment No.${appointment} (${args.patient}) from ${args.fromDoctor}'s ${fromKind} on ${formatWhen(args.fromWhen)}`,
+    after: `Changed to Appointment No.${appointment} (${args.patient}) in ${args.toDoctor}'s ${toKind} on ${formatWhen(args.toWhen)}`,
+  }
 }
 
 function formatWhen(value: Date | number): string {
@@ -52,6 +77,7 @@ export function logHiddenSessionMoves(userId: string | null | undefined, entries
   for (const entry of entries) {
     const metadata = {
       bookingId: entry.bookingId,
+      remarks: entry.remarks,
       before: entry.before,
       after: entry.after,
       fromSessionId: entry.fromSessionId,
@@ -171,6 +197,12 @@ export async function moveNonWhtBookingsToHiddenSession(
     groups.set(key, list)
   }
 
+  const doctor = await tx.doctor.findUnique({
+    where: { id: args.doctorId },
+    select: { title: true, name: true },
+  })
+  const doctorName = doctorDisplayName(doctor?.title, doctor?.name)
+
   const logs: HiddenSessionMoveLog[] = []
   const movedAt = new Date()
 
@@ -205,15 +237,24 @@ export async function moveNonWhtBookingsToHiddenSession(
         },
       })
       const label = bookingLabel(booking.title, booking.name)
-      const appointment = padAppointment(booking.appointmentNo)
+      const described = hiddenMoveDescriptions({
+        appointmentNo: booking.appointmentNo,
+        patient: label,
+        fromDoctor: doctorName,
+        fromWhen: booking.sessionStartTime,
+        fromHidden: false,
+        toDoctor: doctorName,
+        toWhen: hidden.startTime,
+        toHidden: true,
+      })
       logs.push({
         action: "booking.moved-to-hidden-session",
         bookingId: booking.id,
         fromSessionId: booking.sessionId,
         toSessionId: hidden.id,
         appointmentNo: booking.appointmentNo,
-        before: `Appointment No.${appointment} (${label}) from session on ${formatWhen(booking.sessionStartTime)}`,
-        after: `Hidden session on ${formatWhen(hidden.startTime)} as Appointment No.${appointment} (${label})`,
+        remarks: "Moved to hidden session",
+        ...described,
       })
     }
   }
@@ -244,7 +285,13 @@ export async function restoreBookingsFromHiddenSession(
       sessionId: true,
       sessionStartTime: true,
       movedFromSessionId: true,
-      session: { select: { id: true, startTime: true } },
+      session: {
+        select: {
+          id: true,
+          startTime: true,
+          doctor: { select: { title: true, name: true } },
+        },
+      },
     },
   })
   if (bookings.length === 0) return []
@@ -259,7 +306,12 @@ export async function restoreBookingsFromHiddenSession(
     }
     const previous = await tx.session.findUnique({
       where: { id: booking.movedFromSessionId },
-      select: { id: true, startTime: true, hidden: true },
+      select: {
+        id: true,
+        startTime: true,
+        hidden: true,
+        doctor: { select: { title: true, name: true } },
+      },
     })
     if (!previous || previous.hidden) {
       throw new Error("The previous session is not available, so this doctor payment cannot be canceled.")
@@ -293,16 +345,25 @@ export async function restoreBookingsFromHiddenSession(
     })
 
     const label = bookingLabel(booking.title, booking.name)
-    const appointment = padAppointment(booking.appointmentNo)
     const hiddenStart = booking.session?.startTime ?? booking.sessionStartTime
+    const described = hiddenMoveDescriptions({
+      appointmentNo: booking.appointmentNo,
+      patient: label,
+      fromDoctor: doctorDisplayName(booking.session?.doctor?.title, booking.session?.doctor?.name),
+      fromWhen: hiddenStart,
+      fromHidden: true,
+      toDoctor: doctorDisplayName(previous.doctor?.title, previous.doctor?.name),
+      toWhen: previous.startTime,
+      toHidden: false,
+    })
     logs.push({
       action: "booking.restored-from-hidden-session",
       bookingId: booking.id,
       fromSessionId: booking.sessionId,
       toSessionId: previous.id,
       appointmentNo: booking.appointmentNo,
-      before: `Appointment No.${appointment} (${label}) on hidden session ${formatWhen(hiddenStart)}`,
-      after: `Previous session on ${formatWhen(previous.startTime)} as Appointment No.${appointment} (${label})`,
+      remarks: "Restored from hidden session",
+      ...described,
     })
   }
 
