@@ -81,20 +81,20 @@ export async function getChannelRoomDashboardService(params: {
         id: { in: occupiedSessionIds },
         date: { gte: dayStart, lte: dayEnd },
         status: 1,
-        hidden: { not: true },
       },
       include: {
         doctor: { select: { title: true, name: true } },
       },
     })
-    if (occupiedSessions.length === 0) {
+    const visibleOccupiedSessions = occupiedSessions.filter((session) => session.hidden !== true)
+    if (visibleOccupiedSessions.length === 0) {
       return { success: true, data: [], socketScopes }
     }
 
-    socketScopes.institutionIds = [...new Set(occupiedSessions.map((r) => r.institution))]
+    socketScopes.institutionIds = [...new Set(visibleOccupiedSessions.map((r) => r.institution))]
 
-    const sessionById = new Map(occupiedSessions.map((s) => [s.id, s]))
-    const sessionIds = occupiedSessions.map((r) => r.id)
+    const sessionById = new Map(visibleOccupiedSessions.map((s) => [s.id, s]))
+    const sessionIds = visibleOccupiedSessions.map((r) => r.id)
     const bookingRows = await prisma.booking.findMany({
       where: { sessionId: { in: sessionIds }, status: 1 },
       select: { sessionId: true, channelRoomAttendance: true },

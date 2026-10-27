@@ -9,7 +9,7 @@ import {
   appointmentSequenceScopeKey,
   effectiveAppointmentSequenceLastValue,
 } from "./helpers/appointment-number"
-import { excludeHiddenSessionFilter } from "@/services/doctor-payment/move-bookings-to-hidden-session"
+import { isHiddenSession } from "@/services/doctor-payment/move-bookings-to-hidden-session"
 
 /**
  * Fetches Session records (bookable sessions) for a doctor from a given date onward.
@@ -39,11 +39,8 @@ export async function getSessionsForChannelBookingService(
     if (locationId) {
       where.locationId = locationId
     }
-    if (!options?.includeHidden) {
-      Object.assign(where, excludeHiddenSessionFilter)
-    }
 
-    const records = await prisma.session.findMany({
+    const loaded = await prisma.session.findMany({
       where,
       include: {
         doctor: { select: { id: true, title: true, name: true } },
@@ -52,6 +49,10 @@ export async function getSessionsForChannelBookingService(
       },
       orderBy: [{ date: "asc" }, { startTime: "asc" }],
     })
+    // A Prisma "hidden is not true" filter drops sessions created before the field existed.
+    const records = options?.includeHidden
+      ? loaded
+      : loaded.filter((session) => !isHiddenSession(session.hidden))
 
     if (records.length === 0) return { success: true, data: [] }
 

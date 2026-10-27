@@ -5,7 +5,7 @@ import { isSessionDoctorArrived } from "@/lib/channel-room/is-session-doctor-arr
 import { normalizeSessionTime } from "@/lib/utils"
 import moment from "moment"
 import type { Prisma } from "@prisma/client"
-import { excludeHiddenSessionFilter } from "@/services/doctor-payment/move-bookings-to-hidden-session"
+import { isHiddenSession } from "@/services/doctor-payment/move-bookings-to-hidden-session"
 
 export type ChannelRoomDoctorSessionOption = {
   id: string
@@ -41,7 +41,6 @@ export async function getChannelRoomDoctorSessionsService(
       doctorId: doctorId.trim(),
       date: { gte: dayStart, lte: dayEnd },
       status: { in: [0, 1] },
-      ...excludeHiddenSessionFilter,
     }
     if (locationId?.trim()) {
       where.locationId = locationId.trim()
@@ -56,7 +55,9 @@ export async function getChannelRoomDoctorSessionsService(
       orderBy: [{ startTime: "asc" }],
     })
 
-    const data: ChannelRoomDoctorSessionOption[] = records.map((r) => {
+    const data: ChannelRoomDoctorSessionOption[] = records
+      .filter((r) => !isHiddenSession(r.hidden))
+      .map((r) => {
       const sessionDate = r.date instanceof Date ? r.date : new Date(r.date)
       const arrived = isSessionDoctorArrived({
         doctorArrivalTime: r.doctorArrivalTime,
