@@ -6,6 +6,8 @@ import {
   analyseSessionsService,
   updateSessionService,
   deleteSessionService,
+  previewSessionBulkDeleteService,
+  bulkDeleteSessionsService,
 } from '@/services/sessions';
 import { getSessionParams, getSessionQuery } from "@/types/sessions";
 import { requirePermission, checkPermission } from '@/lib/server-permissions';
@@ -335,6 +337,39 @@ export const deleteSession = async (sessionId: string) => {
   } catch (error: any) {
     console.error('deleteSession error', error);
     return { success: false, message: error.message ?? 'Failed to delete session.' };
+  }
+};
+
+const BULK_DELETE_FALLBACK =
+  'This action cannot be undone. This will permanently delete the selected sessions and remove them from the list. Sessions with bookings and hidden sessions will not be deleted.';
+
+// ==== DESCRIBE BULK SESSION DELETE (confirmation text) ==== //
+export const describeSessionBulkDelete = async (ids: string[]): Promise<string> => {
+  await requirePermission('sessions', 'delete');
+  try {
+    return await previewSessionBulkDeleteService(ids);
+  } catch (error: any) {
+    console.error('describeSessionBulkDelete error', error);
+    return BULK_DELETE_FALLBACK;
+  }
+};
+
+// ==== DELETE BULK SESSIONS ==== //
+export const bulkDeleteSessions = async (
+  ids: string[]
+): Promise<{ success: boolean; message: string }> => {
+  await requirePermission('sessions', 'delete');
+  try {
+    const serverSession = await fetchServerSession();
+    const userId = serverSession?.user?.id ?? undefined;
+    const result = await bulkDeleteSessionsService(ids, userId);
+    if (!result.success) {
+      return { success: false, message: result.error ?? 'Failed to delete sessions.' };
+    }
+    return { success: true, message: result.message ?? 'Sessions deleted successfully.' };
+  } catch (error: any) {
+    console.error('bulkDeleteSessions error', error);
+    return { success: false, message: error.message ?? 'Failed to delete sessions.' };
   }
 };
 

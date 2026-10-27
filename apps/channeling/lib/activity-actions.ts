@@ -45,6 +45,7 @@ export const KNOWN_ACTIVITY_ACTIONS: string[] = [
   'session.created.bulk',
   'session.updated',
   'session.deleted',
+  'sessions.sessions.bulkDeleted',
   'session.sms_sent',
   'doctors.visited',
   'doctors.doctor.created',
