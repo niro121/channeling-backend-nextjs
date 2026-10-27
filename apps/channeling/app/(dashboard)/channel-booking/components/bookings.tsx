@@ -66,12 +66,32 @@ function cancelOrRefundMark(
   return null
 }
 
+function isSessionMoveAction(action: string): boolean {
+  return (
+    action === "booking.transferred" ||
+    action === "booking.moved-to-hidden-session" ||
+    action === "booking.restored-from-hidden-session"
+  )
+}
+
 function actionLabel(entry: SessionActivityEntry): string {
   if (entry.action === "booking.transferred") {
     const dir = entry.metadata?.direction as string | undefined
     if (dir === "outgoing") return "Transfer out"
     if (dir === "incoming") return "Transfer in"
     return "Transfer"
+  }
+  if (entry.action === "booking.moved-to-hidden-session") {
+    const dir = entry.metadata?.direction as string | undefined
+    if (dir === "outgoing") return "Hidden session out"
+    if (dir === "incoming") return "Hidden session in"
+    return "Moved to hidden session"
+  }
+  if (entry.action === "booking.restored-from-hidden-session") {
+    const dir = entry.metadata?.direction as string | undefined
+    if (dir === "outgoing") return "Restored out"
+    if (dir === "incoming") return "Restored in"
+    return "Restored from hidden session"
   }
   if (entry.action === "session.sms_sent") return "SMS sent"
   if (entry.action === "session.updated") return "Session updated"
@@ -498,7 +518,7 @@ export function Bookings() {
                         {moment(entry.createdAt).format("DD MMM YYYY h:mm A")}
                       </span>
                     </div>
-                    {entry.action === "booking.transferred" && entry.metadata && (
+                    {isSessionMoveAction(entry.action) && entry.metadata && (
                       <div className="mt-1.5 pl-0 text-muted-foreground space-y-0.5">
                         {entry.metadata.before != null && (
                           <p className="text-[11px]">
@@ -526,7 +546,7 @@ export function Bookings() {
                         {Number(entry.metadata.recipientCount) !== 1 ? "s" : ""}.
                       </p>
                     )}
-                    {entry.action !== "booking.transferred" && entry.action !== "session.sms_sent" && entry.metadata?.remarks != null && String(entry.metadata.remarks).trim() !== "" ? (
+                    {!isSessionMoveAction(entry.action) && entry.action !== "session.sms_sent" && entry.metadata?.remarks != null && String(entry.metadata.remarks).trim() !== "" ? (
                       <p className="text-muted-foreground mt-0.5 truncate" title={String(entry.metadata.remarks)}>
                         {String(entry.metadata.remarks)}
                       </p>
