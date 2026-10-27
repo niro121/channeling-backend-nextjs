@@ -1131,6 +1131,8 @@ model Booking {
   bookingid               Int?
   bookingid_string        String?
   appointmentNo           Int
+  /// Null on a normal session, so one number can exist once. Set on a hidden session so the same number from two sessions can sit together.
+  appointmentNoTieBreaker String?
   discountId              String?  @db.ObjectId
   autoDiscountId          String?  @db.ObjectId
   receiptNo               Int?
@@ -1171,7 +1173,7 @@ model Booking {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@unique([sessionId, appointmentNo])
+  @@unique([sessionId, appointmentNo, appointmentNoTieBreaker])
   @@index([migrateSourceId])
   @@index([hmisPatientId])
 }

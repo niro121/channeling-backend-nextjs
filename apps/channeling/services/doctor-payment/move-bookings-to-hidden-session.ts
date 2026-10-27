@@ -5,8 +5,10 @@ import { logActivityNonBlocking } from "@/lib/activity-log"
 /** Not a DoctorSession id. Session.doctorSessionId is a required string, not a relation. */
 export const HIDDEN_SESSION_DOCTOR_SESSION_ID = "hidden-wht"
 
-/** Matches sessions that are not hidden, including rows created before the field existed. */
-export const excludeHiddenSessionFilter = { hidden: { not: true } } as const
+/** Older sessions have no hidden field. Only an explicit true is hidden. */
+export function isHiddenSession(hidden: boolean | null | undefined): boolean {
+  return hidden === true
+}
 
 type Tx = Prisma.TransactionClient
 
@@ -179,13 +181,6 @@ export async function moveNonWhtBookingsToHiddenSession(
       throw new Error("A booking has no session, so it cannot move to a hidden session.")
     }
 
-    const duplicate = duplicateAppointment(group)
-    if (duplicate != null) {
-      throw new Error(
-        `Appointment number ${duplicate} is on more than one booking, so those bookings cannot share a hidden session.`
-      )
-    }
-
     const hidden = await ensureHiddenSession(tx, {
       doctorId: args.doctorId,
       locationId,
@@ -194,27 +189,13 @@ export async function moveNonWhtBookingsToHiddenSession(
       appointmentNos: group.map((booking) => booking.appointmentNo),
     })
 
-    const numbers = group.map((booking) => booking.appointmentNo)
-    const alreadyThere = await tx.booking.findMany({
-      where: {
-        sessionId: hidden.id,
-        appointmentNo: { in: numbers },
-        id: { notIn: group.map((booking) => booking.id) },
-      },
-      select: { appointmentNo: true },
-    })
-    if (alreadyThere.length > 0) {
-      throw new Error(
-        `Appointment number ${alreadyThere[0]?.appointmentNo} is already on the hidden session.`
-      )
-    }
-
     for (const booking of group) {
       if (!booking.sessionId || !booking.session) continue
       await tx.booking.update({
         where: { id: booking.id },
         data: {
           sessionId: hidden.id,
+          appointmentNoTieBreaker: booking.id,
           movedFromSessionId: booking.sessionId,
           movedFromSessionStartTime: booking.sessionStartTime,
           movedBy: args.userId ?? undefined,
@@ -301,6 +282,7 @@ export async function restoreBookingsFromHiddenSession(
       where: { id: booking.id },
       data: {
         sessionId: previous.id,
+        appointmentNoTieBreaker: null,
         movedFromSessionId: null,
         movedFromSessionStartTime: null,
         movedBy: null,
@@ -342,15 +324,6 @@ function latestSession(group: MovingBooking[]): SourceSession | null {
   return best
 }
 
-function duplicateAppointment(group: MovingBooking[]): number | null {
-  const seen = new Set<number>()
-  for (const booking of group) {
-    if (seen.has(booking.appointmentNo)) return booking.appointmentNo
-    seen.add(booking.appointmentNo)
-  }
-  return null
-}
-
 async function ensureHiddenSession(
   tx: Tx,
   args: {
@@ -374,16 +347,16 @@ async function ensureHiddenSession(
     select: { id: true, startTime: true, maxPatientNumber: true, appointmentNo: true },
   })
 
-  const lastReal = await tx.session.findFirst({
+  const daySessions = await tx.session.findMany({
     where: {
       doctorId: args.doctorId,
       locationId: args.locationId,
       date: { gte: dayStart, lte: dayEnd },
-      ...excludeHiddenSessionFilter,
     },
     orderBy: { startTime: "desc" },
-    select: { startTime: true },
+    select: { startTime: true, hidden: true },
   })
+  const lastReal = daySessions.find((session) => !isHiddenSession(session.hidden))
   const anchor = lastReal?.startTime ?? args.template.startTime
   const startTime = new Date(new Date(anchor).getTime() + 60_000)
   const endTime = new Date(startTime.getTime() + 60_000)
