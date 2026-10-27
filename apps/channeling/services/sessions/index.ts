@@ -7,4 +7,8 @@ export {
   type AnalyseSessionsResult
 } from './analyse-sessions.service';
 export { updateSessionService, type UpdateSessionInput } from './update-session.service';
-export { deleteSessionService } from './delete-session.service';
+export {
+  deleteSessionService,
+  previewSessionBulkDeleteService,
+  bulkDeleteSessionsService,
+} from './delete-session.service';

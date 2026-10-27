@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { ColumnDef } from '@tanstack/react-table';
 import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
 import moment from 'moment';
 import { formatTimeSriLanka, normalizeSessionTime } from '@/lib/utils';
 import { formatLKR } from '@/lib/format-money';
@@ -70,6 +71,31 @@ export type SessionListItem = {
 };
 
 export const SessionColumns: ColumnDef<SessionListItem>[] = [
+  {
+    id: 'select',
+    header: ({ table }) => (
+      <Checkbox
+        checked={
+          table.getIsAllPageRowsSelected() ||
+          (table.getIsSomePageRowsSelected() && 'indeterminate')
+        }
+        onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
+        aria-label="Select all"
+        className="translate-y-0.5"
+      />
+    ),
+    cell: ({ row }) => (
+      <Checkbox
+        checked={row.getIsSelected()}
+        onCheckedChange={(value) => row.toggleSelected(!!value)}
+        disabled={!row.getCanSelect()}
+        aria-label={row.getCanSelect() ? 'Select row' : 'Hidden sessions cannot be deleted'}
+        className="translate-y-0.5"
+      />
+    ),
+    enableSorting: false,
+    enableHiding: false,
+  },
   {
     accessorKey: 'id',
     header: '#',

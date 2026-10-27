@@ -42,6 +42,7 @@ export const ACTIVITY_ACTIONS_AUDIT: Array<{ action: string; importance: string;
   { action: 'session.created.bulk', importance: 'High', when: 'Sessions created (e.g. bulk creation)' },
   { action: 'session.updated', importance: 'High', when: 'Session updated' },
   { action: 'session.deleted', importance: 'High', when: 'Session deleted' },
+  { action: 'sessions.sessions.bulkDeleted', importance: 'High', when: 'User bulk-deletes sessions' },
   { action: 'session.sms_sent', importance: 'High', when: 'SMS sent to session (e.g. reminder)' },
   { action: 'doctors.visited', importance: 'Low', when: 'User opens Doctors page' },
   { action: 'doctors.doctor.created', importance: 'High', when: 'User creates a doctor' },

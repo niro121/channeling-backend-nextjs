@@ -1,11 +1,12 @@
 'use client';
 
-import { useCallback, useEffect, useImperativeHandle, useState, forwardRef } from 'react';
+import { useCallback, useEffect, useImperativeHandle, useMemo, useState, forwardRef } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { CustomDataTable } from '@/components/common/custom-data-table';
 import { SessionColumns, SessionListItem } from './columns';
 import { SessionRefetchContext } from './record-actions';
-import { getAllSessions } from '@/app/actions/sessions.action';
+import { bulkDeleteSessions, describeSessionBulkDelete, getAllSessions } from '@/app/actions/sessions.action';
+import { usePermissions } from '@/components/hooks/use-permissions';
 import {
   Card,
   CardContent,
@@ -50,6 +51,12 @@ const SessionsList = forwardRef<SessionsListRef, SessionsListProps>(function Ses
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const { has } = usePermissions();
+  const canDelete = has('sessions', 'delete');
+  const columns = useMemo(
+    () => (canDelete ? SessionColumns : SessionColumns.filter((column) => column.id !== 'select')),
+    [canDelete]
+  );
 
   const [data, setData] = useState<SessionListItem[]>([]);
   const [totalRecords, setTotalRecords] = useState(0);
@@ -195,7 +202,8 @@ const SessionsList = forwardRef<SessionsListRef, SessionsListProps>(function Ses
     <SessionRefetchContext.Provider value={fetchSessions}>
       <div className="mt-4">
         <CustomDataTable<SessionListItem, unknown>
-          columns={SessionColumns}
+          key={`${doctorId ?? ''}-${fromDate ?? ''}-${toDate ?? ''}-${branchId ?? ''}-${page}-${limit}`}
+          columns={columns}
           data={data}
           rowCount={totalRecords}
           heading="Sessions list"
@@ -206,7 +214,15 @@ const SessionsList = forwardRef<SessionsListRef, SessionsListProps>(function Ses
           }`}
           page={page}
           limit={limit}
-          haveBulkDelete={false}
+          haveBulkDelete={canDelete}
+          enableRowSelection={(row) => canDelete && row.original.hidden !== true}
+          getRowId={(row) => row.id}
+          deleteServerAction={async (ids) => {
+            const result = await bulkDeleteSessions(ids);
+            if (result.success) await fetchSessions();
+            return result;
+          }}
+          getBulkDeleteDescription={describeSessionBulkDelete}
           headingRight={branchFilterRight}
         />
       </div>
