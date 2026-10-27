@@ -96,6 +96,7 @@ function actionLabel(entry: SessionActivityEntry): string {
   if (entry.action === "session.sms_sent") return "SMS sent"
   if (entry.action === "session.updated") return "Session updated"
   if (entry.action === "session.deleted") return "Session deleted"
+  if (entry.action === "sessions.sessions.bulkDeleted") return "Sessions bulk deleted"
   if (entry.action === "session.created.bulk") return "Sessions created (bulk)"
   if (entry.action === "session.appointment_blocks_added") return "Appointment blocks added"
   if (entry.action === "session.appointment_blocks_removed") return "Appointment blocks removed"
