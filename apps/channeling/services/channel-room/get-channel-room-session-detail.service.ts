@@ -120,7 +120,6 @@ export async function getChannelRoomSessionDetailService(sessionId: string): Pro
       where: {
         doctorId: session.doctorId ?? undefined,
         date: { gte: dayStart, lte: dayEnd },
-        hidden: { not: true },
       },
       select: {
         id: true,
@@ -129,10 +128,11 @@ export async function getChannelRoomSessionDetailService(sessionId: string): Pro
         date: true,
         startTime: true,
         endTime: true,
+        hidden: true,
       },
     })
     const sessionsSameDay: ChainSession[] = sessionsSameDayRaw
-      .filter((s): s is ChainSession => Boolean(s.doctorSessionId))
+      .filter((s) => s.hidden !== true && Boolean(s.doctorSessionId))
       .map((s) => ({
         id: s.id,
         doctorSessionId: s.doctorSessionId as string,
