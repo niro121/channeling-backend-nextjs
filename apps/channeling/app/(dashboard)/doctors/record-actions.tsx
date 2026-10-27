@@ -6,11 +6,12 @@ import { Row } from '@tanstack/react-table';
 import { useToast } from '@/components/hooks/use-toast';
 import { DataTableRowActions } from '@/components/common/custom-table-row-actions';
 import CustomAlertDialogWithWarning from '@/components/common/custom-alert-dialog-with-warning';
-import { deleteDoctor, checkDoctorHasActiveSessionsOrLeaves } from '@/app/actions/doctor.actions';
+import { deleteDoctor, checkDoctorHasActiveSessionsOrLeaves, getDoctorById } from '@/app/actions/doctor.actions';
 import { Button } from '@/components/ui/button';
-import { Loader2, Pencil, Trash2 } from 'lucide-react';
+import { FileDown, Loader2, Pencil, Trash2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { usePermissions } from '@/components/hooks/use-permissions';
+import { downloadDoctorConfirmationPdf } from './doctor-confirmation-pdf';
 
 type DoctorActionsProps<TData extends Doctor> = {
   row: Row<TData>;
@@ -20,6 +21,7 @@ export function DoctorRecordActions({ row }: DoctorActionsProps<Doctor>) {
   const [showDeleteConfirmation, setShowDelConfirmation] =
     React.useState(false);
   const [loading, setLoading] = React.useState(false);
+  const [exporting, setExporting] = React.useState(false);
   const [fetchingCheck, setFetchingCheck] = React.useState(false);
   const [hasActiveSessionsOrLeaves, setHasActiveSessionsOrLeaves] = React.useState<{
     hasActiveSessions: boolean;
@@ -126,9 +128,59 @@ const getDeleteDescription = () => {
   return "This action cannot be undone. This will permanently delete this doctor and remove the data from our servers.";
 };
 
+  const handleExportConfirmation = async () => {
+    if (!doctor.id) {
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: 'Doctor id not found.'
+      });
+      return;
+    }
+
+    setExporting(true);
+    try {
+      const result = await getDoctorById(doctor.id);
+      if (!result.success || !result.data) {
+        toast({
+          variant: 'destructive',
+          title: 'Error',
+          description: result.error?.message || 'Failed to load the doctor record.'
+        });
+        return;
+      }
+      await downloadDoctorConfirmationPdf(result.data);
+    } catch (error: any) {
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: error.message ?? 'Doctor confirmation PDF could not be created.'
+      });
+    } finally {
+      setExporting(false);
+    }
+  };
+
   return (
     <>
       <DataTableRowActions>
+        {has('doctors', 'view') && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 text-muted-foreground hover:text-foreground"
+            onClick={handleExportConfirmation}
+            disabled={exporting}
+            title="Doctor confirmation PDF"
+          >
+            {exporting ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <FileDown className="h-4 w-4" />
+            )}
+            <span className="sr-only">Doctor confirmation PDF</span>
+          </Button>
+        )}
         {has('doctors', 'edit') && (
           <Button
             variant="ghost"
