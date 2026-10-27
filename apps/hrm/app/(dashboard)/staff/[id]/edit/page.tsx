@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation';
 import { CommonManagerHeader } from '@/components/common/common-manager-header';
 import { getStaffByIdAction } from '@/app/actions/staff-actions/staff.actions';
 import { getStaffSpecialityOptionsAction } from '@/app/actions/hr-admin-actions/staff-speciality.actions';
+import { getPublishedZoneOptionsAction } from '@/app/actions/organization-actions/zone.actions';
 import TabLayout from '../../tab-layout';
 
 type EditStaffPageProps = {
@@ -17,11 +18,15 @@ export default async function EditStaffPage({ params }: EditStaffPageProps) {
   }
 
   const selectedIds = response.data.hrDetails?.specialityIds ?? [];
-  const optionsRes = await getStaffSpecialityOptionsAction({
-    activeOnly: true,
-    includeIds: selectedIds
-  });
+  const [optionsRes, zonesRes] = await Promise.all([
+    getStaffSpecialityOptionsAction({
+      activeOnly: true,
+      includeIds: selectedIds
+    }),
+    getPublishedZoneOptionsAction(response.data.hrDetails?.zoneCode)
+  ]);
   const specialityOptions = optionsRes.isError ? [] : (optionsRes.data ?? []);
+  const zoneOptions = zonesRes.isError ? [] : (zonesRes.data ?? []);
 
   return (
     <div className="space-y-6">
@@ -35,6 +40,7 @@ export default async function EditStaffPage({ params }: EditStaffPageProps) {
         staffId={id}
         isEditPage
         specialityOptions={specialityOptions}
+        zoneOptions={zoneOptions}
       />
     </div>
   );

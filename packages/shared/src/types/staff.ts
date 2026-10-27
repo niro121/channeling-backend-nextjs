@@ -31,4 +31,5 @@ export type GetStaffParams = {
   page?: string
   limit?: string
   keyword?: string
+  status?: string
 }

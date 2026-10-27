@@ -47,14 +47,16 @@ export function buildChannelingSyncDialogDescription(options: {
     if (linkedCount > 0) {
       return (
         `This will delete ${totalCount} staff member(s) from HRM. ` +
-        `${linkedCount} of them are linked to Channeling and will also be deleted there. ` +
+        `${linkedCount} of them are linked to Channeling. ` +
+        'Choose Delete HRM only to leave Channeling unchanged, Cancel to discard, or Continue to delete the linked records from both apps. ' +
         'This action cannot be undone.'
       );
     }
 
     return (
       `This will delete ${totalCount} staff member(s) from HRM. ` +
-      'None of the selected records are linked to Channeling.'
+      'None of the selected records are linked to Channeling. ' +
+      'Choose Delete HRM only to remove them from HRM, or Cancel to discard.'
     );
   }
 

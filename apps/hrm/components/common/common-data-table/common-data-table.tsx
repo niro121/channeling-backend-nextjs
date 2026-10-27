@@ -47,6 +47,13 @@ import {
   type CommonDataTableContextValue
 } from './common-data-table-context';
 import { CommonDataTablePagination } from './common-data-table-pagination';
+import { ChannelingSyncAlertDialog } from '@/components/common/channeling-sync-alert-dialog';
+
+export type ChannelingBulkDeleteDialog = {
+  title: string;
+  description: string;
+  hasChannelingLink: boolean;
+};
 
 export type CommonDataTableGroupHeaderContext<TData> = {
   value: unknown;
@@ -67,8 +74,18 @@ interface CommonDataTableProps<TData, TValue> {
   showPagination?: boolean;
   /** Enables row selection + bulk-delete modal plumbing for toolbar features. */
   haveBulkDelete?: boolean;
-  deleteServerAction?: (ids: string[]) => Promise<boolean>;
+  deleteServerAction?: (
+    ids: string[],
+    options?: { syncToChanneling?: boolean }
+  ) => Promise<boolean>;
   getBulkDeleteDescription?: (ids: string[]) => Promise<string> | string;
+  /**
+   * When set, bulk delete uses Cancel, Delete HRM only, and Continue.
+   * Continue is shown only when `hasChannelingLink` is true.
+   */
+  getChannelingBulkDeleteDialog?: (
+    ids: string[]
+  ) => Promise<ChannelingBulkDeleteDialog>;
   toolbarLeft?: React.ReactNode;
   toolbarMiddle?: React.ReactNode;
   toolbarRight?: React.ReactNode;
@@ -105,6 +122,7 @@ export function CommonDataTable<TData, TValue>({
   haveBulkDelete = false,
   deleteServerAction,
   getBulkDeleteDescription,
+  getChannelingBulkDeleteDialog,
   toolbarLeft,
   toolbarMiddle,
   toolbarRight,
@@ -139,6 +157,10 @@ export function CommonDataTable<TData, TValue>({
   const [bulkDeleteDescription, setBulkDeleteDescription] = React.useState(
     'This action cannot be undone. This will permanently delete these records and remove the data from our servers.'
   );
+  const [channelingBulkTitle, setChannelingBulkTitle] = React.useState(
+    'Delete staff from HRM?'
+  );
+  const [channelingBulkHasLink, setChannelingBulkHasLink] = React.useState(false);
 
   useEffect(() => {
     setGrouping(groupingColumns);
@@ -209,15 +231,19 @@ export function CommonDataTable<TData, TValue>({
     getNewSearchParams(nextPage, 'page');
   };
 
-  const onDeleteConfirmation = async () => {
+  const selectedIds = () => {
     const idsToDelete: string[] = [];
-
     Object.keys(rowSelection).forEach((item) => {
       const row = table.getRow(item).original as { id: string };
       if (row.id) {
         idsToDelete.push(row.id);
       }
     });
+    return idsToDelete;
+  };
+
+  const onDeleteConfirmation = async (syncToChanneling?: boolean) => {
+    const idsToDelete = selectedIds();
 
     if (!deleteServerAction) {
       toast({
@@ -230,7 +256,12 @@ export function CommonDataTable<TData, TValue>({
 
     try {
       setLoading(true);
-      const success = await deleteServerAction(idsToDelete);
+      const success = await deleteServerAction(
+        idsToDelete,
+        syncToChanneling === undefined
+          ? undefined
+          : { syncToChanneling }
+      );
       setShowDelConfirmation(false);
 
       if (!success) {
@@ -264,15 +295,27 @@ export function CommonDataTable<TData, TValue>({
 
   const showHideDeleteModal = async (value: boolean) => {
     if (value) {
-      const idsToDelete: string[] = [];
-      Object.keys(rowSelection).forEach((item) => {
-        const row = table.getRow(item).original as { id: string };
-        if (row.id) {
-          idsToDelete.push(row.id);
-        }
-      });
+      const idsToDelete = selectedIds();
 
-      if (getBulkDeleteDescription && idsToDelete.length > 0) {
+      if (getChannelingBulkDeleteDialog && idsToDelete.length > 0) {
+        setFetchingDescription(true);
+        try {
+          const dialog = await getChannelingBulkDeleteDialog(idsToDelete);
+          setChannelingBulkTitle(dialog.title);
+          setBulkDeleteDescription(dialog.description);
+          setChannelingBulkHasLink(dialog.hasChannelingLink);
+          setShowDelConfirmation(true);
+        } catch {
+          setChannelingBulkTitle('Delete staff from HRM?');
+          setChannelingBulkHasLink(false);
+          setBulkDeleteDescription(
+            'Choose Delete HRM only to remove the selected records from HRM, or Cancel to discard.'
+          );
+          setShowDelConfirmation(true);
+        } finally {
+          setFetchingDescription(false);
+        }
+      } else if (getBulkDeleteDescription && idsToDelete.length > 0) {
         setFetchingDescription(true);
         try {
           const description = await getBulkDeleteDescription(idsToDelete);
@@ -522,7 +565,31 @@ export function CommonDataTable<TData, TValue>({
         ) : null}
       </Card>
 
-      {haveBulkDelete ? (
+      {haveBulkDelete && getChannelingBulkDeleteDialog ? (
+        <ChannelingSyncAlertDialog
+          open={showDeleteConfirmation}
+          title={channelingBulkTitle}
+          description={
+            fetchingDescription ? 'Loading...' : bulkDeleteDescription
+          }
+          hrmOnlyLabel="Delete HRM only"
+          continueLabel="Continue"
+          showContinue={channelingBulkHasLink}
+          hrmOnlyClassName={buttonStyles.delete.danger}
+          continueClassName={buttonStyles.delete.danger}
+          // cancelClassName={buttonStyles.cancel.healthy}
+          loading={loading || fetchingDescription}
+          onCancel={() => {
+            void showHideDeleteModal(false);
+          }}
+          onSaveHrmOnly={() => {
+            void onDeleteConfirmation(false);
+          }}
+          onContinue={() => {
+            void onDeleteConfirmation(true);
+          }}
+        />
+      ) : haveBulkDelete ? (
         <AlertDialog
           open={showDeleteConfirmation}
           onOpenChange={(open) => {
@@ -550,7 +617,9 @@ export function CommonDataTable<TData, TValue>({
                 Cancel
               </AlertDialogCancel>
               <AlertDialogAction
-                onClick={onDeleteConfirmation}
+                onClick={() => {
+                  void onDeleteConfirmation();
+                }}
                 disabled={loading || fetchingDescription}
                 className={cn(
                   'relative cursor-pointer gap-2',

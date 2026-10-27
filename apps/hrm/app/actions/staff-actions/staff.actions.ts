@@ -9,7 +9,7 @@ import {
   deleteStaff,
   deleteStaffs,
   getStaff,
-  getAllStaffForExport,
+  getStaffForExport,
   getStaffById,
   getStaffOptions,
   updateStaff,
@@ -43,7 +43,8 @@ export async function getStaffAction(params: GetStaffParams) {
   const newParams: GetStaffParams = {
     page: params.page ?? process.env.DEFAULT_PAGE ?? '0',
     limit: params.limit ?? process.env.DEFAULT_PER_PAGE ?? '10',
-    keyword: params.keyword ?? ''
+    keyword: params.keyword ?? '',
+    status: params.status
   };
   try {
     await requirePermission('staff', 'view');
@@ -145,9 +146,11 @@ export async function createStaffAction(
     if (!result.success) {
       return {
         isError: true,
-        errors:
-          result.error?.issues ??
-          { message: result.error?.message ?? 'Something went wrong. Please try again later' },
+        errors: {
+          message:
+            result.error?.message ?? 'Something went wrong. Please try again later',
+          ...(result.error?.issues ?? {})
+        },
         data: {}
       };
     }
@@ -249,9 +252,11 @@ export async function updateStaffAction(
     if (!result.success) {
       return {
         isError: true,
-        errors:
-          result.error?.issues ??
-          { message: result.error?.message ?? 'Something went wrong. Please try again later' },
+        errors: {
+          message:
+            result.error?.message ?? 'Something went wrong. Please try again later',
+          ...(result.error?.issues ?? {})
+        },
         data: {}
       };
     }
@@ -480,11 +485,16 @@ export async function deleteStaffAction(id: string, options?: StaffCrudOptions) 
 }
 
 // ** Bulk Delete Staff Action * //
-export async function bulkDeleteStaffAction(ids: string[]) {
+export async function bulkDeleteStaffAction(
+  ids: string[],
+  options?: StaffCrudOptions
+) {
   await requirePermission('staff', 'delete');
   try {
     const auditUser = await getAuditUser();
-    const linkedRecords = await getChannelingStaffIdsByHrmIds(ids);
+    const linkedRecords = options?.syncToChanneling
+      ? await getChannelingStaffIdsByHrmIds(ids)
+      : [];
     const migrateSourceIds = linkedRecords
       .map((record) => record.channelingId)
       .filter(Boolean);
@@ -494,7 +504,7 @@ export async function bulkDeleteStaffAction(ids: string[]) {
       throw new Error(result.error?.message ?? 'Error deleting records. Please try again later');
     }
 
-    if (migrateSourceIds.length > 0) {
+    if (options?.syncToChanneling && migrateSourceIds.length > 0) {
       const channelingResult = await pushStaffBulkDeleteToChanneling(migrateSourceIds);
       if (!channelingResult.success) {
         throw new Error(
@@ -522,20 +532,31 @@ export async function bulkDeleteStaffAction(ids: string[]) {
   }
 }
 
-/** Build bulk delete dialog copy for staff linked to Channeling. */
-export async function getStaffBulkDeleteDescriptionAction(ids: string[]): Promise<string> {
+/** Build bulk delete dialog copy and whether any selected staff are linked to Channeling. */
+export async function getStaffBulkDeleteDescriptionAction(ids: string[]): Promise<{
+  title: string;
+  description: string;
+  hasChannelingLink: boolean;
+}> {
   'use server';
 
   const linkedCount = await countLinkedChannelingStaff(ids);
+  const hasChannelingLink = linkedCount > 0;
   const { buildChannelingSyncDialogDescription } = await import(
     '@/lib/helpers/staff-channeling-dialog.helper'
   );
 
-  return buildChannelingSyncDialogDescription({
-    mode: 'bulkDelete',
-    linkedCount,
-    totalCount: ids.length
-  });
+  return {
+    title: hasChannelingLink
+      ? 'Delete linked staff from Channeling too?'
+      : 'Delete staff from HRM?',
+    description: buildChannelingSyncDialogDescription({
+      mode: 'bulkDelete',
+      linkedCount,
+      totalCount: ids.length
+    }),
+    hasChannelingLink
+  };
 }
 
 //** Get Staff Options Action * //
@@ -570,41 +591,61 @@ export async function getStaffOptionsAction(): Promise<{
 }
 
 //** Staff Exports */
-export const getStaffExport = async (params: { keyword?: string }) => {
+export const getStaffExport = async (params: {
+  keyword?: string;
+  status?: string;
+}) => {
   try {
     await requirePermission('staff', 'view');
-    const result = await getAllStaffForExport(params.keyword ?? '');
+    const result = await getStaffForExport({
+      keyword: params.keyword ?? '',
+      status: params.status
+    });
 
-    if (!result.success || !result.data?.length) {
+    if (!result.success) {
       return {
         success: false,
-        message: result.success
-          ? 'No staff found'
-          : (result.error?.message || 'Error getting data')
+        message:
+          result.error?.message ??
+          'Error getting data. Please try again later',
+        data: [],
+        totalRecords: 0
       };
     }
+
+    if (!result.data?.length) {
+      return {
+        success: false,
+        message: 'No staff found',
+        data: [],
+        totalRecords: 0
+      };
+    }
+
     const auditUser = await getAuditUser();
     if (auditUser?.id) {
       logActivityNonBlocking({
         userId: auditUser.id,
-        action: "staff.exported",
-        entityType: "Staff",
-        importance: "medium",
-        metadata: { count: result.data.length },
-      })
+        action: 'staff.exported',
+        entityType: 'Staff',
+        importance: 'medium',
+        metadata: { count: result.data.length }
+      });
     }
+
     return {
       success: true,
       data: result.data,
-      totalRecords: result.totalRecords ?? result.data.length,
-      exportLimit: result.exportLimit,
-      limited: result.limited ?? false
+      totalRecords: result.totalRecords ?? result.data.length
     };
   } catch (error: any) {
-    console.log('getStaffExport error', error);
+    console.error('getStaffExport error', error);
     return {
       success: false,
-      message: error.message || 'Error getting data'
+      message:
+        error.message || 'Error getting data. Please try again later',
+      data: [],
+      totalRecords: 0
     };
   }
 };

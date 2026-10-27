@@ -192,13 +192,16 @@ export async function getStaffSpecialityOptions(
         activeOnly: params.activeOnly ?? true,
         includeIds: params.includeIds
       }),
-      select: { id: true, name: true, sortOrder: true },
+      select: { id: true, name: true, code: true, sortOrder: true },
       orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }]
     });
 
     return {
       success: true,
-      data: records.map((record) => ({ id: record.id, name: record.name }))
+      data: records.map((record) => ({
+        id: record.id,
+        name: `${record.name} (${record.code})`
+      }))
     };
   } catch (error: any) {
     console.error('getStaffSpecialityOptions error:', error);

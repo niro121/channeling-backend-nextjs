@@ -1,5 +1,6 @@
 import { CommonManagerHeader } from '@/components/common/common-manager-header';
 import { getStaffSpecialityOptionsAction } from '@/app/actions/hr-admin-actions/staff-speciality.actions';
+import { getPublishedZoneOptionsAction } from '@/app/actions/organization-actions/zone.actions';
 import { getAppointmentLetterOnboardContextAction } from '@/app/actions/recruitment-actions/staff-onboard.actions';
 import type { GeneralFormValues } from '@/types/staff';
 import TabLayout from '../tab-layout';
@@ -12,8 +13,12 @@ type SearchParams = {
 };
 
 export default async function StaffAddPage({ searchParams }: SearchParams) {
-  const optionsRes = await getStaffSpecialityOptionsAction({ activeOnly: true });
+  const [optionsRes, zonesRes] = await Promise.all([
+    getStaffSpecialityOptionsAction({ activeOnly: true }),
+    getPublishedZoneOptionsAction()
+  ]);
   const specialityOptions = optionsRes.isError ? [] : (optionsRes.data ?? []);
+  const zoneOptions = zonesRes.isError ? [] : (zonesRes.data ?? []);
 
   const params = await searchParams;
   const letterId =
@@ -60,6 +65,7 @@ export default async function StaffAddPage({ searchParams }: SearchParams) {
       ) : null}
       <TabLayout
         specialityOptions={specialityOptions}
+        zoneOptions={zoneOptions}
         generalPrefill={generalPrefill}
         appointmentLetterId={appointmentLetterId}
       />

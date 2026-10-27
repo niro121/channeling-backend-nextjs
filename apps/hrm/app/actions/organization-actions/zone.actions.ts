@@ -9,6 +9,7 @@ import {
   createZone,
   deleteZone,
   getLinkedLocationOptions,
+  getPublishedZoneOptions,
   getZoneById,
   getZoneList,
   updateZone
@@ -69,6 +70,37 @@ export async function getZoneListAction(params: GetZoneParams = {}): Promise<{
       data: null,
       errors: {
         message: error.message ?? 'Error getting data. Please try again later'
+      }
+    };
+  }
+}
+
+/** Published zones for the staff form. Uses staff view so HR users can load the list. */
+export async function getPublishedZoneOptionsAction(
+  includeCode?: string | null
+): Promise<{
+  isError: boolean;
+  data: { id: string; name: string }[] | null;
+  errors: Record<string, unknown>;
+}> {
+  try {
+    await requirePermission('staff', 'view');
+    const result = await getPublishedZoneOptions(includeCode);
+    if (!result.success) {
+      throw new Error(result.error?.message ?? 'Failed to load zones');
+    }
+    return {
+      isError: false,
+      data: result.data ?? [],
+      errors: {}
+    };
+  } catch (error: any) {
+    console.error('getPublishedZoneOptionsAction error:', error);
+    return {
+      isError: true,
+      data: null,
+      errors: {
+        message: error.message ?? 'Error getting zone options.'
       }
     };
   }

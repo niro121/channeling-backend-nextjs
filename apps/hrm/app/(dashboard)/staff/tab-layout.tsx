@@ -28,6 +28,7 @@ type TabLayoutProps = {
   staffId?: string;
   isEditPage?: boolean;
   specialityOptions?: StaffSpecialityOption[];
+  zoneOptions?: { id: string; name: string }[];
   /** Wave 9 — prefill Add Staff from appointment letter. */
   generalPrefill?: GeneralFormValues | null;
   appointmentLetterId?: string;
@@ -38,6 +39,7 @@ export default function TabLayout({
   staffId,
   isEditPage = false,
   specialityOptions = [],
+  zoneOptions = [],
   generalPrefill = null,
   appointmentLetterId
 }: TabLayoutProps) {
@@ -129,6 +131,7 @@ export default function TabLayout({
           staffId={staffId}
           isEditPage={isEditPage}
           specialityOptions={specialityOptions}
+          zoneOptions={zoneOptions}
           appointmentLetterId={appointmentLetterId}
           onRegisterActions={handleRegisterGeneralActions}
           onLoadingChange={setLoading}

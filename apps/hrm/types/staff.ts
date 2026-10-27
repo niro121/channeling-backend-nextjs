@@ -6,6 +6,12 @@ export type { GetStaffParams, Staff };
 
 export { TITLE_LIST, GENDER_OPTIONS, STAFF_STATUS_OPTIONS };
 
+/** Prefix for `generateRecordCode` → e.g. `ST-1`, `ST-2`. */
+export const STAFF_CODE_PREFIX = 'ST';
+
+/** Prefix for legacy staff codes → e.g. `ST-LG-1`, `ST-LG-2`. */
+export const STAFF_LEGACY_CODE_PREFIX = 'ST-LG';
+
 export type StaffHrDetails = {
   initials?: string | null;
   firstName?: string | null;
