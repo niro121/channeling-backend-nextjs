@@ -275,7 +275,7 @@ function columnStylesFromPercents(
   return Object.fromEntries(widths.map((cellWidth, index) => [index, { cellWidth }]))
 }
 
-function drawBrandedPdfFooter(doc: jsPDF, generatedAt: string, margin: number) {
+export function drawBrandedPdfFooter(doc: jsPDF, generatedAt: string, margin: number) {
   const { width: pageWidth, height: pageHeight } = pageSize(doc)
   const pageCount = doc.getNumberOfPages()
   for (let i = 1; i <= pageCount; i++) {
