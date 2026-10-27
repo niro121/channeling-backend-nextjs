@@ -7,7 +7,8 @@ Use with:
 - `apps/hrm/docs/PERMISSION_FLOW.md` ? Auth User Group grants
 - `apps/hrm/docs/ROSTER_SHIFTS_MANAGER_GUIDE.md` ? downstream consumer of `HolidayCalendar`; **Shift Types** is the current shift template master (Manage Shifts deferred ? §34)
 - `apps/hrm/docs/LEAVE_MANAGER_GUIDE.md` ? future holiday-aware leave day counting
-- `apps/hrm/docs/PAYROLL_MANAGER_GUIDE.md` ? Payroll UI shells + dynamization (consumes Paysheet Components / HRM Variable / Salary Cycle)
+- `apps/hrm/docs/PAYROLL_MANAGER_GUIDE.md` — Payroll UI shells + dynamization (consumes Paysheet Components / HRM Variable / Salary Cycle)
+- `apps/hrm/docs/STATUTORY_COMPLIANCE_GUIDE.md` — Staff EPF/ETF IDs + Variables + paysheet included-for → payroll → Statutory returns (design)
 
 **Status:** HR Administration sidebar group is live.  
 **Shipped (CRUD):** Holiday Calendar · Designations · Area / Staff Grade · Staff Specialities · Manage Rosters · **Paysheet Components** · **HRM Variable (EPF/ETF/PAYE)** · **Salary Cycle**.  
@@ -73,7 +74,8 @@ Collapsible group **HR Administration** (add links only when a module ships ? do
 | Units / wards                    | **Backlog** (§31)                               | Heavy use in Roster & Shifts; may nest under Department                  |
 | Institutions                     | **Backlog** (§31)                               | Staff Employment placeholder                                             |
 | Paysheet components               | **Paysheet Components** (section 36)        | System/Custom master; Assign Paysheet consumes later |
-| EPF / ETF rates + PAYE slabs      | **HRM Variable** (section 37)               | Singleton rates + progressive slabs; payroll consumer later |
+| EPF / ETF rates + PAYE slabs      | **HRM Variable** (section 37)               | Singleton rates + progressive slabs; payroll + Statutory guide |
+| Government EPF/ETF/PAYE filings   | **Statutory** (`STATUTORY_COMPLIANCE_GUIDE.md`) | Design-only hub; aggregates payroll lines + Staff membership IDs |
 | Salary cycle                     | **Salary Cycle** (section 38)               | Per-institution windows; payroll / overnight consumer later |
 | Salary structures                | **Payroll** (`PAYROLL_MANAGER_GUIDE.md`)    | Phase 0 UI; dynamize as M1                                      |
 | Shift templates for holidays     | Roster & Shifts (`ShiftType.holidayEligible`)   | Consumes holiday dates; does not define them                             |
