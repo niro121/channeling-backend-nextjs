@@ -504,6 +504,7 @@ export default function SectionLocationDetail() {
         description={channelingDialog.description}
         hrmOnlyLabel={channelingDialog.hrmOnlyLabel}
         continueLabel={channelingDialog.continueLabel}
+        cancelClassName={buttonStyles.cancel.warning} 
         loading={saving}
         onCancel={handleChannelingCancel}
         onSaveHrmOnly={handleChannelingSaveHrmOnly}
