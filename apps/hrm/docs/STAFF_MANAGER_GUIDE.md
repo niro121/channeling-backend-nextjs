@@ -7,7 +7,8 @@ Use with:
 - `apps/hrm/docs/PERMISSION_FLOW.md` — Auth User Group grants (`staff`)
 - `apps/hrm/docs/STAFF_ATTENDANCE_ARCHITECTURE.md` — Finger Print / RFID ↔ punch ingest
 - `apps/hrm/docs/STATUTORY_COMPLIANCE_GUIDE.md` — EPF / ETF numbers ↔ payroll / Statutory
-- `apps/hrm/docs/HR_ADMINISTRATION_GUIDE.md` — Zones, Specialities, and other masters Staff consumes
+- `apps/hrm/docs/HR_ADMINISTRATION_GUIDE.md` — Zones, Specialities, Manage Rosters, and other masters Staff consumes
+- `apps/hrm/docs/ROSTER_SHIFTS_MANAGER_GUIDE.md` — day-by-day shift assignment (uses Staff roster group membership)
 - `apps/hrm/docs/RECRUITMENT_MANAGER_GUIDE.md` — Appointment Letter → Staff onboard handoff
 
 **Status:** Staff list + General / HR Detail / Employment / Additional Details tabs are live. Channeling sync (create / update / delete / bulk) follows the three-choice dialog pattern where linkage exists (`migrateSourceId`).  
@@ -132,19 +133,34 @@ Uniqueness for RFID / EPF / ETF is enforced in `staff.service.ts` (application a
 
 ---
 
-## 7. Related consumers
+## 7. Roster group vs shift assignment (simple)
+
+**Manage Rosters** (HR Admin) is **not** a shift template. It defines a **roster group** (team/ward): department, business code (e.g. `CHN`), and how many shifts per person per day.
+
+**Shift Types** (Roster & Shifts) are the actual shift templates (Morning, Night, etc.).
+
+**Roster & Shifts** assigns those shifts to staff on dates. Staff Employment puts a person **in** a roster group (`employment.roster` = Manage Roster **code**). Scheduling then uses that group.
+
+In short: group rules in HR Admin → membership on Staff → day-by-day shift assignment in Roster & Shifts.
+
+See `HR_ADMINISTRATION_GUIDE.md` §26 and `ROSTER_SHIFTS_MANAGER_GUIDE.md` §1.1 (integration still upcoming for Staff roster select + Roster filters).
+
+---
+
+## 8. Related consumers
 
 | Consumer | Staff fields used |
 |----------|-------------------|
 | Attendance punch ingest | `fingerPrintRfid` |
 | Assign Paysheet / Payslips | `epfNumber` (label / filter); contribution amounts from payroll, not this form |
 | Statutory (design) | `epfNumber`, `etfNumber` on returns |
+| Roster & Shifts | `employment.roster` (group **code** when INT-S3 lands); allocations by staff × date |
 | Recruitment onboard | Prefills General; EPF/ETF/Registration start blank |
 | Auth User | `User.staffId` → `Staff.id` (auth DB; no Prisma cross-relation) |
 
 ---
 
-## 8. Acceptance notes (current)
+## 9. Acceptance notes (current)
 
 1. Two active staff cannot share the same non-blank Finger Print / RFID, EPF Number, or ETF Number.
 2. Registration Number can be blank or duplicated until §4 is locked and implemented.

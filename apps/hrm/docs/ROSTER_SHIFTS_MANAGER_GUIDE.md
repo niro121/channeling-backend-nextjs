@@ -120,6 +120,8 @@ Until §34 Option A/B ships, **no Roster & Shifts refactor** is needed for Manag
 
 ### 1.1 Upcoming — Manage Rosters connection (integration wave)
 
+**Simple explanation:** Manage Rosters (HR Admin) is **not** a shift template. It defines a **roster group** (team/ward): department, business code (e.g. `CHN`), and how many shifts per person per day. **Shift Types** here are the actual shift templates (Morning, Night, etc.). **Roster & Shifts** then assigns those shifts to staff on dates, using the staff’s roster group (and later the per-person shift limit from Manage Rosters). In short: group rules in HR Admin → day-by-day shift assignment in Roster & Shifts.
+
 Roster & Shifts **operational screens are complete**. Remaining work with HR Admin Manage Rosters is **integration only** — do not reopen grid/register structure.
 
 **Why connect?** Manage Rosters owns the **group catalog** (`CHN`). Staff membership and Roster & Shifts filters/snapshots must use that same group key so scheduling matches who belongs to which team.

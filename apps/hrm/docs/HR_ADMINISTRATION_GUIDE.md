@@ -889,6 +889,8 @@ Keep this separate from `shift-roster` (operational scheduling) so HR can mainta
 
 ## 26. Manage Rosters ↔ Roster & Shifts (mechanism)
 
+**Simple explanation:** Manage Rosters is **not** a shift template. It defines a **roster group** (team/ward): department, business code (e.g. `CHN`), and how many shifts per person per day. **Shift Types** (in Roster & Shifts) are the actual shift templates (Morning, Night, etc.). **Roster & Shifts** then assigns those shifts to staff on dates, using the staff’s roster group (and later the per-person shift limit from Manage Rosters). In short: group rules in HR Admin → day-by-day shift assignment in Roster & Shifts.
+
 Two different “roster codes” exist. Do **not** conflate them.
 
 | Code | Owner | Example | Meaning |
