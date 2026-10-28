@@ -5,6 +5,7 @@ import { Formik, Form, FormikHelpers, useFormikContext } from 'formik';
 import * as Yup from 'yup';
 import { useRouter } from 'next/navigation';
 import {
+  Button,
   CustomDatePickerField,
   CustomFormField,
   CustomSelectField,
@@ -295,6 +296,7 @@ export default function FormHrDetail({
   const router = useRouter();
 
   const resolvedInitialValues = staffRecordToHrDetailFormValues(staff);
+  const generalAddress = staff.address?.trim() ?? '';
 
   const executeSave = async (
     values: HrDetailFormValues,
@@ -710,26 +712,57 @@ export default function FormHrDetail({
                   </AccordionTrigger>
                   <AccordionContent className="border-t-2 pt-2">
                     <div className="grid grid-cols-1 gap-4 pb-2 md:grid-cols-2">
-                      <CustomFormField
-                        type="text"
-                        id="permanentAddress"
-                        placeholder="Permanent Address"
-                        value={formik.values.permanentAddress}
-                        onChange={formik.handleChange}
-                        onBlur={formik.handleBlur}
-                        required
-                        styleClasses={fieldStyleClasses}
-                      />
-                      <CustomFormField
-                        type="text"
-                        id="postalAddress"
-                        placeholder="Postal Address"
-                        value={formik.values.postalAddress}
-                        onChange={formik.handleChange}
-                        onBlur={formik.handleBlur}
-                        required={false}
-                        styleClasses={fieldStyleClasses}
-                      />
+                      <div className="space-y-1.5">
+                        <CustomFormField
+                          type="text"
+                          id="permanentAddress"
+                          placeholder="Permanent Address"
+                          value={formik.values.permanentAddress}
+                          onChange={formik.handleChange}
+                          onBlur={formik.handleBlur}
+                          required
+                          styleClasses={fieldStyleClasses}
+                        />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="h-8 text-xs"
+                          disabled={!generalAddress}
+                          onClick={() =>
+                            formik.setFieldValue(
+                              'permanentAddress',
+                              generalAddress
+                            )
+                          }
+                        >
+                          Use general address
+                        </Button>
+                      </div>
+                      <div className="space-y-1.5">
+                        <CustomFormField
+                          type="text"
+                          id="postalAddress"
+                          placeholder="Postal Address"
+                          value={formik.values.postalAddress}
+                          onChange={formik.handleChange}
+                          onBlur={formik.handleBlur}
+                          required={false}
+                          styleClasses={fieldStyleClasses}
+                        />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="h-8 text-xs"
+                          disabled={!generalAddress}
+                          onClick={() =>
+                            formik.setFieldValue('postalAddress', generalAddress)
+                          }
+                        >
+                          Use general address
+                        </Button>
+                      </div>
                       <CustomFormField
                         type="text"
                         id="homeTelephone"
