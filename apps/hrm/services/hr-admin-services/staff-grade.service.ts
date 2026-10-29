@@ -362,3 +362,24 @@ export async function deleteStaffGrade(id: string): Promise<{
     };
   }
 }
+
+/** Lightweight staff-grade options for Combobox consumers (Change Staff, etc.). */
+export async function getStaffGradeOptions(): Promise<{
+  success: boolean;
+  data?: Array<{ id: string; name: string }>;
+  error?: { message?: string };
+}> {
+  try {
+    const rows = await prisma.staffGrade.findMany({
+      select: { id: true, name: true },
+      orderBy: { name: 'asc' }
+    });
+    return { success: true, data: rows };
+  } catch (error: any) {
+    console.error('getStaffGradeOptions error:', error);
+    return {
+      success: false,
+      error: { message: error.message || 'Failed to load staff grade options' }
+    };
+  }
+}

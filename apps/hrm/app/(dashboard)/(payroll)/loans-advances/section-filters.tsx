@@ -9,7 +9,7 @@ import {
 } from '@archmage/ui';
 import { FilterWrapper } from '@/app/(dashboard)/filter-wrapper';
 import { INSTITUTION_OPTIONS } from '@/types/institution';
-import { STAFF_CATEGORY_OPTIONS } from '@/types/staff-employment-options';
+import { STAFF_CATEGORY_OPTIONS } from '@/types/staff-category';
 import type { PaysheetComponentOption } from '@/types/paysheet-component';
 import type {
   LoanAdvanceFilters,

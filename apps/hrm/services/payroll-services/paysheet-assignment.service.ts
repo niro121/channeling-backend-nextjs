@@ -13,10 +13,10 @@ import { getInstitutionName } from '@/types/institution';
 import {
   DEPARTMENT_OPTIONS,
   ROSTER_OPTIONS,
-  STAFF_CATEGORY_OPTIONS,
   STAFF_DESIGNATION_OPTIONS,
   STAFF_GRADE_OPTIONS
 } from '@/types/staff-employment-options';
+import { STAFF_CATEGORY_OPTIONS } from '@/types/staff-category';
 import {
   PAYSHEET_ASSIGNMENT_CODE_PREFIX,
   type BulkPaysheetAssignPayload,
