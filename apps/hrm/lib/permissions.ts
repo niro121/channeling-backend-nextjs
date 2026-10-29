@@ -55,6 +55,7 @@ export const ROUTE_TO_RESOURCE: Record<string, string> = {
   '/designations': 'designations',
   '/staff-grades': 'staff-grades',
   '/staff-specialities': 'staff-specialities',
+  '/change-staff': 'change-staff',
   '/manage-rosters': 'manage-rosters',
   // Roster & Shifts
   '/shift-roster': 'shift-roster',

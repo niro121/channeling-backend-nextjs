@@ -69,6 +69,7 @@ export const RESOURCES: HrmPermissionResource[] = [
     name: 'Staff Specialities',
     group: 'HR Administration'
   },
+  { id: 'change-staff', name: 'Change Staff', group: 'HR Administration' },
   { id: 'manage-rosters', name: 'Manage Rosters', group: 'HR Administration' },
   {
     id: 'paysheet-components',

@@ -20,13 +20,8 @@ export const EMPLOYEE_STATUS_OPTIONS = [
   { id: 'intern', name: 'Intern' }
 ] as const;
 
-export const STAFF_CATEGORY_OPTIONS = [
-  { id: 'medical', name: 'Medical' },
-  { id: 'nursing', name: 'Nursing' },
-  { id: 'administrative', name: 'Administrative' },
-  { id: 'technical', name: 'Technical' },
-  { id: 'support', name: 'Support' }
-] as const;
+/** @deprecated Import from `@/types/staff-category` instead. */
+export { STAFF_CATEGORY_OPTIONS } from '@/types/staff-category';
 
 export const STAFF_GRADE_OPTIONS = [
   { id: 'grade_i', name: 'Grade I' },

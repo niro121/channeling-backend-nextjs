@@ -102,6 +102,8 @@ export type StaffEmploymentInfo = {
   staffCategory?: string | null;
   staffGrade?: string | null;
   staffDesignation?: string | null;
+  /** Current basic salary snapshot (LKR). History: StaffEmploymentChange field=basic. */
+  basic?: number | null;
   roster?: string | null;
   shift?: string | null;
 };

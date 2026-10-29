@@ -29,10 +29,10 @@ import {
   ROSTER_OPTIONS,
   SALARY_PAYMENT_METHOD_OPTIONS,
   SHIFT_OPTIONS,
-  STAFF_CATEGORY_OPTIONS,
   STAFF_DESIGNATION_OPTIONS,
   STAFF_GRADE_OPTIONS
 } from '@/types/staff-employment-options';
+import { STAFF_CATEGORY_OPTIONS } from '@/types/staff-category';
 import { updateStaffEmploymentAction } from '@/app/actions/staff-actions/staff.actions';
 import {
   employmentFormValuesToPayload,

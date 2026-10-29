@@ -415,6 +415,7 @@ function toEmploymentDetailsInput(
           staffCategory: employmentDetails.employment.staffCategory ?? null,
           staffGrade: employmentDetails.employment.staffGrade ?? null,
           staffDesignation: employmentDetails.employment.staffDesignation ?? null,
+          basic: employmentDetails.employment.basic ?? null,
           roster: employmentDetails.employment.roster ?? null,
           shift: employmentDetails.employment.shift ?? null
         }

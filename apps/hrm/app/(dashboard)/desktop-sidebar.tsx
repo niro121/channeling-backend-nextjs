@@ -59,6 +59,7 @@ import {
   Inbox,
   FolderOpen,
   UserCheck,
+  UserPen,
   Star,
   Mail,
 } from "lucide-react";
@@ -643,6 +644,7 @@ export function DesktopSidebar({ session, className }: { session: Session | null
           hasAccess('/designations') ||
           hasAccess('/staff-grades') ||
           hasAccess('/staff-specialities') ||
+          hasAccess('/change-staff') ||
           hasAccess('/manage-rosters') ||
           hasAccess('/paysheet-components') ||
           hasAccess('/hrm-variables') ||
@@ -656,6 +658,7 @@ export function DesktopSidebar({ session, className }: { session: Session | null
                 '/designations',
                 '/staff-grades',
                 '/staff-specialities',
+                '/change-staff',
                 '/manage-rosters',
                 '/paysheet-components',
                 '/hrm-variables',
@@ -689,6 +692,13 @@ export function DesktopSidebar({ session, className }: { session: Session | null
                   href="/staff-specialities"
                   label="Staff Specialities"
                   icon={<Stethoscope className="h-5 w-5" />}
+                />
+              )}
+              {hasAccess('/change-staff') && (
+                <NavLink
+                  href="/change-staff"
+                  label="Change Staff"
+                  icon={<UserPen className="h-5 w-5" />}
                 />
               )}
               {hasAccess('/manage-rosters') && (

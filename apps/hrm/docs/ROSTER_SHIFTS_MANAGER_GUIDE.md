@@ -148,7 +148,7 @@ Manage Rosters (CHN)
 
 **Locked storage key:** store **`ManageRoster.code`**, never ObjectId, on staff membership and Roster & Shifts roster strings. Other apps that filter by roster (e.g. Payroll) should follow the same **code** convention when those consumers are aligned — track that in the owning module guide; do not change Roster & Shifts screens for that alone.
 
-Full backlog IDs: `HR_ADMINISTRATION_GUIDE.md` §26, §29 (R6–R9), §32 (INT-S3, INT-R3–R6).
+Full backlog IDs: `HR_ADMINISTRATION_GUIDE.md` §26, §29 (R6–R10), §32 (INT-S3, INT-R3–R6, INT-R10).
 
 Overtime **Process Staff Shift** stays sample/toast until the roster **read** service exists (dynamic slice D4+).
 
