@@ -23,7 +23,7 @@ Use with:
 | Holiday Calendar | Shipped | sections 2–12 |
 | Designation Management | Shipped (D0–D5); D6/D7 deferred | sections 13–18 |
 | Area / Staff Grade | Shipped (G0–G5); G6/G7 deferred | sections 19–24 |
-| Manage Rosters | Shipped (R0–R5); R6/R7 deferred | sections 25–30 |
+| Manage Rosters | Shipped (R0–R5 + R6b dept); R6/R7 staff & roster filters deferred | sections 25–30 |
 | Staff Specialities | Shipped | section 35 |
 | Paysheet Components | Shipped (PC0–PC4); PC5 Payroll consumer deferred | section 36 |
 | HRM Variable (EPF/ETF/PAYE) | Shipped (HV0–HV4); HV5 Payroll consumer deferred | section 37 |
@@ -928,7 +928,7 @@ Manage Rosters master          Staff Employment              Roster & Shifts
 | Staff Employment roster select | Still **placeholder** `ROSTER_OPTIONS` (`roster_a` …) — not wired to Manage Rosters |
 | Roster & Shifts roster filters | Built from **distinct strings** already on staff / allocations — not from Manage Rosters master |
 | `ShiftRoster.roster` / allocation snapshots | Free-text **string** (no FK) |
-| Manage Rosters `departmentId` | Still **placeholder enum** until Departments master is consumed here |
+| Manage Rosters `departmentId` | **Wired** Prisma `@relation` → `Department`; options via `getDepartmentOptionsAction` (active only); many rosters per dept |
 
 ### Locked storage key (upcoming — do not reopen)
 
@@ -946,10 +946,10 @@ Manage Rosters master          Staff Employment              Roster & Shifts
 | Topic | Decision |
 |-------|----------|
 | Workspace pattern | **Master–detail**, same family as Designations / Staff Grade |
-| Roster code (`CHN`) | **Human-entered** short unique key (uppercase); **not** `generateRecordCode('SR')` |
+| Roster code (`CHN`) | Required unique uppercase key; HR-entered **or** Generate from name + department; **locked after create**; **not** `generateRecordCode('SR')` |
 | Period codes (`SR-n`) | Stay owned by Roster & Shifts; never reused here |
-| Department | Replace placeholder enum with **Departments** master when that integration ships |
-| Shifts per person per day | Required positive integer; Roster & Shifts enforces later (INT-R4) |
+| Department | **Departments** master via Combobox (`departmentId` = ObjectId); **many rosters per department** |
+| Shifts per person per day | Required positive integer (≥ 1); Roster & Shifts enforces later (INT-R4) |
 | Actions | Cancel / Delete / Save at the **bottom of the detail form** |
 | Summary cards | Assigned staff / linked dept / active templates — wire counts in R6/R7 |
 | Do **not** | Fold Manage Rosters into Roster & Shifts sidebar; do **not** add HR Admin “Manage Shifts” (templates stay `/shift-types`) |
@@ -969,10 +969,10 @@ See also: `ROSTER_SHIFTS_MANAGER_GUIDE.md` §1.1 (upcoming Manage Rosters integr
 
 | Field                     | Rule                                                                                       |
 | ------------------------- | ------------------------------------------------------------------------------------------ |
-| `code`                    | Unique short roster code (e.g. `CHN`) ? HR-entered, normalized uppercase (not auto `SR-n`) |
+| `code`                    | Unique short roster code (e.g. `CHN`); required; uppercase; suggestable from name+dept; locked on edit |
 | `name`                    | Required unique display name (e.g. *CHANNEL*)                                              |
-| `departmentId`            | Selector value (placeholder enum/options until Department master)                          |
-| `shiftsPerPersonPerDay`   | Integer ? 1                                                                                |
+| `departmentId`            | `Department.id` `@db.ObjectId` + Prisma `@relation`; required; active dept; **many** groups per dept |
+| `shiftsPerPersonPerDay`   | Integer ≥ 1                                                                                |
 | `createdAt` / `updatedAt` | Audit timestamps                                                                           |
 | `createdBy` / `updatedBy` | Auth User ObjectIds via `resolveAuthUsers`                                                 |
 
@@ -1020,8 +1020,8 @@ Derived (UI / later queries, not stored on the model):
 | ------------- | ------------------------------------------------------------------- |
 | Selection     | Click list row ? load detail form                                   |
 | Add           | Clears form, highlights detail, focuses name; no persist until Save |
-| Department    | `CustomSelectField` only                                            |
-| Roster code   | Editable short code; unique; normalize to uppercase on save         |
+| Department    | Combobox from Departments master (`departmentId` = ObjectId)        |
+| Roster code   | Unique; uppercase; Generate from name+dept on create; locked on edit |
 | Summary cards | Show sample/derived stats under the form fields                     |
 | Save / Delete | Bottom of detail form (confirm on delete)                           |
 | Form stack    | **Formik + Yup** client; **Zod** in service                         |
@@ -1068,7 +1068,7 @@ apps/hrm/
 | **R4 — Actions** | Permissions, activity log, revalidate | **Done** |
 | **R5 — Wire CRUD** | Live list + mutations; sample data removed | **Done** |
 | **R6 — Staff integration** | Staff Employment roster select from Manage Rosters; store **code**; remove `ROSTER_OPTIONS` placeholders for this field | **Upcoming** — see §32 INT-S3 |
-| **R6b — Department on Manage Rosters** | `departmentId` options from Departments master (drop placeholder enum) | **Upcoming** — prefer with / after Departments consumer wave |
+| **R6b — Department on Manage Rosters** | `departmentId` options from Departments master (drop placeholder enum); Combobox; many per dept | **Done** |
 | **R7 — Roster & Shifts integration** | Roster filters/options load Manage Roster **codes**; snapshots keep string = code; keep `SR-n` for periods only | **Upcoming** — see §32 INT-R3 + Roster guide §1.1 |
 | **R8 — Rule enforcement** | Enforce `shiftsPerPersonPerDay` on allocate / publish where product requires | **Upcoming** — INT-R4 |
 | **R9 — Summary counts** | Assigned staff count (match `employment.roster` → code); optional active template count | **Upcoming** — INT-R6 / INT-R7 |
@@ -1128,7 +1128,7 @@ Track candidates here until each module gets its own detailed section.
 | Consumer | Placeholder file / pattern | Replace with |
 |----------|----------------------------|--------------|
 | Staff Employment | `types/staff-employment-options.ts` | Live masters when each module ships |
-| Manage Rosters | `MANAGE_ROSTER_DEPARTMENTS` | Departments master |
+| Manage Rosters | Departments master (Combobox) | — (wired) |
 | Roster & Shifts | Filter option loaders / snapshots | Departments, Units, Designations, Rosters, Grades |
 | Assign Paysheet | Component options | Paysheet Components master (after CRUD) |
 

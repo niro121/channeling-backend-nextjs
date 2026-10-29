@@ -8,11 +8,10 @@ import {
   resolveAuthUsers,
   type AuthUserSummary
 } from '@/lib/helpers/resolve-auth-users.helper';
-import {
-  MANAGE_ROSTER_DEPARTMENTS,
-  type GetManageRosterParams,
-  type ManageRosterPayload,
-  type ManageRosterServiceRecord
+import type {
+  GetManageRosterParams,
+  ManageRosterPayload,
+  ManageRosterServiceRecord
 } from '@/types/manage-roster';
 
 const manageRosterPayloadSchema = z.object({
@@ -26,7 +25,7 @@ const manageRosterPayloadSchema = z.object({
     .min(1, 'Roster code is required')
     .max(12, 'Must be 12 characters or less')
     .transform((value) => value.trim().toUpperCase()),
-  departmentId: z.enum(MANAGE_ROSTER_DEPARTMENTS),
+  departmentId: z.string().min(1, 'Department is required'),
   shiftsPerPersonPerDay: z.coerce
     .number()
     .int('Must be a whole number')
@@ -39,18 +38,58 @@ function toIsoString(value: Date | string | null | undefined): string {
   return String(value);
 }
 
+async function resolveActiveDepartment(
+  departmentId: string
+): Promise<
+  | { ok: true; name: string }
+  | { ok: false; message: string; issues: Record<string, string[]> }
+> {
+  try {
+    const department = await prisma.department.findUnique({
+      where: { id: departmentId },
+      select: { id: true, name: true, status: true }
+    });
+
+    if (!department) {
+      return {
+        ok: false,
+        message: 'Validation failed',
+        issues: { departmentId: ['Selected department was not found'] }
+      };
+    }
+    if (department.status !== 1) {
+      return {
+        ok: false,
+        message: 'Validation failed',
+        issues: { departmentId: ['Selected department is not active'] }
+      };
+    }
+
+    return { ok: true, name: department.name };
+  } catch {
+    return {
+      ok: false,
+      message: 'Validation failed',
+      issues: { departmentId: ['Selected department is invalid'] }
+    };
+  }
+}
+
+type ManageRosterRow = {
+  id: string;
+  code: string;
+  name: string;
+  departmentId: string;
+  shiftsPerPersonPerDay: number;
+  createdAt: Date;
+  updatedAt: Date;
+  createdBy: string | null;
+  updatedBy: string | null;
+  department: { id: string; name: string } | null;
+};
+
 function mapServiceRecord(
-  record: {
-    id: string;
-    code: string;
-    name: string;
-    departmentId: string;
-    shiftsPerPersonPerDay: number;
-    createdAt: Date;
-    updatedAt: Date;
-    createdBy: string | null;
-    updatedBy: string | null;
-  },
+  record: ManageRosterRow,
   users?: {
     createdUser: AuthUserSummary | null;
     updatedUser: AuthUserSummary | null;
@@ -61,6 +100,7 @@ function mapServiceRecord(
     code: record.code,
     name: record.name,
     departmentId: record.departmentId,
+    departmentName: record.department?.name ?? '',
     shiftsPerPersonPerDay: record.shiftsPerPersonPerDay,
     // Derived counts — Staff / Roster integration deferred (R6/R7)
     assignedStaffCount: 0,
@@ -103,7 +143,10 @@ const manageRosterSelect = {
   createdAt: true,
   updatedAt: true,
   createdBy: true,
-  updatedBy: true
+  updatedBy: true,
+  department: {
+    select: { id: true, name: true }
+  }
 } as const;
 
 export async function getManageRosterList(
@@ -238,6 +281,17 @@ export async function createManageRoster(
       };
     }
 
+    const department = await resolveActiveDepartment(parsed.data.departmentId);
+    if (!department.ok) {
+      return {
+        success: false,
+        error: {
+          message: department.message,
+          issues: department.issues
+        }
+      };
+    }
+
     const duplicateName = await findDuplicateName(parsed.data.name);
     if (duplicateName) {
       return duplicateFieldError(
@@ -315,7 +369,7 @@ export async function updateManageRoster(
 
     const existing = await prisma.manageRoster.findUnique({
       where: { id },
-      select: { id: true }
+      select: { id: true, code: true }
     });
     if (!existing) {
       return { success: false, error: { message: 'Roster not found' } };
@@ -332,6 +386,17 @@ export async function updateManageRoster(
       };
     }
 
+    const department = await resolveActiveDepartment(parsed.data.departmentId);
+    if (!department.ok) {
+      return {
+        success: false,
+        error: {
+          message: department.message,
+          issues: department.issues
+        }
+      };
+    }
+
     const duplicateName = await findDuplicateName(parsed.data.name, id);
     if (duplicateName) {
       return duplicateFieldError(
@@ -340,19 +405,12 @@ export async function updateManageRoster(
       );
     }
 
-    const duplicateCode = await findDuplicateCode(parsed.data.code, id);
-    if (duplicateCode) {
-      return duplicateFieldError(
-        'code',
-        `Roster code "${duplicateCode.code}" already exists.`
-      );
-    }
-
+    // Keep business code stable after create (staff/roster snapshots key on it).
     const auditUser = toAuditUser(user);
     const updated = await prisma.manageRoster.update({
       where: { id },
       data: {
-        code: parsed.data.code,
+        code: existing.code,
         name: parsed.data.name,
         departmentId: parsed.data.departmentId,
         shiftsPerPersonPerDay: parsed.data.shiftsPerPersonPerDay,

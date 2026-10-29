@@ -9,7 +9,10 @@ import {
   useState,
   type ReactNode
 } from 'react';
-import type { ManageRosterUiRecord } from '@/types/manage-roster';
+import type {
+  ManageRosterDepartmentOption,
+  ManageRosterUiRecord
+} from '@/types/manage-roster';
 
 type ManageRosterUiContextValue = {
   records: ManageRosterUiRecord[];
@@ -22,6 +25,7 @@ type ManageRosterUiContextValue = {
   setSearch: (value: string) => void;
   detailFormHighlight: boolean;
   startNewManageRoster: () => void;
+  departmentOptions: ManageRosterDepartmentOption[];
 };
 
 const ManageRosterUiContext = createContext<ManageRosterUiContextValue | null>(
@@ -31,12 +35,14 @@ const ManageRosterUiContext = createContext<ManageRosterUiContextValue | null>(
 type ProviderProps = {
   initialRecords: ManageRosterUiRecord[];
   initialSelectedId?: string | null;
+  departmentOptions?: ManageRosterDepartmentOption[];
   children: ReactNode;
 };
 
 export function ManageRosterUiProvider({
   initialRecords,
   initialSelectedId = null,
+  departmentOptions = [],
   children
 }: ProviderProps) {
   const [records, setRecords] = useState(initialRecords);
@@ -85,7 +91,8 @@ export function ManageRosterUiProvider({
       search,
       setSearch,
       detailFormHighlight,
-      startNewManageRoster
+      startNewManageRoster,
+      departmentOptions
     }),
     [
       records,
@@ -94,7 +101,8 @@ export function ManageRosterUiProvider({
       isNew,
       search,
       detailFormHighlight,
-      startNewManageRoster
+      startNewManageRoster,
+      departmentOptions
     ]
   );
 

@@ -4,6 +4,7 @@ import { authOptions } from '@/lib/auth';
 import { logActivityNonBlocking } from '@/lib/activity-log';
 import { checkRouteAccess } from '@/lib/server-permissions';
 import { getManageRosterListAction } from '@/app/actions/hr-admin-actions/manage-roster.actions';
+import { getDepartmentOptionsAction } from '@/app/actions/organization-actions/department.actions';
 import ManageRosterWorkspace from './manage-roster-workspace';
 
 type SearchParams = {
@@ -28,8 +29,14 @@ export default async function ManageRostersPage({ searchParams }: SearchParams) 
     });
   }
 
-  const listRes = await getManageRosterListAction();
+  const [listRes, departmentRes] = await Promise.all([
+    getManageRosterListAction(),
+    getDepartmentOptionsAction()
+  ]);
   const records = listRes.isError ? [] : (listRes.data ?? []);
+  const departmentOptions = departmentRes.isError
+    ? []
+    : (departmentRes.data ?? []);
 
   const params = await searchParams;
   const defaultSelected =
@@ -41,6 +48,7 @@ export default async function ManageRostersPage({ searchParams }: SearchParams) 
     <ManageRosterWorkspace
       initialRecords={records}
       initialSelectedId={defaultSelected}
+      departmentOptions={departmentOptions}
     />
   );
 }

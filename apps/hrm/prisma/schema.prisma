@@ -720,10 +720,12 @@ model StaffSpeciality {
 
 model ManageRoster {
   id                    String @id @default(auto()) @map("_id") @db.ObjectId
-  code                  String @unique // HR-entered business key, e.g. CHN (not SR-n)
+  code                  String @unique // Business key e.g. CHN (not SR-n); HR-entered or suggested from name+dept
   name                  String @unique
-  departmentId          String // placeholder enum until Department master
-  shiftsPerPersonPerDay Int
+  departmentId          String @db.ObjectId // Department master (many rosters per department allowed)
+  shiftsPerPersonPerDay Int // >= 1
+
+  department Department @relation(fields: [departmentId], references: [id])
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1142,6 +1144,7 @@ model Department {
 
   vacancyRequests VacancyRequest[]
   jobPosts        JobPost[]
+  manageRosters   ManageRoster[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
