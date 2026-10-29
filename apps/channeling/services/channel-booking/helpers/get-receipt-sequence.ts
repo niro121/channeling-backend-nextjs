@@ -18,13 +18,21 @@ export function receiptSequenceKindFromNumber(
   receiptNoString: string | null | undefined
 ): DoctorPaymentSequenceKind | null {
   if (!receiptNoString) return null
-  if (receiptNoString.includes("CHANN-DOC-WHT-REF")) return "wht_cancel"
-  if (receiptNoString.includes("CHANN-DOC-WHT/")) return "wht"
+  if (
+    receiptNoString.includes("CHANN-DOC-APAY-REF") ||
+    receiptNoString.includes("CHANN-DOC-WHT-REF")
+  ) {
+    return "wht_cancel"
+  }
+  if (receiptNoString.includes("CHANN-DOC-APAY/") || receiptNoString.includes("CHANN-DOC-WHT/")) {
+    return "wht"
+  }
   return null
 }
 
 export function isWhtDoctorPaymentNumber(receiptNoString: string | null | undefined): boolean {
-  return receiptNoString?.includes("CHANN-DOC-WHT") ?? false
+  if (!receiptNoString) return false
+  return receiptNoString.includes("CHANN-DOC-APAY") || receiptNoString.includes("CHANN-DOC-WHT")
 }
 
 /**
@@ -32,9 +40,9 @@ export function isWhtDoctorPaymentNumber(receiptNoString: string | null | undefi
  * method 1 → paymentreceipts, shortcode + 'CHANN/' + pad(8)
  * method 0 → refundreceipts, shortcode + 'CHANN-REF/' + pad(8)
  * method 4 → doctorpaymentreceipts, shortcode + 'CHANN-DOC-PAY/' + pad(8)
- * method 4 WHT slice → doctorpaymentwhtreceipts, shortcode + 'CHANN-DOC-WHT/' + pad(8)
+ * method 4 WHT slice → doctorpaymentwhtreceipts, shortcode + 'CHANN-DOC-APAY/' + pad(8)
  * method 5 → doctorpaymentcancelreceipts, shortcode + 'CHANN-DOC-REF/' + pad(8)
- * method 5 WHT slice → doctorpaymentwhtcancelreceipts, shortcode + 'CHANN-DOC-WHT-REF/' + pad(8)
+ * method 5 WHT slice → doctorpaymentwhtcancelreceipts, shortcode + 'CHANN-DOC-APAY-REF/' + pad(8)
  * method 2 → legerdebits (agency debit note), shortcode + 'CHANN-AGN-DN/' + pad(5)
  * method 3 → legercredits (agency credit note), shortcode + 'CHANN-AGN-CN/' + pad(5)
  * method 6 → legerdeposit (agency deposit), shortcode + 'CHANN-AGN-DP/' + pad(5)
@@ -144,11 +152,11 @@ export async function getReceiptSequenceInfo(
 
   if (sequenceKind === "wht") {
     scopeSuffix = "doctorpaymentwhtreceipts"
-    prefix = `${shortcode}CHANN-DOC-WHT/`
+    prefix = `${shortcode}CHANN-DOC-APAY/`
     padSize = 8
   } else if (sequenceKind === "wht_cancel") {
     scopeSuffix = "doctorpaymentwhtcancelreceipts"
-    prefix = `${shortcode}CHANN-DOC-WHT-REF/`
+    prefix = `${shortcode}CHANN-DOC-APAY-REF/`
     padSize = 8
   }
 
