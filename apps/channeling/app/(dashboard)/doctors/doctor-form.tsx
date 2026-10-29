@@ -498,9 +498,6 @@ export default function DoctorForm({
                     onChange={formik.handleChange}
                     onBlur={formik.handleBlur}
                   />
-                  <p className="text-xs text-muted-foreground pt-1">
-                    Percent of bookings paid with WHT when the payment is not ticked as full WHT. 0 pays every booking without WHT and moves them to the hidden session.
-                  </p>
                   <ErrorMessage
                     name="whtPercentage"
                     component="div"
