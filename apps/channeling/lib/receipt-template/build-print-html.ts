@@ -322,6 +322,11 @@ function isNonWhtPaymentSlip(receiptNoString: string): boolean {
   return receiptNoString.toUpperCase().includes("CHANN-DOC-PAY/")
 }
 
+function whtPrintAmountIsZero(wht: string): boolean {
+  const amount = Number(String(wht).replace(/,/g, ""))
+  return !Number.isFinite(amount) || amount === 0
+}
+
 function receiptSerialOnly(receiptNoString: string): string {
   const slash = receiptNoString.lastIndexOf("/")
   const serial = (slash >= 0 ? receiptNoString.slice(slash + 1) : receiptNoString).trim()
@@ -344,7 +349,7 @@ function doctorPaymentSlipHtml(model: DoctorPaymentPrintModel): string {
     ${sessions}
     <table class="totals"><tbody>
       <tr><td class="spacer"></td><td class="label">Sub Payable :</td><td class="amount">Rs. ${escapeHtml(model.subPayable)}</td></tr>
-      <tr><td class="spacer"></td><td class="label">WHT :</td><td class="amount">Rs. ${escapeHtml(model.wht)}</td></tr>
+      ${nonWht || whtPrintAmountIsZero(model.wht) ? "" : `<tr><td class="spacer"></td><td class="label">WHT :</td><td class="amount">Rs. ${escapeHtml(model.wht)}</td></tr>`}
       <tr><td class="spacer"></td><td class="label">Net Paid Amount :</td><td class="amount">Rs. ${escapeHtml(model.netPaid)}</td></tr>
     </tbody></table>
     <p class="patient-count">Total patient Count : ${model.totalPatientCount}</p>
