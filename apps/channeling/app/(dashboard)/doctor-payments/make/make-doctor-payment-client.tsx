@@ -4,6 +4,7 @@ import React, { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { ReferenceSelect } from "@/components/common/reference-select";
+import { getDoctorById } from "@/app/actions/doctor.actions";
 import {
   getEligibleDoctorPaymentBookings,
   getDoctorPaymentBookingDetails,
@@ -168,6 +169,7 @@ export function MakeDoctorPaymentClient({
   const router = useRouter();
   const { toast } = useToast();
   const [doctorId, setDoctorId] = useState(initialDoctorId ?? "");
+  const [doctorShares, setDoctorShares] = useState(doctorWhtPercentages);
   const [specialityId, setSpecialityId] = useState(() => {
     if (!initialDoctorId) return ALL_SPECIALITIES_VALUE;
     const doctor = doctors.find((d) => d.id === initialDoctorId);
@@ -214,6 +216,23 @@ export function MakeDoctorPaymentClient({
     () => doctorsForSpeciality(doctors, specialityId),
     [doctors, specialityId]
   );
+
+  useEffect(() => {
+    if (!doctorId.trim()) return;
+    let cancelled = false;
+    void (async () => {
+      const res = await getDoctorById(doctorId);
+      if (cancelled || !res.success || !res.data) return;
+      const share = Number(res.data.whtPercentage ?? 0);
+      setDoctorShares((current) => ({
+        ...current,
+        [doctorId]: Number.isFinite(share) ? Math.max(0, Math.min(100, share)) : 0,
+      }));
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [doctorId]);
 
   useEffect(() => {
     const allowed = paymentMethodOptions.map((o) => o.value);
@@ -287,11 +306,12 @@ export function MakeDoctorPaymentClient({
 
   const whtPct = Math.max(0, Math.min(100, whtPercentage));
   const payingNum = parseFloat(payingThisTime) || 0;
-  const doctorShare = Math.max(0, Math.min(100, doctorWhtPercentages[doctorId] ?? 0));
+  const doctorShare = Math.max(0, Math.min(100, doctorShares[doctorId] ?? 0));
   const selectedDetailRows = detailRows.filter((row) => selectedForPaymentIds.has(row.id));
   const splitPlan = planDoctorPaymentWhtSplit(selectedDetailRows, doctorShare);
   const isBookingSplit =
     !wht && splitPlan.whtCount > 0 && splitPlan.whtCount < selectedDetailRows.length;
+  const allWithoutWht = !wht && selectedDetailRows.length > 0 && splitPlan.whtCount <= 0;
   const fullWht =
     wht || (!wht && selectedDetailRows.length > 0 && splitPlan.whtCount >= selectedDetailRows.length);
   const splitWhtGross = splitPlan.wht.reduce((sum, row) => sum + row.paymentRs, 0);
@@ -867,6 +887,11 @@ export function MakeDoctorPaymentClient({
                         Apply All WHT at {whtPct}%
                       </Label>
                     </div>
+                    {allWithoutWht ? (
+                      <p className="text-xs text-muted-foreground leading-snug">
+                        Doctor WHT percentage is {doctorShare}%. All selected bookings are paid without WHT and move to the hidden session.
+                      </p>
+                    ) : null}
                   </div>
                   <div className="space-y-2">
                     <Label className="text-muted-foreground">WHT amount</Label>
@@ -1014,6 +1039,9 @@ export function MakeDoctorPaymentClient({
                   You are about to process the doctor payment for {selectedForPaymentIds.size} booking
                   {selectedForPaymentIds.size !== 1 ? "s" : ""}. This will create{" "}
                   {isBookingSplit ? "two receipts" : "a receipt"} and update the bookings.
+                  {allWithoutWht
+                    ? " All selected bookings are paid without WHT and move to the hidden session."
+                    : ""}
                   {payingNum > 0 && Math.abs(payingNum - totalDueForPayment) > 0.005 ? (
                     <>
                       {" "}
