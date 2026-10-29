@@ -91,8 +91,10 @@ export type DoctorPaymentSplitDecision =
   | { mode: "finished"; result: ProcessDoctorPaymentResult }
 
 /**
- * Tick on: caller pays one receipt with WHT on the full amount.
- * Tick off: split by the doctor's WHT percentage, or fall back to one receipt.
+ * Tick on: one receipt with WHT on the full amount. Bookings stay where they are.
+ * Tick off: split by the doctor's WHT percentage.
+ * A percentage of 0, or a share below one whole booking, is one receipt without WHT
+ * and every selected booking moves to the hidden session.
  */
 export async function resolveDoctorPaymentSplit(args: {
   input: ProcessDoctorPaymentInput
@@ -106,7 +108,6 @@ export async function resolveDoctorPaymentSplit(args: {
     select: { whtPercentage: true },
   })
   const share = Math.max(0, Math.min(100, doctor?.whtPercentage ?? 0))
-  if (share <= 0) return { mode: "single", applyWht: false }
 
   const rows = await loadSplitBookings(input.bookingIds)
   if (rows.length !== input.bookingIds.length) {
