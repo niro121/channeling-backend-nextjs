@@ -290,10 +290,12 @@ export const getConsultantPaymentsReportService = async ({
       };
     }
 
-    // Load doctor-payment receipts in bulk
+    // Load doctor-payment receipts in bulk. A canceled payment sets doctorPayment back
+    // to false but keeps doctorPaymentReceiptId, so WHT is taken only from a current payment.
     const doctorPaymentReceiptIds = Array.from(
       new Set(
         bookings
+          .filter((b) => b.doctorPayment)
           .map((b) => b.doctorPaymentReceiptId)
           .filter((id): id is string => typeof id === 'string' && id.length > 0)
       )
@@ -308,6 +310,7 @@ export const getConsultantPaymentsReportService = async ({
         createdBy: string | null;
         remarks: string | null;
         whd: number;
+        canceled: boolean;
       }
     >();
     let usersById = new Map<string, string>();
@@ -315,7 +318,16 @@ export const getConsultantPaymentsReportService = async ({
     if (doctorPaymentReceiptIds.length > 0) {
       const receipts = await prisma.receipt.findMany({
         where: { id: { in: doctorPaymentReceiptIds } },
-        select: { id: true, receiptNoString: true, createdAt: true, createdBy: true, remarks: true, whd: true }
+        select: {
+          id: true,
+          receiptNoString: true,
+          createdAt: true,
+          createdBy: true,
+          remarks: true,
+          whd: true,
+          canceledAt: true,
+          reverseReceiptId: true,
+        }
       });
 
       receiptsById = new Map(
@@ -327,7 +339,8 @@ export const getConsultantPaymentsReportService = async ({
             createdAt: r.createdAt,
             createdBy: r.createdBy ?? null,
             remarks: r.remarks ?? null,
-            whd: Number(r.whd ?? 0)
+            whd: Number(r.whd ?? 0),
+            canceled: r.canceledAt != null || r.reverseReceiptId != null,
           }
         ])
       );
@@ -360,8 +373,8 @@ export const getConsultantPaymentsReportService = async ({
       });
       const netBeforeWht = professionalFee - discount;
       netBeforeWhtByBookingId.set(b.id, netBeforeWht);
-      const rid = b.doctorPaymentReceiptId ?? null;
-      if (rid) {
+      const rid = b.doctorPayment ? (b.doctorPaymentReceiptId ?? null) : null;
+      if (rid && !receiptsById.get(rid)?.canceled) {
         sumNetBeforeWhtByReceiptId.set(rid, (sumNetBeforeWhtByReceiptId.get(rid) ?? 0) + netBeforeWht);
       }
     }
@@ -371,8 +384,10 @@ export const getConsultantPaymentsReportService = async ({
     for (const [rid, sumNetBeforeWht] of sumNetBeforeWhtByReceiptId.entries()) {
       const receipt = receiptsById.get(rid);
       const whd = Math.max(0, Number(receipt?.whd ?? 0));
-      if (!receipt || whd <= 0 || sumNetBeforeWht <= 0) continue;
-      const groupBookings = bookings.filter((b) => b.doctorPaymentReceiptId === rid);
+      if (!receipt || receipt.canceled || whd <= 0 || sumNetBeforeWht <= 0) continue;
+      const groupBookings = bookings.filter(
+        (b) => b.doctorPayment && b.doctorPaymentReceiptId === rid
+      );
       if (groupBookings.length === 0) continue;
 
       let allocated = 0;

@@ -311,7 +311,6 @@ export function MakeDoctorPaymentClient({
   const splitPlan = planDoctorPaymentWhtSplit(selectedDetailRows, doctorShare);
   const isBookingSplit =
     !wht && splitPlan.whtCount > 0 && splitPlan.whtCount < selectedDetailRows.length;
-  const allWithoutWht = !wht && selectedDetailRows.length > 0 && splitPlan.whtCount <= 0;
   const fullWht =
     wht || (!wht && selectedDetailRows.length > 0 && splitPlan.whtCount >= selectedDetailRows.length);
   const splitWhtGross = splitPlan.wht.reduce((sum, row) => sum + row.paymentRs, 0);
@@ -887,11 +886,6 @@ export function MakeDoctorPaymentClient({
                         Apply All WHT at {whtPct}%
                       </Label>
                     </div>
-                    {allWithoutWht ? (
-                      <p className="text-xs text-muted-foreground leading-snug">
-                        Doctor WHT percentage is {doctorShare}%. All selected bookings are paid without WHT and move to the hidden session.
-                      </p>
-                    ) : null}
                   </div>
                   <div className="space-y-2">
                     <Label className="text-muted-foreground">WHT amount</Label>
@@ -1039,9 +1033,6 @@ export function MakeDoctorPaymentClient({
                   You are about to process the doctor payment for {selectedForPaymentIds.size} booking
                   {selectedForPaymentIds.size !== 1 ? "s" : ""}. This will create{" "}
                   {isBookingSplit ? "two receipts" : "a receipt"} and update the bookings.
-                  {allWithoutWht
-                    ? " All selected bookings are paid without WHT and move to the hidden session."
-                    : ""}
                   {payingNum > 0 && Math.abs(payingNum - totalDueForPayment) > 0.005 ? (
                     <>
                       {" "}
