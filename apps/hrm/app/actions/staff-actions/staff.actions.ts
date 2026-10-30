@@ -414,7 +414,13 @@ export async function getStaffEmploymentFormOptionsAction(): Promise<{
         departments: deptRes.success ? (deptRes.data ?? []) : [],
         designations: desigRes.success ? (desigRes.data ?? []) : [],
         grades: gradeRes.success ? (gradeRes.data ?? []) : [],
-        rosters: rosterRes.success ? (rosterRes.data ?? []) : []
+        rosters: rosterRes.success
+          ? (rosterRes.data ?? []).map((row) => ({
+              id: row.id,
+              name: row.name,
+              departmentId: row.departmentId
+            }))
+          : []
       },
       errors: {}
     };

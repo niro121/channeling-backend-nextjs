@@ -306,10 +306,15 @@ export type StaffEmploymentSelectOption = {
   name: string;
 };
 
+/** Roster option includes Manage Roster department for Employment filtering. */
+export type StaffEmploymentRosterOption = StaffEmploymentSelectOption & {
+  departmentId: string;
+};
+
 export type StaffEmploymentFormOptions = {
   departments: StaffEmploymentSelectOption[];
   designations: StaffEmploymentSelectOption[];
   grades: StaffEmploymentSelectOption[];
   /** id = ManageRoster.code */
-  rosters: StaffEmploymentSelectOption[];
+  rosters: StaffEmploymentRosterOption[];
 };

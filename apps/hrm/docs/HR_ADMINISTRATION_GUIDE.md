@@ -1681,6 +1681,7 @@ apps/hrm/
 | Options | **Combobox** masters: Department, Designation, Staff Grade; **CustomSelect** consts: Employee Status, Staff Category |
 | Staff picker | Live active Staff (`getChangeStaffMembers`) |
 | CS4 Employment | Same snapshot fields + **basic** + roster code; Employment does **not** write `StaffEmploymentChange` history |
+| Employment roster vs dept | Roster Combobox filtered by working department; soft-warn (Cancel/Continue) if a mismatched orphan roster is saved |
 
 ### File layout (Phase 0)
 

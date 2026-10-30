@@ -57,7 +57,7 @@ export default async function EditStaffPage({ params }: EditStaffPageProps) {
         departments: [],
         designations: [],
         grades: [],
-        rosters: []
+        rosters: [] as Array<{ id: string; name: string; departmentId: string }>
       }
     : (employmentOptsRes.data ?? {
         departments: [],

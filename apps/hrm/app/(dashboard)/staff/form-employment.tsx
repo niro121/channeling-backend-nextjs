@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, type MutableRefObject } from 'react';
+import { useEffect, useMemo, useRef, useState, type MutableRefObject } from 'react';
 import { Formik, Form, FormikHelpers, useFormikContext } from 'formik';
 import * as Yup from 'yup';
 import { useRouter } from 'next/navigation';
@@ -8,6 +8,7 @@ import {
   Card,
   CardContent,
   Combobox,
+  CustomAlertDialog,
   CustomCheckedField,
   CustomFormField,
   CustomSelectField,
@@ -24,6 +25,7 @@ import {
 import type {
   EmploymentFormValues,
   StaffEmploymentFormOptions,
+  StaffEmploymentRosterOption,
   StaffRecord
 } from '@/types/staff';
 import {
@@ -53,6 +55,25 @@ function withOrphanOption(
 ) {
   if (!currentId || options.some((o) => o.id === currentId)) return options;
   return [{ id: currentId, name: currentId }, ...options];
+}
+
+function findRosterMeta(
+  rosters: StaffEmploymentRosterOption[],
+  rosterCode: string
+): StaffEmploymentRosterOption | undefined {
+  if (!rosterCode) return undefined;
+  return rosters.find((r) => r.id === rosterCode);
+}
+
+function rosterDepartmentMismatch(
+  rosters: StaffEmploymentRosterOption[],
+  departmentId: string,
+  rosterCode: string
+): boolean {
+  if (!departmentId || !rosterCode) return false;
+  const meta = findRosterMeta(rosters, rosterCode);
+  if (!meta?.departmentId) return false;
+  return meta.departmentId !== departmentId;
 }
 
 const optionalString = () =>
@@ -179,8 +200,16 @@ export default function FormEmployment({
   onLoadingChange
 }: FormEmploymentProps) {
   const saveAndCloseRef = useRef(false);
+  const pendingAckRef = useRef(false);
   const { toast } = useToast();
   const router = useRouter();
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [confirmDescription, setConfirmDescription] = useState('');
+  const [confirmSaving, setConfirmSaving] = useState(false);
+  const pendingSubmitRef = useRef<{
+    values: EmploymentFormValues;
+    helpers: FormikHelpers<EmploymentFormValues>;
+  } | null>(null);
 
   const resolvedInitialValues = staffRecordToEmploymentFormValues(staff);
 
@@ -213,12 +242,8 @@ export default function FormEmployment({
       withOrphanOption(formOptions.grades, resolvedInitialValues.staffGrade),
     [formOptions.grades, resolvedInitialValues.staffGrade]
   );
-  const rosterOptions = useMemo(
-    () => withOrphanOption(formOptions.rosters, resolvedInitialValues.roster),
-    [formOptions.rosters, resolvedInitialValues.roster]
-  );
 
-  const handleSubmit = async (
+  const persistEmployment = async (
     values: EmploymentFormValues,
     { setErrors, setTouched }: FormikHelpers<EmploymentFormValues>
   ) => {
@@ -226,6 +251,7 @@ export default function FormEmployment({
 
     try {
       onLoadingChange?.(true);
+      setConfirmSaving(true);
       const payload = employmentFormValuesToPayload(values);
       const respond = await updateStaffEmploymentAction(staffId, payload);
 
@@ -292,18 +318,68 @@ export default function FormEmployment({
             : 'Employment details save unsuccessful.'
       });
     } finally {
+      pendingAckRef.current = false;
       onLoadingChange?.(false);
+      setConfirmSaving(false);
     }
   };
 
+  const handleSubmit = async (
+    values: EmploymentFormValues,
+    helpers: FormikHelpers<EmploymentFormValues>
+  ) => {
+    if (
+      !pendingAckRef.current &&
+      rosterDepartmentMismatch(
+        formOptions.rosters,
+        values.department,
+        values.roster
+      )
+    ) {
+      const meta = findRosterMeta(formOptions.rosters, values.roster);
+      const deptLabel =
+        departmentOptions.find((d) => d.id === values.department)?.name ??
+        values.department;
+      pendingSubmitRef.current = { values, helpers };
+      setConfirmDescription(
+        `Roster "${meta?.name ?? values.roster}" belongs to a different department than working department "${deptLabel}". Continue anyway? Roster membership and duty allocations are not auto-updated.`
+      );
+      setConfirmOpen(true);
+      return;
+    }
+
+    await persistEmployment(values, helpers);
+  };
+
+  const handleConfirmContinue = () => {
+    const pending = pendingSubmitRef.current;
+    setConfirmOpen(false);
+    pendingSubmitRef.current = null;
+    if (!pending) return;
+    pendingAckRef.current = true;
+    void persistEmployment(pending.values, pending.helpers);
+  };
+
   return (
+    <>
     <Formik
       initialValues={resolvedInitialValues ?? initialValues}
       validationSchema={validationSchema}
       onSubmit={handleSubmit}
       enableReinitialize
     >
-      {(formik) => (
+      {(formik) => {
+        const rosterOptionsForDept = formOptions.rosters.filter(
+          (r) =>
+            !formik.values.department ||
+            r.departmentId === formik.values.department
+        );
+        const rosterOptions = withOrphanOption(
+          rosterOptionsForDept.map((r) => ({ id: r.id, name: r.name })),
+          formik.values.roster
+        );
+
+        return (
         <Form className="w-full">
           <FormActionBridge
             onRegisterActions={onRegisterActions}
@@ -383,9 +459,20 @@ export default function FormEmployment({
                       value={formik.values.department || ''}
                       defaultValue=""
                       clearable
-                      onChange={(value) =>
-                        void formik.setFieldValue('department', value)
-                      }
+                      onChange={(value) => {
+                        void formik.setFieldValue('department', value);
+                        const rosterMeta = findRosterMeta(
+                          formOptions.rosters,
+                          formik.values.roster
+                        );
+                        if (
+                          rosterMeta?.departmentId &&
+                          value &&
+                          rosterMeta.departmentId !== value
+                        ) {
+                          void formik.setFieldValue('roster', '');
+                        }
+                      }}
                       triggerClassName="w-full max-w-none font-normal!"
                       popoverClassName="w-[var(--radix-popover-trigger-width)] min-w-60"
                     />
@@ -481,8 +568,8 @@ export default function FormEmployment({
                       popoverClassName="w-[var(--radix-popover-trigger-width)] min-w-60"
                     />
                     <p className="text-xs text-muted-foreground">
-                      Roster group membership (Manage Rosters code). Day duties
-                      stay in Roster &amp; Shifts.
+                      Rosters for the selected working department only (Manage
+                      Rosters code). Day duties stay in Roster &amp; Shifts.
                     </p>
                   </div>
                   <CustomSelectField
@@ -729,7 +816,24 @@ export default function FormEmployment({
             </AccordionItem>
           </Accordion>
         </Form>
-      )}
+        );
+      }}
     </Formik>
+
+    <CustomAlertDialog
+      open={confirmOpen}
+      title="Department and roster differ"
+      description={confirmDescription}
+      loading={confirmSaving}
+      handleVisibilityChange={(open) => {
+        if (!open) {
+          pendingSubmitRef.current = null;
+          pendingAckRef.current = false;
+        }
+        setConfirmOpen(open);
+      }}
+      handleContinue={handleConfirmContinue}
+    />
+    </>
   );
 }

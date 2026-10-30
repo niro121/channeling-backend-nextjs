@@ -480,15 +480,16 @@ export async function deleteManageRoster(id: string): Promise<{
 /** Lightweight manage-roster options for cross-module filters.
  * Option `id` is the business **code** (e.g. CHN) — same key Staff.employment.roster
  * and Roster & Shifts snapshots should store (not Mongo ObjectId).
+ * `departmentId` is included so Employment can filter rosters by working department.
  */
 export async function getManageRosterOptions(): Promise<{
   success: boolean;
-  data?: Array<{ id: string; name: string }>;
+  data?: Array<{ id: string; name: string; departmentId: string }>;
   error?: { message?: string };
 }> {
   try {
     const rows = await prisma.manageRoster.findMany({
-      select: { name: true, code: true },
+      select: { name: true, code: true, departmentId: true },
       orderBy: { name: 'asc' }
     });
     return {
@@ -497,7 +498,8 @@ export async function getManageRosterOptions(): Promise<{
         .filter((row) => Boolean(row.code?.trim()))
         .map((row) => ({
           id: row.code.trim().toUpperCase(),
-          name: `${row.name} (${row.code.trim().toUpperCase()})`
+          name: `${row.name} (${row.code.trim().toUpperCase()})`,
+          departmentId: row.departmentId
         }))
     };
   } catch (error: any) {
