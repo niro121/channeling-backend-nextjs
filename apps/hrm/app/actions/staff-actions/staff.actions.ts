@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { logActivityNonBlocking } from '@/lib/activity-log';
 import { getAuditUser } from '@/lib/audit-user';
+import prisma from '@/lib/prisma';
 import { requirePermission } from '@/lib/server-permissions';
 import {
   createStaff,
@@ -434,6 +435,107 @@ export async function getStaffEmploymentFormOptionsAction(): Promise<{
       }
     };
   }
+}
+
+export type StaffEmploymentStandingAssignment = {
+  id: string;
+  code: string;
+  shiftTypeCode: string;
+  shiftTypeName: string;
+  status: string;
+  effectiveFrom: string;
+  effectiveTo: string | null;
+  manageRosterCode: string;
+  manageRosterName: string;
+};
+
+export type StaffEmploymentRosterShiftSummary = {
+  count: number;
+  activeCount: number;
+  assignments: StaffEmploymentStandingAssignment[];
+};
+
+/** Standing shift assignments for Employment roster/shift read-only UI + org-change warnings. */
+export async function getStaffEmploymentRosterShiftSummaryAction(
+  staffId: string
+): Promise<{
+  isError: boolean;
+  data: StaffEmploymentRosterShiftSummary | null;
+  errors: Record<string, unknown>;
+}> {
+  try {
+    await requirePermission('staff', 'view');
+    if (!staffId) {
+      throw new Error('Staff is required');
+    }
+
+    const rows = await prisma.staffShiftAssignment.findMany({
+      where: { staffId },
+      select: {
+        id: true,
+        code: true,
+        status: true,
+        effectiveFrom: true,
+        effectiveTo: true,
+        shiftType: { select: { code: true, name: true } },
+        manageRoster: { select: { code: true, name: true } }
+      },
+      orderBy: [{ status: 'asc' }, { effectiveFrom: 'desc' }, { code: 'asc' }]
+    });
+
+    const assignments: StaffEmploymentStandingAssignment[] = rows.map((row) => ({
+      id: row.id,
+      code: row.code,
+      shiftTypeCode: row.shiftType?.code ?? '',
+      shiftTypeName: row.shiftType?.name ?? '',
+      status: row.status,
+      effectiveFrom: row.effectiveFrom.toISOString(),
+      effectiveTo: row.effectiveTo ? row.effectiveTo.toISOString() : null,
+      manageRosterCode: row.manageRoster?.code?.trim().toUpperCase() ?? '',
+      manageRosterName: row.manageRoster?.name ?? ''
+    }));
+
+    return {
+      isError: false,
+      data: {
+        count: assignments.length,
+        activeCount: assignments.filter((row) => row.status === 'active').length,
+        assignments
+      },
+      errors: {}
+    };
+  } catch (error: any) {
+    console.error('getStaffEmploymentRosterShiftSummaryAction error:', error);
+    return {
+      isError: true,
+      data: null,
+      errors: {
+        message:
+          error.message ?? 'Unable to load shift assignment summary.'
+      }
+    };
+  }
+}
+
+/** @deprecated Prefer getStaffEmploymentRosterShiftSummaryAction */
+export async function getStaffShiftAssignmentCountAction(staffId: string): Promise<{
+  isError: boolean;
+  data: { count: number } | null;
+  errors: Record<string, unknown>;
+}> {
+  const result = await getStaffEmploymentRosterShiftSummaryAction(staffId);
+  if (result.isError || !result.data) {
+    return {
+      isError: true,
+      data: null,
+      errors: result.errors
+    };
+  }
+  return {
+    isError: false,
+    data: { count: result.data.count },
+    errors: {}
+  };
 }
 
 // ** Update Staff Employment Details Action * //

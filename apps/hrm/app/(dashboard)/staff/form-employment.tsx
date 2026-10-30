@@ -3,7 +3,9 @@
 import { useEffect, useMemo, useRef, useState, type MutableRefObject } from 'react';
 import { Formik, Form, FormikHelpers, useFormikContext } from 'formik';
 import * as Yup from 'yup';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { format } from 'date-fns';
 import {
   Card,
   CardContent,
@@ -32,16 +34,28 @@ import {
   BANK_OPTIONS,
   EMPLOYEE_STATUS_OPTIONS,
   PAYING_METHOD_OPTIONS,
-  SALARY_PAYMENT_METHOD_OPTIONS,
-  SHIFT_OPTIONS
+  SALARY_PAYMENT_METHOD_OPTIONS
 } from '@/types/staff-employment-options';
 import { INSTITUTION_OPTIONS } from '@/types/institution';
 import { STAFF_CATEGORY_OPTIONS } from '@/types/staff-category';
-import { updateStaffEmploymentAction } from '@/app/actions/staff-actions/staff.actions';
+import {
+  getStaffEmploymentRosterShiftSummaryAction,
+  updateStaffEmploymentAction,
+  type StaffEmploymentRosterShiftSummary
+} from '@/app/actions/staff-actions/staff.actions';
 import {
   employmentFormValuesToPayload,
   staffRecordToEmploymentFormValues
 } from '@/lib/mappers/staff-employment-details.mapper';
+
+type EmploymentConfirmKind = 'org-change' | 'roster-mismatch';
+
+function formatEmploymentDate(value: string | null | undefined): string {
+  if (!value) return '—';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '—';
+  return format(date, 'd MMM yyyy');
+}
 
 const fieldStyleClasses = {
   parentDiv: 'grid grid-cols-1 gap-2 items-start',
@@ -200,18 +214,40 @@ export default function FormEmployment({
   onLoadingChange
 }: FormEmploymentProps) {
   const saveAndCloseRef = useRef(false);
-  const pendingAckRef = useRef(false);
+  const pendingOrgAckRef = useRef(false);
+  const pendingRosterAckRef = useRef(false);
   const { toast } = useToast();
   const router = useRouter();
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [confirmKind, setConfirmKind] =
+    useState<EmploymentConfirmKind>('roster-mismatch');
   const [confirmDescription, setConfirmDescription] = useState('');
   const [confirmSaving, setConfirmSaving] = useState(false);
+  const [rosterShiftSummary, setRosterShiftSummary] =
+    useState<StaffEmploymentRosterShiftSummary>({
+      count: 0,
+      activeCount: 0,
+      assignments: []
+    });
   const pendingSubmitRef = useRef<{
     values: EmploymentFormValues;
     helpers: FormikHelpers<EmploymentFormValues>;
   } | null>(null);
 
   const resolvedInitialValues = staffRecordToEmploymentFormValues(staff);
+  const shiftAssignmentCount = rosterShiftSummary.count;
+  const rosterLockedByAssignments = shiftAssignmentCount > 0;
+
+  useEffect(() => {
+    let cancelled = false;
+    void getStaffEmploymentRosterShiftSummaryAction(staffId).then((result) => {
+      if (cancelled || result.isError || !result.data) return;
+      setRosterShiftSummary(result.data);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [staffId]);
 
   const institutionOptions = useMemo(
     () =>
@@ -318,18 +354,37 @@ export default function FormEmployment({
             : 'Employment details save unsuccessful.'
       });
     } finally {
-      pendingAckRef.current = false;
+      pendingOrgAckRef.current = false;
+      pendingRosterAckRef.current = false;
       onLoadingChange?.(false);
       setConfirmSaving(false);
     }
   };
+
+  const orgFieldsChanged = (values: EmploymentFormValues) =>
+    values.institution !== resolvedInitialValues.institution ||
+    values.department !== resolvedInitialValues.department;
 
   const handleSubmit = async (
     values: EmploymentFormValues,
     helpers: FormikHelpers<EmploymentFormValues>
   ) => {
     if (
-      !pendingAckRef.current &&
+      !pendingOrgAckRef.current &&
+      shiftAssignmentCount > 0 &&
+      orgFieldsChanged(values)
+    ) {
+      pendingSubmitRef.current = { values, helpers };
+      setConfirmKind('org-change');
+      setConfirmDescription(
+        `This staff member has ${shiftAssignmentCount} standing shift assignment(s). Changing Institution or Working Department does not move or update those assignments automatically. Continue anyway?`
+      );
+      setConfirmOpen(true);
+      return;
+    }
+
+    if (
+      !pendingRosterAckRef.current &&
       rosterDepartmentMismatch(
         formOptions.rosters,
         values.department,
@@ -341,6 +396,7 @@ export default function FormEmployment({
         departmentOptions.find((d) => d.id === values.department)?.name ??
         values.department;
       pendingSubmitRef.current = { values, helpers };
+      setConfirmKind('roster-mismatch');
       setConfirmDescription(
         `Roster "${meta?.name ?? values.roster}" belongs to a different department than working department "${deptLabel}". Continue anyway? Roster membership and duty allocations are not auto-updated.`
       );
@@ -353,10 +409,18 @@ export default function FormEmployment({
 
   const handleConfirmContinue = () => {
     const pending = pendingSubmitRef.current;
+    const kind = confirmKind;
     setConfirmOpen(false);
     pendingSubmitRef.current = null;
     if (!pending) return;
-    pendingAckRef.current = true;
+
+    if (kind === 'org-change') {
+      pendingOrgAckRef.current = true;
+      void handleSubmit(pending.values, pending.helpers);
+      return;
+    }
+
+    pendingRosterAckRef.current = true;
     void persistEmployment(pending.values, pending.helpers);
   };
 
@@ -439,15 +503,26 @@ export default function FormEmployment({
               </AccordionTrigger>
               <AccordionContent className="border-t-2 pt-2">
                 <div className="grid grid-cols-1 gap-4 pb-2 md:grid-cols-2">
-                  <CustomSelectField
-                    id="institution"
-                    placeholder="Institution"
-                    options={institutionOptions}
-                    value={formik.values.institution}
-                    onChange={(v) => formik.setFieldValue('institution', v)}
-                    required
-                    styleClasses={fieldStyleClasses}
-                  />
+                  <div className={fieldStyleClasses.parentDiv}>
+                    <CustomSelectField
+                      id="institution"
+                      placeholder="Institution"
+                      options={institutionOptions}
+                      value={formik.values.institution}
+                      onChange={(v) => formik.setFieldValue('institution', v)}
+                      required
+                      styleClasses={fieldStyleClasses}
+                    />
+                    {shiftAssignmentCount > 0 &&
+                    formik.values.institution !==
+                      resolvedInitialValues.institution ? (
+                      <p className="text-xs text-amber-700 dark:text-amber-300">
+                        Warning: this staff has {shiftAssignmentCount} standing
+                        shift assignment(s). Changing institution does not update
+                        those assignments.
+                      </p>
+                    ) : null}
+                  </div>
                   <div className={fieldStyleClasses.parentDiv}>
                     <Label className={fieldStyleClasses.labelClassName}>
                       Working Department
@@ -461,6 +536,7 @@ export default function FormEmployment({
                       clearable
                       onChange={(value) => {
                         void formik.setFieldValue('department', value);
+                        if (rosterLockedByAssignments) return;
                         const rosterMeta = findRosterMeta(
                           formOptions.rosters,
                           formik.values.roster
@@ -479,6 +555,15 @@ export default function FormEmployment({
                     {formik.touched.department && formik.errors.department ? (
                       <p className="text-sm text-red-600">
                         {formik.errors.department}
+                      </p>
+                    ) : null}
+                    {shiftAssignmentCount > 0 &&
+                    formik.values.department !==
+                      resolvedInitialValues.department ? (
+                      <p className="text-xs text-amber-700 dark:text-amber-300">
+                        Warning: this staff has {shiftAssignmentCount} standing
+                        shift assignment(s). Changing working department does not
+                        update those assignments.
                       </p>
                     ) : null}
                   </div>
@@ -553,37 +638,131 @@ export default function FormEmployment({
                   />
                   <div className={fieldStyleClasses.parentDiv}>
                     <Label className={fieldStyleClasses.labelClassName}>
-                      Roster
+                      Roster group
                     </Label>
-                    <Combobox
-                      label="Roster"
-                      options={rosterOptions}
-                      value={formik.values.roster || ''}
-                      defaultValue=""
-                      clearable
-                      onChange={(value) =>
-                        void formik.setFieldValue('roster', value)
-                      }
-                      triggerClassName="w-full max-w-none font-normal!"
-                      popoverClassName="w-[var(--radix-popover-trigger-width)] min-w-60"
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      Rosters for the selected working department only (Manage
-                      Rosters code). Day duties stay in Roster &amp; Shifts.
-                    </p>
+                    {rosterLockedByAssignments ? (
+                      <div className="rounded-lg border border-border bg-muted/40 px-3 py-2.5 text-sm">
+                        <p className="font-semibold text-foreground">
+                          {(() => {
+                            const meta = findRosterMeta(
+                              formOptions.rosters,
+                              formik.values.roster
+                            );
+                            if (meta) {
+                              return `${meta.name} (${meta.id})`;
+                            }
+                            return formik.values.roster
+                              ? formik.values.roster
+                              : 'No roster group set';
+                          })()}
+                        </p>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          Locked while standing shift assignments exist. Change
+                          or remove assignments in Shift Assignment before
+                          changing roster membership.
+                        </p>
+                      </div>
+                    ) : (
+                      <Combobox
+                        label="Roster"
+                        options={rosterOptions}
+                        value={formik.values.roster || ''}
+                        defaultValue=""
+                        clearable
+                        onChange={(value) =>
+                          void formik.setFieldValue('roster', value)
+                        }
+                        triggerClassName="w-full max-w-none font-normal!"
+                        popoverClassName="w-[var(--radix-popover-trigger-width)] min-w-60"
+                      />
+                    )}
+                    {!rosterLockedByAssignments ? (
+                      <p className="text-xs text-muted-foreground">
+                        Rosters for the selected working department only (Manage
+                        Rosters code). Day duties stay in Roster &amp; Shifts.
+                      </p>
+                    ) : null}
                   </div>
-                  <CustomSelectField
-                    id="shift"
-                    placeholder="Default Shift"
-                    options={SHIFT_OPTIONS.map((o) => ({
-                      id: o.id,
-                      name: o.name
-                    }))}
-                    value={formik.values.shift}
-                    onChange={(v) => formik.setFieldValue('shift', v)}
-                    required={false}
-                    styleClasses={fieldStyleClasses}
-                  />
+
+                  <div className={`${fieldStyleClasses.parentDiv} md:col-span-2`}>
+                    <div className="flex flex-wrap items-baseline justify-between gap-2">
+                      <Label className={fieldStyleClasses.labelClassName}>
+                        Standing shift assignments
+                      </Label>
+                      <Link
+                        href="/shift-assignment"
+                        className="text-xs font-medium text-primary underline-offset-2 hover:underline"
+                      >
+                        Manage in Shift Assignment
+                      </Link>
+                    </div>
+                    {rosterShiftSummary.assignments.length === 0 ? (
+                      <div className="rounded-lg border border-dashed border-border bg-muted/20 px-3 py-2.5 text-sm text-muted-foreground">
+                        No standing shift assignments yet. Assign shift types
+                        from Roster &amp; Shifts → Shift Assignment.
+                      </div>
+                    ) : (
+                      <div className="overflow-x-auto rounded-lg border border-border">
+                        <table className="w-full min-w-[40rem] border-collapse text-left text-xs">
+                          <thead className="bg-muted/60 text-muted-foreground">
+                            <tr>
+                              <th className="px-2 py-1.5 font-medium">Code</th>
+                              <th className="px-2 py-1.5 font-medium">
+                                Shift type
+                              </th>
+                              <th className="px-2 py-1.5 font-medium">
+                                Roster
+                              </th>
+                              <th className="px-2 py-1.5 font-medium">From</th>
+                              <th className="px-2 py-1.5 font-medium">To</th>
+                              <th className="px-2 py-1.5 font-medium">
+                                Status
+                              </th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {rosterShiftSummary.assignments.map((row) => (
+                              <tr
+                                key={row.id}
+                                className="border-t border-border"
+                              >
+                                <td className="px-2 py-1.5 font-medium text-foreground">
+                                  {row.code}
+                                </td>
+                                <td className="px-2 py-1.5 text-foreground">
+                                  {row.shiftTypeCode
+                                    ? `${row.shiftTypeCode} — ${row.shiftTypeName}`
+                                    : row.shiftTypeName || '—'}
+                                </td>
+                                <td className="px-2 py-1.5 text-muted-foreground">
+                                  {row.manageRosterCode
+                                    ? row.manageRosterName
+                                      ? `${row.manageRosterName} (${row.manageRosterCode})`
+                                      : row.manageRosterCode
+                                    : '—'}
+                                </td>
+                                <td className="px-2 py-1.5 text-muted-foreground">
+                                  {formatEmploymentDate(row.effectiveFrom)}
+                                </td>
+                                <td className="px-2 py-1.5 text-muted-foreground">
+                                  {formatEmploymentDate(row.effectiveTo)}
+                                </td>
+                                <td className="px-2 py-1.5 capitalize text-muted-foreground">
+                                  {row.status}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                        <p className="border-t border-border px-2 py-1.5 text-[11px] text-muted-foreground">
+                          {rosterShiftSummary.activeCount} active of{' '}
+                          {rosterShiftSummary.count} standing assignment
+                          {rosterShiftSummary.count === 1 ? '' : 's'}. Default
+                          Shift on Employment is no longer edited here.
+                        </p>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </AccordionContent>
             </AccordionItem>
@@ -822,13 +1001,18 @@ export default function FormEmployment({
 
     <CustomAlertDialog
       open={confirmOpen}
-      title="Department and roster differ"
+      title={
+        confirmKind === 'org-change'
+          ? 'Institution / department change'
+          : 'Department and roster differ'
+      }
       description={confirmDescription}
       loading={confirmSaving}
       handleVisibilityChange={(open) => {
         if (!open) {
           pendingSubmitRef.current = null;
-          pendingAckRef.current = false;
+          pendingOrgAckRef.current = false;
+          pendingRosterAckRef.current = false;
         }
         setConfirmOpen(open);
       }}
