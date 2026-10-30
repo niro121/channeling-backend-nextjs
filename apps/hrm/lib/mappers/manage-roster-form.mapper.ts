@@ -36,6 +36,9 @@ export function mapManageRosterToUiRecord(
     shiftsPerPersonPerDay: record.shiftsPerPersonPerDay,
     assignedStaffCount: record.assignedStaffCount,
     activeShiftCount: record.activeShiftCount,
+    inUse: Boolean(record.inUse),
+    shiftAssignmentRefCount: record.shiftAssignmentRefCount ?? 0,
+    staffMembershipCount: record.staffMembershipCount ?? 0,
     createdAt: record.createdAt,
     updatedAt: record.updatedAt,
     createdByUser: {

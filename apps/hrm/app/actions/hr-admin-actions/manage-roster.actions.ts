@@ -8,12 +8,14 @@ import {
   createManageRoster,
   deleteManageRoster,
   getManageRosterById,
+  getManageRosterInspectData,
   getManageRosterList,
   updateManageRoster
 } from '@/services/hr-admin-services/manage-roster.service';
 import { mapManageRosterToUiRecord } from '@/lib/mappers/manage-roster-form.mapper';
 import type {
   GetManageRosterParams,
+  ManageRosterInspectData,
   ManageRosterPayload,
   ManageRosterUiRecord
 } from '@/types/manage-roster';
@@ -59,6 +61,37 @@ export async function getManageRosterListAction(
       data: null,
       errors: {
         message: error.message ?? 'Error getting data. Please try again later'
+      }
+    };
+  }
+}
+
+export async function getManageRosterInspectDataAction(id: string): Promise<{
+  isError: boolean;
+  data: ManageRosterInspectData | null;
+  errors: Record<string, unknown>;
+}> {
+  try {
+    await requirePermission('manage-rosters', 'view');
+    const result = await getManageRosterInspectData(id);
+    if (!result.success || !result.data) {
+      throw new Error(
+        result.error?.message ?? 'Failed to load roster inspect data'
+      );
+    }
+    return {
+      isError: false,
+      data: result.data,
+      errors: {}
+    };
+  } catch (error: any) {
+    console.error('getManageRosterInspectDataAction error:', error);
+    return {
+      isError: true,
+      data: null,
+      errors: {
+        message:
+          error.message ?? 'Failed to load roster inspect data'
       }
     };
   }

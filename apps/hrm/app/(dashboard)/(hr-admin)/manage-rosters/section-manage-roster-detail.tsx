@@ -31,6 +31,9 @@ import {
   uniquifyManageRosterCode
 } from '@/lib/helpers/manage-roster-code.helper';
 import { useManageRosterUi } from './manage-roster-ui-context';
+import DialogRosterInspect, {
+  type RosterInspectDialogMode
+} from './dialog-roster-inspect';
 
 const fieldStyleClasses = {
   parentDiv: 'grid grid-cols-1 gap-1.5 items-start',
@@ -95,6 +98,8 @@ export default function SectionManageRosterDetail() {
   } = useManageRosterUi();
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [inspectMode, setInspectMode] =
+    useState<RosterInspectDialogMode>(null);
 
   const selectedRecord = useMemo(
     () => records.find((record) => record.id === selectedId) ?? null,
@@ -136,6 +141,16 @@ export default function SectionManageRosterDetail() {
     values: ManageRosterFormValues,
     helpers: FormikHelpers<ManageRosterFormValues>
   ) => {
+    if (!isNew && selectedRecord?.inUse) {
+      toast({
+        variant: 'destructive',
+        title: 'Cannot update',
+        description:
+          'This roster is in use and cannot be modified.'
+      });
+      return;
+    }
+
     setSaving(true);
     try {
       const payload = {
@@ -183,6 +198,16 @@ export default function SectionManageRosterDetail() {
 
   const handleDelete = async () => {
     if (!selectedRecord) return;
+    if (selectedRecord.inUse) {
+      toast({
+        variant: 'destructive',
+        title: 'Cannot delete',
+        description:
+          'This roster is in use and cannot be deleted.'
+      });
+      setDeleteOpen(false);
+      return;
+    }
 
     setSaving(true);
     try {
@@ -246,6 +271,22 @@ export default function SectionManageRosterDetail() {
             const activeShifts =
               selectedRecord && !isNew ? selectedRecord.activeShiftCount : 0;
             const codeLocked = !isNew && Boolean(selectedRecord);
+            const rosterInUse =
+              !isNew && Boolean(selectedRecord?.inUse);
+            const fieldsLocked = rosterInUse;
+            const inUseBanner =
+              rosterInUse && selectedRecord
+                ? [
+                    selectedRecord.shiftAssignmentRefCount > 0
+                      ? `${selectedRecord.shiftAssignmentRefCount} shift assignment(s)`
+                      : null,
+                    selectedRecord.staffMembershipCount > 0
+                      ? `${selectedRecord.staffMembershipCount} staff member(s)`
+                      : null
+                  ]
+                    .filter(Boolean)
+                    .join(' and ') || 'downstream records'
+                : '';
 
             const handleGenerateCode = () => {
               if (codeLocked) return;
@@ -276,6 +317,14 @@ export default function SectionManageRosterDetail() {
                 className="flex min-h-0 flex-1 flex-col overflow-hidden"
               >
                 <div className="flex flex-1 flex-col gap-6 overflow-y-auto p-4">
+                  {rosterInUse ? (
+                    <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2.5 text-sm text-amber-950 dark:text-amber-100">
+                      This roster is in use ({inUseBanner}) and cannot be
+                      modified or deleted. Remove linked shift assignments and
+                      staff membership first.
+                    </div>
+                  ) : null}
+
                   <CustomFormField
                     id="name"
                     type="text"
@@ -284,6 +333,7 @@ export default function SectionManageRosterDetail() {
                     onChange={formik.handleChange}
                     onBlur={formik.handleBlur}
                     required
+                    disabled={fieldsLocked}
                     styleClasses={fieldStyleClasses}
                   />
 
@@ -307,6 +357,7 @@ export default function SectionManageRosterDetail() {
                             void formik.setFieldTouched('departmentId', true);
                           }}
                           clearable
+                          disabled={fieldsLocked}
                           triggerClassName="w-full max-w-none font-normal!"
                           popoverClassName="w-[var(--radix-popover-trigger-width)] min-w-60"
                         />
@@ -327,6 +378,7 @@ export default function SectionManageRosterDetail() {
                       onBlur={formik.handleBlur}
                       required
                       min={1}
+                      disabled={fieldsLocked}
                       styleClasses={fieldStyleClasses}
                     />
                   </div>
@@ -375,14 +427,29 @@ export default function SectionManageRosterDetail() {
                   </div>
 
                   <div className="grid gap-3 sm:grid-cols-3">
-                    <div className="rounded-lg border border-primary/10 bg-muted/40 px-3 py-3">
+                    <button
+                      type="button"
+                      disabled={isNew || !selectedRecord}
+                      onClick={() => setInspectMode('active-shifts')}
+                      className={cn(
+                        'rounded-lg border border-primary/10 bg-muted/40 px-3 py-3 text-left transition',
+                        !isNew && selectedRecord
+                          ? 'cursor-pointer hover:border-primary/40 hover:bg-muted/70'
+                          : 'cursor-default opacity-80'
+                      )}
+                    >
                       <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                         Active shifts
                       </p>
                       <p className="mt-1 text-lg font-semibold text-foreground">
                         {activeShifts}
                       </p>
-                    </div>
+                      {!isNew && selectedRecord ? (
+                        <p className="mt-1 text-[11px] text-muted-foreground">
+                          Click to inspect
+                        </p>
+                      ) : null}
+                    </button>
                     <div className="rounded-lg border border-primary/10 bg-muted/40 px-3 py-3">
                       <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                         Linked dept.
@@ -391,14 +458,29 @@ export default function SectionManageRosterDetail() {
                         {departmentLabel || '—'}
                       </p>
                     </div>
-                    <div className="rounded-lg border border-primary/10 bg-muted/40 px-3 py-3">
+                    <button
+                      type="button"
+                      disabled={isNew || !selectedRecord}
+                      onClick={() => setInspectMode('staff')}
+                      className={cn(
+                        'rounded-lg border border-primary/10 bg-muted/40 px-3 py-3 text-left transition',
+                        !isNew && selectedRecord
+                          ? 'cursor-pointer hover:border-primary/40 hover:bg-muted/70'
+                          : 'cursor-default opacity-80'
+                      )}
+                    >
                       <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                         # Assigned staff
                       </p>
                       <p className="mt-1 text-lg font-semibold text-foreground">
                         {assignedStaff}
                       </p>
-                    </div>
+                      {!isNew && selectedRecord ? (
+                        <p className="mt-1 text-[11px] text-muted-foreground">
+                          Click to inspect
+                        </p>
+                      ) : null}
+                    </button>
                   </div>
 
                   <div className="grid gap-3 rounded-lg border border-border bg-muted/40 px-3 py-3 text-xs md:grid-cols-2">
@@ -456,7 +538,9 @@ export default function SectionManageRosterDetail() {
                     variant="outline"
                     size="sm"
                     onClick={() => setDeleteOpen(true)}
-                    disabled={!selectedRecord || isNew || saving}
+                    disabled={
+                      !selectedRecord || isNew || saving || rosterInUse
+                    }
                     className={cn('gap-1.5', buttonStyles.delete.warning)}
                   >
                     <Trash2 className="h-4 w-4" />
@@ -467,7 +551,11 @@ export default function SectionManageRosterDetail() {
                     form="manage-roster-form"
                     size="sm"
                     className={cn('gap-1.5', buttonStyles.save)}
-                    disabled={saving || (!isNew && !formik.dirty)}
+                    disabled={
+                      saving ||
+                      rosterInUse ||
+                      (!isNew && !formik.dirty)
+                    }
                   >
                     <SaveIcon className="h-4 w-4" />
                     {isNew ? 'Save' : 'Update'}
@@ -492,6 +580,20 @@ export default function SectionManageRosterDetail() {
         loading={saving}
         className={{
           actionButton: buttonStyles.delete.danger
+        }}
+      />
+
+      <DialogRosterInspect
+        open={Boolean(inspectMode && selectedRecord)}
+        mode={inspectMode}
+        rosterId={selectedRecord?.id ?? null}
+        rosterLabel={
+          selectedRecord
+            ? `${selectedRecord.name} (${selectedRecord.code})`
+            : ''
+        }
+        onOpenChange={(next) => {
+          if (!next) setInspectMode(null);
         }}
       />
     </div>

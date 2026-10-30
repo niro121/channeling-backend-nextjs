@@ -21,6 +21,13 @@ export type ManageRosterUiRecord = {
   shiftsPerPersonPerDay: number;
   assignedStaffCount: number;
   activeShiftCount: number;
+  /**
+   * Derived: referenced by StaffShiftAssignment and/or Staff.employment.roster.
+   * When true, update/delete are blocked.
+   */
+  inUse: boolean;
+  shiftAssignmentRefCount: number;
+  staffMembershipCount: number;
   createdAt: string;
   updatedAt: string;
   createdByUser: ManageRosterAuditUser;
@@ -54,10 +61,50 @@ export type ManageRosterServiceRecord = {
   shiftsPerPersonPerDay: number;
   assignedStaffCount: number;
   activeShiftCount: number;
+  inUse: boolean;
+  shiftAssignmentRefCount: number;
+  staffMembershipCount: number;
   createdAt: string;
   updatedAt: string;
   createdBy: string | null;
   updatedBy: string | null;
   createdUser: AuthUserSummary | null;
   updatedUser: AuthUserSummary | null;
+};
+
+/** Standing assignment row shown in Manage Rosters inspect dialogs. */
+export type ManageRosterInspectAssignment = {
+  id: string;
+  code: string;
+  shiftTypeId: string;
+  shiftTypeCode: string;
+  shiftTypeName: string;
+  status: string;
+  rotationPattern: string;
+  effectiveFrom: string;
+  effectiveTo: string | null;
+};
+
+export type ManageRosterInspectStaffMember = {
+  id: string;
+  code: string;
+  name: string;
+  assignments: ManageRosterInspectAssignment[];
+};
+
+export type ManageRosterInspectActiveShift = {
+  shiftTypeId: string;
+  shiftTypeCode: string;
+  shiftTypeName: string;
+  activeAssignmentCount: number;
+  staffCount: number;
+  assignments: ManageRosterInspectAssignment[];
+};
+
+export type ManageRosterInspectData = {
+  rosterId: string;
+  rosterCode: string;
+  rosterName: string;
+  staff: ManageRosterInspectStaffMember[];
+  activeShifts: ManageRosterInspectActiveShift[];
 };
