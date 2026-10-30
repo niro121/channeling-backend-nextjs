@@ -30,6 +30,7 @@ import {
   requireApprovedRequestForPaidAction,
 } from "@/services/approval-request.service"
 import {
+  SAVE_BOOKING_METHOD_API,
   SAVE_PAYMENT_TYPE_AGENT,
   SAVE_PAYMENT_TYPE_CASH,
   SAVE_PAYMENT_TYPE_CREDIT_CARD,
@@ -234,19 +235,29 @@ export async function refundChannelService(
   const bookingAgencyId = booking.agencyId ?? null
   const bookingCreditCustomerId = (booking as { creditCustomerId?: string | null }).creditCustomerId ?? null
   const receiptPaymentMethod = (booking as { receiptPaymentMethod?: number | null }).receiptPaymentMethod ?? null
+  const isApiBooking = booking.method === SAVE_BOOKING_METHOD_API
+  const apiRefundToAgent = isApiBooking && refundsToAgent
   const receiptLocationId = await resolveReceiptLocationId(
     userId,
     booking.locationId ?? null
   )
 
-  if (receiptPaymentMethod === SAVE_PAYMENT_TYPE_CASH && refundTo !== SAVE_PAYMENT_TYPE_CASH) {
+  if (isApiBooking && refundTo === SAVE_PAYMENT_TYPE_CREDIT_CARD) {
+    return {
+      success: false,
+      errorCode: "invalid_refund_to",
+      message: "API bookings cannot be refunded as Credit Card. Refund as Cash or to the Agent.",
+    }
+  }
+
+  if (!apiRefundToAgent && receiptPaymentMethod === SAVE_PAYMENT_TYPE_CASH && refundTo !== SAVE_PAYMENT_TYPE_CASH) {
     return {
       success: false,
       errorCode: "invalid_refund_to",
       message: "Bookings paid by Cash can only be refunded as Cash.",
     }
   }
-  if (receiptPaymentMethod === 3 && refundTo !== SAVE_PAYMENT_TYPE_CASH) {
+  if (!apiRefundToAgent && receiptPaymentMethod === 3 && refundTo !== SAVE_PAYMENT_TYPE_CASH) {
     return {
       success: false,
       errorCode: "invalid_refund_to",
@@ -254,6 +265,7 @@ export async function refundChannelService(
     }
   }
   if (
+    !apiRefundToAgent &&
     receiptPaymentMethod === SAVE_PAYMENT_TYPE_SLIP &&
     refundTo !== SAVE_PAYMENT_TYPE_CASH &&
     refundTo !== SAVE_PAYMENT_TYPE_SLIP
@@ -265,12 +277,12 @@ export async function refundChannelService(
     }
   }
 
-  // Refund destination must match booking type when Agent or Credit Customer (refund goes back to same party)
+  // Refund to Agent credits the linked agency (counter Agent bookings and paid API bookings).
   if (refundTo === 4 && !bookingAgencyId) {
     return {
       success: false,
       errorCode: "invalid_refund_to",
-      message: "This booking was not paid by Agent. Refund to Agent is only allowed for Agent bookings.",
+      message: "Refund to Agent is only allowed when the booking is linked to an agency.",
     }
   }
   if (refundTo === 5 && !bookingCreditCustomerId) {
