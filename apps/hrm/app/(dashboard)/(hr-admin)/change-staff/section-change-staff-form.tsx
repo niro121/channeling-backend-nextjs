@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Form, Formik, type FormikHelpers } from 'formik';
 import * as Yup from 'yup';
 import { RefreshCw, SaveIcon } from 'lucide-react';
@@ -22,6 +22,7 @@ import {
   getChangeStaffDetailAction,
   previewChangeStaffGuardsAction
 } from '@/app/actions/hr-admin-actions/change-staff.actions';
+import { getStaffShiftAssignmentCountAction } from '@/app/actions/staff-actions/staff.actions';
 import { EMPLOYEE_STATUS_OPTIONS } from '@/types/staff-employment-options';
 import { STAFF_CATEGORY_OPTIONS } from '@/types/staff-category';
 import type { ApplyChangeStaffPayload, ChangeStaffFormValues } from '@/types/change-staff';
@@ -119,6 +120,7 @@ export default function SectionChangeStaffForm() {
   } = useChangeStaffUi();
   const [loadingStaff, setLoadingStaff] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [shiftAssignmentCount, setShiftAssignmentCount] = useState(0);
 
   const [blockDialog, setBlockDialog] = useState<{
     open: boolean;
@@ -136,6 +138,21 @@ export default function SectionChangeStaffForm() {
     values: ChangeStaffFormValues;
     helpers: FormikHelpers<ChangeStaffFormValues>;
   } | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!selectedStaffId) {
+      setShiftAssignmentCount(0);
+      return;
+    }
+    void getStaffShiftAssignmentCountAction(selectedStaffId).then((result) => {
+      if (cancelled || result.isError || !result.data) return;
+      setShiftAssignmentCount(result.data.count);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedStaffId]);
 
   const staffOptions = useMemo(
     () =>
@@ -446,6 +463,15 @@ export default function SectionChangeStaffForm() {
                       formik.errors.departmentId ? (
                         <p className="text-sm text-red-600">
                           {formik.errors.departmentId}
+                        </p>
+                      ) : null}
+                      {shiftAssignmentCount > 0 &&
+                      formik.values.departmentId !==
+                        (selectedMember?.departmentId ?? '') ? (
+                        <p className="text-xs text-amber-700 dark:text-amber-300">
+                          Warning: this staff has {shiftAssignmentCount} standing
+                          shift assignment(s). Changing working department does
+                          not update those assignments.
                         </p>
                       ) : null}
                     </div>

@@ -428,6 +428,18 @@ export async function evaluateChangeStaffGuards(
       );
     }
 
+    // Soft: standing shift assignments are not moved when department changes.
+    if (changingFields.has('department')) {
+      const assignmentCount = await prisma.staffShiftAssignment.count({
+        where: { staffId: data.staffId }
+      });
+      if (assignmentCount > 0) {
+        softWarnings.push(
+          `This staff member has ${assignmentCount} standing shift assignment(s). Changing working department does not move or update those assignments automatically.`
+        );
+      }
+    }
+
     // Soft: staff roster master department differs from the new working department.
     if (changingFields.has('department') && data.departmentId) {
       const nextDept = data.departmentId.trim();
