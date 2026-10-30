@@ -1,8 +1,14 @@
-/** Placeholder options until Institution / Department masters exist. */
-export const INSTITUTION_OPTIONS = [
-  { id: 'ruhunu_hospitals', name: 'Ruhunu Hospitals' }
-] as const;
+/**
+ * Employment / payroll const option lists.
+ *
+ * Live masters (Department, Designation, Staff Grade, Manage Roster, Institution,
+ * Staff Category) live elsewhere — do not re-add those here.
+ *
+ * Placeholder lists below are still used by some payroll services for label
+ * fallback until those services resolve names from masters (INT-S6).
+ */
 
+/** @deprecated Use Departments master via `getDepartmentOptions`. Payroll label fallback only. */
 export const DEPARTMENT_OPTIONS = [
   { id: 'administration', name: 'Administration' },
   { id: 'nursing', name: 'Nursing' },
@@ -20,9 +26,7 @@ export const EMPLOYEE_STATUS_OPTIONS = [
   { id: 'intern', name: 'Intern' }
 ] as const;
 
-/** @deprecated Import from `@/types/staff-category` instead. */
-export { STAFF_CATEGORY_OPTIONS } from '@/types/staff-category';
-
+/** @deprecated Use Staff Grade master via `getStaffGradeOptions`. Payroll label fallback only. */
 export const STAFF_GRADE_OPTIONS = [
   { id: 'grade_i', name: 'Grade I' },
   { id: 'grade_ii', name: 'Grade II' },
@@ -30,6 +34,7 @@ export const STAFF_GRADE_OPTIONS = [
   { id: 'executive', name: 'Executive' }
 ] as const;
 
+/** @deprecated Use Designation master via `getDesignationOptions`. Payroll label fallback only. */
 export const STAFF_DESIGNATION_OPTIONS = [
   { id: 'nurse', name: 'Nurse' },
   { id: 'receptionist', name: 'Receptionist' },
@@ -39,6 +44,7 @@ export const STAFF_DESIGNATION_OPTIONS = [
   { id: 'other', name: 'Other' }
 ] as const;
 
+/** @deprecated Use Manage Rosters via `getManageRosterOptions`. Payroll label fallback only. */
 export const ROSTER_OPTIONS = [
   { id: 'roster_a', name: 'Roster A' },
   { id: 'roster_b', name: 'Roster B' },

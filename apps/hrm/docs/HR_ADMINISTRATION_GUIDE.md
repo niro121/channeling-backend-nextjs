@@ -12,7 +12,7 @@ Use with:
 
 **Status:** HR Administration sidebar group is live.  
 **Shipped (CRUD):** Holiday Calendar · Designations · Area / Staff Grade · Staff Specialities · Manage Rosters · **Paysheet Components** · **HRM Variable (EPF/ETF/PAYE)** · **Salary Cycle**.  
-**Phase 0 UI:** **Change Staff** CS0–CS3 (effective-dated employment + guards — §39).  
+**Phase 0 UI:** **Change Staff** CS0–CS4 (effective-dated employment + Employment sync — §39).  
 **Strategy:** **Module-wise** — plan and ship one HR Admin module at a time (doc → UI → CRUD). Do not pre-order a fixed P1→P5 queue; pick the next module when starting it.  
 **Build path (each module):** Doc/types → UI-first master–detail → Prisma/Zod service → Actions → live CRUD.  
 **Cross-manager integration** (Staff / Roster / Leave / Payroll consumers) stays deferred until the related master is ready (section 32).
@@ -22,15 +22,15 @@ Use with:
 | Module | Status | Detail sections |
 |--------|--------|-----------------|
 | Holiday Calendar | Shipped | sections 2–12 |
-| Designation Management | Shipped (D0–D5); D6/D7 deferred | sections 13–18 |
-| Area / Staff Grade | Shipped (G0–G5); G6/G7 deferred | sections 19–24 |
-| Manage Rosters | Shipped (R0–R5 + R6b dept); R6–R10 staff / filters / counts / inspect dialogs deferred | sections 25–30 |
+| Designation Management | Shipped (D0–D5 + D6 Employment); D7 deferred | sections 13–18 |
+| Area / Staff Grade | Shipped (G0–G5 + G6 Employment); G7 deferred | sections 19–24 |
+| Manage Rosters | Shipped (R0–R6 + R6b); R7–R10 Roster filters / counts / inspect dialogs deferred | sections 25–30 |
 | Staff Specialities | Shipped | section 35 |
 | Paysheet Components | Shipped (PC0–PC4); PC5 Payroll consumer deferred | section 36 |
 | HRM Variable (EPF/ETF/PAYE) | Shipped (HV0–HV4); HV5 Payroll consumer deferred | section 37 |
 | Salary Cycle | Shipped (SC0–SC4); SC5 consumers deferred | section 38 |
 | Manage Shifts | Not required for current system — deferred / optional | section 34 |
-| Change Staff | Phase 0 UI (CS0–CS3) | section 39 |
+| Change Staff | Phase 0 UI (CS0–CS4) | section 39 |
 | Candidate masters + integration backlog | Catalog only (no fixed order) | sections 31–33 |
 
 ---
@@ -651,11 +651,11 @@ apps/hrm/
 | **D3 ? Schema & service**              | Prisma model, Zod CRUD, unique name guard, `DES-n` code generation        |
 | **D4 ? Actions**                       | Permissions, activity log, revalidate                                     |
 | **D5 ? Wire CRUD**                     | Page + detail form use real actions; sample data removed from imports     |
-| **D6 ? Staff integration (deferred)**  | Staff Employment selects from designation master                          |
+| **D6 — Staff integration** | Staff Employment selects from designation master | **Done** (CS4) |
 | **D7 ? Roster integration (deferred)** | Roster filters/snapshots consume designation master consistently          |
 
 
-**D0?D5 shipped.** D6/D7 wait for the **cross-manager integration wave** after remaining HR Admin masters (§31).
+**D0–D6 shipped.** D7 (Roster filters) remains deferred (§32 INT-R1).
 
 ---
 
@@ -839,11 +839,11 @@ apps/hrm/
 | **G3 ? Schema & service**              | Prisma model, Zod CRUD, unique name, `SG-n` codes                           | **Done**        |
 | **G4 ? Actions**                       | Permissions, activity log, revalidate                                       | **Done**        |
 | **G5 ? Wire CRUD**                     | Page + detail form use real actions; sample data removed                    | **Done**        |
-| **G6 ? Staff integration (deferred)**  | Staff Employment `staffGrade` selects from this master                      | Later ? see §32 |
-| **G7 ? Roster integration (deferred)** | Roster filters consume this master                                          | Later ? see §32 |
+| **G6 — Staff integration** | Staff Employment `staffGrade` selects from this master | **Done** (CS4) |
+| **G7 — Roster integration (deferred)** | Roster filters consume this master | Later — see §32 |
 
 
-**G0?G5 shipped.** G6/G7 wait for the **cross-manager integration wave** after remaining HR Admin masters (§31).
+**G0–G6 shipped.** G7 (Roster filters) remains deferred (§32 INT-R2).
 
 ---
 
@@ -929,7 +929,7 @@ Manage Rosters master          Staff Employment              Roster & Shifts
 | Area | Today |
 |------|--------|
 | Manage Rosters CRUD | **Live** (R0–R5) |
-| Staff Employment roster select | Still **placeholder** `ROSTER_OPTIONS` (`roster_a` …) — not wired to Manage Rosters |
+| Staff Employment roster select | **Wired** — Manage Roster **codes** (INT-S3 / R6 / CS4); legacy placeholders deprecated |
 | Roster & Shifts roster filters | Built from **distinct strings** already on staff / allocations — not from Manage Rosters master |
 | `ShiftRoster.roster` / allocation snapshots | Free-text **string** (no FK) |
 | Manage Rosters `departmentId` | **Wired** Prisma `@relation` → `Department`; options via `getDepartmentOptionsAction` (active only); many rosters per dept |
@@ -1073,14 +1073,14 @@ apps/hrm/
 | **R3 — Schema & service** | Prisma `ManageRoster`, Zod CRUD, unique name + unique code | **Done** |
 | **R4 — Actions** | Permissions, activity log, revalidate | **Done** |
 | **R5 — Wire CRUD** | Live list + mutations; sample data removed | **Done** |
-| **R6 — Staff integration** | Staff Employment roster select from Manage Rosters; store **code**; remove `ROSTER_OPTIONS` placeholders for this field | **Upcoming** — see §32 INT-S3 |
+| **R6 — Staff integration** | Staff Employment roster select from Manage Rosters; store **code**; remove `ROSTER_OPTIONS` placeholders for this field | **Done** (with Change Staff CS4) — see §32 INT-S3 |
 | **R6b — Department on Manage Rosters** | `departmentId` options from Departments master (drop placeholder enum); Combobox; many per dept | **Done** |
 | **R7 — Roster & Shifts integration** | Roster filters/options load Manage Roster **codes**; snapshots keep string = code; keep `SR-n` for periods only | **Upcoming** — see §32 INT-R3 + Roster guide §1.1 |
 | **R8 — Rule enforcement** | Enforce `shiftsPerPersonPerDay` on allocate / publish where product requires | **Upcoming** — INT-R4 |
 | **R9 — Summary counts** | Assigned staff count (match `employment.roster` → code); optional active template count | **Upcoming** — INT-R6 / INT-R7 |
 | **R10 — Inspect dialogs** | Click **Active shifts** / **# Assigned staff** summary cards → HRM dialog listing those members / templates (read-only). Depends on R9 counts having real data. | **Upcoming** — INT-R10 |
 
-**R0–R5 shipped.** Upcoming work is the **integration wave** (do not reopen Manage Rosters CRUD screens unless product asks). Preferred order: **R6 (Staff code)** → **R7 (Roster & Shifts options)** → **R8** → **R9 (counts)** → **R10 (inspect dialogs)**. Align any other consumer that filters by roster on the **same code**. Do **not** add R10 before R6/R9 — empty lists are not useful.
+**R0–R6 (+ R6b) shipped.** Remaining integration wave (do not reopen Manage Rosters CRUD unless product asks): **R7 (Roster & Shifts options)** → **R8** → **R9 (counts)** → **R10 (inspect dialogs)**. Align any other consumer that filters by roster on the **same code**. Do **not** add R10 before R9 — empty lists are not useful.
 
 ---
 
@@ -1165,12 +1165,12 @@ Track candidates here until each module gets its own detailed section.
 
 | ID         | Work                                                                           | Depends on        | Status        |
 | ---------- | ------------------------------------------------------------------------------ | ----------------- | ------------- |
-| **INT-S1** | Designation select from `Designation` master (store code or id consistently)   | Designations      | Deferred (D6) |
-| **INT-S2** | Staff grade select from `StaffGrade` master                                    | Staff Grades      | Deferred (G6) |
-| **INT-S3** | Roster select from `ManageRoster` master — store business **code** (e.g. `CHN`); option `id` = code; remove static `ROSTER_OPTIONS` for this field | Manage Rosters | **Upcoming (R6)** — locked key = code |
-| **INT-S4** | Department select from Departments master                                      | Departments (P1)  | Blocked       |
-| **INT-S5** | Institution select from Institutions master                                    | Institutions (P3) | Blocked       |
-| **INT-S6** | Remove obsolete entries from `staff-employment-options.ts` once live           | INT-S1–S5         | Deferred      |
+| **INT-S1** | Designation select from `Designation` master (store id)                        | Designations      | **Done** (Staff Employment CS4 / D6) |
+| **INT-S2** | Staff grade select from `StaffGrade` master                                    | Staff Grades      | **Done** (Staff Employment CS4 / G6) |
+| **INT-S3** | Roster select from `ManageRoster` master — store business **code** (e.g. `CHN`); option `id` = code; remove static `ROSTER_OPTIONS` for this field | Manage Rosters | **Done** (R6 / CS4) — locked key = code |
+| **INT-S4** | Department select from Departments master                                      | Departments       | **Done** (Staff Employment CS4) |
+| **INT-S5** | Institution select from `types/institution` (shared Channeling-aligned list); full Institutions CRUD still backlog | `institution.ts` | **Done** (Employment uses shared options; CRUD master still backlog) |
+| **INT-S6** | Remove obsolete placeholder exports from `staff-employment-options.ts` after payroll label resolvers use masters | INT-S1–S5 + payroll services | Partial — Institution/Category re-exports removed; dept/grade/designation/roster placeholders remain for payroll fallbacks |
 
 
 
@@ -1193,7 +1193,7 @@ Track candidates here until each module gets its own detailed section.
 
 **Manage Rosters ↔ Roster & Shifts upcoming order (locked for planning):**
 
-1. **INT-S3 / R6** — Staff stores `ManageRoster.code` (also aligns Change Staff **CS4** Employment sync).
+1. ~~**INT-S3 / R6** — Staff Employment stores `ManageRoster.code` (CS4).~~ **Done**
 2. **INT-R3 / R7** — Roster & Shifts filter loaders + new snapshots use that code (migrate or dual-read old placeholder strings if needed).
 3. **INT-R4 / R8** — Enforce shifts-per-person-per-day.
 4. **INT-R6 / R9** — Wire Manage Rosters summary **counts**.
@@ -1675,11 +1675,12 @@ apps/hrm/
 | Build order | Change Staff first; Staff Employment tab syncs later |
 | History store (CRUD) | One collection keyed by `field` (dept / status / category / grade / designation / basic); UI shows six grids |
 | Staff Basic | Numeric employment attribute with history; does **not** auto-edit PaysheetAssignment / SalaryStructure in v1 |
-| Roster | **Not** on this screen — membership stays on Employment / Manage Rosters |
+| Roster | **Not** on Change Staff — membership on Employment (Manage Roster **code**); day duties stay in Roster & Shifts |
 | Cascade | Active From versions employment only; no silent rewrite of roster cells or paysheet rows |
 | CS3 dialogs | **Hard block / notes:** HRM `InfoAlertDialog` (OK only). **Soft confirm:** `CustomAlertDialog` (Cancel + Continue) |
 | Options | **Combobox** masters: Department, Designation, Staff Grade; **CustomSelect** consts: Employee Status, Staff Category |
 | Staff picker | Live active Staff (`getChangeStaffMembers`) |
+| CS4 Employment | Same snapshot fields + **basic** + roster code; Employment does **not** write `StaffEmploymentChange` history |
 
 ### File layout (Phase 0)
 
@@ -1706,7 +1707,7 @@ apps/hrm/
 | **CS1b — Service** | Zod + close prior segment / open new from Active From; update current employment snapshot | **Done** |
 | **CS2 — Actions + live staff** | Staff picker; master Combobox options; persist; activity log | **Done** |
 | **CS3 — Guards** | Posted payroll hard block (`InfoAlertDialog`); cascade + roster/dept soft warns (`CustomAlertDialog`) | **Done** |
-| **CS4 — Employment sync** | Staff Employment tab reads/writes same current snapshot + basic field UI | Upcoming |
+| **CS4 — Employment sync** | Staff Employment tab: same snapshot + **basic**; dept/designation/grade Combobox masters; roster = Manage Roster code (INT-S3); Employment saves snapshot only (no history rows) | **Done** |
 
 ### CS3 guard rules
 
@@ -1728,7 +1729,10 @@ Server re-checks hard blocks on apply; soft warns require `acknowledgedWarnings:
 - [ ] Reset restores current snapshot; success toast is `variant: 'success'`
 - [ ] Active From in posted payroll for that staff → OK-only block dialog; no save
 - [ ] Structural change → Cancel/Continue soft dialog; Continue persists; Cancel leaves form
+- [ ] Staff Employment tab: dept / designation / grade Combobox from masters; roster from Manage Rosters codes
+- [ ] Staff Basic on Employment reads/writes same snapshot as Change Staff; Employment save does **not** add history rows
+- [ ] Changing roster on Employment stores uppercase Manage Roster **code**
 
 ---
 
-*Last updated: Oct 2026 — Change Staff CS0–CS3 live (section 39); CS4 upcoming.*
+*Last updated: Oct 2026 — Change Staff CS0–CS4 live (section 39); INT-S3/R6 Employment roster code wired.*

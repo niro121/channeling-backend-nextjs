@@ -196,7 +196,15 @@ const staffEmploymentDetailsSchema = z.object({
       staffCategory: z.string().optional().nullable(),
       staffGrade: z.string().optional().nullable(),
       staffDesignation: z.string().optional().nullable(),
-      roster: z.string().optional().nullable(),
+      basic: optionalFloat(),
+      roster: z
+        .string()
+        .optional()
+        .nullable()
+        .transform((value) => {
+          if (value == null || value === '') return null;
+          return value.trim().toUpperCase() || null;
+        }),
       shift: z.string().optional().nullable()
     })
     .optional(),

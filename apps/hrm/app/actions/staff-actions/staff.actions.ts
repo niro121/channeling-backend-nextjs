@@ -23,10 +23,15 @@ import {
 import type {
   GetStaffParams,
   StaffCrudOptions,
+  StaffEmploymentFormOptions,
   StaffEmploymentPayload,
   StaffGeneralPayload,
   StaffPersonnelPayload
 } from '@/types/staff';
+import { getDepartmentOptions } from '@/services/organization-services/department.service';
+import { getDesignationOptions } from '@/services/hr-admin-services/designation.service';
+import { getStaffGradeOptions } from '@/services/hr-admin-services/staff-grade.service';
+import { getManageRosterOptions } from '@/services/hr-admin-services/manage-roster.service';
 import { staffRecordToChannelingPayload } from '@/lib/helpers/staff-channeling-fields.helper';
 import {
   pushStaffBulkDeleteToChanneling,
@@ -384,6 +389,43 @@ export async function updateStaffPersonnelAction(
       isError: true,
       data: null,
       errors: { message: error.message ?? 'Something went wrong. Please try again later' }
+    };
+  }
+}
+
+/** Live masters for Staff Employment tab (CS4 / INT-S3). */
+export async function getStaffEmploymentFormOptionsAction(): Promise<{
+  isError: boolean;
+  data: StaffEmploymentFormOptions | null;
+  errors: Record<string, unknown>;
+}> {
+  try {
+    await requirePermission('staff', 'view');
+    const [deptRes, desigRes, gradeRes, rosterRes] = await Promise.all([
+      getDepartmentOptions(),
+      getDesignationOptions(),
+      getStaffGradeOptions(),
+      getManageRosterOptions()
+    ]);
+
+    return {
+      isError: false,
+      data: {
+        departments: deptRes.success ? (deptRes.data ?? []) : [],
+        designations: desigRes.success ? (desigRes.data ?? []) : [],
+        grades: gradeRes.success ? (gradeRes.data ?? []) : [],
+        rosters: rosterRes.success ? (rosterRes.data ?? []) : []
+      },
+      errors: {}
+    };
+  } catch (error: any) {
+    console.error('getStaffEmploymentFormOptionsAction error:', error);
+    return {
+      isError: true,
+      data: null,
+      errors: {
+        message: error.message ?? 'Unable to load employment form options.'
+      }
     };
   }
 }

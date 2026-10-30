@@ -282,6 +282,9 @@ export type EmploymentFormValues = {
   staffCategory: string;
   staffGrade: string;
   staffDesignation: string;
+  /** Current basic salary snapshot (string for form input). */
+  basic: string;
+  /** Manage Roster business code (e.g. CHN). */
   roster: string;
   shift: string;
   payingMethod: string;
@@ -295,4 +298,18 @@ export type EmploymentFormValues = {
   allowedLateInLeave: boolean;
   allowedEarlyOutLeave: boolean;
   memo: string;
+};
+
+/** Live masters for Staff Employment tab (CS4 / INT-S3). */
+export type StaffEmploymentSelectOption = {
+  id: string;
+  name: string;
+};
+
+export type StaffEmploymentFormOptions = {
+  departments: StaffEmploymentSelectOption[];
+  designations: StaffEmploymentSelectOption[];
+  grades: StaffEmploymentSelectOption[];
+  /** id = ManageRoster.code */
+  rosters: StaffEmploymentSelectOption[];
 };

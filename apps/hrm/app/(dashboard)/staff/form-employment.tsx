@@ -1,15 +1,17 @@
 'use client';
 
-import { useEffect, useRef, type MutableRefObject } from 'react';
+import { useEffect, useMemo, useRef, type MutableRefObject } from 'react';
 import { Formik, Form, FormikHelpers, useFormikContext } from 'formik';
 import * as Yup from 'yup';
 import { useRouter } from 'next/navigation';
 import {
   Card,
   CardContent,
+  Combobox,
   CustomCheckedField,
   CustomFormField,
   CustomSelectField,
+  Label,
   Separator,
   useToast
 } from '@archmage/ui';
@@ -19,19 +21,19 @@ import {
   AccordionItem,
   AccordionTrigger
 } from '@/components/ui/accordion';
-import type { EmploymentFormValues, StaffRecord } from '@/types/staff';
+import type {
+  EmploymentFormValues,
+  StaffEmploymentFormOptions,
+  StaffRecord
+} from '@/types/staff';
 import {
   BANK_OPTIONS,
-  DEPARTMENT_OPTIONS,
   EMPLOYEE_STATUS_OPTIONS,
-  INSTITUTION_OPTIONS,
   PAYING_METHOD_OPTIONS,
-  ROSTER_OPTIONS,
   SALARY_PAYMENT_METHOD_OPTIONS,
-  SHIFT_OPTIONS,
-  STAFF_DESIGNATION_OPTIONS,
-  STAFF_GRADE_OPTIONS
+  SHIFT_OPTIONS
 } from '@/types/staff-employment-options';
+import { INSTITUTION_OPTIONS } from '@/types/institution';
 import { STAFF_CATEGORY_OPTIONS } from '@/types/staff-category';
 import { updateStaffEmploymentAction } from '@/app/actions/staff-actions/staff.actions';
 import {
@@ -44,6 +46,14 @@ const fieldStyleClasses = {
   labelClassName: 'text-sm text-black font-semibold capitalize',
   inputClassName: 'w-full'
 };
+
+function withOrphanOption(
+  options: Array<{ id: string; name: string }>,
+  currentId: string
+) {
+  if (!currentId || options.some((o) => o.id === currentId)) return options;
+  return [{ id: currentId, name: currentId }, ...options];
+}
 
 const optionalString = () =>
   Yup.string()
@@ -75,6 +85,14 @@ const validationSchema = Yup.object({
   staffCategory: optionalString(),
   staffGrade: optionalString(),
   staffDesignation: optionalString(),
+  basic: Yup.string()
+    .nullable()
+    .transform((value) => (value === '' ? null : value))
+    .test('positive-number', 'Must be a positive number', (value) => {
+      if (!value) return true;
+      const n = Number(value);
+      return Number.isFinite(n) && n > 0;
+    }),
   roster: optionalString(),
   shift: optionalString(),
   payingMethod: optionalString(),
@@ -99,6 +117,7 @@ const initialValues: EmploymentFormValues = {
   staffCategory: '',
   staffGrade: '',
   staffDesignation: '',
+  basic: '',
   roster: '',
   shift: '',
   payingMethod: '',
@@ -117,6 +136,7 @@ const initialValues: EmploymentFormValues = {
 type FormEmploymentProps = {
   staff: StaffRecord;
   staffId: string;
+  formOptions?: StaffEmploymentFormOptions;
   onRegisterActions?: (actions: EmploymentFormActions) => void;
   onLoadingChange?: (loading: boolean) => void;
 };
@@ -149,6 +169,12 @@ function FormActionBridge({
 export default function FormEmployment({
   staff,
   staffId,
+  formOptions = {
+    departments: [],
+    designations: [],
+    grades: [],
+    rosters: []
+  },
   onRegisterActions,
   onLoadingChange
 }: FormEmploymentProps) {
@@ -157,6 +183,40 @@ export default function FormEmployment({
   const router = useRouter();
 
   const resolvedInitialValues = staffRecordToEmploymentFormValues(staff);
+
+  const institutionOptions = useMemo(
+    () =>
+      withOrphanOption(
+        INSTITUTION_OPTIONS.map((o) => ({ id: o.id, name: o.name })),
+        resolvedInitialValues.institution
+      ),
+    [resolvedInitialValues.institution]
+  );
+  const departmentOptions = useMemo(
+    () =>
+      withOrphanOption(
+        formOptions.departments,
+        resolvedInitialValues.department
+      ),
+    [formOptions.departments, resolvedInitialValues.department]
+  );
+  const designationOptions = useMemo(
+    () =>
+      withOrphanOption(
+        formOptions.designations,
+        resolvedInitialValues.staffDesignation
+      ),
+    [formOptions.designations, resolvedInitialValues.staffDesignation]
+  );
+  const gradeOptions = useMemo(
+    () =>
+      withOrphanOption(formOptions.grades, resolvedInitialValues.staffGrade),
+    [formOptions.grades, resolvedInitialValues.staffGrade]
+  );
+  const rosterOptions = useMemo(
+    () => withOrphanOption(formOptions.rosters, resolvedInitialValues.roster),
+    [formOptions.rosters, resolvedInitialValues.roster]
+  );
 
   const handleSubmit = async (
     values: EmploymentFormValues,
@@ -306,27 +366,35 @@ export default function FormEmployment({
                   <CustomSelectField
                     id="institution"
                     placeholder="Institution"
-                    options={INSTITUTION_OPTIONS.map((o) => ({
-                      id: o.id,
-                      name: o.name
-                    }))}
+                    options={institutionOptions}
                     value={formik.values.institution}
                     onChange={(v) => formik.setFieldValue('institution', v)}
                     required
                     styleClasses={fieldStyleClasses}
                   />
-                  <CustomSelectField
-                    id="department"
-                    placeholder="Working Department"
-                    options={DEPARTMENT_OPTIONS.map((o) => ({
-                      id: o.id,
-                      name: o.name
-                    }))}
-                    value={formik.values.department}
-                    onChange={(v) => formik.setFieldValue('department', v)}
-                    required
-                    styleClasses={fieldStyleClasses}
-                  />
+                  <div className={fieldStyleClasses.parentDiv}>
+                    <Label className={fieldStyleClasses.labelClassName}>
+                      Working Department
+                      <span className="text-red-600"> *</span>
+                    </Label>
+                    <Combobox
+                      label="Working Department"
+                      options={departmentOptions}
+                      value={formik.values.department || ''}
+                      defaultValue=""
+                      clearable
+                      onChange={(value) =>
+                        void formik.setFieldValue('department', value)
+                      }
+                      triggerClassName="w-full max-w-none font-normal!"
+                      popoverClassName="w-[var(--radix-popover-trigger-width)] min-w-60"
+                    />
+                    {formik.touched.department && formik.errors.department ? (
+                      <p className="text-sm text-red-600">
+                        {formik.errors.department}
+                      </p>
+                    ) : null}
+                  </div>
                   <CustomSelectField
                     id="employeeStatus"
                     placeholder="Employee Status"
@@ -351,47 +419,75 @@ export default function FormEmployment({
                     required={false}
                     styleClasses={fieldStyleClasses}
                   />
-                  <CustomSelectField
-                    id="staffGrade"
-                    placeholder="Staff Grade"
-                    options={STAFF_GRADE_OPTIONS.map((o) => ({
-                      id: o.id,
-                      name: o.name
-                    }))}
-                    value={formik.values.staffGrade}
-                    onChange={(v) => formik.setFieldValue('staffGrade', v)}
+                  <div className={fieldStyleClasses.parentDiv}>
+                    <Label className={fieldStyleClasses.labelClassName}>
+                      Staff Grade
+                    </Label>
+                    <Combobox
+                      label="Staff Grade"
+                      options={gradeOptions}
+                      value={formik.values.staffGrade || ''}
+                      defaultValue=""
+                      clearable
+                      onChange={(value) =>
+                        void formik.setFieldValue('staffGrade', value)
+                      }
+                      triggerClassName="w-full max-w-none font-normal!"
+                      popoverClassName="w-[var(--radix-popover-trigger-width)] min-w-60"
+                    />
+                  </div>
+                  <div className={fieldStyleClasses.parentDiv}>
+                    <Label className={fieldStyleClasses.labelClassName}>
+                      Staff Designation
+                    </Label>
+                    <Combobox
+                      label="Staff Designation"
+                      options={designationOptions}
+                      value={formik.values.staffDesignation || ''}
+                      defaultValue=""
+                      clearable
+                      onChange={(value) =>
+                        void formik.setFieldValue('staffDesignation', value)
+                      }
+                      triggerClassName="w-full max-w-none font-normal!"
+                      popoverClassName="w-[var(--radix-popover-trigger-width)] min-w-60"
+                    />
+                  </div>
+                  <CustomFormField
+                    id="basic"
+                    type="number"
+                    placeholder="Staff Basic"
+                    value={formik.values.basic}
+                    onChange={formik.handleChange}
+                    onBlur={formik.handleBlur}
                     required={false}
+                    min={0}
                     styleClasses={fieldStyleClasses}
                   />
-                  <CustomSelectField
-                    id="staffDesignation"
-                    placeholder="Staff Designation"
-                    options={STAFF_DESIGNATION_OPTIONS.map((o) => ({
-                      id: o.id,
-                      name: o.name
-                    }))}
-                    value={formik.values.staffDesignation}
-                    onChange={(v) =>
-                      formik.setFieldValue('staffDesignation', v)
-                    }
-                    required={false}
-                    styleClasses={fieldStyleClasses}
-                  />
-                  <CustomSelectField
-                    id="roster"
-                    placeholder="Roster"
-                    options={ROSTER_OPTIONS.map((o) => ({
-                      id: o.id,
-                      name: o.name
-                    }))}
-                    value={formik.values.roster}
-                    onChange={(v) => formik.setFieldValue('roster', v)}
-                    required={false}
-                    styleClasses={fieldStyleClasses}
-                  />
+                  <div className={fieldStyleClasses.parentDiv}>
+                    <Label className={fieldStyleClasses.labelClassName}>
+                      Roster
+                    </Label>
+                    <Combobox
+                      label="Roster"
+                      options={rosterOptions}
+                      value={formik.values.roster || ''}
+                      defaultValue=""
+                      clearable
+                      onChange={(value) =>
+                        void formik.setFieldValue('roster', value)
+                      }
+                      triggerClassName="w-full max-w-none font-normal!"
+                      popoverClassName="w-[var(--radix-popover-trigger-width)] min-w-60"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Roster group membership (Manage Rosters code). Day duties
+                      stay in Roster &amp; Shifts.
+                    </p>
+                  </div>
                   <CustomSelectField
                     id="shift"
-                    placeholder="Shift"
+                    placeholder="Default Shift"
                     options={SHIFT_OPTIONS.map((o) => ({
                       id: o.id,
                       name: o.name

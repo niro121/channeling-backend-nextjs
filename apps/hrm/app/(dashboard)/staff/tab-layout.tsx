@@ -18,6 +18,7 @@ import FormEmployment, { type EmploymentFormActions } from './form-employment';
 import SectionAdditionalDetailContent from './section-additional-detail-content';
 import type {
   GeneralFormValues,
+  StaffEmploymentFormOptions,
   StaffRecord,
   StaffWithAuthUsers
 } from '@/types/staff';
@@ -29,9 +30,17 @@ type TabLayoutProps = {
   isEditPage?: boolean;
   specialityOptions?: StaffSpecialityOption[];
   zoneOptions?: { id: string; name: string }[];
+  employmentFormOptions?: StaffEmploymentFormOptions;
   /** Wave 9 — prefill Add Staff from appointment letter. */
   generalPrefill?: GeneralFormValues | null;
   appointmentLetterId?: string;
+};
+
+const emptyEmploymentFormOptions: StaffEmploymentFormOptions = {
+  departments: [],
+  designations: [],
+  grades: [],
+  rosters: []
 };
 
 export default function TabLayout({
@@ -40,6 +49,7 @@ export default function TabLayout({
   isEditPage = false,
   specialityOptions = [],
   zoneOptions = [],
+  employmentFormOptions = emptyEmploymentFormOptions,
   generalPrefill = null,
   appointmentLetterId
 }: TabLayoutProps) {
@@ -104,6 +114,7 @@ export default function TabLayout({
       <FormEmployment
         staff={staff}
         staffId={staffId}
+        formOptions={employmentFormOptions}
         onRegisterActions={handleRegisterEmploymentActions}
         onLoadingChange={setLoading}
       />

@@ -16,6 +16,13 @@ function toOptionalNumber(value: string): number | null {
   return Number.isNaN(parsed) ? null : parsed;
 }
 
+/** Map legacy Employment placeholder id → `types/institution` id. */
+function normalizeInstitutionId(value: string | null | undefined): string {
+  if (!value) return '';
+  if (value === 'ruhunu_hospitals') return '0';
+  return value;
+}
+
 export function staffRecordToEmploymentFormValues(
   staff: StaffRecord
 ): EmploymentFormValues {
@@ -30,12 +37,13 @@ export function staffRecordToEmploymentFormValues(
   return {
     eligibleWelfareValue: toNumberString(welfare?.eligibleValue),
     utilizedThisYear: toNumberString(welfare?.utilizedThisYear),
-    institution: employment?.institution ?? '',
+    institution: normalizeInstitutionId(employment?.institution),
     department: employment?.department ?? '',
     employeeStatus: employment?.employeeStatus ?? '',
     staffCategory: employment?.staffCategory ?? '',
     staffGrade: employment?.staffGrade ?? '',
     staffDesignation: employment?.staffDesignation ?? '',
+    basic: toNumberString(employment?.basic),
     roster: employment?.roster ?? '',
     shift: employment?.shift ?? '',
     payingMethod: payroll?.payingMethod ?? '',
@@ -75,7 +83,10 @@ function mapFormValuesToEmploymentDetails(
       staffCategory: values.staffCategory || null,
       staffGrade: values.staffGrade || null,
       staffDesignation: values.staffDesignation || null,
-      roster: values.roster || null,
+      basic: toOptionalNumber(values.basic),
+      roster: values.roster?.trim()
+        ? values.roster.trim().toUpperCase()
+        : null,
       shift: values.shift || null
     },
     payroll: {
