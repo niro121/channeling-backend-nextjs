@@ -488,6 +488,9 @@ model StaffShiftAssignment {
   code               String    @unique // SA-n
   staffId            String    @db.ObjectId
   shiftTypeId        String    @db.ObjectId
+  /// Manage Rosters group this assignment belongs to (ObjectId FK).
+  /// Optional on legacy rows; create/update always require it in the service layer.
+  manageRosterId     String?   @db.ObjectId
   staffCode          String
   staffName          String
   department         String    @default("")
@@ -500,8 +503,9 @@ model StaffShiftAssignment {
   autoAssign         Boolean   @default(true)
   status             String    @default("active") // active | pending | inactive
 
-  staff     Staff     @relation(fields: [staffId], references: [id])
-  shiftType ShiftType @relation(fields: [shiftTypeId], references: [id])
+  staff        Staff         @relation(fields: [staffId], references: [id])
+  shiftType    ShiftType     @relation(fields: [shiftTypeId], references: [id])
+  manageRoster ManageRoster? @relation(fields: [manageRosterId], references: [id])
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -510,6 +514,7 @@ model StaffShiftAssignment {
 
   @@index([staffId])
   @@index([shiftTypeId])
+  @@index([manageRosterId])
   @@index([status])
   @@index([effectiveFrom, effectiveTo])
   @@index([createdAt(sort: Desc)])
@@ -728,7 +733,8 @@ model ManageRoster {
   departmentId          String @db.ObjectId // Department master (many rosters per department allowed)
   shiftsPerPersonPerDay Int // >= 1
 
-  department Department @relation(fields: [departmentId], references: [id])
+  department       Department             @relation(fields: [departmentId], references: [id])
+  shiftAssignments StaffShiftAssignment[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

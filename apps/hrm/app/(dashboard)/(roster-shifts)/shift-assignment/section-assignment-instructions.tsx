@@ -45,17 +45,20 @@ export default function SectionAssignmentInstructions() {
                   <span className="font-medium text-foreground">
                     2. Assign one staff member:
                   </span>{' '}
-                  Click Assign Shift, choose the staff member and shift type,
-                  set Effective From / To, weekly off day, and status, then
-                  save. A standing assignment code (SA-n) is created.
+                  Click Assign Shift, select the Manage Rosters group first
+                  (context card shows department, institution, and shifts per
+                  person per day), then choose a staff member from that group,
+                  shift type, Effective From / To, weekly off day, and status.
+                  Save creates a standing assignment (SA-n) linked to that
+                  roster.
                 </p>
                 <p>
                   <span className="font-medium text-foreground">
                     3. Bulk assign:
                   </span>{' '}
                   Select one or more rows in the register, then click Bulk
-                  Assign. The same shift rule is written once per selected
-                  staff member.
+                  Assign. Choose the roster group — only selected staff who
+                  belong to that group receive the same shift rule.
                 </p>
                 <p>
                   <span className="font-medium text-foreground">
@@ -69,9 +72,9 @@ export default function SectionAssignmentInstructions() {
                   <span className="font-medium text-foreground">
                     5. Overlap rule:
                   </span>{' '}
-                  The same staff member cannot have two assignments with
-                  overlapping effective dates. The save is rejected until the
-                  dates no longer overlap.
+                  The same staff member cannot have two assignments for the
+                  same shift type with overlapping effective dates. Different
+                  shift types on the same date range are allowed.
                 </p>
                 <p>
                   <span className="font-medium text-foreground">
