@@ -14,6 +14,7 @@ import {
   useToast
 } from '@archmage/ui';
 import { cn } from '@/lib/utils';
+import { buttonStyles } from '@/lib/utils/common-styles';
 import {
   STAFF_GRADE_LEVELS,
   STAFF_GRADE_LEVEL_LABELS,
@@ -140,6 +141,7 @@ export default function SectionStaffGradeDetail() {
       setIsNew(false);
       setSelectedId(result.data.id);
       toast({
+        variant: 'success',
         title: 'Saved',
         description: isNew || !selectedRecord ? 'Area created.' : 'Area updated.'
       });
@@ -272,7 +274,10 @@ export default function SectionStaffGradeDetail() {
                   type="button"
                   variant="outline"
                   size="sm"
-                  className="w-full sm:w-24 gap-1 border-red-500 text-red-500 transition-colors ease-in-out duration-100 hover:bg-red-500 hover:text-white"
+                  className={cn(
+                    'w-full sm:w-24 gap-1.5',
+                    buttonStyles.cancel.normal
+                  )}
                   disabled={saving}
                   onClick={() => {
                     if (isNew) {
@@ -292,7 +297,7 @@ export default function SectionStaffGradeDetail() {
                   size="sm"
                   onClick={() => setDeleteOpen(true)}
                   disabled={!selectedRecord || isNew || saving}
-                  className="h-9 gap-1.5 border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                  className={cn('gap-1.5', buttonStyles.delete.warning)}
                 >
                   <Trash2 className="h-4 w-4" />
                   Delete
@@ -301,11 +306,11 @@ export default function SectionStaffGradeDetail() {
                   type="submit"
                   form="staff-grade-form"
                   size="sm"
-                  className="h-9 gap-1.5"
-                  disabled={saving}
+                  className={cn('gap-1.5', buttonStyles.save)}
+                  disabled={saving || (!isNew && !formik.dirty)}
                 >
                   <SaveIcon className="h-4 w-4" />
-                  Save
+                  {isNew ? 'Save' : 'Update'}
                 </Button>
               </div>
             </Form>
@@ -324,6 +329,9 @@ export default function SectionStaffGradeDetail() {
         handleVisibilityChange={setDeleteOpen}
         handleContinue={handleDelete}
         loading={saving}
+        className={{
+          actionButton: buttonStyles.delete.danger
+        }}
       />
     </div>
   );
