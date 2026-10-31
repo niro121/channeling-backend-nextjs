@@ -6,7 +6,7 @@ const { Server } = require('socket.io')
 const port = parseInt(process.env.PORT || '3000', 10)
 const dev = process.env.NODE_ENV !== 'production'
 // turbo: true enables Turbopack in dev for faster incremental compilation (Next.js 15+); dev-only
-const app = next({ dev, turbo: dev })
+const app = next({ dev, turbo: dev, hostname: 'localhost', port })
 const handle = app.getRequestHandler()
 
 /**
