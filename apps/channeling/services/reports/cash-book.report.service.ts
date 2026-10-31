@@ -1,0 +1,314 @@
+'use server';
+
+import prisma from '@/lib/prisma';
+import { getInclusiveDaySpan, getReportMaxRangeDays, getReportMaxRecords } from '@/lib/report-limits';
+import { parseReportDateTime } from '@/lib/parse-report-datetime';
+import { PAYMENT_METHOD_NAMES, RECEIPT_PAYMENT_METHOD } from '@/types/receipt';
+import { netEffectForAccountType } from '@/lib/accounting/helpers';
+import { sumAccountLinesAsOf } from '@/services/accounting/journal-lines-as-of';
+import { isBranchReconciledCashAccount } from '@/services/accounting/account/branch-reconciled-account.constants';
+import type {
+  CashBookReportQuery,
+  CashBookReportResponse,
+  CashBookReportRow,
+  CashBookTypeBalance,
+} from '@/types/reports/cash-book';
+
+const MAX_RANGE_DAYS = getReportMaxRangeDays('cash_book', 31);
+const MAX_LINES = getReportMaxRecords('cash_book', 50000);
+
+function parseDateTime(value: string, asEnd: boolean): Date | null {
+  return parseReportDateTime(value, asEnd);
+}
+
+function parseLocalDayRange(fromDate: string, toDate: string): { from: Date; to: Date } | null {
+  const from = parseDateTime(fromDate, false);
+  const to = parseDateTime(toDate, true);
+  if (!from || !to) return null;
+  return { from, to };
+}
+
+function mapPaymentType(paymentMethod: number | null | undefined): string {
+  if (paymentMethod == null) return '-';
+  return PAYMENT_METHOD_NAMES[paymentMethod] ?? 'Other';
+}
+
+/** Footer order. Untagged lines fold into Cash, matching the cashier drawer. */
+const CLOSING_TYPE_ORDER: number[] = [
+  RECEIPT_PAYMENT_METHOD.CASH,
+  RECEIPT_PAYMENT_METHOD.CREDIT_CARD,
+  RECEIPT_PAYMENT_METHOD.SLIP,
+  RECEIPT_PAYMENT_METHOD.CHECK,
+  RECEIPT_PAYMENT_METHOD.E_WALLET,
+  RECEIPT_PAYMENT_METHOD.CREDIT,
+  RECEIPT_PAYMENT_METHOD.AGENT,
+  RECEIPT_PAYMENT_METHOD.MIXED,
+];
+
+function typeBalanceKey(paymentMethod: number | null | undefined): string {
+  if (paymentMethod != null && CLOSING_TYPE_ORDER.includes(paymentMethod)) {
+    return String(paymentMethod);
+  }
+  return String(RECEIPT_PAYMENT_METHOD.CASH);
+}
+
+function addTypeBalance(
+  totals: Map<string, number>,
+  paymentMethod: number | null | undefined,
+  cents: number
+) {
+  const key = typeBalanceKey(paymentMethod);
+  totals.set(key, (totals.get(key) ?? 0) + cents);
+}
+
+function toClosingTypeBalances(totals: Map<string, number>): CashBookTypeBalance[] {
+  const rows: CashBookTypeBalance[] = [];
+  for (const method of CLOSING_TYPE_ORDER) {
+    const balanceCents = totals.get(String(method)) ?? 0;
+    if (balanceCents === 0) continue;
+    rows.push({
+      label: PAYMENT_METHOD_NAMES[method] ?? 'Other',
+      balanceCents,
+    });
+  }
+  return rows;
+}
+
+/** Opening balance split by payment type, for journals dated on or before asOf. */
+async function openingBalancesByType(
+  accountIds: string[],
+  asOf: Date
+): Promise<Map<string, number>> {
+  const totals = new Map<string, number>();
+  if (accountIds.length === 0) return totals;
+
+  const grouped = await sumAccountLinesAsOf(accountIds, asOf);
+
+  for (const row of grouped) {
+    const net = netEffectForAccountType(row._sum.debitAmount, row._sum.creditAmount, 'CASH');
+    addTypeBalance(totals, row.paymentMethod, net);
+  }
+  return totals;
+}
+
+export async function getCashBookReportService(
+  query: CashBookReportQuery
+): Promise<CashBookReportResponse> {
+  const parsedRange = parseLocalDayRange(query.dateFrom, query.dateTo);
+  if (!parsedRange) {
+    return {
+      success: false,
+      data: [],
+      totalRecords: 0,
+      openingBalanceCents: 0,
+      closingBalanceCents: 0,
+      closingBalancesByType: [],
+      cashBookName: '-',
+      cashBookCode: null,
+      message: 'From and To date/time are required.',
+    };
+  }
+
+  const { from, to } = parsedRange;
+  if (from.getTime() > to.getTime()) {
+    return {
+      success: false,
+      data: [],
+      totalRecords: 0,
+      openingBalanceCents: 0,
+      closingBalanceCents: 0,
+      closingBalancesByType: [],
+      cashBookName: '-',
+      cashBookCode: null,
+      message: 'From date/time must be before or equal to To date/time.',
+    };
+  }
+
+  const daySpan = getInclusiveDaySpan(from, to);
+  if (daySpan > MAX_RANGE_DAYS) {
+    return {
+      success: false,
+      data: [],
+      totalRecords: 0,
+      openingBalanceCents: 0,
+      closingBalanceCents: 0,
+      closingBalancesByType: [],
+      cashBookName: '-',
+      cashBookCode: null,
+      message: `Date range is too large. Please select ${MAX_RANGE_DAYS} days or less.`,
+    };
+  }
+
+  if (!query.cashBookAccountId || query.cashBookAccountId === '__all__') {
+    return {
+      success: false,
+      data: [],
+      totalRecords: 0,
+      openingBalanceCents: 0,
+      closingBalanceCents: 0,
+      closingBalancesByType: [],
+      cashBookName: '-',
+      cashBookCode: null,
+      message: 'Please select a cash book.',
+    };
+  }
+
+  const account = await prisma.account.findUnique({
+    where: { id: query.cashBookAccountId },
+    select: {
+      id: true,
+      name: true,
+      code: true,
+      type: true,
+      isActive: true,
+      locationId: true,
+      userId: true,
+    },
+  });
+
+  if (!account || !account.isActive || account.type !== 'CASH') {
+    return {
+      success: false,
+      data: [],
+      totalRecords: 0,
+      openingBalanceCents: 0,
+      closingBalanceCents: 0,
+      closingBalancesByType: [],
+      cashBookName: '-',
+      cashBookCode: null,
+      message: 'Selected cash book was not found.',
+    };
+  }
+
+  const allCashAccounts = await prisma.account.findMany({
+    where: { type: 'CASH', isActive: true },
+    select: { id: true, parentAccountId: true, locationId: true, name: true, code: true, userId: true },
+  });
+
+  const byParent = new Map<string, string[]>();
+  for (const a of allCashAccounts) {
+    if (!a.parentAccountId) continue;
+    const existing = byParent.get(a.parentAccountId) ?? [];
+    existing.push(a.id);
+    byParent.set(a.parentAccountId, existing);
+  }
+
+  const scopedAccountIds = new Set<string>([account.id]);
+  const queue: string[] = [account.id];
+  while (queue.length > 0) {
+    const current = queue.shift();
+    if (!current) continue;
+    const children = byParent.get(current) ?? [];
+    for (const childId of children) {
+      if (scopedAccountIds.has(childId)) continue;
+      scopedAccountIds.add(childId);
+      queue.push(childId);
+    }
+  }
+
+  // Branch cash book: include tills at that location. Skip the branch Reconciled
+  // account (verified non-cash). Selecting Reconciled itself still shows only that book.
+  const selectedIsReconciled = isBranchReconciledCashAccount(account);
+  if (account.locationId && !account.userId && !selectedIsReconciled) {
+    for (const a of allCashAccounts) {
+      if (a.locationId !== account.locationId) continue;
+      if (isBranchReconciledCashAccount(a)) continue;
+      scopedAccountIds.add(a.id);
+    }
+  }
+
+  const accountMap = new Map(
+    allCashAccounts.map((a) => [a.id, { name: a.name ?? '-', code: a.code ?? null }])
+  );
+
+  const accountIds = Array.from(scopedAccountIds);
+  // Mongo-safe two-step date filtering (avoid relation date filters on journalLine).
+  const journalsInRange = await prisma.journal.findMany({
+    where: { date: { gte: from, lte: to } },
+    select: { id: true },
+    orderBy: { date: 'asc' },
+  });
+  const journalIdsInRange = journalsInRange.map((j) => j.id);
+
+  const rangeCount = journalIdsInRange.length
+    ? await prisma.journalLine.count({
+        where: {
+          accountId: { in: accountIds },
+          journalId: { in: journalIdsInRange },
+        },
+      })
+    : 0;
+  if (rangeCount > MAX_LINES) {
+    return {
+      success: false,
+      data: [],
+      totalRecords: 0,
+      openingBalanceCents: 0,
+      closingBalanceCents: 0,
+      closingBalancesByType: [],
+      cashBookName: account.name ?? '-',
+      cashBookCode: account.code ?? null,
+      message: `Too many records in selected range (${rangeCount}). Please narrow the date range.`,
+    };
+  }
+
+  const openingAsOf = new Date(from.getTime() - 1);
+  const balancesByType = await openingBalancesByType(accountIds, openingAsOf);
+  const openingBalanceCents = [...balancesByType.values()].reduce((sum, cents) => sum + cents, 0);
+
+  const lines = journalIdsInRange.length
+    ? await prisma.journalLine.findMany({
+        where: {
+          accountId: { in: accountIds },
+          journalId: { in: journalIdsInRange },
+        },
+    select: {
+      id: true,
+      accountId: true,
+      debitAmount: true,
+      creditAmount: true,
+      paymentMethod: true,
+      journal: {
+        select: {
+          date: true,
+          journalNumber: true,
+          description: true,
+          createdAt: true,
+        },
+      },
+    },
+    orderBy: [{ journal: { date: 'asc' } }, { journal: { createdAt: 'asc' } }],
+      })
+    : [];
+
+  let runningBalance = openingBalanceCents;
+  const rows: CashBookReportRow[] = lines.map((line) => {
+    const net = netEffectForAccountType(line.debitAmount, line.creditAmount, 'CASH');
+    runningBalance += net;
+    addTypeBalance(balancesByType, line.paymentMethod, net);
+    const acc = accountMap.get(line.accountId);
+    const accountLabel = acc?.code ? `${acc.name} (${acc.code})` : (acc?.name ?? '-');
+    return {
+      id: line.id,
+      date: line.journal.date,
+      journalNumber: line.journal.journalNumber,
+      accountLabel,
+      description: line.journal.description,
+      paymentMethodLabel: mapPaymentType(line.paymentMethod),
+      debitAmount: line.debitAmount,
+      creditAmount: line.creditAmount,
+      runningBalance,
+    };
+  });
+
+  return {
+    success: true,
+    data: rows,
+    totalRecords: rows.length,
+    openingBalanceCents,
+    closingBalanceCents: runningBalance,
+    closingBalancesByType: toClosingTypeBalances(balancesByType),
+    cashBookName: account.name ?? '-',
+    cashBookCode: account.code ?? null,
+  };
+}

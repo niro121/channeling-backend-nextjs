@@ -1,0 +1,285 @@
+# Permission System Audit
+
+This document lists all components and their **permission** check status (route guards, action `requirePermission`, and UI gating).
+
+For the full component structure (list page, add/edit routes, form with Formik + Yup, server-side Zod validation, URL-driven search/pagination, file skeleton), see **[COMPONENT_AUDIT_SKELETON.md](./COMPONENT_AUDIT_SKELETON.md)**. When building or auditing a list+CRUD component, use that skeleton first; this doc covers the permission subset.
+
+## Components List
+
+### ✅ Components WITH Permission Checks
+
+1. **Users** (`/users`)
+   - ✅ Page: Has `checkRouteAccess` check
+   - ✅ Server Actions: All actions have `requirePermission` checks
+     - `getAllUsers` - view permission
+     - `createNewUser` - add permission
+     - `updateUser` - edit permission
+     - `deleteUser` - delete permission
+     - `bulkDeleteUsers` - delete permission
+   - ✅ Record Actions: Has `usePermissions` hook checks
+     - Edit button protected
+     - Delete button protected
+
+2. **User Groups** (`/user-groups`)
+   - ⚠️ Page: NO permission check (needs to be added)
+   - ⚠️ Server Actions: NO permission checks (needs to be added)
+   - ⚠️ Record Actions: NO permission checks (needs to be added)
+
+3. **Channel Booking** (`/channel-booking`) – page and shift
+   - ✅ Page: Has `checkRouteAccess("/channel-booking")` check; redirects to unauthorized if no view
+   - ✅ Shift (Channel Booking): Separate resource **"shift"** – when **view** is ticked, all shift actions are allowed (no add/edit split)
+     - `getActiveShiftAction` – requirePermission("shift", "view")
+     - `getCurrentShiftAction` – requirePermission("shift", "view")
+     - `startShiftAction` – requirePermission("shift", "view")
+     - `pauseShiftAction` – requirePermission("shift", "view")
+     - `resumeShiftAction` – requirePermission("shift", "view")
+     - `endShiftAction` – requirePermission("shift", "view")
+   - ✅ UI: Shift bar and start/skip dialog only on channel-booking route; sidebar link gated by `hasAccess('/channel-booking')`. Grant **Shift (Channel Booking)** view to allow shift creation and controls.
+   - ✅ **Channel Booking – Change Date** (resource **channel-booking-date**): When **view** is ticked, user can change the session date in the channeling page. If not granted, date is fixed to today and shown as read-only.
+
+4. **Accounting** (`/accounting`)
+   - ✅ Page: Has `checkRouteAccess("/accounting")` check; redirects to unauthorized if no view
+   - ✅ Add account (`/accounting/add`): Requires `checkRouteAccess` + `checkPermission("accounting", "add")`; redirects if no add
+   - ✅ Add journal entry (`/accounting/entries/new`): Requires `checkRouteAccess` + `checkPermission("accounting", "add")`; redirects if no add
+   - ✅ Account statement (`/accounting/[id]/statement`): Has `checkRouteAccess("/accounting")` (view)
+   - ✅ Server Actions: All actions have `requirePermission` checks
+     - `getAccounts` – view
+     - `getAccountById` – view
+     - `createAccount` – add
+     - `getAccountStatement` – view
+     - `getMainCashBook` – view
+     - `getBranchBalance` – view
+     - `getInstituteCashBalance` – view
+     - `createJournalEntryAction` – add
+   - ✅ UI: "Add journal entry" and "Add account" toolbar buttons only shown when user has `accounting` **add** (via `AccountingToolbarActions` client component using `usePermissions`)
+
+5. **Ledger** (`/ledger`)
+   - ✅ Page: Has `checkRouteAccess("/ledger")` check; redirects to unauthorized if no view
+   - ✅ Add transaction (dialog): Requires `checkPermission("ledger", "add")`; add button disabled if no add
+   - ✅ View receipt (`/ledger/[id]/edit`): Has `checkRouteAccess("/ledger")` (view)
+   - ✅ Add page (`/ledger/add`): Requires `checkRouteAccess("/ledger")` + `checkPermission("ledger", "add")`; redirects if no add
+   - ✅ Server Actions: All actions have `requirePermission` checks
+     - `listLedgerTransactions` – view
+     - `getLedgerReceipt` – view
+     - `addLedgerTransaction` – add
+   - ✅ UI: Sidebar link gated by `hasAccess('/ledger')`. "Add transaction" toolbar button only shown when user has `ledger` **add** (via `LedgerToolbarWithAddDialog` with `canAdd` prop).
+
+6. **Shifts** (`/shifts`)
+   - ✅ Page: Has `checkRouteAccess("/shifts")` check; redirects to unauthorized if no view
+   - ✅ Detail (`/shifts/[id]`): Has `checkRouteAccess("/shifts")` (view)
+   - ✅ Server Actions: All shifts-manager actions have `requirePermission` checks
+     - `getShiftsAction` – requirePermission("shifts", "view")
+     - `getShiftByIdAction` – requirePermission("shifts", "view")
+     - `getShiftUserOptionsAction` – requirePermission("shifts", "view")
+   - ✅ UI: Sidebar link gated by `hasAccess('/shifts')`. View-only (list + detail); no add/edit/delete or record actions.
+
+7. **Credit Customers** (`/credit-customers`)
+   - ✅ Page: Has `checkRouteAccess("/credit-customers")` check; redirects to unauthorized if no view
+   - ✅ Add page (`/credit-customers/add`): Requires `checkRouteAccess` + `checkPermission("credit-customers", "add")`; redirects if no add
+   - ✅ Edit page (`/credit-customers/[id]/edit`): Has `checkRouteAccess("/credit-customers")` (view)
+   - ✅ Server Actions: All actions have `requirePermission` checks
+     - `getAllCreditCustomers` – view
+     - `getAllCreditCustomersOptions` – view
+     - `getCreditCustomerById` – view
+     - `createCreditCustomer` – add
+     - `updateCreditCustomer` – edit
+     - `deleteCreditCustomer` – delete
+     - `bulkDeleteCreditCustomers` – delete
+     - `getCreditCustomersExport` – view
+   - ✅ Record Actions: Has `usePermissions` hook checks – Edit and Delete buttons protected by `has('credit-customers', 'edit')` and `has('credit-customers', 'delete')`
+   - ✅ UI: Sidebar link gated by `hasAccess('/credit-customers')`. "Add New" button only shown when user has `credit-customers` **add** (via `CreditCustomersToolbar` with `canAdd` prop from server).
+
+8. **Doctor Payments** (`/doctor-payments`)
+   - ✅ Page: Has `checkRouteAccess("/doctor-payments")` check; redirects to unauthorized if no view
+   - ✅ Make payment page (`/doctor-payments/make`): Requires `checkRouteAccess` + `checkPermission("doctor-payments", "add")`; redirects if no add
+   - ✅ Server Actions: All actions have `requirePermission` checks
+     - `getEligibleDoctorPaymentBookings` – view
+     - `getDoctorPaymentBookingDetails` – view
+     - `processDoctorPaymentAction` – add
+     - `getDoctorPaymentList` – view
+     - `getDoctorPaymentReceiptForPrint` – view
+   - ✅ Record Actions: Print and Cancel (Cancel disabled until cancel flow implemented) gated by `usePermissions` (view for Print, add for Cancel)
+   - ✅ UI: Sidebar link gated by `hasAccess('/doctor-payments')`. "Make Doctor Payment" button only shown when user has `doctor-payments` **add**.
+
+9. **Receipt Manager** (`/receipt-manager`)
+   - ✅ Page: Has `checkRouteAccess("/receipt-manager")` check; redirects to unauthorized if no view
+   - ✅ Detail page (`/receipt-manager/[id]`): Has `checkRouteAccess("/receipt-manager")` (view)
+   - ✅ Resource: Own resource **receipt-manager** (view only); route mapped in `lib/permissions.ts` as `"/receipt-manager": "receipt-manager"`
+   - ✅ Server Actions: All actions have `requirePermission("receipt-manager", "view")` checks
+     - `getReceiptListAction` – view
+     - `getReceiptDetailAction` – view
+   - ✅ Record Actions: View button links to detail; no add/edit/delete (view-only module)
+   - ✅ UI: Sidebar link gated by `hasAccess('/receipt-manager')`. View-only (list + view receipt and linked double-entry journal).
+
+8. **Handed over to me** (`/handovers`)
+   - ✅ Page: Has `checkRouteAccess("/handovers")` check (layout); redirects to unauthorized if no view
+   - ✅ Resource: Separate resource **handover** (view only); route mapped in `lib/permissions.ts` as `"/handovers": "handover"`
+   - ✅ Server Actions: Recipient-facing actions use `requirePermission("handover", "view")`
+     - `getHandoversToMeAction` – handover view
+     - `approveHandoverAction` – handover view
+     - `rejectHandoverAction` – handover view
+   - ✅ Sender-facing handover actions remain on **shift**: `submitShiftHandoverAction`, `cancelHandoverAction`, `getHandoverUserOptionsAction` use `requirePermission("shift", "view")`
+   - ✅ UI: Sidebar link "Handed over to me" gated by `hasAccess('/handovers')`. Grant **Handed over to me** view to allow users to see the list and approve/reject handovers.
+
+9. **Bank Accounts** (`/bank-accounts`)
+   - ✅ Page: Has `checkRouteAccess("/bank-accounts")` check; redirects to unauthorized if no view
+   - ✅ Add page (`/bank-accounts/add`): Requires `checkRouteAccess` + `checkPermission("bank-accounts", "add")`; redirects if no add
+   - ✅ Edit page (`/bank-accounts/[id]/edit`): Has `checkRouteAccess("/bank-accounts")` (view)
+   - ✅ Resource: **bank-accounts** (view / add / edit / delete); route mapped in `lib/permissions.ts` as `"/bank-accounts": "bank-accounts"`
+   - ✅ Server Actions: All actions have `requirePermission("bank-accounts", …)` checks
+     - `getAllBankAccounts` – view
+     - `getBankAccountById` – view
+     - `createBankAccount` – add
+     - `updateBankAccount` – edit
+     - `deleteBankAccount` – delete
+     - `bulkDeleteBankAccounts` – delete
+     - `getBankOptions` – view
+     - `getLocationOptions` – view
+   - ✅ Record Actions: Edit and Delete gated by `usePermissions` (`has('bank-accounts', 'edit')`, `has('bank-accounts', 'delete')`)
+   - ✅ UI: Sidebar link "Bank Accounts" gated by `hasAccess('/bank-accounts')`. "Add New" only when user has **bank-accounts** add.
+
+10. **Reconciliation** (`/reconciliation`)
+   - ✅ Page: Has `checkRouteAccess("/reconciliation")` check (layout); redirects to unauthorized if no view
+   - ✅ Resource: **reconciliation** with custom actions view + reconcile; route mapped in `lib/permissions.ts` as `"/reconciliation": "reconciliation"`
+   - ✅ Server Actions: All actions have `requirePermission("reconciliation", …)` checks
+     - `getReconciliationListAction` – view
+     - `getReconciliationDocumentAction` – view
+     - `submitReconciliationAction` – reconcile
+   - ✅ UI: Sidebar link gated by `hasAccess('/reconciliation')`. "Submit as reconciled" button on document page gated by `has('reconciliation', 'reconcile')`.
+
+11. **Sessions** (`/sessions`)
+   - ✅ Page: Has `checkRouteAccess("/sessions")` check; redirects to unauthorized if no view
+   - ✅ Resource: **sessions** (view / add / edit / delete); route mapped in `lib/permissions.ts` as `"/sessions": "sessions"`; listed in `types/user-group.ts` `RESOURCES`
+   - ✅ Server Actions (`app/actions/sessions.action.ts`): `requirePermission` / `checkPermission` as appropriate
+     - `getAllSessions` – view
+     - `getDoctorOptions` – view on **sessions** or **doctor-leaves** (shared with `/doctor-leaves` page)
+     - `createSessions` – add
+     - `updateSessions` – edit
+     - `updateSession` – edit
+     - `deleteSession` – delete
+     - `getSessionActivity` – view
+   - ✅ Record Actions: Edit and Delete gated by `usePermissions` (`has('sessions', 'edit')`, `has('sessions', 'delete')`)
+   - ✅ UI: Sidebar link gated by `hasAccess('/sessions')`. "Analyse & Create" is shown only with `has('sessions', 'add')` (maps to **Add** in user groups); "Update Only" only with `has('sessions', 'edit')` (**Edit**). Server: `createSessions` → `requirePermission('sessions','add')`, `updateSessions` → `requirePermission('sessions','edit')`.
+
+---
+
+### ❌ Components WITHOUT Permission Checks
+
+9. **Agencies** (`/agencies`)
+   - ❌ Page: NO permission check
+   - ❌ Server Actions: NO permission checks
+   - ❌ Record Actions: NO permission checks
+
+9. **Agency Books** (`/agency-books`)
+   - ❌ Page: NO permission check
+   - ❌ Server Actions: NO permission checks
+   - ❌ Record Actions: NO permission checks
+
+10. **Departments** (`/departments`)
+   - ❌ Page: NO permission check
+   - ❌ Server Actions: NO permission checks
+   - ❌ Record Actions: NO permission checks
+
+11. **Doctors** (`/doctors`)
+   - ❌ Page: NO permission check
+   - ❌ Server Actions: NO permission checks
+   - ❌ Record Actions: NO permission checks
+
+12. **Patients** (`/patients`)
+   - ❌ Page: NO permission check
+   - ❌ Server Actions: NO permission checks
+   - ❌ Record Actions: NO permission checks
+
+13. **Specialities** (`/specialities`)
+   - ❌ Page: NO permission check
+   - ❌ Server Actions: NO permission checks
+   - ❌ Record Actions: NO permission checks
+
+14. **Locations** (`/locations`)
+    - ❌ Page: NO permission check
+    - ❌ Server Actions: NO permission checks
+    - ❌ Record Actions: NO permission checks
+
+15. **Rooms** (`/rooms`)
+    - ❌ Page: NO permission check
+    - ❌ Server Actions: NO permission checks
+    - ❌ Record Actions: NO permission checks
+
+16. **Zones** (`/zones`)
+    - ❌ Page: NO permission check
+    - ❌ Server Actions: NO permission checks
+    - ❌ Record Actions: NO permission checks
+
+17. **Tags** (`/tags`)
+    - ❌ Page: NO permission check
+    - ❌ Server Actions: NO permission checks
+    - ❌ Record Actions: NO permission checks
+
+18. **Rosters** (`/rosters`)
+    - ❌ Page: NO permission check
+    - ❌ Server Actions: NO permission checks
+    - ❌ Record Actions: NO permission checks
+
+19. **Discounts** (`/discounts`)
+    - ❌ Page: NO permission check
+    - ❌ Server Actions: NO permission checks
+    - ❌ Record Actions: NO permission checks
+
+---
+
+## Summary
+
+- **Total Components:** 19 (in the “WITHOUT” list below)
+- **With Permission Checks:** Includes **Sessions** (`/sessions`) and the modules listed in sections 1–11 above (Users, Channel Booking, Accounting, Ledger, Shifts, Credit Customers, Doctor Payments, Receipt Manager, Handovers, Bank Accounts, Reconciliation, **Sessions**).
+- **Without Permission Checks:** See numbered items under “Components WITHOUT Permission Checks” (e.g. Agencies, Doctors, …).
+
+## Action Required
+
+All components except Users need permission checks added. The middleware provides route-level protection, but we should also add:
+1. Page-level checks (server-side)
+2. Server action checks (add/edit/delete)
+3. UI element protection (client-side)
+
+---
+
+## Resources Already Defined
+
+All these resources are already in `types/user-group.ts`:
+- ✅ users
+- ✅ sessions (Sessions list — view / add / edit / delete)
+- ✅ channel-booking
+- ✅ shift (Shift (Channel Booking) – use view to allow all shift actions)
+- ✅ doctors
+- ✅ departments
+- ✅ rosters
+- ✅ patients
+- ✅ tags
+- ✅ zones
+- ✅ rooms
+- ✅ specialities
+- ✅ locations
+- ✅ agency-books
+- ✅ agencies
+- ✅ discounts
+- ✅ accounting (view / add / edit / delete)
+- ✅ ledger (view / add / edit / delete – ledger transactions and receipts)
+- ✅ credit-customers (view / add / edit / delete – credit customer companies)
+- ✅ bulk-cashier (custom actions: float-view, float-approve, bulk-cashier-dashboard, float-request)
+- ✅ shifts (view only – manager list and detail)
+- ✅ doctor-payments (view / add – list, make payment, print)
+- ✅ receipt-manager (view only – list receipts, view receipt and linked double-entry journal)
+- ✅ handover (view only – "Handed over to me" list, approve/reject handovers; separate from shift)
+- ✅ bank-accounts (view / add / edit / delete – Bank Accounts list and CRUD)
+
+All routes are already mapped in `lib/permissions.ts`.
+
+---
+
+## Next Steps
+
+1. Add permission checks to all page components
+2. Add permission checks to all server actions
+3. Add permission checks to all record actions
+4. Add permission checks to add/edit buttons in UI
+
+When auditing a **new or existing component** for full compliance (list, add/edit, form, validation, pagination, and permissions), use the checklist in **[COMPONENT_AUDIT_SKELETON.md](./COMPONENT_AUDIT_SKELETON.md)** (sections 3–9); this document covers the permission subset (skeleton section 7).
