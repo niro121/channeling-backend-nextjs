@@ -24,7 +24,7 @@ Use with:
 | Holiday Calendar | Shipped | sections 2–12 |
 | Designation Management | Shipped (D0–D5 + D6 Employment); D7 deferred | sections 13–18 |
 | Area / Staff Grade | Shipped (G0–G5 + G6 Employment); G7 deferred | sections 19–24 |
-| Manage Rosters | Shipped (R0–R7 + R6b + R9/R10 counts & inspect); R8 day-limit enforce + INT-H* hardening still upcoming | sections 25–30 / §32 |
+| Manage Rosters | Shipped (R0–R7 + R6b + R9/R10 counts & inspect + Assigned Staff membership tab); R8 day-limit enforce still upcoming | sections 25–30 / §32 |
 | Staff Specialities | Shipped | section 35 |
 | Paysheet Components | Shipped (PC0–PC4); PC5 Payroll consumer deferred | section 36 |
 | HRM Variable (EPF/ETF/PAYE) | Shipped (HV0–HV4); HV5 Payroll consumer deferred | section 37 |
@@ -963,6 +963,7 @@ Manage Rosters master          Staff Employment              Shift Assignment / 
 | In-use lock | **Derived** (no DB flag): if any `StaffShiftAssignment.manageRosterId` **or** Staff `employment.roster` = code → **block update + delete** (UI + service). Legacy null-FK rows counted + backfilled on update/delete (**INT-H3**) |
 | Actions | Cancel / Delete / Save at the **bottom of the detail form** |
 | Summary cards | Assigned staff / linked dept / active standing assignments — counts live; click **Assigned staff** / **Active shifts** → CustomDialog inspect lists (R9/R10) |
+| Assigned Staff tab | Second workspace tab: filter + register staff on a roster group by writing `Staff.employment.roster` = Manage Roster **code** (Employment form unchanged; INT-H1 lock + move confirm when changing groups) |
 | Do **not** | Fold Manage Rosters into Roster & Shifts sidebar; do **not** add HR Admin “Manage Shifts” (templates stay `/shift-types`) |
 
 See also: `ROSTER_SHIFTS_MANAGER_GUIDE.md` §1.1 / §2C; `STAFF_MANAGER_GUIDE.md` §7.
@@ -1053,6 +1054,9 @@ apps/hrm/
     manage-roster-ui-context.tsx
     section-manage-roster-list.tsx
     section-manage-roster-detail.tsx
+    section-staff-roster-filters.tsx
+    section-staff-roster-register.tsx
+    sheet-staff-roster-assign.tsx
 
   app/actions/hr-admin-actions/
     manage-roster.actions.ts
