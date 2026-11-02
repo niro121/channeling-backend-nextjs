@@ -124,44 +124,146 @@ function formatInUseMessage(usage: ManageRosterUsage): string {
 }
 
 /**
+ * INT-H3 — heal legacy rows that never got manageRosterId by resolving
+ * Staff.employment.roster → ManageRoster.id for this code.
+ */
+async function backfillNullManageRosterIds(
+  rosterId: string,
+  code: string
+): Promise<number> {
+  const normalized = code.trim().toUpperCase();
+  if (!normalized) return 0;
+
+  const nullRows = await prisma.staffShiftAssignment.findMany({
+    where: { manageRosterId: null },
+    select: { id: true, staffId: true }
+  });
+  if (!nullRows.length) return 0;
+
+  const staffIds = [...new Set(nullRows.map((row) => row.staffId))];
+  const staffRows = await prisma.staff.findMany({
+    where: { id: { in: staffIds } },
+    select: { id: true, employmentDetails: true }
+  });
+
+  const matchingStaffIds = new Set(
+    staffRows
+      .filter((staff) => {
+        const roster =
+          staff.employmentDetails?.employment?.roster?.trim().toUpperCase() ??
+          '';
+        return roster === normalized;
+      })
+      .map((staff) => staff.id)
+  );
+
+  const idsToHeal = nullRows
+    .filter((row) => matchingStaffIds.has(row.staffId))
+    .map((row) => row.id);
+
+  if (!idsToHeal.length) return 0;
+
+  const result = await prisma.staffShiftAssignment.updateMany({
+    where: { id: { in: idsToHeal }, manageRosterId: null },
+    data: { manageRosterId: rosterId }
+  });
+
+  return result.count;
+}
+
+/**
+ * Count standing assignments with null manageRosterId whose staff membership
+ * matches this roster code (legacy / pre-FK rows).
+ */
+async function countNullFkAssignmentsForCode(code: string): Promise<{
+  all: number;
+  active: number;
+}> {
+  const normalized = code.trim().toUpperCase();
+  if (!normalized) return { all: 0, active: 0 };
+
+  const nullRows = await prisma.staffShiftAssignment.findMany({
+    where: { manageRosterId: null },
+    select: { id: true, staffId: true, status: true }
+  });
+  if (!nullRows.length) return { all: 0, active: 0 };
+
+  const staffIds = [...new Set(nullRows.map((row) => row.staffId))];
+  const staffRows = await prisma.staff.findMany({
+    where: { id: { in: staffIds } },
+    select: { id: true, employmentDetails: true }
+  });
+
+  const matchingStaffIds = new Set(
+    staffRows
+      .filter((staff) => {
+        const roster =
+          staff.employmentDetails?.employment?.roster?.trim().toUpperCase() ??
+          '';
+        return roster === normalized;
+      })
+      .map((staff) => staff.id)
+  );
+
+  const matched = nullRows.filter((row) => matchingStaffIds.has(row.staffId));
+  return {
+    all: matched.length,
+    active: matched.filter((row) => row.status === 'active').length
+  };
+}
+
+/**
  * Derived "in use" — no stored flag.
  * Referenced by StaffShiftAssignment.manageRosterId and/or Staff.employment.roster code.
+ * INT-H3 also counts legacy null-FK assignments whose staff membership matches the code.
  */
 async function getManageRosterUsage(
   id: string,
   code: string
 ): Promise<ManageRosterUsage> {
   const normalized = code.trim().toUpperCase();
-  const [shiftAssignmentRefCount, activeShiftCount, staffMembershipCount] =
-    await Promise.all([
-      prisma.staffShiftAssignment.count({
-        where: { manageRosterId: id }
-      }),
-      prisma.staffShiftAssignment.count({
-        where: { manageRosterId: id, status: 'active' }
-      }),
-      normalized
-        ? prisma.staff.count({
-            where: {
-              employmentDetails: {
-                is: {
-                  employment: {
-                    is: {
-                      roster: normalized
+  const [
+    shiftAssignmentRefCount,
+    activeShiftCount,
+    staffMembershipCount,
+    nullFk
+  ] = await Promise.all([
+    prisma.staffShiftAssignment.count({
+      where: { manageRosterId: id }
+    }),
+    prisma.staffShiftAssignment.count({
+      where: { manageRosterId: id, status: 'active' }
+    }),
+    normalized
+      ? prisma.staff.count({
+          where: {
+            employmentDetails: {
+              is: {
+                employment: {
+                  is: {
+                    // INT-H6 — case-insensitive membership match.
+                    roster: {
+                      equals: normalized,
+                      mode: Prisma.QueryMode.insensitive
                     }
                   }
                 }
               }
             }
-          })
-        : Promise.resolve(0)
-    ]);
+          }
+        })
+      : Promise.resolve(0),
+    countNullFkAssignmentsForCode(normalized)
+  ]);
+
+  const totalAssignmentRefs = shiftAssignmentRefCount + nullFk.all;
+  const totalActive = activeShiftCount + nullFk.active;
 
   return {
-    shiftAssignmentRefCount,
-    activeShiftCount,
+    shiftAssignmentRefCount: totalAssignmentRefs,
+    activeShiftCount: totalActive,
     staffMembershipCount,
-    inUse: shiftAssignmentRefCount > 0 || staffMembershipCount > 0
+    inUse: totalAssignmentRefs > 0 || staffMembershipCount > 0
   };
 }
 
@@ -185,7 +287,7 @@ async function loadUsageByRoster(
     )
   ];
 
-  const [assignmentGroups, activeAssignmentGroups, staffRows] =
+  const [assignmentGroups, activeAssignmentGroups, staffRows, nullFkRows] =
     await Promise.all([
       prisma.staffShiftAssignment.groupBy({
         by: ['manageRosterId'],
@@ -205,16 +307,24 @@ async function loadUsageByRoster(
                   is: {
                     employment: {
                       is: {
-                        roster: code
+                        // INT-H6 — case-insensitive membership match.
+                        roster: {
+                          equals: code,
+                          mode: Prisma.QueryMode.insensitive
+                        }
                       }
                     }
                   }
                 }
               }))
             },
-            select: { employmentDetails: true }
+            select: { id: true, employmentDetails: true }
           })
-        : Promise.resolve([])
+        : Promise.resolve([]),
+      prisma.staffShiftAssignment.findMany({
+        where: { manageRosterId: null },
+        select: { staffId: true, status: true }
+      })
     ]);
 
   for (const group of assignmentGroups) {
@@ -236,11 +346,53 @@ async function loadUsageByRoster(
   }
 
   const staffCountByCode = new Map<string, number>();
+  const staffCodeById = new Map<string, string>();
   for (const staff of staffRows) {
     const roster =
       staff.employmentDetails?.employment?.roster?.trim().toUpperCase() ?? '';
     if (!roster) continue;
     staffCountByCode.set(roster, (staffCountByCode.get(roster) ?? 0) + 1);
+    staffCodeById.set(staff.id, roster);
+  }
+
+  // INT-H3 — null-FK standing rules keyed by staff membership code.
+  if (nullFkRows.length) {
+    const missingStaffIds = [
+      ...new Set(
+        nullFkRows
+          .map((row) => row.staffId)
+          .filter((staffId) => !staffCodeById.has(staffId))
+      )
+    ];
+    if (missingStaffIds.length) {
+      const extraStaff = await prisma.staff.findMany({
+        where: { id: { in: missingStaffIds } },
+        select: { id: true, employmentDetails: true }
+      });
+      for (const staff of extraStaff) {
+        const roster =
+          staff.employmentDetails?.employment?.roster?.trim().toUpperCase() ??
+          '';
+        if (roster) staffCodeById.set(staff.id, roster);
+      }
+    }
+
+    const idByCode = new Map(
+      [...codeById.entries()].map(([id, code]) => [code, id] as const)
+    );
+
+    for (const row of nullFkRows) {
+      const code = staffCodeById.get(row.staffId);
+      if (!code) continue;
+      const rosterId = idByCode.get(code);
+      if (!rosterId) continue;
+      const current = result.get(rosterId) ?? emptyUsage();
+      current.shiftAssignmentRefCount += 1;
+      if (row.status === 'active') {
+        current.activeShiftCount += 1;
+      }
+      result.set(rosterId, current);
+    }
   }
 
   for (const [id, code] of codeById) {
@@ -560,6 +712,9 @@ export async function updateManageRoster(
       return { success: false, error: { message: 'Roster not found' } };
     }
 
+    // INT-H3 — heal null-FK standing rules before in-use evaluation.
+    await backfillNullManageRosterIds(existing.id, existing.code);
+
     const usage = await getManageRosterUsage(existing.id, existing.code);
     if (usage.inUse) {
       return {
@@ -663,6 +818,9 @@ export async function deleteManageRoster(id: string): Promise<{
       return { success: false, error: { message: 'Roster not found' } };
     }
 
+    // INT-H3 — heal null-FK standing rules before in-use evaluation.
+    await backfillNullManageRosterIds(existing.id, existing.code);
+
     const usage = await getManageRosterUsage(existing.id, existing.code);
     if (usage.inUse) {
       return {
@@ -736,7 +894,11 @@ export async function getManageRosterInspectData(id: string): Promise<{
             is: {
               employment: {
                 is: {
-                  roster: rosterCode
+                  // INT-H6 — case-insensitive membership match.
+                  roster: {
+                    equals: rosterCode,
+                    mode: Prisma.QueryMode.insensitive
+                  }
                 }
               }
             }

@@ -61,10 +61,14 @@ export function staffRecordToEmploymentFormValues(
 }
 
 export function employmentFormValuesToPayload(
-  values: EmploymentFormValues
+  values: EmploymentFormValues,
+  options?: { acknowledgedWarnings?: boolean }
 ): StaffEmploymentPayload {
   return {
-    employmentDetails: mapFormValuesToEmploymentDetails(values)
+    employmentDetails: mapFormValuesToEmploymentDetails(values),
+    ...(options?.acknowledgedWarnings
+      ? { acknowledgedWarnings: true }
+      : {})
   };
 }
 

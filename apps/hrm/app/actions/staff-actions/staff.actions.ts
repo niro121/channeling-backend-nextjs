@@ -551,9 +551,16 @@ export async function updateStaffEmploymentAction(
     if (!result.success) {
       return {
         isError: true,
-        errors:
-          result.error?.issues ??
-          { message: result.error?.message ?? 'Something went wrong. Please try again later' },
+        errors: {
+          message:
+            result.error?.message ??
+            'Something went wrong. Please try again later',
+          ...(result.error?.issues ?? {}),
+          ...(result.error?.softWarnings
+            ? { softWarnings: result.error.softWarnings }
+            : {}),
+          ...(result.error?.requiresAck ? { requiresAck: true } : {})
+        },
         data: {}
       };
     }

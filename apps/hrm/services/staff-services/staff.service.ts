@@ -238,7 +238,8 @@ const staffEmploymentDetailsSchema = z.object({
 });
 
 const staffEmploymentPayloadSchema = z.object({
-  employmentDetails: staffEmploymentDetailsSchema.optional()
+  employmentDetails: staffEmploymentDetailsSchema.optional(),
+  acknowledgedWarnings: z.boolean().optional()
 });
 
 const staffEmploymentUpdatePayloadSchema = staffEmploymentPayloadSchema.extend({
@@ -1050,7 +1051,12 @@ export async function updateStaffEmployment(
   success: boolean;
   data?: any;
   message?: string;
-  error?: { message?: string; issues?: Record<string, string[]> };
+  error?: {
+    message?: string;
+    issues?: Record<string, string[]>;
+    softWarnings?: string[];
+    requiresAck?: boolean;
+  };
 }> {
   try {
     const parsed = staffEmploymentUpdatePayloadSchema.safeParse({ ...payload, id });
@@ -1071,11 +1077,78 @@ export async function updateStaffEmployment(
     const auditUser = toAuditUser(user);
     const existing = await prisma.staff.findUnique({
       where: { id },
-      select: { id: true }
+      select: { id: true, employmentDetails: true }
     });
 
     if (!existing) {
       return { success: false, error: { message: 'Staff not found' } };
+    }
+
+    const currentEmployment = existing.employmentDetails?.employment;
+    const nextEmployment = data.employmentDetails?.employment;
+
+    // INT-H1 — lock roster membership while any standing shift assignment exists.
+    const nextRosterRaw = nextEmployment?.roster;
+    if (nextRosterRaw !== undefined) {
+      const currentRoster = (currentEmployment?.roster ?? '')
+        .trim()
+        .toUpperCase();
+      const nextRoster =
+        nextRosterRaw == null || nextRosterRaw === ''
+          ? ''
+          : String(nextRosterRaw).trim().toUpperCase();
+
+      if (currentRoster !== nextRoster) {
+        const assignmentCount = await prisma.staffShiftAssignment.count({
+          where: { staffId: id }
+        });
+        if (assignmentCount > 0) {
+          return {
+            success: false,
+            error: {
+              message: `Roster group is locked while ${assignmentCount} standing shift assignment(s) exist. Change or remove assignments in Shift Assignment first.`,
+              issues: {
+                roster: [
+                  'Cannot change roster while standing shift assignments exist'
+                ]
+              }
+            }
+          };
+        }
+      }
+    }
+
+    // INT-H4 — Institution / Working Department soft warn when standing assignments exist.
+    if (nextEmployment) {
+      const currentInstitution = (
+        currentEmployment?.institution ?? ''
+      ).trim();
+      const currentDepartment = (currentEmployment?.department ?? '').trim();
+      const nextInstitution = (nextEmployment.institution ?? '').trim();
+      const nextDepartment = (nextEmployment.department ?? '').trim();
+      const orgChanged =
+        (nextEmployment.institution !== undefined &&
+          currentInstitution !== nextInstitution) ||
+        (nextEmployment.department !== undefined &&
+          currentDepartment !== nextDepartment);
+
+      if (orgChanged && !data.acknowledgedWarnings) {
+        const assignmentCount = await prisma.staffShiftAssignment.count({
+          where: { staffId: id }
+        });
+        if (assignmentCount > 0) {
+          return {
+            success: false,
+            error: {
+              message: `This staff member has ${assignmentCount} standing shift assignment(s). Changing Institution or Working Department does not move or update those assignments automatically.`,
+              softWarnings: [
+                `This staff member has ${assignmentCount} standing shift assignment(s). Changing Institution or Working Department does not move or update those assignments automatically.`
+              ],
+              requiresAck: true
+            }
+          };
+        }
+      }
     }
 
     const staff = await prisma.staff.update({

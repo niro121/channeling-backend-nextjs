@@ -142,6 +142,8 @@ export type StaffEmploymentDetails = {
 
 export type StaffEmploymentPayload = {
   employmentDetails?: StaffEmploymentDetails;
+  /** Soft-warn ack for Institution / Working Department changes with standing assignments (INT-H4). */
+  acknowledgedWarnings?: boolean;
 };
 
 export type StaffPersonnelPayload = {

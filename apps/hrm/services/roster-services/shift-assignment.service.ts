@@ -272,6 +272,67 @@ async function resolveManageRoster(manageRosterId: string): Promise<
   return { ok: true, id: roster.id, code: roster.code.trim().toUpperCase() };
 }
 
+/**
+ * INT-H2 — staff must belong to the selected Manage Roster group
+ * (`employment.roster` = ManageRoster.code, case-insensitive).
+ */
+async function assertStaffBelongsToManageRoster(
+  staffId: string,
+  manageRosterCode: string
+): Promise<
+  | { ok: true }
+  | { ok: false; message: string; issues?: Record<string, string[]> }
+> {
+  const expected = manageRosterCode.trim().toUpperCase();
+  if (!expected) {
+    return {
+      ok: false,
+      message: 'Validation failed',
+      issues: { manageRosterId: ['Roster group is required'] }
+    };
+  }
+
+  const staff = await prisma.staff.findUnique({
+    where: { id: staffId },
+    select: { employmentDetails: true }
+  });
+  if (!staff) {
+    return { ok: false, message: 'Staff member not found' };
+  }
+
+  const membership = (
+    staff.employmentDetails?.employment?.roster ?? ''
+  )
+    .trim()
+    .toUpperCase();
+
+  if (!membership) {
+    return {
+      ok: false,
+      message: 'Validation failed',
+      issues: {
+        staffId: [
+          'This staff member has no roster group on Employment. Set roster membership first.'
+        ]
+      }
+    };
+  }
+
+  if (membership !== expected) {
+    return {
+      ok: false,
+      message: 'Validation failed',
+      issues: {
+        staffId: [
+          `Staff roster membership is "${membership}", which does not match selected roster group "${expected}".`
+        ]
+      }
+    };
+  }
+
+  return { ok: true };
+}
+
 async function mapAssignmentRecords(
   records: any[]
 ): Promise<ShiftAssignmentRecord[]> {
@@ -320,7 +381,10 @@ async function buildAssignmentWhere(
   return where;
 }
 
-/** Reject only same staff + same shift type with overlapping effective dates. */
+/**
+ * Reject only same staff + same shift type with overlapping effective dates.
+ * INT-H7 — `inactive` rows do not block; `active` and `pending` still do.
+ */
 async function assertNoOverlap(
   staffId: string,
   shiftTypeId: string,
@@ -332,6 +396,7 @@ async function assertNoOverlap(
     where: {
       staffId,
       shiftTypeId,
+      status: { in: ['active', 'pending'] },
       ...(excludeId ? { id: { not: excludeId } } : {})
     },
     select: {
@@ -701,12 +766,40 @@ async function createAssignmentRecord(
   if (!shiftType) {
     return { success: false, error: { message: 'Shift type not found' } };
   }
+  // INT-H5 — inactive templates cannot receive new standing rules.
+  if (shiftType.status === 'inactive') {
+    return {
+      success: false,
+      error: {
+        message: 'Validation failed',
+        issues: {
+          shiftTypeId: [
+            'Selected shift type is inactive. Activate it or choose another shift type.'
+          ]
+        }
+      }
+    };
+  }
   if (!manageRoster.ok) {
     return {
       success: false,
       error: {
         message: manageRoster.message,
         issues: manageRoster.issues
+      }
+    };
+  }
+
+  const membership = await assertStaffBelongsToManageRoster(
+    data.staffId,
+    manageRoster.code
+  );
+  if (!membership.ok) {
+    return {
+      success: false,
+      error: {
+        message: membership.message,
+        issues: membership.issues
       }
     };
   }
@@ -927,14 +1020,29 @@ export async function updateShiftAssignment(
     if (data.shiftTypeId) {
       const shiftType = await prisma.shiftType.findUnique({
         where: { id: data.shiftTypeId },
-        select: { id: true }
+        select: { id: true, status: true }
       });
       if (!shiftType) {
         return { success: false, error: { message: 'Shift type not found' } };
       }
+      // INT-H5 — inactive templates cannot be selected on update.
+      if (shiftType.status === 'inactive') {
+        return {
+          success: false,
+          error: {
+            message: 'Validation failed',
+            issues: {
+              shiftTypeId: [
+                'Selected shift type is inactive. Activate it or choose another shift type.'
+              ]
+            }
+          }
+        };
+      }
     }
 
     let nextManageRosterId = existing.manageRosterId ?? '';
+    let nextManageRosterCode = '';
     if (data.manageRosterId !== undefined) {
       const manageRoster = await resolveManageRoster(data.manageRosterId);
       if (!manageRoster.ok) {
@@ -947,6 +1055,7 @@ export async function updateShiftAssignment(
         };
       }
       nextManageRosterId = manageRoster.id;
+      nextManageRosterCode = manageRoster.code;
     }
     if (!nextManageRosterId) {
       return {
@@ -954,6 +1063,33 @@ export async function updateShiftAssignment(
         error: {
           message: 'Validation failed',
           issues: { manageRosterId: ['Roster group is required'] }
+        }
+      };
+    }
+    if (!nextManageRosterCode) {
+      const resolved = await resolveManageRoster(nextManageRosterId);
+      if (!resolved.ok) {
+        return {
+          success: false,
+          error: {
+            message: resolved.message,
+            issues: resolved.issues
+          }
+        };
+      }
+      nextManageRosterCode = resolved.code;
+    }
+
+    const membership = await assertStaffBelongsToManageRoster(
+      staffId,
+      nextManageRosterCode
+    );
+    if (!membership.ok) {
+      return {
+        success: false,
+        error: {
+          message: membership.message,
+          issues: membership.issues
         }
       };
     }
@@ -1214,6 +1350,7 @@ export async function getShiftAssignmentRosterScope(
 
     const normalizedCode = roster.code.trim().toUpperCase();
 
+    // INT-H6 — case-insensitive membership match on employment.roster.
     const staffRows = await prisma.staff.findMany({
       where: {
         status: 1,
@@ -1221,7 +1358,10 @@ export async function getShiftAssignmentRosterScope(
           is: {
             employment: {
               is: {
-                roster: normalizedCode
+                roster: {
+                  equals: normalizedCode,
+                  mode: Prisma.QueryMode.insensitive
+                }
               }
             }
           }

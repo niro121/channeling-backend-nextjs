@@ -932,7 +932,7 @@ Manage Rosters master          Staff Employment              Shift Assignment / 
 | Area | Today |
 |------|--------|
 | Manage Rosters CRUD | **Live** (R0–R5) with derived in-use lock (R9/R10 inspect) |
-| Staff Employment roster | **Wired** — Manage Roster **codes** (INT-S3 / R6 / CS4); UI lock when assignments exist; server lock **INT-H1** |
+| Staff Employment roster | **Wired** — Manage Roster **codes** (INT-S3 / R6 / CS4); UI + server lock when assignments exist (**INT-H1**) |
 | Standing assignments panel | **Wired** on Employment (read-only); manage in `/shift-assignment` |
 | Roster & Shifts roster filters | Manage Roster **codes** (INT-R3 / R7) + legacy orphan dual-read |
 | Shift Assignment FK | `manageRosterId` required on create; optional on legacy rows |
@@ -960,7 +960,7 @@ Manage Rosters master          Staff Employment              Shift Assignment / 
 | Period codes (`SR-n`) | Stay owned by Roster & Shifts; never reused here |
 | Department | **Departments** master via Combobox (`departmentId` = ObjectId); **many rosters per department** |
 | Shifts per person per day | Required positive integer (≥ 1); means **full calendar day**; Roster & Shifts enforces on allocate / publish later (INT-R4) — **not** on standing-assignment create |
-| In-use lock | **Derived** (no DB flag): if any `StaffShiftAssignment.manageRosterId` **or** Staff `employment.roster` = code → **block update + delete** (UI + service). Legacy null-FK rows must still count (**INT-H3**) |
+| In-use lock | **Derived** (no DB flag): if any `StaffShiftAssignment.manageRosterId` **or** Staff `employment.roster` = code → **block update + delete** (UI + service). Legacy null-FK rows counted + backfilled on update/delete (**INT-H3**) |
 | Actions | Cancel / Delete / Save at the **bottom of the detail form** |
 | Summary cards | Assigned staff / linked dept / active standing assignments — counts live; click **Assigned staff** / **Active shifts** → CustomDialog inspect lists (R9/R10) |
 | Do **not** | Fold Manage Rosters into Roster & Shifts sidebar; do **not** add HR Admin “Manage Shifts” (templates stay `/shift-types`) |
@@ -996,7 +996,7 @@ Derived (UI / queries — **not** stored on the model; no `inUse` DB flag):
 | Assigned staff count    | Count Staff where `employment.roster` matches `code` (R9 / INT-R6) |
 | Linked department label | Resolve `departmentId` → name |
 | Active shifts           | Count of **active** `StaffShiftAssignment` rows for this `manageRosterId` |
-| In-use (lock)           | Any assignment FK **or** staff membership on code → block update/delete (**INT-H3** must also cover legacy null FK) |
+| In-use (lock)           | Any assignment FK **or** staff membership on code → block update/delete; null-FK membership matches counted + backfilled (**INT-H3**) |
 | Assigned staff list     | Inspect dialog: staff + nested standing-assignment table (R10 / INT-R10) |
 | Active shifts list      | Inspect dialog: active shift types rolled up with assignment rows (R10) |
 
@@ -1108,7 +1108,7 @@ apps/hrm/
 - [ ] Delete is disabled for new records
 - [ ] Create / update / delete persist after refresh
 - [ ] When staff membership **or** standing assignments reference the roster → update + delete blocked (derived in-use)
-- [ ] After **INT-H3**: legacy null-`manageRosterId` assignments still keep the roster locked when membership/code matches
+- [x] After **INT-H3**: legacy null-`manageRosterId` assignments still keep the roster locked when membership/code matches
 
 ---
 
@@ -1216,26 +1216,26 @@ UI behaviour for Employment / Change Staff / Manage Rosters / Shift Assignment i
 
 | ID | Work | Owner surface | Priority | Status |
 |----|------|---------------|----------|--------|
-| **INT-H1** | Server-side Employment roster lock: reject changing `employment.roster` when any `StaffShiftAssignment` exists for that staff | Staff Employment (`updateStaffEmployment`) | **Must** | TODO |
-| **INT-H2** | Server-side roster membership assert on Shift Assignment create / bulk / update: staff `employment.roster` must equal resolved Manage Roster **code** | Shift Assignment service | **Must** | TODO |
-| **INT-H3** | Legacy null `manageRosterId`: backfill from employment roster code where possible; include null-FK / membership-linked rows in Manage Rosters **in-use** so update/delete cannot ignore them | Manage Rosters + data repair | **Must** | TODO |
-| **INT-H4** | Employment Institution / Working Department soft warn: server softWarnings + client ack (parity with Change Staff `acknowledgedWarnings`) | Staff Employment | Should | TODO |
-| **INT-H5** | Reject inactive shift types on Shift Assignment create/update | Shift Assignment | Should | TODO |
-| **INT-H6** | Case-insensitive roster-code matching for membership / counts / scope pickers | Staff + Roster + Manage Rosters | Should | TODO |
-| **INT-H7** | Product lock: should `assertNoOverlap` ignore `inactive` (and maybe `pending`) standing rows? Document or filter | Shift Assignment | Should | TODO |
+| **INT-H1** | Server-side Employment roster lock: reject changing `employment.roster` when any `StaffShiftAssignment` exists for that staff | Staff Employment (`updateStaffEmployment`) | **Must** | **Done** |
+| **INT-H2** | Server-side roster membership assert on Shift Assignment create / bulk / update: staff `employment.roster` must equal resolved Manage Roster **code** | Shift Assignment service | **Must** | **Done** |
+| **INT-H3** | Legacy null `manageRosterId`: backfill from employment roster code where possible; include null-FK / membership-linked rows in Manage Rosters **in-use** so update/delete cannot ignore them | Manage Rosters + data repair | **Must** | **Done** |
+| **INT-H4** | Employment Institution / Working Department soft warn: server softWarnings + client ack (parity with Change Staff `acknowledgedWarnings`) | Staff Employment | Should | **Done** |
+| **INT-H5** | Reject inactive shift types on Shift Assignment create/update | Shift Assignment | Should | **Done** |
+| **INT-H6** | Case-insensitive roster-code matching for membership / counts / scope pickers | Staff + Roster + Manage Rosters | Should | **Done** |
+| **INT-H7** | Overlap ignores `inactive` standing rows; `active` + `pending` still block | Shift Assignment | Should | **Done** |
 | **INT-R4** | Enforce `shiftsPerPersonPerDay` on allocate / fill / publish (full calendar day); not on standing-assignment create | Roster calendars (R8) | Later | Upcoming |
 | **INT-H8** | Overlap / in-use check-then-write races (unique constraint or tighter transactional pattern if Mongo allows) | Shift Assignment / Manage Rosters | Later | TODO |
 | **INT-H9** | Staff delete guards when standing assignments / allocations exist | Staff | Later | TODO |
 
 **Checklist (copy into sprint):**
 
-- [ ] **INT-H1** — Employment roster lock in service
-- [ ] **INT-H2** — Shift Assignment membership assert in service
-- [ ] **INT-H3** — Legacy `manageRosterId` backfill + in-use coverage
-- [ ] **INT-H4** — Employment org-change soft-ack on server
-- [ ] **INT-H5** — Inactive shift type rejected on assignment write
-- [ ] **INT-H6** — Case-insensitive roster code lookups
-- [ ] **INT-H7** — Overlap vs inactive/pending product decision
+- [x] **INT-H1** — Employment roster lock in service
+- [x] **INT-H2** — Shift Assignment membership assert in service
+- [x] **INT-H3** — Legacy `manageRosterId` backfill + in-use coverage
+- [x] **INT-H4** — Employment org-change soft-ack on server
+- [x] **INT-H5** — Inactive shift type rejected on assignment write
+- [x] **INT-H6** — Case-insensitive roster code lookups
+- [x] **INT-H7** — Overlap ignores `inactive`; `active`/`pending` still block
 - [ ] **INT-R4 / R8** — Day-limit on allocate / publish
 - [ ] **INT-H8** — Concurrent overlap / in-use races
 - [ ] **INT-H9** — Staff delete guards
@@ -1776,8 +1776,8 @@ Server re-checks hard blocks on apply; soft warns require `acknowledgedWarnings:
 - [ ] Staff Basic on Employment reads/writes same snapshot as Change Staff; Employment save does **not** add history rows
 - [ ] Changing roster on Employment stores uppercase Manage Roster **code**
 - [ ] Employment: roster read-only when standing assignments exist; standing-assignments panel visible; Default Shift not edited
-- [ ] After **INT-H1**: Employment service rejects roster change while assignments exist
+- [x] After **INT-H1**: Employment service rejects roster change while assignments exist
 
 ---
 
-*Last updated: Oct 2026 — Change Staff CS0–CS4; Employment roster/standing-shift UX; Manage Rosters R9/R10; post-review hardening **INT-H*** in §32.*
+*Last updated: Nov 2026 — INT-H1–H7 done; remaining INT-R4 / INT-H8–H9 in §32.*

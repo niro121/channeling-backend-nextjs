@@ -281,14 +281,17 @@ export default function FormEmployment({
 
   const persistEmployment = async (
     values: EmploymentFormValues,
-    { setErrors, setTouched }: FormikHelpers<EmploymentFormValues>
+    helpers: FormikHelpers<EmploymentFormValues>
   ) => {
+    const { setErrors, setTouched } = helpers;
     const closeAfterSave = saveAndCloseRef.current;
 
     try {
       onLoadingChange?.(true);
       setConfirmSaving(true);
-      const payload = employmentFormValuesToPayload(values);
+      const payload = employmentFormValuesToPayload(values, {
+        acknowledgedWarnings: pendingOrgAckRef.current
+      });
       const respond = await updateStaffEmploymentAction(staffId, payload);
 
       if (
@@ -297,18 +300,44 @@ export default function FormEmployment({
         typeof respond.errors === 'object' &&
         !Array.isArray(respond.errors)
       ) {
-        const fieldErrors: Record<string, string> = {};
         const errorMap = respond.errors as Record<
           string,
-          string | string[] | undefined
+          string | string[] | boolean | undefined
         >;
 
+        // INT-H4 — server soft-ack for Institution / Department when assignments exist.
+        if (errorMap.requiresAck) {
+          const softWarnings = Array.isArray(errorMap.softWarnings)
+            ? errorMap.softWarnings.filter(
+                (item): item is string => typeof item === 'string'
+              )
+            : [];
+          pendingSubmitRef.current = { values, helpers };
+          setConfirmKind('org-change');
+          setConfirmDescription(
+            softWarnings.join(' ') ||
+              (typeof errorMap.message === 'string'
+                ? errorMap.message
+                : 'Standing shift assignments will not be updated automatically. Continue anyway?')
+          );
+          setConfirmOpen(true);
+          return;
+        }
+
+        const fieldErrors: Record<string, string> = {};
+
         Object.keys(errorMap).forEach((key) => {
-          if (key === 'message') return;
+          if (
+            key === 'message' ||
+            key === 'softWarnings' ||
+            key === 'requiresAck'
+          ) {
+            return;
+          }
           const err = errorMap[key];
           const msg =
             Array.isArray(err) && err.length > 0
-              ? err[0]
+              ? String(err[0])
               : typeof err === 'string'
                 ? err
                 : undefined;
@@ -330,7 +359,7 @@ export default function FormEmployment({
           variant: 'destructive',
           title: 'Error',
           description:
-            ((respond.errors as Record<string, unknown>)?.message as string) ??
+            (typeof errorMap.message === 'string' && errorMap.message) ||
             'Employment details save unsuccessful.'
         });
         return;

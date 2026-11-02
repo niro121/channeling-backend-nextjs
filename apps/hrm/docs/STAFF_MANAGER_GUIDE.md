@@ -101,16 +101,16 @@ Uniqueness for RFID / EPF / ETF is enforced in `staff.service.ts` (application a
 
 Cross-module IDs live in `HR_ADMINISTRATION_GUIDE.md` §32 (**INT-H***). Staff-owned items:
 
-| ID | Work | Priority |
-|----|------|----------|
-| **INT-H1** | **Server-side** Employment roster lock: `updateStaffEmployment` must reject changing `employment.roster` when any `StaffShiftAssignment` exists for that staff (mirror UI in `form-employment.tsx`) | Must |
-| **INT-H4** | Align Institution / Working Department soft warn with Change Staff: server returns soft warnings + require client ack (today warn is UI-only on Employment) | Should |
-| **INT-H6** | Case-insensitive `employment.roster` matching everywhere membership / counts resolve a Manage Roster code | Should |
+| ID | Work | Priority | Status |
+|----|------|----------|--------|
+| **INT-H1** | **Server-side** Employment roster lock: `updateStaffEmployment` rejects changing `employment.roster` when any `StaffShiftAssignment` exists (mirrors UI) | Must | **Done** |
+| **INT-H4** | Align Institution / Working Department soft warn with Change Staff: server softWarnings + `acknowledgedWarnings` ack | Should | **Done** |
+| **INT-H6** | Case-insensitive `employment.roster` matching everywhere membership / counts resolve a Manage Roster code | Should | **Done** |
 
-Related (owned elsewhere, affects Employment UX):
+Related (owned elsewhere; done with this wave):
 
-- [ ] **INT-H2** — Shift Assignment create/bulk/update assert staff membership = selected Manage Roster code (`ROSTER_SHIFTS_MANAGER_GUIDE.md` §1.1)
-- [ ] **INT-H3** — Legacy null `manageRosterId` included in Manage Rosters in-use + backfill (`HR_ADMINISTRATION_GUIDE.md` §29 / §32)
+- [x] **INT-H2** — Shift Assignment create/bulk/update assert staff membership = selected Manage Roster code
+- [x] **INT-H3** — Legacy null `manageRosterId` included in Manage Rosters in-use + backfill
 
 See §7 for required Employment UI behaviour.
 
@@ -174,8 +174,8 @@ In short: group rules in HR Admin → membership on Staff → standing shifts in
 
 | Rule | UI | Server |
 |------|----|--------|
-| Lock roster when assignments exist | **Done** (`form-employment.tsx`) | **TODO INT-H1** — must reject in `updateStaffEmployment` |
-| Soft-warn Institution / Department | **Done** (confirm dialog) | **TODO INT-H4** — optional ack pattern like Change Staff |
+| Lock roster when assignments exist | **Done** (`form-employment.tsx`) | **Done (INT-H1)** — `updateStaffEmployment` rejects roster change |
+| Soft-warn Institution / Department | **Done** (confirm dialog) | **Done (INT-H4)** — `acknowledgedWarnings` required on server |
 | Standing assignments panel | **Done** (`getStaffEmploymentRosterShiftSummaryAction`) | — |
 
 See `HR_ADMINISTRATION_GUIDE.md` §26 / §32 / §39 and `ROSTER_SHIFTS_MANAGER_GUIDE.md` §1.1 / §2C.
@@ -204,8 +204,8 @@ See `HR_ADMINISTRATION_GUIDE.md` §26 / §32 / §39 and `ROSTER_SHIFTS_MANAGER_G
 4. List status filter and export use the same where-builder.
 5. Linked Channeling deletes never treat Cancel as HRM-only delete.
 6. Create/update Cancel discards the save; it never saves HRM-only (that is the middle button).
-7. Employment roster is read-only in the UI when standing shift assignments exist; server lock is **INT-H1**.
+7. Employment roster is read-only in the UI when standing shift assignments exist; server lock **INT-H1** rejects roster changes while assignments exist.
 8. Employment shows a read-only standing-assignments panel; Default Shift is not edited on Employment.
 9. Institution / Working Department soft-warn when standing assignments exist; department change does not clear a locked roster.
 
-*Last updated: Oct 2026 — Employment roster/standing-shift UX; post-review hardening INT-H* in §4 / HR Admin §32.*
+*Last updated: Nov 2026 — INT-H1 / H4 / H6 done; remaining Later items in HR Admin §32.*

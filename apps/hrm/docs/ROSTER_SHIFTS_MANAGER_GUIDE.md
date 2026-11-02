@@ -150,11 +150,11 @@ Manage Rosters (CHN)
 | **INT-R3** | Load roster filter / create-period options from `ManageRoster` | **Done (R7)** |
 | **INT-R3b** | New period + allocation snapshots write roster **code** | Keep string field; dual-read legacy during transition |
 | **INT-R4** | Enforce `shiftsPerPersonPerDay` on allocate / fill / publish (full **calendar day**) | **Upcoming (R8)** — not on standing-assignment create |
-| **INT-H2** | Server assert: assigned staff’s `employment.roster` = selected Manage Roster **code** (create / bulk / update) | **TODO** — UI scopes today; service must enforce |
-| **INT-H3** | Legacy null `manageRosterId` — backfill + include in Manage Rosters in-use | **TODO** (HR Admin) |
-| **INT-H5** | Reject inactive shift types on assignment create/update | **TODO** |
-| **INT-H6** | Case-insensitive roster-code membership lookups | **TODO** |
-| **INT-H7** | Product lock: should overlap ignore `inactive` (and maybe `pending`) standing rows? | **TODO** — today all statuses block |
+| **INT-H2** | Server assert: assigned staff’s `employment.roster` = selected Manage Roster **code** (create / bulk / update) | **Done** |
+| **INT-H3** | Legacy null `manageRosterId` — backfill + include in Manage Rosters in-use | **Done** (HR Admin) |
+| **INT-H5** | Reject inactive shift types on assignment create/update | **Done** |
+| **INT-H6** | Case-insensitive roster-code membership lookups | **Done** |
+| **INT-H7** | Overlap ignores `inactive`; `active` + `pending` still block | **Done** |
 | — | Do **not** change | `SR-n` period codes; one `shift-roster` permission; Shift Types as template master |
 
 **Locked storage key:** staff membership + Roster & Shifts roster **strings** = `ManageRoster.code`. Standing assignment FK = Manage Roster **ObjectId** (`manageRosterId`). Do not invent a second key.
@@ -498,7 +498,7 @@ Fields: Roster Group* (Manage Rosters FK — context card: name, code, departmen
 |------|-------------------|
 | Roster-first | Select Manage Roster group before staff; staff options = members with `employment.roster` = group **code** |
 | FK | Create always sets `manageRosterId`; update must keep a resolved roster (legacy null rows backfilled via employment code when edited) |
-| Overlap | Reject only **same staff + same shift type** with overlapping effective date ranges (cross-type overlap allowed) |
+| Overlap | Reject only **same staff + same shift type** with overlapping effective date ranges among `active`/`pending` rows (cross-type allowed; `inactive` ignored — INT-H7) |
 | Day limit | Context card shows `shiftsPerPersonPerDay`; **do not** hard-block standing-rule create for INT-R4 — enforce on allocate / fill / publish later |
 | Delete | Removes standing rule only; does **not** cascade-delete calendar cells |
 | Shift Types | Templates only; delete blocked when assignments / allocations / amendments reference the type |
@@ -507,10 +507,10 @@ Fields: Roster Group* (Manage Rosters FK — context card: name, code, departmen
 
 | Rule | UI | Server |
 |------|----|--------|
-| Staff must belong to selected roster | **Done** (scope API + sheet filter) | **TODO INT-H2** |
-| Same-type date overlap | Toast / form error | **Done** (`assertNoOverlap`) |
+| Staff must belong to selected roster | **Done** (scope API + sheet filter) | **Done (INT-H2)** |
+| Same-type date overlap | Toast / form error | **Done** (`assertNoOverlap`; ignores `inactive`) |
 | `manageRosterId` on create | Required field | **Done** |
-| Inactive shift type rejected | Options may filter | **TODO INT-H5** |
+| Inactive shift type rejected | Options may filter | **Done (INT-H5)** |
 
 ### 2C.3 Register
 
@@ -1442,8 +1442,8 @@ HolidayCalendar 1──* RosterAllocation   (optional holidayId on the cell)
 | [x] Assign / Edit persist; Bulk writes one row per selected staff |
 | [x] Overlapping effective dates for the same staff + same shift type rejected in the service |
 | [x] Roster-first UI + `manageRosterId` on create |
-| [ ] **INT-H2** — service rejects staff whose employment roster ≠ selected Manage Roster code |
-| [ ] **INT-H5** — service rejects inactive shift types on create/update |
+| [x] **INT-H2** — service rejects staff whose employment roster ≠ selected Manage Roster code |
+| [x] **INT-H5** — service rejects inactive shift types on create/update |
 
 Auto Assign that **creates week cells** waits for D5.
 
@@ -1690,12 +1690,12 @@ Auto Assign that **creates week cells** waits for D5.
 
 Canonical table: `HR_ADMINISTRATION_GUIDE.md` §32 (**INT-H***). Roster & Shifts owners:
 
-- [ ] **INT-H2** (Must) — `createAssignmentRecord` / bulk / update: staff `employment.roster` must equal resolved Manage Roster **code**
-- [ ] **INT-H5** (Should) — reject inactive shift types on create/update
-- [ ] **INT-H6** (Should) — case-insensitive roster-code membership in `getShiftAssignmentRosterScope` (and any peer lookups)
-- [ ] **INT-H7** (Should) — product lock: filter `assertNoOverlap` by status (`inactive` / `pending`) or document that all statuses block
+- [x] **INT-H2** (Must) — `createAssignmentRecord` / bulk / update: staff `employment.roster` must equal resolved Manage Roster **code**
+- [x] **INT-H5** (Should) — reject inactive shift types on create/update
+- [x] **INT-H6** (Should) — case-insensitive roster-code membership in getShiftAssignmentRosterScope (and peer lookups)
+- [x] **INT-H7** (Should) — overlap ignores inactive; ctive/pending still block
 - [ ] **INT-R4 / R8** (Later) — enforce `shiftsPerPersonPerDay` on allocate / fill / publish (full calendar day)
 - [ ] **INT-H8** (Later) — overlap TOCTOU / unique compound protection if concurrent creates become an issue
 - [ ] **INT-H9** (Later) — staff delete guards for standing assignments / allocations
 
-*Last updated: Oct 2026 — Shift Assignment roster-first behaviour; post-review INT-H* / INT-R4 todos.*
+*Last updated: Nov 2026 — INT-H2 / H5–H7 done; remaining Later INT-R4 / H8–H9 in §10 / HR Admin §32.* / INT-R4 in §10 / HR Admin §32.*
