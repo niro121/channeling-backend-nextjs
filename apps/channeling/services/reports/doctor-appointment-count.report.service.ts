@@ -1,6 +1,7 @@
 'use server';
 
 import prisma from '@/lib/prisma';
+import { bookingHasNoPaymentReceipt } from '@/lib/reports/booking-payment-receipt';
 import { getInclusiveDaySpan, getReportMaxRangeDays, getReportMaxRecords } from '@/lib/report-limits';
 import { parseReportDateTime } from '@/lib/parse-report-datetime';
 import type {
@@ -84,6 +85,7 @@ export async function getDoctorAppointmentCountReportService(
         status: true,
         refund: true,
         canceledAt: true,
+        receiptNoString: true,
         hospitalFee: true,
         hospitalFeeDiscount: true,
         professionalFee: true,
@@ -149,15 +151,22 @@ export async function getDoctorAppointmentCountReportService(
       }
       const row = grouped.get(key)!;
 
-      const paymentCount = b.receipts.filter((r) => r.method === 1).length;
       const refundCount = b.receipts.filter((r) => r.method === 0).length;
       const refundType = Number(b.refund ?? 0); // 0 none, 1 pro, 2 hos, 3 full
+      // Same paid signal as Channel Patient Count (Accounting Wise): the receipt number
+      // stored on the booking. Imported bookings have that number and no Receipt row.
+      // A Receipt row still counts when the number was not copied onto the booking.
+      const hasPaymentReceipt =
+        !bookingHasNoPaymentReceipt(b.receiptNoString) ||
+        b.receipts.some((r) => r.method === 1);
 
-      if (paymentCount === 0 && refundCount === 0) {
+      if (!hasPaymentReceipt && refundCount === 0) {
         row.notPaid += 1;
       }
 
-      row.paid += paymentCount;
+      if (hasPaymentReceipt) {
+        row.paid += 1;
+      }
 
       // refund: 0 none, 1 professional only, 2 hospital only, 3 full cancel.
       // A paid cancel (refund 3) belongs in Cancel only. Hos/Pro Refund are partial refunds.

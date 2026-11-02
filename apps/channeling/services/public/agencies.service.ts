@@ -71,7 +71,7 @@ export type GetPublicAgencyStatementResult =
   | { success: true; data: PublicAgencyStatementDto }
   | {
       success: false
-      code: "invalid_request" | "not_found" | "server_error"
+      code: "invalid_request" | "not_found" | "busy" | "server_error"
       message: string
     }
 
@@ -235,9 +235,10 @@ function toIsoDate(value: Date | string): string {
 
 function classifyStatementFailure(
   message: string
-): "invalid_request" | "not_found" | "server_error" {
+): "invalid_request" | "not_found" | "busy" | "server_error" {
   const lower = message.toLowerCase()
   if (lower.includes("not found")) return "not_found"
+  if (lower.includes("busy")) return "busy"
   if (
     lower.includes("required") ||
     lower.includes("date") ||

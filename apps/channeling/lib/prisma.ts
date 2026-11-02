@@ -19,6 +19,8 @@ if (typeof process !== 'undefined' && process.setMaxListeners) {
 
 export const prisma = globalForPrisma.prisma || new PrismaClient()
 
-if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma
+// Production too: the Next build holds several copies of this module, and each copy would otherwise
+// open its own query engine and connection pool.
+globalForPrisma.prisma = prisma
 
 export default prisma

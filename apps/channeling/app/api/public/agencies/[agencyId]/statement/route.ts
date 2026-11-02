@@ -43,14 +43,16 @@ export const GET = withPublicApiLog(async function GET(
         ? 400
         : result.code === "not_found"
           ? 404
-          : 500
+          : result.code === "busy"
+            ? 503
+            : 500
     return withCors(
       NextResponse.json(
         {
           error: result.code,
           error_description: result.message,
         },
-        { status }
+        { status, headers: result.code === "busy" ? { "Retry-After": "30" } : undefined }
       )
     )
   }
