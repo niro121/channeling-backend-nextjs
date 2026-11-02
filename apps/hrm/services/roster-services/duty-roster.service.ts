@@ -6,6 +6,7 @@ import prisma, { Prisma } from '@/lib/prisma';
 import type { AuditUser } from '@/lib/audit-user';
 import { toAuditUser } from '@/lib/audit-user';
 import { resolveAuthUsers } from '@/lib/helpers/resolve-auth-users.helper';
+import { buildManageRosterFilterOptions } from '@/lib/helpers/manage-roster-filter-options.helper';
 import { saveRosterAllocationDraft } from '@/services/roster-services/shift-roster.service';
 import type {
   DutyAttendance,
@@ -434,6 +435,11 @@ export async function getDutyRosterFilterOptions(): Promise<{
       select: { employmentDetails: true }
     });
 
+    const rosterFilterOptions = await buildManageRosterFilterOptions([
+      ...allocations.map((row) => row.roster),
+      ...staff.map((row) => row.employmentDetails?.employment?.roster)
+    ]);
+
     return {
       success: true,
       data: {
@@ -446,10 +452,7 @@ export async function getDutyRosterFilterOptions(): Promise<{
           ...allocations.map((row) => row.unit),
           ...assignments.map((row) => row.unit)
         ]).map(toOption),
-        rosters: uniqueStrings([
-          ...allocations.map((row) => row.roster),
-          ...staff.map((row) => row.employmentDetails?.employment?.roster)
-        ]).map(toOption),
+        rosters: rosterFilterOptions,
         shifts: shiftTypes.map((shift) => ({
           id: shift.id,
           name: shift.code ? `${shift.code} — ${shift.name}` : shift.name
