@@ -1,0 +1,32 @@
+export type ChannelAgentReceiptReportQuery = {
+  bookNo?: string;
+  agencyId?: string;
+};
+
+export type ChannelAgentReceiptReportRow = {
+  id: string;
+  agentRef: string;
+  refNo: string;
+  agency: string;
+  patient: string;
+  status: string;
+  creator: string;
+  createdDate: Date;
+  billValue: number;
+};
+
+export type ChannelAgentReceiptReportExportRow = {
+  agentRef: string;
+  refNo: string;
+  agency: string;
+  patient: string;
+  status: string;
+  creator: string;
+  createdDate: string;
+  billValue: number;
+};
+
+export type ChannelAgentReceiptReportContentProps = {
+  currentUserName: string;
+  agencyOptions: Array<{ id: string; name: string }>;
+};

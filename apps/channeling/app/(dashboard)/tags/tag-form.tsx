@@ -1,0 +1,307 @@
+"use client"
+
+import React, { useState } from "react"
+import { Tag } from "@/types/tag"
+import { Form, Formik, FormikHelpers } from "formik"
+import CustomFormField from "@/components/common/form-field"
+import { Button } from "@/components/ui/button"
+import { Ban, Save } from "lucide-react"
+import * as Yup from "yup"
+import { createNewTag, updateTag } from "@/app/actions/tag.actions"
+import { useToast } from "@/components/hooks/use-toast"
+import CustomSelectField from "@/components/common/custom-select-field"
+import { useRouter } from "next/navigation"
+import moment from "moment"
+import { Separator } from "@/components/ui/separator"
+import { Label } from "@/components/ui/label"
+
+type TagFormProps = {
+    tag: Tag | null
+    isEditPage?: boolean
+}
+
+const TagForm = ({ tag, isEditPage = false }: TagFormProps) => {
+
+    const initialValues: Tag = {
+        id: tag?.id ? tag.id : "",
+        name: tag?.name ? tag.name : "",
+        type: tag?.type ?? undefined, // 0 = City is valid; ?? preserves 0 (truthy check would not)
+        status: tag?.status !== undefined ? tag.status : 1, // Default Published (1)
+        createdAt: tag?.createdAt ? tag.createdAt : new Date(),
+        updatedAt: tag?.updatedAt ? tag.updatedAt : new Date(),
+    }
+    const [loading, setLoading] = useState<boolean>(false)
+    const saveAndCloseRef = React.useRef<boolean>(false)
+    const { toast } = useToast()
+    const router = useRouter()
+
+    const validationSchema = Yup.object({
+        name: Yup.string()
+            .min(1, "This field is mandatory")
+            .max(100, "Must be less than 100 characters")
+            .required("This field is mandatory"),
+        type: Yup.number()
+            .typeError("Type is required")
+            .required("This field is mandatory")
+            .min(0, "Type is required")
+            .max(4, "Type must be 0–4 (City, Staff Category, Staff Designation, Staff Grade, Bank)"),
+        status: Yup.number()
+            .oneOf([0, 1], "Status must be Unpublished (0) or Published (1)")
+            .required("This field is mandatory"),
+    })
+
+    const handleSubmit = async (
+        values: Tag,
+        { setErrors, setTouched }: FormikHelpers<Tag>
+    ) => {
+        const closeAfterSave = saveAndCloseRef.current
+        try {
+            setLoading(true);
+            let respond: any;
+
+            if (tag && tag.id) {
+                respond = await updateTag(tag.id, values);
+                setLoading(false);
+
+                if (!respond?.success) {
+                    // Handle server-side validation errors
+                    if (respond?.error?.issues) {
+                        const fieldErrors: any = {};
+                        const touchedFields: any = {};
+                        Object.keys(respond.error.issues).forEach((key) => {
+                            const errorArray = respond.error.issues[key];
+                            if (Array.isArray(errorArray) && errorArray.length > 0) {
+                                fieldErrors[key] = errorArray[0];
+                                touchedFields[key] = true;
+                            }
+                        });
+                        setErrors(fieldErrors);
+                        setTouched(touchedFields);
+                        toast({
+                            variant: 'destructive',
+                            title: 'Validation Error',
+                            description: respond.error.message || 'Please check the form for errors.'
+                        });
+                    } else {
+                        toast({
+                            variant: 'destructive',
+                            title: 'Error',
+                            description: respond.error?.message || 'Tag update unsuccessful.'
+                        });
+                    }
+                    return;
+                }
+
+                toast({
+                    variant: "success",
+                    title: "Success",
+                    description: "Tag was saved successfully",
+                })
+                if (closeAfterSave) router.push('/tags')
+                else router.refresh()
+            } else {
+                respond = await createNewTag(values);
+                setLoading(false);
+
+                if (!respond?.success) {
+                    // Handle server-side validation errors
+                    if (respond?.error?.issues) {
+                        const fieldErrors: any = {};
+                        const touchedFields: any = {};
+                        Object.keys(respond.error.issues).forEach((key) => {
+                            const errorArray = respond.error.issues[key];
+                            if (Array.isArray(errorArray) && errorArray.length > 0) {
+                                fieldErrors[key] = errorArray[0];
+                                touchedFields[key] = true;
+                            }
+                        });
+                        setErrors(fieldErrors);
+                        setTouched(touchedFields);
+                        toast({
+                            variant: 'destructive',
+                            title: 'Validation Error',
+                            description: respond.error.message || 'Please check the form for errors.'
+                        });
+                    } else {
+                        toast({
+                            variant: 'destructive',
+                            title: 'Error',
+                            description: respond.error?.message || 'Tag save unsuccessful.'
+                        });
+                    }
+                    return;
+                }
+
+                toast({
+                    variant: "success",
+                    title: "Success",
+                    description: "Tag was created successfully",
+                })
+                const newId = respond?.data?.id
+                if (closeAfterSave) router.push('/tags')
+                else if (newId) router.push(`/tags/${newId}/edit`)
+                else router.push('/tags')
+            }
+        } catch (error: any) {
+            setLoading(false);
+            // Handle client-side validation errors
+            if (error.name === 'ValidationError') {
+                const fieldErrors: any = {};
+                const touchedFields: any = {};
+                error.inner.forEach((err: any) => {
+                    if (err.path) {
+                        fieldErrors[err.path] = err.message;
+                        touchedFields[err.path] = true;
+                    }
+                });
+                setErrors(fieldErrors);
+                setTouched(touchedFields);
+                toast({
+                    variant: 'destructive',
+                    title: 'Validation Error',
+                    description: 'Please check the form for errors.'
+                });
+            } else {
+                toast({
+                    variant: "destructive",
+                    title: "Error",
+                    description: error.message ?? "Tag save unsuccessful.",
+                })
+            }
+        }
+    }
+
+    return (
+        <Formik
+            initialValues={initialValues}
+            onSubmit={handleSubmit}
+            validationSchema={validationSchema}
+            enableReinitialize={isEditPage}
+            validateOnChange={false}
+            validateOnBlur={false}
+        >
+            {(formik) => {
+
+                const styleClasses = {
+                    parentDiv: "grid grid-cols-1 items-center gap-4 sm:grid-cols-4",
+                    labelClassName: "text-sm text-black font-semibold capitalize",
+                    inputClassName: "col-span-full sm:col-span-3",
+                }
+
+                return (
+                    <Form className="w-full">
+                        <div className="grid gap-4 border rounded-lg p-6">
+                            <CustomFormField
+                                type="text"
+                                id="name"
+                                placeholder="Tag Name"
+                                value={formik.values.name}
+                                onChange={formik.handleChange}
+                                onBlur={formik.handleBlur}
+                                required
+                                styleClasses={styleClasses}
+                            />
+
+                            <CustomSelectField
+                                id="type"
+                                placeholder="Type"
+                                value={formik.values.type?.toString() || ""}
+                                onChange={(value) => {
+                                    formik.setFieldValue("type", parseInt(value));
+                                    formik.setFieldTouched("type", true);
+                                }}
+                                required
+                                options={[
+                                    { id: "0", name: "City" },
+                                    { id: "1", name: "Staff Category" },
+                                    { id: "2", name: "Staff Designation" },
+                                    { id: "3", name: "Staff Grade" },
+                                    { id: "4", name: "Bank" },
+                                ]}
+                                styleClasses={styleClasses}
+                            />
+
+                            <CustomSelectField
+                                id="status"
+                                placeholder="Status"
+                                value={formik.values.status?.toString()}
+                                onChange={(value) => formik.setFieldValue("status", parseInt(value))}
+                                required={false}
+                                options={[
+                                    { id: "0", name: "Unpublished" },
+                                    { id: "1", name: "Published" }
+                                ]}
+                                styleClasses={styleClasses}
+                            />
+
+                            {/* Record (Created / Last updated) - Edit mode only */}
+                            {/* {isEditPage && tag && (
+                                <>
+                                    <Separator />
+                                    <h3 className="col-span-full text-lg font-semibold">Record</h3>
+                                    <div className={styleClasses.parentDiv}>
+                                        <Label className={styleClasses.labelClassName}>Created</Label>
+                                        <div className={styleClasses.inputClassName}>
+                                            <span className="text-muted-foreground text-sm">
+                                                {tag.createdAt
+                                                    ? `${tag.createdUser?.name ?? '—'}, ${moment(tag.createdAt).format('DD MMM YYYY [at] h:mm A')}`
+                                                    : '—'}
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <div className={styleClasses.parentDiv}>
+                                        <Label className={styleClasses.labelClassName}>Last updated</Label>
+                                        <div className={styleClasses.inputClassName}>
+                                            <span className="text-muted-foreground text-sm">
+                                                {tag.updatedAt
+                                                    ? `${tag.updatedUser?.name ?? '—'}, ${moment(tag.updatedAt).format('DD MMM YYYY [at] h:mm A')}`
+                                                    : '—'}
+                                            </span>
+                                        </div>
+                                    </div>
+                                </>
+                            )} */}
+
+                            <div className="flex flex-col sm:flex-row justify-end gap-3">
+                                <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="w-full sm:w-24 gap-1 border-red-500 text-red-500 transition-colors ease-in-out duration-100 hover:bg-red-500 hover:text-white"
+                                    type="button"
+                                    onClick={() => router.push('/tags')}
+                                    disabled={loading}
+                                >
+                                    <Ban className="h-4 w-4" />
+                                    <span>Cancel</span>
+                                </Button>
+                                <Button
+                                    disabled={loading}
+                                    size="sm"
+                                    type="button"
+                                    className="w-full sm:w-auto gap-1 text-white px-6 transition-colors ease-in-out duration-100 hover:text-black"
+                                    onClick={() => { saveAndCloseRef.current = false; formik.submitForm(); }}
+                                >
+                                    <Save className="h-4 w-4" />
+                                    <span>Save</span>
+                                </Button>
+                                <Button
+                                    disabled={loading}
+                                    size="sm"
+                                    type="button"
+                                    variant="secondary"
+                                    className="w-full sm:w-auto gap-1 px-6"
+                                    onClick={() => { saveAndCloseRef.current = true; formik.submitForm(); }}
+                                >
+                                    <Save className="h-4 w-4" />
+                                    <span>Save and Close</span>
+                                </Button>
+                            </div>
+                        </div>
+                    </Form>
+                )
+            }}
+        </Formik>
+    )
+}
+
+export default TagForm

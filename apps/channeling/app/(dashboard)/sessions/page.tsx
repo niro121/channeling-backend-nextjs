@@ -1,0 +1,82 @@
+import React, { Suspense } from 'react';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
+import { logActivityNonBlocking } from '@/lib/activity-log';
+import Loading from '../loading';
+import SessionsPageClient from './sessions-page-client';
+import { getDoctorOptions } from '@/app/actions/sessions.action';
+import { checkRouteAccess } from '@/lib/server-permissions';
+import { redirect } from 'next/navigation';
+import { getLocationsForSelectService } from '@/services/reference/reference-data.service';
+
+type SearchParams = {
+  searchParams?: Promise<{
+    page?: string;
+    limit?: string;
+    doctorId?: string;
+    fromDate?: string;
+    toDate?: string;
+    branchId?: string;
+  }>;
+};
+
+function todayYYYYMMDD(): string {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+export default async function Page({ searchParams }: SearchParams) {
+  const canView = await checkRouteAccess('/sessions');
+  if (!canView) {
+    redirect('/unauthorized-access');
+  }
+  const params = await searchParams;
+  const session = await getServerSession(authOptions);
+  if (session?.user?.id) {
+    logActivityNonBlocking({
+      userId: session.user.id,
+      action: 'sessions.visited',
+      entityType: 'Sessions',
+      importance: 'low',
+    });
+  }
+  const [doctorOptions, locations] = await Promise.all([
+    getDoctorOptions(),
+    getLocationsForSelectService(),
+  ]);
+  const branchOptions = [
+    { id: '__all__', name: 'All branches' },
+    ...locations.map((l) => ({ id: l.id, name: l.name })),
+  ];
+  const defaultToday = todayYYYYMMDD();
+  const rawFrom = params?.fromDate ?? defaultToday;
+  const rawTo = params?.toDate ?? defaultToday;
+  const fromDate = rawFrom < defaultToday ? defaultToday : rawFrom;
+  const toDate = (() => {
+    const t = rawTo < defaultToday ? defaultToday : rawTo;
+    return t < fromDate ? fromDate : t;
+  })();
+
+  const doctorOptionsWithAll = [
+    { id: '-1', name: 'All Doctors' },
+    ...(doctorOptions.data || [])
+  ];
+
+  return (
+    <Suspense fallback={<Loading />}>
+      <SessionsPageClient
+        doctorId={params?.doctorId}
+        doctorOptions={doctorOptionsWithAll}
+        fromDate={fromDate}
+        toDate={toDate}
+        page={params?.page}
+        limit={params?.limit}
+        branchOptions={branchOptions}
+        branchId={params?.branchId}
+      />
+    </Suspense>
+  );
+}

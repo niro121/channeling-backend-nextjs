@@ -1,0 +1,133 @@
+{
+  "info": {
+    "name": "HRM Public Careers API",
+    "description": "OAuth2 client credentials + Public Careers routes on the HRM app.\n\n1. Set client_id / client_secret from HRM → API Clients.\n2. Run Create Access Token (saves access_token).\n3. List / get jobs (careers:read).\n4. Apply JSON or multipart (careers:apply + CAREERS_PUBLIC_APPLY_ENABLED=true).\n\nSee apps/hrm/docs/PUBLIC_CAREERS_API_GUIDE.md.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:3001" },
+    { "key": "client_id", "value": "" },
+    { "key": "client_secret", "value": "" },
+    { "key": "access_token", "value": "" },
+    { "key": "job_slug", "value": "your-job-slug" },
+    { "key": "candidate_email", "value": "candidate@example.com" }
+  ],
+  "item": [
+    {
+      "name": "Create Access Token",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"grant_type\": \"client_credentials\",\n  \"client_id\": \"{{client_id}}\",\n  \"client_secret\": \"{{client_secret}}\"\n}"
+        },
+        "url": "{{baseUrl}}/api/public/careers/token",
+        "description": "OAuth2 client_credentials. Saves access_token for later requests."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "if (pm.response.code === 200) {",
+              "  const json = pm.response.json();",
+              "  if (json.access_token) {",
+              "    pm.collectionVariables.set('access_token', json.access_token);",
+              "  }",
+              "}"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ]
+    },
+    {
+      "name": "List Jobs",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{access_token}}" }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/public/careers/jobs?keyword=&page=0&limit=50",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "public", "careers", "jobs"],
+          "query": [
+            {
+              "key": "keyword",
+              "value": "",
+              "description": "Optional search over title, slug, department, designation."
+            },
+            { "key": "page", "value": "0", "description": "0-based page index." },
+            { "key": "limit", "value": "50", "description": "Page size (max 100)." }
+          ]
+        },
+        "description": "Published, non-expired job posts. Requires careers:read."
+      }
+    },
+    {
+      "name": "Get Job by Slug",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{access_token}}" }
+        ],
+        "url": "{{baseUrl}}/api/public/careers/jobs/{{job_slug}}",
+        "description": "Public job detail DTO. Requires careers:read. Set job_slug from List Jobs."
+      }
+    },
+    {
+      "name": "Apply (JSON metadata)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{access_token}}" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"jobSlug\": \"{{job_slug}}\",\n  \"candidateName\": \"A. Perera\",\n  \"candidateEmail\": \"{{candidate_email}}\",\n  \"candidatePhone\": \"0771234567\",\n  \"experienceYears\": 3,\n  \"qualifications\": \"BSc Nursing\",\n  \"skills\": [\"ICU\", \"ACLS\"]\n}"
+        },
+        "url": "{{baseUrl}}/api/public/careers/applications",
+        "description": "Create application (hospital_website). Requires careers:apply and CAREERS_PUBLIC_APPLY_ENABLED=true. Duplicate email on same job → 409."
+      }
+    },
+    {
+      "name": "Apply with CV (multipart)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{access_token}}" }
+        ],
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            { "key": "jobSlug", "type": "text", "value": "{{job_slug}}" },
+            { "key": "candidateName", "type": "text", "value": "A. Perera" },
+            { "key": "candidateEmail", "type": "text", "value": "{{candidate_email}}" },
+            { "key": "candidatePhone", "type": "text", "value": "0771234567" },
+            { "key": "experienceYears", "type": "text", "value": "3" },
+            { "key": "qualifications", "type": "text", "value": "BSc Nursing" },
+            {
+              "key": "skills",
+              "type": "text",
+              "value": "[\"ICU\",\"ACLS\"]",
+              "description": "JSON array string or comma-separated."
+            },
+            {
+              "key": "resume",
+              "type": "file",
+              "src": [],
+              "description": "Optional. PDF or image (JPEG/PNG/WebP/GIF), max 10 MB."
+            }
+          ]
+        },
+        "url": "{{baseUrl}}/api/public/careers/applications",
+        "description": "Same apply endpoint with optional resume file. Stores under S3 resumes/ when configured."
+      }
+    }
+  ]
+}

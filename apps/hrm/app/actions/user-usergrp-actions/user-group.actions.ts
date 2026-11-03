@@ -1,0 +1,259 @@
+'use server';
+
+import { revalidatePath } from 'next/cache';
+import { getAuditUser } from '@/lib/audit-user';
+import { requirePermission } from '@/lib/server-permissions';
+import { logActivityNonBlocking } from '@/lib/activity-log';
+import {
+  GetUserGroupsParams,
+  GetUserGroupsQuery,
+  UserGroup,
+} from '@/types/user-group';
+import {
+  deleteOneUserGroup,
+  deleteUserGroups,
+  getAllUserGroupsOptionsService,
+  getUserGroupById,
+  getUserGroups,
+  getUserGroupsForExport,
+  saveUserGroup,
+  updateOneUserGroup,
+} from '@/services/user-usergrp-services/user-group.service';
+
+function stripUserGroupPayload(payload: UserGroup) {
+  delete payload.id;
+  delete payload.createdAt;
+  delete payload.updatedAt;
+  delete payload.app;
+  delete payload.createdBy;
+  delete payload.updatedBy;
+  delete payload.createdUser;
+  delete payload.updatedUser;
+}
+
+export async function getAllUserGroups(filter: GetUserGroupsParams) {
+  await requirePermission('users', 'view');
+
+  try {
+    const newFilter: GetUserGroupsQuery = {
+      page: filter.page
+        ? parseInt(filter.page, 10)
+        : parseInt(process.env.DEFAULT_PAGE ?? '0', 10) || 0,
+      limit: filter.limit
+        ? parseInt(filter.limit, 10)
+        : parseInt(process.env.DEFAULT_PER_PAGE ?? '10', 10) || 10,
+      keyword: filter.keyword ?? '',
+      userGroupId: filter.userGroupId,
+      status: filter.status,
+    };
+
+    return await getUserGroups(newFilter);
+  } catch (error: unknown) {
+    console.error('getAllUserGroups error', error);
+    const message =
+      error instanceof Error ? error.message : 'Error getting data. Please try again later';
+    throw new Error(message);
+  }
+}
+
+export async function bulkDeleteUserGroups(ids: string[]) {
+  await requirePermission('users', 'delete');
+
+  try {
+    await deleteUserGroups(ids);
+    const auditUser = await getAuditUser();
+    if (auditUser?.id) {
+      logActivityNonBlocking({
+        userId: auditUser.id,
+        action: 'user-groups.userGroup.bulkDeleted',
+        entityType: 'UserGroup',
+        importance: 'high',
+        metadata: { count: ids.length },
+      });
+    }
+    revalidatePath('/user-groups');
+    return true;
+  } catch (error: unknown) {
+    console.error('bulkDeleteUserGroups error', error);
+    const message =
+      error instanceof Error ? error.message : 'Error deleting records. Please try again later';
+    throw new Error(message);
+  }
+}
+
+export async function deleteUserGroup(id: string) {
+  await requirePermission('users', 'delete');
+
+  try {
+    await deleteOneUserGroup(id);
+    const auditUser = await getAuditUser();
+    if (auditUser?.id) {
+      logActivityNonBlocking({
+        userId: auditUser.id,
+        action: 'user-groups.userGroup.deleted',
+        entityType: 'UserGroup',
+        entityId: id,
+        importance: 'high',
+      });
+    }
+    revalidatePath('/user-groups');
+    return true;
+  } catch (error: unknown) {
+    console.error('deleteUserGroup error', error);
+    const message =
+      error instanceof Error ? error.message : 'Error deleting data. Please try again later';
+    throw new Error(message);
+  }
+}
+
+export async function createNewUserGroup(payload: UserGroup) {
+  await requirePermission('users', 'add');
+
+  try {
+    stripUserGroupPayload(payload);
+
+    const auditUser = await getAuditUser();
+    const result = await saveUserGroup(payload, auditUser);
+    if (auditUser?.id) {
+      logActivityNonBlocking({
+        userId: auditUser.id,
+        action: 'user-groups.userGroup.created',
+        entityType: 'UserGroup',
+        entityId: result.id,
+        importance: 'high',
+      });
+    }
+
+    revalidatePath('/user-groups');
+    return {
+      isError: false,
+      errors: {},
+      data: result,
+    };
+  } catch (error: unknown) {
+    console.error('createNewUserGroup error', error);
+    return {
+      isError: true,
+      errors: {
+        message:
+          error instanceof Error
+            ? error.message
+            : 'Something went wrong. Please try again later',
+      },
+      data: {},
+    };
+  }
+}
+
+export async function updateUserGroup(id: string, payload: UserGroup) {
+  await requirePermission('users', 'edit');
+
+  try {
+    stripUserGroupPayload(payload);
+
+    const auditUser = await getAuditUser();
+    await updateOneUserGroup(id, payload, auditUser);
+    if (auditUser?.id) {
+      logActivityNonBlocking({
+        userId: auditUser.id,
+        action: 'user-groups.userGroup.updated',
+        entityType: 'UserGroup',
+        entityId: id,
+        importance: 'high',
+      });
+    }
+
+    revalidatePath('/user-groups');
+    return {
+      isError: false,
+      errors: {},
+      data: { saved: true },
+    };
+  } catch (error: unknown) {
+    console.error('updateUserGroup error', error);
+    return {
+      isError: true,
+      errors: {
+        message:
+          error instanceof Error
+            ? error.message
+            : 'Something went wrong. Please try again later',
+      },
+      data: {},
+    };
+  }
+}
+
+export async function fetchUserGroupById(id: string) {
+  await requirePermission('users', 'view');
+
+  if (!id) {
+    throw new Error('User group not found');
+  }
+
+  const userGroup = await getUserGroupById(id);
+  if (!userGroup) {
+    throw new Error('User group not found');
+  }
+
+  return userGroup;
+}
+
+export async function getAllUserGroupsOptions(options?: {
+  activeOnly?: boolean;
+}) {
+  await requirePermission('users', 'view');
+
+  try {
+    return await getAllUserGroupsOptionsService(options);
+  } catch (error: unknown) {
+    console.error('getAllUserGroupsOptions error', error);
+    const message =
+      error instanceof Error
+        ? error.message
+        : 'Error getting user group options. Please try again later';
+    throw new Error(message);
+  }
+}
+
+export async function getUserGroupsExport(params: {
+  keyword?: string;
+  userGroupId?: string;
+  status?: string;
+}) {
+  await requirePermission('users', 'view');
+
+  try {
+    const response = await getUserGroupsForExport({
+      keyword: params.keyword ?? '',
+      userGroupId: params.userGroupId,
+      status: params.status,
+    });
+
+    if (!response.data?.length) {
+      return {
+        success: false,
+        message: 'No user groups found',
+        data: [],
+        totalRecords: 0,
+      };
+    }
+
+    return {
+      success: true,
+      data: response.data,
+      totalRecords: response.totalRecords,
+    };
+  } catch (error: unknown) {
+    console.error('getUserGroupsExport error', error);
+    return {
+      success: false,
+      message:
+        error instanceof Error
+          ? error.message
+          : 'Error getting data. Please try again later',
+      data: [],
+      totalRecords: 0,
+    };
+  }
+}
