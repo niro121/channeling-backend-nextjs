@@ -159,8 +159,10 @@ export async function getDoctorAppointmentCountReportService(
       const hasPaymentReceipt =
         !bookingHasNoPaymentReceipt(b.receiptNoString) ||
         b.receipts.some((r) => r.method === 1);
+      // A pending booking that was cancelled was never paid. Leave it out of Not Paid.
+      const isCancelled = b.status === 2 || Boolean(b.canceledAt);
 
-      if (!hasPaymentReceipt && refundCount === 0) {
+      if (!hasPaymentReceipt && refundCount === 0 && !isCancelled) {
         row.notPaid += 1;
       }
 
@@ -170,7 +172,7 @@ export async function getDoctorAppointmentCountReportService(
 
       // refund: 0 none, 1 professional only, 2 hospital only, 3 full cancel.
       // A paid cancel (refund 3) belongs in Cancel only. Hos/Pro Refund are partial refunds.
-      const isFullCancel = b.status === 2 || Boolean(b.canceledAt) || refundType === 3;
+      const isFullCancel = isCancelled || refundType === 3;
       if (isFullCancel) {
         row.cancel += refundType === 3 ? Math.max(refundCount, 1) : refundCount;
       }
