@@ -3,6 +3,7 @@ import { notFound, redirect } from 'next/navigation';
 import { BackButton } from '@archmage/ui';
 import { userTypes } from '@archmage/shared';
 import { fetchServerSession } from '@/lib/session';
+import { logActivityNonBlocking } from '@/lib/activity-log';
 import { checkPermission } from '@/lib/server-permissions';
 import { fetchUserById } from '@/app/actions/user-usergrp-actions/user.actions';
 import { getAllUserGroupsOptions } from '@/app/actions/user-usergrp-actions/user-group.actions';
@@ -20,7 +21,16 @@ export default async function EditUserPage({ params }: PageProps) {
   }
 
   const { id } = await params;
-  await fetchServerSession();
+  const session = await fetchServerSession();
+  if (session?.user?.id) {
+    logActivityNonBlocking({
+      userId: session.user.id,
+      action: 'users.visited',
+      entityType: 'Users',
+      entityId: id,
+      importance: 'low'
+    });
+  }
 
   let user: HrmUser;
   try {

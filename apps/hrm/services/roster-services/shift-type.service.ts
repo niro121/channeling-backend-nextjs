@@ -247,32 +247,24 @@ export async function getShiftTypes(params: GetShiftTypesParams): Promise<{
 export async function getShiftTypesForExport(
   params: Omit<GetShiftTypesParams, 'page' | 'limit'>
 ): Promise<{
-  success: boolean;
-  data?: ShiftTypeRecord[];
-  message?: string;
-  error?: { message?: string };
+  data: ShiftTypeRecord[];
+  totalRecords: number;
 }> {
   try {
     const where = buildShiftTypeWhere(params);
-    const exportLimit =
-      Number.parseInt(process.env.EXPORT_LIMIT ?? '1000', 10) || 1000;
     const records = await prisma.shiftType.findMany({
       where,
-      orderBy: { createdAt: 'desc' },
-      take: exportLimit
+      orderBy: { createdAt: 'desc' }
     });
     const recordsWithUsers = await resolveAuthUsers(records);
+    const data = recordsWithUsers.map(mapShiftTypeRecord);
     return {
-      success: true,
-      data: recordsWithUsers.map(mapShiftTypeRecord),
-      message: 'Shift types export fetched successfully'
+      data,
+      totalRecords: data.length
     };
-  } catch (error: any) {
-    console.error('getShiftTypesForExport error:', error);
-    return {
-      success: false,
-      error: { message: error.message || 'Failed to export shift types' }
-    };
+  } catch (error) {
+    console.error('getShiftTypesForExport error', error);
+    throw new Error('Error getting data');
   }
 }
 

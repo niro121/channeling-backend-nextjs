@@ -12,6 +12,7 @@ import { generateRecordCode } from '@/lib/conventions/record-code-generator';
 import { LOCATION_STATUS } from '@/types/location';
 import {
   ZONE_CODE_PREFIX,
+  ZONE_STATUS,
   type GetZoneParams,
   type ZoneLocationSummary,
   type ZonePayload,
@@ -219,6 +220,39 @@ export async function getZoneList(params: GetZoneParams = {}): Promise<{
     };
   } catch (error: any) {
     console.error('getZoneList error:', error);
+    return {
+      success: false,
+      error: { message: error.message || 'Failed to fetch zones' }
+    };
+  }
+}
+
+/** Published zone master rows for the staff Zone Code selector. */
+export async function getPublishedZoneOptions(includeCode?: string | null): Promise<{
+  success: boolean;
+  data?: { id: string; name: string }[];
+  error?: { message?: string };
+}> {
+  try {
+    const zones = await prisma.zone.findMany({
+      where: { status: ZONE_STATUS.PUBLISH },
+      select: { name: true, code: true },
+      orderBy: [{ name: 'asc' }]
+    });
+
+    const options = zones.map((zone) => ({
+      id: zone.code,
+      name: `${zone.name} (${zone.code})`
+    }));
+
+    const currentCode = includeCode?.trim();
+    if (currentCode && !options.some((option) => option.id === currentCode)) {
+      options.push({ id: currentCode, name: currentCode });
+    }
+
+    return { success: true, data: options };
+  } catch (error: any) {
+    console.error('getPublishedZoneOptions error:', error);
     return {
       success: false,
       error: { message: error.message || 'Failed to fetch zones' }

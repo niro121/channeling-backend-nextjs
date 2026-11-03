@@ -11,16 +11,26 @@ import {
   SHIFT_ASSIGNMENT_STATUSES,
   type GetShiftAssignmentsParams,
   type ShiftAssignmentFilterOptions,
+  type ShiftAssignmentFormOptions,
   type ShiftAssignmentHistoryEntry,
   type ShiftAssignmentPayload,
   type ShiftAssignmentRecord,
+  type ShiftAssignmentRosterScope,
   type ShiftAssignmentStatus,
   type ShiftAssignmentSummary
 } from '@/types/roster';
+import { getInstitutionName, INSTITUTION_OPTIONS } from '@/types/institution';
+import { STAFF_CATEGORY_OPTIONS } from '@/types/staff-category';
+import { EMPLOYEE_STATUS_OPTIONS } from '@/types/staff-employment-options';
+import { getDepartmentOptions } from '@/services/organization-services/department.service';
+import { getRoomOptions } from '@/services/organization-services/room.service';
+import { getDesignationOptions } from '@/services/hr-admin-services/designation.service';
+import { getStaffGradeOptions } from '@/services/hr-admin-services/staff-grade.service';
 
 const assignmentPayloadSchema = z.object({
   staffId: z.string().min(1, 'Staff is required'),
   shiftTypeId: z.string().min(1, 'Shift type is required'),
+  manageRosterId: z.string().min(1, 'Roster group is required'),
   rotationPattern: z.string().optional().default('fixed'),
   effectiveFrom: z.coerce.date(),
   effectiveTo: z.coerce.date().nullable().optional(),
@@ -35,6 +45,7 @@ const assignmentUpdatePayloadSchema = assignmentPayloadSchema
     id: z.string().min(1, 'Assignment ID is required'),
     staffId: z.string().min(1, 'Staff is required').optional(),
     shiftTypeId: z.string().min(1, 'Shift type is required').optional(),
+    manageRosterId: z.string().min(1, 'Roster group is required').optional(),
     effectiveFrom: z.coerce.date().optional()
   });
 
@@ -138,17 +149,88 @@ async function resolveStaffIdsForEmploymentFilters(
   return filtered.map((staff) => staff.id);
 }
 
-function mapAssignmentRecord(record: any): ShiftAssignmentRecord {
+type OrgLabelMaps = {
+  departmentNameById: Map<string, string>;
+  designationNameById: Map<string, string>;
+  unitNameById: Map<string, string>;
+};
+
+async function loadOrgLabelMaps(
+  rows: Array<{
+    department?: string | null;
+    unit?: string | null;
+    designation?: string | null;
+  }>
+): Promise<OrgLabelMaps> {
+  const departmentIds = uniqueStrings(rows.map((row) => row.department));
+  const designationIds = uniqueStrings(rows.map((row) => row.designation));
+  const unitIds = uniqueStrings(rows.map((row) => row.unit));
+
+  const [departments, designations, rooms] = await Promise.all([
+    departmentIds.length
+      ? prisma.department.findMany({
+          where: { id: { in: departmentIds } },
+          select: { id: true, name: true }
+        })
+      : Promise.resolve([]),
+    designationIds.length
+      ? prisma.designation.findMany({
+          where: { id: { in: designationIds } },
+          select: { id: true, name: true }
+        })
+      : Promise.resolve([]),
+    unitIds.length
+      ? prisma.room.findMany({
+          where: { id: { in: unitIds } },
+          select: { id: true, number: true, code: true }
+        })
+      : Promise.resolve([])
+  ]);
+
+  return {
+    departmentNameById: new Map(departments.map((row) => [row.id, row.name])),
+    designationNameById: new Map(designations.map((row) => [row.id, row.name])),
+    unitNameById: new Map(
+      rooms.map((row) => [
+        row.id,
+        row.code ? `${row.number} (${row.code})` : row.number
+      ])
+    )
+  };
+}
+
+function resolveOrgLabel(
+  value: string | null | undefined,
+  nameById: Map<string, string>
+): string {
+  const id = value?.trim() ?? '';
+  if (!id) return '';
+  return nameById.get(id) ?? id;
+}
+
+function mapAssignmentRecord(
+  record: any,
+  labels?: OrgLabelMaps
+): ShiftAssignmentRecord {
+  const departmentId = record.department ?? '';
+  const unitId = record.unit ?? '';
+  const designationId = record.designation ?? '';
+
   return {
     id: record.id,
     code: record.code,
     staffId: record.staffId,
     shiftTypeId: record.shiftTypeId,
+    manageRosterId: record.manageRosterId ?? '',
     staffCode: record.staffCode,
     staffName: record.staffName,
-    department: record.department ?? '',
-    unit: record.unit ?? '',
-    designation: record.designation ?? '',
+    department: labels
+      ? resolveOrgLabel(departmentId, labels.departmentNameById)
+      : departmentId,
+    unit: labels ? resolveOrgLabel(unitId, labels.unitNameById) : unitId,
+    designation: labels
+      ? resolveOrgLabel(designationId, labels.designationNameById)
+      : designationId,
     rotationPattern: record.rotationPattern ?? 'fixed',
     effectiveFrom: toIsoString(record.effectiveFrom),
     effectiveTo: record.effectiveTo ? toIsoString(record.effectiveTo) : null,
@@ -156,6 +238,8 @@ function mapAssignmentRecord(record: any): ShiftAssignmentRecord {
     autoAssign: Boolean(record.autoAssign),
     status: (record.status as ShiftAssignmentStatus) ?? 'active',
     shiftTypeName: record.shiftType?.name ?? '',
+    manageRosterCode: record.manageRoster?.code ?? '',
+    manageRosterName: record.manageRoster?.name ?? '',
     createdAt: toIsoString(record.createdAt),
     updatedAt: toIsoString(record.updatedAt),
     createdBy: record.createdBy ?? null,
@@ -163,6 +247,97 @@ function mapAssignmentRecord(record: any): ShiftAssignmentRecord {
     createdUser: record.createdUser ?? null,
     updatedUser: record.updatedUser ?? null
   };
+}
+
+const assignmentInclude = {
+  shiftType: { select: { name: true } },
+  manageRoster: { select: { id: true, code: true, name: true } }
+} as const;
+
+async function resolveManageRoster(manageRosterId: string): Promise<
+  | { ok: true; id: string; code: string }
+  | { ok: false; message: string; issues?: Record<string, string[]> }
+> {
+  const roster = await prisma.manageRoster.findUnique({
+    where: { id: manageRosterId },
+    select: { id: true, code: true }
+  });
+  if (!roster) {
+    return {
+      ok: false,
+      message: 'Validation failed',
+      issues: { manageRosterId: ['Selected roster group was not found'] }
+    };
+  }
+  return { ok: true, id: roster.id, code: roster.code.trim().toUpperCase() };
+}
+
+/**
+ * INT-H2 — staff must belong to the selected Manage Roster group
+ * (`employment.roster` = ManageRoster.code, case-insensitive).
+ */
+async function assertStaffBelongsToManageRoster(
+  staffId: string,
+  manageRosterCode: string
+): Promise<
+  | { ok: true }
+  | { ok: false; message: string; issues?: Record<string, string[]> }
+> {
+  const expected = manageRosterCode.trim().toUpperCase();
+  if (!expected) {
+    return {
+      ok: false,
+      message: 'Validation failed',
+      issues: { manageRosterId: ['Roster group is required'] }
+    };
+  }
+
+  const staff = await prisma.staff.findUnique({
+    where: { id: staffId },
+    select: { employmentDetails: true }
+  });
+  if (!staff) {
+    return { ok: false, message: 'Staff member not found' };
+  }
+
+  const membership = (
+    staff.employmentDetails?.employment?.roster ?? ''
+  )
+    .trim()
+    .toUpperCase();
+
+  if (!membership) {
+    return {
+      ok: false,
+      message: 'Validation failed',
+      issues: {
+        staffId: [
+          'This staff member has no roster group on Employment. Set roster membership first.'
+        ]
+      }
+    };
+  }
+
+  if (membership !== expected) {
+    return {
+      ok: false,
+      message: 'Validation failed',
+      issues: {
+        staffId: [
+          `Staff roster membership is "${membership}", which does not match selected roster group "${expected}".`
+        ]
+      }
+    };
+  }
+
+  return { ok: true };
+}
+
+async function mapAssignmentRecords(
+  records: any[]
+): Promise<ShiftAssignmentRecord[]> {
+  const labels = await loadOrgLabelMaps(records);
+  return records.map((record) => mapAssignmentRecord(record, labels));
 }
 
 async function buildAssignmentWhere(
@@ -206,8 +381,13 @@ async function buildAssignmentWhere(
   return where;
 }
 
+/**
+ * Reject only same staff + same shift type with overlapping effective dates.
+ * INT-H7 — `inactive` rows do not block; `active` and `pending` still do.
+ */
 async function assertNoOverlap(
   staffId: string,
+  shiftTypeId: string,
   effectiveFrom: Date,
   effectiveTo: Date | null | undefined,
   excludeId?: string
@@ -215,6 +395,8 @@ async function assertNoOverlap(
   const existing = await prisma.staffShiftAssignment.findMany({
     where: {
       staffId,
+      shiftTypeId,
+      status: { in: ['active', 'pending'] },
       ...(excludeId ? { id: { not: excludeId } } : {})
     },
     select: {
@@ -234,7 +416,7 @@ async function assertNoOverlap(
         row.effectiveTo
       )
     ) {
-      return `Overlapping assignment dates for this staff member (${row.code}). Adjust effective dates or edit the existing assignment.`;
+      return `Overlapping assignment dates for this staff member and shift type (${row.code}). Adjust effective dates or edit the existing assignment.`;
     }
   }
 
@@ -275,7 +457,7 @@ export async function getShiftAssignments(
         skip,
         take: pageSize,
         orderBy: { createdAt: 'desc' },
-        include: { shiftType: { select: { name: true } } }
+        include: assignmentInclude
       }),
       prisma.staffShiftAssignment.count({ where })
     ]);
@@ -284,7 +466,7 @@ export async function getShiftAssignments(
     return {
       success: true,
       data: {
-        records: recordsWithUsers.map(mapAssignmentRecord),
+        records: await mapAssignmentRecords(recordsWithUsers),
         totalRecords
       },
       message: 'Shift assignments fetched successfully'
@@ -301,33 +483,25 @@ export async function getShiftAssignments(
 export async function getShiftAssignmentsForExport(
   params: Omit<GetShiftAssignmentsParams, 'page' | 'limit'>
 ): Promise<{
-  success: boolean;
-  data?: ShiftAssignmentRecord[];
-  message?: string;
-  error?: { message?: string };
+  data: ShiftAssignmentRecord[];
+  totalRecords: number;
 }> {
   try {
     const where = await buildAssignmentWhere(params);
-    const exportLimit =
-      Number.parseInt(process.env.EXPORT_LIMIT ?? '1000', 10) || 1000;
     const records = await prisma.staffShiftAssignment.findMany({
       where,
       orderBy: { createdAt: 'desc' },
-      take: exportLimit,
-      include: { shiftType: { select: { name: true } } }
+      include: assignmentInclude
     });
     const recordsWithUsers = await resolveAuthUsers(records);
+    const data = await mapAssignmentRecords(recordsWithUsers);
     return {
-      success: true,
-      data: recordsWithUsers.map(mapAssignmentRecord),
-      message: 'Shift assignments export fetched successfully'
+      data,
+      totalRecords: data.length
     };
-  } catch (error: any) {
-    console.error('getShiftAssignmentsForExport error:', error);
-    return {
-      success: false,
-      error: { message: error.message || 'Failed to export shift assignments' }
-    };
+  } catch (error) {
+    console.error('getShiftAssignmentsForExport error', error);
+    throw new Error('Error getting data');
   }
 }
 
@@ -344,16 +518,17 @@ export async function getShiftAssignmentById(id: string): Promise<{
 
     const record = await prisma.staffShiftAssignment.findUnique({
       where: { id },
-      include: { shiftType: { select: { name: true } } }
+      include: assignmentInclude
     });
     if (!record) {
       return { success: false, error: { message: 'Shift assignment not found' } };
     }
 
     const [withUsers] = await resolveAuthUsers([record]);
+    const [mapped] = await mapAssignmentRecords([withUsers]);
     return {
       success: true,
-      data: mapAssignmentRecord(withUsers),
+      data: mapped,
       message: 'Shift assignment fetched successfully'
     };
   } catch (error: any) {
@@ -432,48 +607,33 @@ export async function getShiftAssignmentFilterOptions(): Promise<{
   error?: { message?: string };
 }> {
   try {
-    const [staffRecords, assignmentUnits] = await Promise.all([
-      prisma.staff.findMany({
-        where: { status: 1 },
-        select: { employmentDetails: true }
-      }),
-      prisma.staffShiftAssignment.findMany({
-        select: { unit: true },
-        distinct: ['unit']
-      })
-    ]);
-
-    const institutions: string[] = [];
-    const departments: string[] = [];
-    const designations: string[] = [];
-    const staffCategories: string[] = [];
-    const staffGrades: string[] = [];
-    const employeeStatuses: string[] = [];
-
-    for (const staff of staffRecords) {
-      const employment = staff.employmentDetails?.employment;
-      if (employment?.institution) institutions.push(employment.institution);
-      if (employment?.department) departments.push(employment.department);
-      if (employment?.staffDesignation) {
-        designations.push(employment.staffDesignation);
-      }
-      if (employment?.staffCategory) staffCategories.push(employment.staffCategory);
-      if (employment?.staffGrade) staffGrades.push(employment.staffGrade);
-      if (employment?.employeeStatus) {
-        employeeStatuses.push(employment.employeeStatus);
-      }
-    }
+    const [departmentRes, roomRes, designationRes, staffGradeRes] =
+      await Promise.all([
+        getDepartmentOptions(),
+        getRoomOptions(),
+        getDesignationOptions(),
+        getStaffGradeOptions()
+      ]);
 
     return {
       success: true,
       data: {
-        institutions: uniqueStrings(institutions).map(toOption),
-        departments: uniqueStrings(departments).map(toOption),
-        units: uniqueStrings(assignmentUnits.map((row) => row.unit)).map(toOption),
-        designations: uniqueStrings(designations).map(toOption),
-        staffCategories: uniqueStrings(staffCategories).map(toOption),
-        staffGrades: uniqueStrings(staffGrades).map(toOption),
-        employeeStatuses: uniqueStrings(employeeStatuses).map(toOption)
+        institutions: INSTITUTION_OPTIONS.map((item) => ({
+          id: item.id,
+          name: item.name
+        })),
+        departments: departmentRes.data ?? [],
+        units: roomRes.data ?? [],
+        designations: designationRes.data ?? [],
+        staffCategories: STAFF_CATEGORY_OPTIONS.map((item) => ({
+          id: item.id,
+          name: item.name
+        })),
+        staffGrades: staffGradeRes.data ?? [],
+        employeeStatuses: EMPLOYEE_STATUS_OPTIONS.map((item) => ({
+          id: item.id,
+          name: item.name
+        }))
       },
       message: 'Shift assignment filter options fetched'
     };
@@ -583,6 +743,7 @@ async function createAssignmentRecord(
 
   const overlap = await assertNoOverlap(
     data.staffId,
+    data.shiftTypeId,
     data.effectiveFrom,
     data.effectiveTo
   );
@@ -590,12 +751,13 @@ async function createAssignmentRecord(
     return { success: false, error: { message: overlap } };
   }
 
-  const [staffSnapshot, shiftType] = await Promise.all([
+  const [staffSnapshot, shiftType, manageRoster] = await Promise.all([
     getStaffSnapshot(data.staffId),
     prisma.shiftType.findUnique({
       where: { id: data.shiftTypeId },
       select: { id: true, name: true, status: true }
-    })
+    }),
+    resolveManageRoster(data.manageRosterId)
   ]);
 
   if (!staffSnapshot) {
@@ -603,6 +765,43 @@ async function createAssignmentRecord(
   }
   if (!shiftType) {
     return { success: false, error: { message: 'Shift type not found' } };
+  }
+  // INT-H5 — inactive templates cannot receive new standing rules.
+  if (shiftType.status === 'inactive') {
+    return {
+      success: false,
+      error: {
+        message: 'Validation failed',
+        issues: {
+          shiftTypeId: [
+            'Selected shift type is inactive. Activate it or choose another shift type.'
+          ]
+        }
+      }
+    };
+  }
+  if (!manageRoster.ok) {
+    return {
+      success: false,
+      error: {
+        message: manageRoster.message,
+        issues: manageRoster.issues
+      }
+    };
+  }
+
+  const membership = await assertStaffBelongsToManageRoster(
+    data.staffId,
+    manageRoster.code
+  );
+  if (!membership.ok) {
+    return {
+      success: false,
+      error: {
+        message: membership.message,
+        issues: membership.issues
+      }
+    };
   }
 
   const generated = await generateRecordCode(SHIFT_ASSIGNMENT_CODE_PREFIX);
@@ -621,6 +820,7 @@ async function createAssignmentRecord(
       code: generated.code,
       staffId: data.staffId,
       shiftTypeId: data.shiftTypeId,
+      manageRosterId: manageRoster.id,
       staffCode: staffSnapshot.staffCode,
       staffName: staffSnapshot.staffName,
       department: staffSnapshot.department,
@@ -637,12 +837,13 @@ async function createAssignmentRecord(
         updatedBy: auditUser.id
       })
     },
-    include: { shiftType: { select: { name: true } } }
+    include: assignmentInclude
   });
 
+  const [mapped] = await mapAssignmentRecords([record]);
   return {
     success: true,
-    data: mapAssignmentRecord(record),
+    data: mapped,
     message: 'Shift assignment created successfully'
   };
 }
@@ -702,6 +903,7 @@ export async function bulkCreateShiftAssignments(
         {
           staffId,
           shiftTypeId: data.shiftTypeId,
+          manageRosterId: data.manageRosterId,
           rotationPattern: data.rotationPattern,
           effectiveFrom: data.effectiveFrom,
           effectiveTo: data.effectiveTo,
@@ -773,6 +975,7 @@ export async function updateShiftAssignment(
     }
 
     const staffId = data.staffId ?? existing.staffId;
+    const shiftTypeId = data.shiftTypeId ?? existing.shiftTypeId;
     const effectiveFrom = data.effectiveFrom ?? existing.effectiveFrom;
     const effectiveTo =
       data.effectiveTo !== undefined ? data.effectiveTo : existing.effectiveTo;
@@ -789,6 +992,7 @@ export async function updateShiftAssignment(
 
     const overlap = await assertNoOverlap(
       staffId,
+      shiftTypeId,
       effectiveFrom,
       effectiveTo,
       id
@@ -816,11 +1020,78 @@ export async function updateShiftAssignment(
     if (data.shiftTypeId) {
       const shiftType = await prisma.shiftType.findUnique({
         where: { id: data.shiftTypeId },
-        select: { id: true }
+        select: { id: true, status: true }
       });
       if (!shiftType) {
         return { success: false, error: { message: 'Shift type not found' } };
       }
+      // INT-H5 — inactive templates cannot be selected on update.
+      if (shiftType.status === 'inactive') {
+        return {
+          success: false,
+          error: {
+            message: 'Validation failed',
+            issues: {
+              shiftTypeId: [
+                'Selected shift type is inactive. Activate it or choose another shift type.'
+              ]
+            }
+          }
+        };
+      }
+    }
+
+    let nextManageRosterId = existing.manageRosterId ?? '';
+    let nextManageRosterCode = '';
+    if (data.manageRosterId !== undefined) {
+      const manageRoster = await resolveManageRoster(data.manageRosterId);
+      if (!manageRoster.ok) {
+        return {
+          success: false,
+          error: {
+            message: manageRoster.message,
+            issues: manageRoster.issues
+          }
+        };
+      }
+      nextManageRosterId = manageRoster.id;
+      nextManageRosterCode = manageRoster.code;
+    }
+    if (!nextManageRosterId) {
+      return {
+        success: false,
+        error: {
+          message: 'Validation failed',
+          issues: { manageRosterId: ['Roster group is required'] }
+        }
+      };
+    }
+    if (!nextManageRosterCode) {
+      const resolved = await resolveManageRoster(nextManageRosterId);
+      if (!resolved.ok) {
+        return {
+          success: false,
+          error: {
+            message: resolved.message,
+            issues: resolved.issues
+          }
+        };
+      }
+      nextManageRosterCode = resolved.code;
+    }
+
+    const membership = await assertStaffBelongsToManageRoster(
+      staffId,
+      nextManageRosterCode
+    );
+    if (!membership.ok) {
+      return {
+        success: false,
+        error: {
+          message: membership.message,
+          issues: membership.issues
+        }
+      };
     }
 
     const auditUser = toAuditUser(user);
@@ -829,6 +1100,7 @@ export async function updateShiftAssignment(
       data: {
         ...(data.staffId !== undefined && { staffId: data.staffId }),
         ...(data.shiftTypeId !== undefined && { shiftTypeId: data.shiftTypeId }),
+        manageRosterId: nextManageRosterId,
         staffCode: snapshot.staffCode,
         staffName: snapshot.staffName,
         department: snapshot.department,
@@ -848,12 +1120,13 @@ export async function updateShiftAssignment(
         ...(data.status !== undefined && { status: data.status }),
         ...(auditUser?.id && { updatedBy: auditUser.id })
       },
-      include: { shiftType: { select: { name: true } } }
+      include: assignmentInclude
     });
 
+    const [mapped] = await mapAssignmentRecords([record]);
     return {
       success: true,
-      data: mapAssignmentRecord(record),
+      data: mapped,
       message: 'Shift assignment updated successfully'
     };
   } catch (error: any) {
@@ -928,6 +1201,230 @@ export async function deleteShiftAssignments(ids: string[]): Promise<{
     return {
       success: false,
       error: { message: error.message || 'Failed to delete shift assignments' }
+    };
+  }
+}
+
+/**
+ * Roster selector options for Assign / Bulk / Edit sheets.
+ * Option `id` = ManageRoster ObjectId (FK on StaffShiftAssignment).
+ */
+export async function getShiftAssignmentFormOptions(): Promise<{
+  success: boolean;
+  data?: ShiftAssignmentFormOptions;
+  error?: { message?: string };
+}> {
+  try {
+    const { getActiveShiftTypeOptions } = await import(
+      '@/services/roster-services/shift-type.service'
+    );
+
+    const [rosterRows, shiftTypeRes] = await Promise.all([
+      prisma.manageRoster.findMany({
+        select: { id: true, code: true, name: true },
+        orderBy: { name: 'asc' }
+      }),
+      getActiveShiftTypeOptions()
+    ]);
+
+    if (!shiftTypeRes.success) {
+      return {
+        success: false,
+        error: {
+          message:
+            shiftTypeRes.error?.message ?? 'Failed to load shift type options'
+        }
+      };
+    }
+
+    return {
+      success: true,
+      data: {
+        rosters: rosterRows
+          .filter((row) => Boolean(row.code?.trim()))
+          .map((row) => ({
+            id: row.id,
+            name: `${row.name} (${row.code.trim().toUpperCase()})`
+          })),
+        shiftTypes: (shiftTypeRes.data ?? []).map((shiftType) => ({
+          id: shiftType.id,
+          name: shiftType.code
+            ? `${shiftType.code} — ${shiftType.name}`
+            : shiftType.name
+        }))
+      }
+    };
+  } catch (error: any) {
+    console.error('getShiftAssignmentFormOptions error:', error);
+    return {
+      success: false,
+      error: {
+        message: error.message || 'Failed to load assignment form options'
+      }
+    };
+  }
+}
+
+/**
+ * Resolve ManageRoster.id from Staff.employment.roster code
+ * (fallback when an older assignment has no manageRosterId).
+ */
+export async function getStaffManageRosterId(staffId: string): Promise<{
+  success: boolean;
+  data?: string | null;
+  error?: { message?: string };
+}> {
+  try {
+    if (!staffId) {
+      return { success: false, error: { message: 'Staff is required' } };
+    }
+    const staff = await prisma.staff.findUnique({
+      where: { id: staffId },
+      select: { employmentDetails: true }
+    });
+    if (!staff) {
+      return { success: false, error: { message: 'Staff not found' } };
+    }
+    const raw = staff.employmentDetails?.employment?.roster?.trim() ?? '';
+    if (!raw) {
+      return { success: true, data: null };
+    }
+
+    const roster = await prisma.manageRoster.findFirst({
+      where: {
+        code: { equals: raw.toUpperCase(), mode: Prisma.QueryMode.insensitive }
+      },
+      select: { id: true }
+    });
+
+    return {
+      success: true,
+      data: roster?.id ?? null
+    };
+  } catch (error: any) {
+    console.error('getStaffManageRosterId error:', error);
+    return {
+      success: false,
+      error: { message: error.message || 'Failed to resolve staff roster' }
+    };
+  }
+}
+
+/**
+ * Roster context card + staff options scoped to ManageRoster.
+ * Staff membership uses employment.roster = ManageRoster.code.
+ * Option labels include active standing assignment counts.
+ */
+export async function getShiftAssignmentRosterScope(
+  manageRosterId: string
+): Promise<{
+  success: boolean;
+  data?: ShiftAssignmentRosterScope;
+  error?: { message?: string };
+}> {
+  try {
+    const id = manageRosterId?.trim();
+    if (!id) {
+      return { success: false, error: { message: 'Roster is required' } };
+    }
+
+    const roster = await prisma.manageRoster.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        code: true,
+        name: true,
+        shiftsPerPersonPerDay: true,
+        department: {
+          select: { name: true, institution: true }
+        }
+      }
+    });
+
+    if (!roster) {
+      return {
+        success: false,
+        error: { message: 'Roster group was not found in Manage Rosters' }
+      };
+    }
+
+    const normalizedCode = roster.code.trim().toUpperCase();
+
+    // INT-H6 — case-insensitive membership match on employment.roster.
+    const staffRows = await prisma.staff.findMany({
+      where: {
+        status: 1,
+        employmentDetails: {
+          is: {
+            employment: {
+              is: {
+                roster: {
+                  equals: normalizedCode,
+                  mode: Prisma.QueryMode.insensitive
+                }
+              }
+            }
+          }
+        }
+      },
+      select: {
+        id: true,
+        code: true,
+        name: true
+      },
+      orderBy: [{ name: 'asc' }, { code: 'asc' }]
+    });
+
+    const staffIds = staffRows.map((row) => row.id);
+    const activeCounts = new Map<string, number>();
+
+    if (staffIds.length) {
+      const grouped = await prisma.staffShiftAssignment.groupBy({
+        by: ['staffId'],
+        where: {
+          staffId: { in: staffIds },
+          status: 'active'
+        },
+        _count: { _all: true }
+      });
+      for (const row of grouped) {
+        activeCounts.set(row.staffId, row._count._all);
+      }
+    }
+
+    return {
+      success: true,
+      data: {
+        context: {
+          id: roster.id,
+          code: normalizedCode,
+          name: roster.name,
+          departmentName: roster.department?.name?.trim() || '—',
+          institutionName: getInstitutionName(roster.department?.institution),
+          shiftsPerPersonPerDay: roster.shiftsPerPersonPerDay
+        },
+        staff: staffRows.map((row) => {
+          const activeAssignmentCount = activeCounts.get(row.id) ?? 0;
+          const base = row.code
+            ? `${row.code} — ${row.name}`
+            : row.name;
+          return {
+            id: row.id,
+            code: row.code,
+            staffName: row.name,
+            activeAssignmentCount,
+            name: `${base} · Active rules: ${activeAssignmentCount}`
+          };
+        })
+      }
+    };
+  } catch (error: any) {
+    console.error('getShiftAssignmentRosterScope error:', error);
+    return {
+      success: false,
+      error: {
+        message: error.message || 'Failed to load roster staff options'
+      }
     };
   }
 }

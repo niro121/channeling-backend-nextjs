@@ -44,40 +44,48 @@ export const assignmentColumns: ColumnDef<ShiftAssignmentRecord>[] = [
     accessorKey: 'staffCode',
     header: () => <span className="whitespace-nowrap">Staff ID</span>,
     cell: ({ row }) => (
-      <span className="font-medium tabular-nums">{row.original.staffCode}</span>
+      <span className="font-medium tabular-nums">
+        {row.original.staffCode?.trim() || '—'}
+      </span>
     )
   },
   {
     accessorKey: 'staffName',
     header: 'Staff Name',
-    cell: ({ row }) => <span>{row.original.staffName}</span>
+    cell: ({ row }) => <span>{row.original.staffName?.trim() || '—'}</span>
   },
   {
     accessorKey: 'department',
     header: 'Department',
     cell: ({ row }) => (
-      <span className="text-muted-foreground">{row.original.department}</span>
+      <span className="text-muted-foreground">
+        {row.original.department?.trim() || '—'}
+      </span>
     )
   },
   {
     accessorKey: 'unit',
     header: 'Unit',
     cell: ({ row }) => (
-      <span className="text-muted-foreground">{row.original.unit}</span>
+      <span className="text-muted-foreground">
+        {row.original.unit?.trim() || '—'}
+      </span>
     )
   },
   {
     accessorKey: 'designation',
     header: 'Designation',
     cell: ({ row }) => (
-      <span className="text-muted-foreground">{row.original.designation}</span>
+      <span className="text-muted-foreground">
+        {row.original.designation?.trim() || '—'}
+      </span>
     )
   },
   {
     accessorKey: 'shiftTypeName',
     header: () => <span className="whitespace-nowrap">Assigned Shift</span>,
     cell: ({ row }) => (
-      <span>{row.original.shiftTypeName || '—'}</span>
+      <span>{row.original.shiftTypeName?.trim() || '—'}</span>
     )
   },
   {

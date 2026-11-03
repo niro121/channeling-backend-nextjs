@@ -12,9 +12,9 @@ import { generateRecordCode } from '@/lib/conventions/record-code-generator';
 import { getInstitutionName } from '@/types/institution';
 import {
   DEPARTMENT_OPTIONS,
-  STAFF_CATEGORY_OPTIONS,
   STAFF_DESIGNATION_OPTIONS
 } from '@/types/staff-employment-options';
+import { STAFF_CATEGORY_OPTIONS } from '@/types/staff-category';
 import {
   SALARY_STRUCTURE_CODE_PREFIX,
   type GetSalaryStructureParams,

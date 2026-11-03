@@ -1,9 +1,7 @@
 'use client';
 
-import { useCallback, useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { format } from 'date-fns';
-import { useToast } from '@archmage/ui';
 import { CommonManagerHeader } from '@/components/common/common-manager-header';
 import type {
   PublicHolidayShiftFilterOptions,
@@ -32,17 +30,6 @@ type Props = {
   formOptions: PublicHolidayShiftFormOptions | null;
 };
 
-const EMPTY_FILTERS: HolidayFilterValues = {
-  holidayId: '',
-  holidayTypeId: '',
-  fromDate: null,
-  toDate: null,
-  departmentId: '',
-  unitId: '',
-  payRateId: '',
-  statusId: ''
-};
-
 function PublicHolidayShiftsWorkspaceInner({
   initialRows,
   totalRecords,
@@ -52,7 +39,6 @@ function PublicHolidayShiftsWorkspaceInner({
 }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { toast } = useToast();
   const {
     formSheet,
     historyRecord,
@@ -78,32 +64,6 @@ function PublicHolidayShiftsWorkspaceInner({
     [searchParams]
   );
 
-  const [draft, setDraft] = useState<HolidayFilterValues>(appliedFromUrl);
-
-  const pushFilters = useCallback(
-    (values: HolidayFilterValues) => {
-      const params = new URLSearchParams();
-      if (values.holidayId) params.set('holidayId', values.holidayId);
-      if (values.holidayTypeId) params.set('holidayTypeId', values.holidayTypeId);
-      if (values.fromDate) params.set('fromDate', format(values.fromDate, 'yyyy-MM-dd'));
-      if (values.toDate) params.set('toDate', format(values.toDate, 'yyyy-MM-dd'));
-      if (values.departmentId) params.set('department', values.departmentId);
-      if (values.unitId) params.set('unit', values.unitId);
-      if (values.payRateId) params.set('payRate', values.payRateId);
-      if (values.statusId) params.set('status', values.statusId);
-      const qs = params.toString();
-      router.push(qs ? `?${qs}` : '/public-holiday-shifts');
-    },
-    [router]
-  );
-
-  const holidayOptions = initialFilters?.holidays ?? [];
-  const holidayTypeOptions = initialFilters?.holidayTypes ?? [];
-  const departmentOptions = initialFilters?.departments ?? [];
-  const unitOptions = initialFilters?.units ?? [];
-  const payRateOptions = initialFilters?.payRates ?? [];
-  const statusOptions = initialFilters?.statuses ?? [];
-
   return (
     <div className="space-y-6">
       <CommonManagerHeader
@@ -115,19 +75,13 @@ function PublicHolidayShiftsWorkspaceInner({
       <SectionHolidaySummary summary={summary} />
 
       <SectionHolidayFilters
-        values={draft}
-        holidayOptions={holidayOptions}
-        holidayTypeOptions={holidayTypeOptions}
-        departmentOptions={departmentOptions}
-        unitOptions={unitOptions}
-        payRateOptions={payRateOptions}
-        statusOptions={statusOptions}
-        onChange={(next) => setDraft((prev) => ({ ...prev, ...next }))}
-        onSearch={() => pushFilters(draft)}
-        onClear={() => {
-          setDraft(EMPTY_FILTERS);
-          pushFilters(EMPTY_FILTERS);
-        }}
+        initial={appliedFromUrl}
+        holidayOptions={initialFilters?.holidays ?? []}
+        holidayTypeOptions={initialFilters?.holidayTypes ?? []}
+        departmentOptions={initialFilters?.departments ?? []}
+        unitOptions={initialFilters?.units ?? []}
+        payRateOptions={initialFilters?.payRates ?? []}
+        statusOptions={initialFilters?.statuses ?? []}
       />
 
       <SectionHolidayRegister

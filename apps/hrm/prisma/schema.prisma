@@ -99,14 +99,16 @@ type StaffWelfareDetails {
 }
 
 type StaffEmploymentInfo {
-  institution     String?
-  department      String?
-  employeeStatus  String?
-  staffCategory   String?
-  staffGrade      String?
+  institution      String?
+  department       String?
+  employeeStatus   String?
+  staffCategory    String?
+  staffGrade       String?
   staffDesignation String?
-  roster          String?
-  shift           String?
+  /// Current basic salary snapshot (LKR). History lives in StaffEmploymentChange (field = basic).
+  basic            Float?
+  roster           String?
+  shift            String?
 }
 
 type StaffPayrollDetails {
@@ -174,6 +176,7 @@ model Staff {
   attendancePunches AttendancePunch[]
   attendanceDays    AttendanceDay[]
   attendanceCorrections AttendanceCorrection[]
+  employmentChanges StaffEmploymentChange[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -485,6 +488,9 @@ model StaffShiftAssignment {
   code               String    @unique // SA-n
   staffId            String    @db.ObjectId
   shiftTypeId        String    @db.ObjectId
+  /// Manage Rosters group this assignment belongs to (ObjectId FK).
+  /// Optional on legacy rows; create/update always require it in the service layer.
+  manageRosterId     String?   @db.ObjectId
   staffCode          String
   staffName          String
   department         String    @default("")
@@ -497,8 +503,9 @@ model StaffShiftAssignment {
   autoAssign         Boolean   @default(true)
   status             String    @default("active") // active | pending | inactive
 
-  staff     Staff     @relation(fields: [staffId], references: [id])
-  shiftType ShiftType @relation(fields: [shiftTypeId], references: [id])
+  staff        Staff         @relation(fields: [staffId], references: [id])
+  shiftType    ShiftType     @relation(fields: [shiftTypeId], references: [id])
+  manageRoster ManageRoster? @relation(fields: [manageRosterId], references: [id])
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -507,6 +514,7 @@ model StaffShiftAssignment {
 
   @@index([staffId])
   @@index([shiftTypeId])
+  @@index([manageRosterId])
   @@index([status])
   @@index([effectiveFrom, effectiveTo])
   @@index([createdAt(sort: Desc)])
@@ -720,10 +728,13 @@ model StaffSpeciality {
 
 model ManageRoster {
   id                    String @id @default(auto()) @map("_id") @db.ObjectId
-  code                  String @unique // HR-entered business key, e.g. CHN (not SR-n)
+  code                  String @unique // Business key e.g. CHN (not SR-n); HR-entered or suggested from name+dept
   name                  String @unique
-  departmentId          String // placeholder enum until Department master
-  shiftsPerPersonPerDay Int
+  departmentId          String @db.ObjectId // Department master (many rosters per department allowed)
+  shiftsPerPersonPerDay Int // >= 1
+
+  department       Department             @relation(fields: [departmentId], references: [id])
+  shiftAssignments StaffShiftAssignment[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -810,6 +821,36 @@ model SalaryCycle {
   @@unique([institutionId, salaryFromDate, salaryToDate])
   @@index([institutionId])
   @@index([salaryFromDate])
+}
+
+/// Effective-dated employment attribute history (Change Staff module).
+/// One row per field segment: close prior open row (effectiveTo) then insert new open row.
+/// field: department | employeeStatus | category | grade | designation | basic
+model StaffEmploymentChange {
+  id            String    @id @default(auto()) @map("_id") @db.ObjectId
+  staffId       String    @db.ObjectId
+  /// Which employment attribute this segment versions (see Change Staff field ids).
+  field         String
+  /// Stored option id or numeric basic as string (e.g. "49900").
+  value         String    @default("")
+  /// Display label snapshot for history grids (optional; value alone may be enough).
+  valueLabel    String    @default("")
+  effectiveFrom DateTime
+  effectiveTo   DateTime?
+  /// Auth User.id who applied the change (no cross-DB Prisma relation).
+  changedBy     String?   @db.ObjectId
+  /// Denormalized display name for CHANGE USER column.
+  changedByName String    @default("")
+
+  staff Staff @relation(fields: [staffId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([staffId])
+  @@index([staffId, field])
+  @@index([staffId, field, effectiveFrom])
+  @@index([effectiveFrom, effectiveTo])
 }
 
 /* ---------------------------------
@@ -1142,6 +1183,7 @@ model Department {
 
   vacancyRequests VacancyRequest[]
   jobPosts        JobPost[]
+  manageRosters   ManageRoster[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

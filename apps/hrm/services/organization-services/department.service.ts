@@ -8,6 +8,7 @@ import {
   resolveAuthUsers,
   type AuthUserSummary
 } from '@/lib/helpers/resolve-auth-users.helper';
+import { getInstitutionName } from '@/types/institution';
 import type {
   DepartmentPayload,
   DepartmentServiceRecord,
@@ -422,7 +423,10 @@ export async function setDepartmentMigrateSourceId(
   }
 }
 
-/** Lightweight published-department options for cross-module filters. */
+/**
+ * Lightweight **published** (active) department options for cross-module Comboboxes.
+ * Option `id` = Department ObjectId. Duplicate names across institutions get a short suffix.
+ */
 export async function getDepartmentOptions(): Promise<{
   success: boolean;
   data?: Array<{ id: string; name: string }>;
@@ -431,10 +435,30 @@ export async function getDepartmentOptions(): Promise<{
   try {
     const rows = await prisma.department.findMany({
       where: { status: 1 },
-      select: { id: true, name: true },
+      select: { id: true, name: true, institution: true },
       orderBy: { name: 'asc' }
     });
-    return { success: true, data: rows };
+
+    const nameCounts = new Map<string, number>();
+    for (const row of rows) {
+      nameCounts.set(row.name, (nameCounts.get(row.name) ?? 0) + 1);
+    }
+
+    return {
+      success: true,
+      data: rows.map((row) => {
+        const institutionLabel = getInstitutionName(row.institution);
+        const institutionShort =
+          institutionLabel.match(/\(([^)]+)\)\s*$/)?.[1] ?? institutionLabel;
+        const needsInstitution = (nameCounts.get(row.name) ?? 0) > 1;
+        return {
+          id: row.id,
+          name: needsInstitution
+            ? `${row.name} (${institutionShort})`
+            : row.name
+        };
+      })
+    };
   } catch (error: any) {
     console.error('getDepartmentOptions error:', error);
     return {

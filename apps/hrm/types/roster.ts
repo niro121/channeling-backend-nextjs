@@ -212,6 +212,7 @@ export type ShiftAssignmentRecord = RosterAuditFields & {
   code: string;
   staffId: string;
   shiftTypeId: string;
+  manageRosterId: string;
   staffCode: string;
   staffName: string;
   department: string;
@@ -224,11 +225,14 @@ export type ShiftAssignmentRecord = RosterAuditFields & {
   autoAssign: boolean;
   status: ShiftAssignmentStatus | string;
   shiftTypeName?: string;
+  manageRosterCode?: string;
+  manageRosterName?: string;
 };
 
 export type ShiftAssignmentPayload = {
   staffId: string;
   shiftTypeId: string;
+  manageRosterId: string;
   rotationPattern?: string | null;
   effectiveFrom: Date | string;
   effectiveTo?: Date | string | null;
@@ -263,6 +267,8 @@ export const SHIFT_ASSIGNMENT_STATUS_OPTIONS: RosterFilterOption[] = [
 ];
 
 export type ShiftAssignmentFormValues = {
+  /** ManageRoster.id (ObjectId FK on StaffShiftAssignment). */
+  manageRosterId: string;
   staffId: string;
   shiftTypeId: string;
   rotationPatternId: string;
@@ -271,6 +277,33 @@ export type ShiftAssignmentFormValues = {
   weeklyOffDayId: string;
   status: string;
   autoAssign: boolean;
+};
+
+/** Context card for Assign / Bulk / Edit sheets (from Manage Rosters). */
+export type ShiftAssignmentRosterContext = {
+  id: string;
+  code: string;
+  name: string;
+  departmentName: string;
+  institutionName: string;
+  shiftsPerPersonPerDay: number;
+};
+
+/** Staff option scoped to a roster group; label includes active standing rules. */
+export type ShiftAssignmentStaffOption = RosterFilterOption & {
+  code: string;
+  staffName: string;
+  activeAssignmentCount: number;
+};
+
+export type ShiftAssignmentRosterScope = {
+  context: ShiftAssignmentRosterContext;
+  staff: ShiftAssignmentStaffOption[];
+};
+
+export type ShiftAssignmentFormOptions = {
+  rosters: RosterFilterOption[];
+  shiftTypes: RosterFilterOption[];
 };
 
 export type ShiftAssignmentSummary = {
