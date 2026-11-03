@@ -8,6 +8,13 @@ For the channel booking desk, use **`channeling-uat.xlsx`**. It is a short walkt
 
 The CSV and markdown files below are the longer case list, including master data and edge cases.
 
+## Withholding tax and DPAY
+
+Two more sign-off workbooks sit in this folder. Fill the yellow cells and return the file. Each Sign-off sheet totals the results.
+
+- **`wht-test-cases.xlsx`** — doctor withholding tax on channeling. The percentage on the doctor, different splits, the two receipts and their numbers, the hidden session, cancel, then doctor balance and the doctor payment reports (Consultant Payments, Withholding Tax, and the cashier summary). A split is two receipts, but the doctor balance moves by the full fee. The tax is reported on its own. The How to use sheet has a small calculator: type the bookings, the doctor percentage, the tax rate on screen, and the two fees, and it shows the tax, the cash, and the balance change.
+- **`dpay-test-cases.xlsx`** — DPAY bills, patient receipts, doctor payments, lists, receipt manager, DPAY doctor balance, the DPAY statement, and the doctor payment and doctor due reports. Includes a paused or ended shift, two doctors on one bill, paying the doctor before the patient pays, adding or removing a charge after a payment, and refund methods. A DPAY payment is one receipt and does not withhold tax. It does not change the channeling doctor balance.
+
 ## What is in scope
 
 The test cases cover these areas (Channeling and Dashboard are **not** included):

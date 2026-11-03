@@ -44,7 +44,7 @@ export type UpdateDoctorAppProfileResult =
     }
   | {
       success: false
-      status: 400 | 401 | 404 | 500
+      status: 400 | 401 | 404 | 409 | 500
       error: string
       message?: string
       issues?: Record<string, string[]>
@@ -86,6 +86,22 @@ export async function updateDoctorAppProfileForUser(
   }
 
   const data = parsed.data
+  const registrationNumber = (data.registrationNumber ?? '').trim()
+  if (registrationNumber) {
+    const key = registrationNumber.toLowerCase()
+    const taken = await prisma.doctor.findMany({
+      where: { registrationNumber: { not: null }, id: { not: profile.id } },
+      select: { registrationNumber: true },
+    })
+    if (taken.some((row) => (row.registrationNumber ?? '').trim().toLowerCase() === key)) {
+      return {
+        success: false,
+        status: 409,
+        error: 'registration_number_taken',
+        message: 'Registration number is already in use by another doctor',
+      }
+    }
+  }
 
   const normalizeNullable = (value: string | null | undefined) => {
     if (value == null) return null

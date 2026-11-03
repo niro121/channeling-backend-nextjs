@@ -223,7 +223,7 @@ export default function AllDoctorViewReportContent({
 
           .all-doctor-view-print-root .rpt-print-root table.adv-print-table th,
           .all-doctor-view-print-root .rpt-print-root table.adv-print-table td {
-            font-size: 5.5pt !important;
+            font-size: 7.5pt !important;
             padding: 0.7mm 0.5mm !important;
             line-height: 1.2 !important;
             white-space: normal !important;
@@ -240,7 +240,7 @@ export default function AllDoctorViewReportContent({
             print-color-adjust: exact !important;
           }
           .all-doctor-view-print-root .rpt-print-root table.adv-print-table thead th {
-            font-size: 5pt !important;
+            font-size: 7pt !important;
             font-weight: 700 !important;
             background: #e8e8e8 !important;
             text-align: left !important;
@@ -599,14 +599,14 @@ export default function AllDoctorViewReportContent({
                       <tr className="bg-muted font-semibold">
                         <td className="border p-2">{totals.no}</td>
                         <td className="border p-2">Total</td>
-                        <td className="border p-2"></td>
-                        <td className="border p-2"></td>
-                        <td className="border p-2"></td>
-                        <td className="border p-2"></td>
-                        <td className="border p-2"></td>
-                        <td className="border p-2"></td>
-                        <td className="border p-2"></td>
-                        <td className="border p-2"></td>
+                        <td className="border p-2">{totals.notPaid}</td>
+                        <td className="border p-2">{totals.paid}</td>
+                        <td className="border p-2">{totals.cancel}</td>
+                        <td className="border p-2">{totals.hosRefund}</td>
+                        <td className="border p-2">{totals.proRefund}</td>
+                        <td className="border p-2">{totals.hosValid}</td>
+                        <td className="border p-2">{totals.proValid}</td>
+                        <td className="border p-2">{totals.nettValid}</td>
                         <td className="border p-2">{formatCurrency(totals.total)}</td>
                         <td className="border p-2"></td>
                       </tr>

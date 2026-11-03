@@ -130,6 +130,7 @@ export async function getOrCreateAccount(
     agencyId == null &&
     creditCustomerId == null &&
     userId == null;
+  const excludeDpayDoctorPayable = type === "PAYABLE" && doctorIdStr != null;
   const accountWhere = excludeExpenseAdjustment
     ? {
         ...where,
@@ -140,7 +141,12 @@ export async function getOrCreateAccount(
           ],
         },
       }
-    : where;
+    : excludeDpayDoctorPayable
+      ? {
+          ...where,
+          NOT: { code: { startsWith: "DPAY-DOC-" } },
+        }
+      : where;
 
   const include = {
     location: { select: { id: true, name: true } },

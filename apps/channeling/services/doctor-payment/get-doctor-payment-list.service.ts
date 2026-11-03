@@ -26,6 +26,8 @@ export type DoctorPaymentListItem = {
   cancelReceiptNoString: string | null;
   cancelReason: string | null;
   canceledAt: Date | null;
+  /** Set when this receipt is one half of a WHT / non-WHT payment. */
+  doctorPaymentGroupId: string | null;
 };
 
 export type GetDoctorPaymentListParams = {
@@ -184,6 +186,7 @@ export async function getDoctorPaymentListService(
         canceledAt: true,
         cancelReason: true,
         reverseReceiptId: true,
+        doctorPaymentGroupId: true,
       },
     }),
   ]);
@@ -237,6 +240,7 @@ export async function getDoctorPaymentListService(
       cancelReceiptNoString: r.reverseReceiptId ? (reverseReceiptNoById.get(r.reverseReceiptId) ?? null) : null,
       cancelReason: r.cancelReason ?? null,
       canceledAt: r.canceledAt ?? null,
+      doctorPaymentGroupId: r.doctorPaymentGroupId ?? null,
     };
   });
 

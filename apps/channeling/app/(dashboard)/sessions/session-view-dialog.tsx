@@ -69,6 +69,7 @@ type SessionViewDialogProps = {
 
 function actionLabel(action: string): string {
   if (action === 'session.deleted') return 'Deleted';
+  if (action === 'sessions.sessions.bulkDeleted') return 'Bulk deleted';
   if (action === 'session.updated') return 'Updated';
   if (action === 'session.created.bulk') return 'Created (bulk)';
   return action;

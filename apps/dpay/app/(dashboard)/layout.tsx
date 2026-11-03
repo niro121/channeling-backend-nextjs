@@ -4,14 +4,19 @@ import DashboardBreadcrumb from './breadcrumbs';
 import { NavigationLoadingWrapper } from './navigation-loading-wrapper';
 import { HeaderClientControls } from './header-client-controls';
 import { SidebarLayoutClient } from './sidebar-layout-client';
+import { ShiftStrip } from './shift-strip';
+import { loadCashierShift } from '@/lib/dpay-shift';
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const session = await fetchServerSession();
 
-  if (!session || !session.user) {
+  if (!session?.user) {
     const { redirect } = await import('next/navigation');
     redirect('/login');
+    return null;
   }
+
+  const shiftState = await loadCashierShift(session.user.id);
 
   return (
     <Providers session={session}>
@@ -22,7 +27,8 @@ export default async function DashboardLayout({ children }: { children: React.Re
               <div className="flex min-w-0 flex-1 flex-nowrap items-center gap-4 overflow-hidden">
                 <DashboardBreadcrumb />
               </div>
-              <div className="ml-auto shrink-0">
+              <div className="ml-auto flex shrink-0 items-center gap-3">
+                <ShiftStrip initialShift={shiftState.success ? shiftState.shift : null} />
                 <HeaderClientControls session={session} />
               </div>
             </header>

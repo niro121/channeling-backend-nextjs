@@ -13,7 +13,7 @@ export default async function AdminMonitorPage() {
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Server monitor</h1>
         <p className="text-muted-foreground text-sm">
-          Socket connections, memory, and uptime. Values in red are in the danger zone.
+          Socket connections, memory, uptime, and the Channeling–DPAY calls. Values in red are in the danger zone.
         </p>
       </div>
       <MonitorDashboard />

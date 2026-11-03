@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import Link from "next/link"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
@@ -25,6 +26,30 @@ type MonitorData = {
   }
   uptimeSeconds: number
   at: string
+  alerts?: MonitorAlert[]
+  dpayCalls?: MonitorDpayCall[]
+}
+
+type MonitorAlert = {
+  id: string
+  source: string
+  kind: string
+  message: string
+  createdAt: string
+  resolvedAt: string | null
+}
+
+type MonitorDpayCall = {
+  id: string
+  createdAt: string
+  endpoint: string
+  statusCode: number
+  errorStatus: boolean
+  durationMs: number
+  uuid: string
+  direction: string
+  requestBody: string | null
+  responseBody: string | null
 }
 
 function formatUptime(seconds: number): string {
@@ -172,6 +197,8 @@ export function MonitorDashboard() {
   if (!data) return null
 
   const { socket, memory, uptimeSeconds, at } = data
+  const alerts = data.alerts ?? []
+  const dpayCalls = data.dpayCalls ?? []
 
   const socketExplanation =
     "Number of browser tabs or devices currently connected to this server for real-time updates (e.g. Channel Booking sessions list). Each open Channel Booking page with a doctor selected counts as one connection. High numbers may increase memory use."
@@ -255,6 +282,82 @@ export function MonitorDashboard() {
           </CardContent>
         </Card>
       </div>
+
+      <Card className={cn(alerts.some((row) => !row.resolvedAt) && "border-red-500 dark:border-red-600")}>
+        <CardHeader>
+          <CardTitle className="text-base">DPAY alerts</CardTitle>
+          <CardDescription>
+            A hung call is stopped at 28 seconds. The same outage is recorded once, not once per cashier.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {alerts.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No DPAY alerts.</p>
+          ) : (
+            <ul className="space-y-2">
+              {alerts.map((row) => (
+                <li key={row.id} className="text-sm">
+                  <span className={cn("font-medium", !row.resolvedAt && "text-red-600 dark:text-red-400")}>
+                    {row.resolvedAt ? "Resolved" : "Open"} · {row.kind}
+                  </span>
+                  <span className="text-muted-foreground"> · {new Date(row.createdAt).toLocaleString()}</span>
+                  <p>{row.message}</p>
+                </li>
+              ))}
+            </ul>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">DPAY API calls</CardTitle>
+          <CardDescription>
+            Both directions. Channeling → DPAY is the shift-lines call. DPAY → Channeling is the shift, pause, resume, and journal calls.
+            Open a row to read the request and response. The full text is on the{" "}
+            <Link href="/reports/api-log" className="underline">API log</Link>.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          {dpayCalls.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No DPAY calls yet.</p>
+          ) : (
+            dpayCalls.map((row) => (
+              <details key={row.id} className="rounded-md border px-3 py-2 text-sm">
+                <summary className="cursor-pointer">
+                  <span className={cn("font-medium", row.errorStatus && "text-red-600 dark:text-red-400")}>
+                    {row.statusCode}
+                  </span>
+                  {" · "}
+                  {row.direction}
+                  {" · "}
+                  {row.endpoint}
+                  <span className="text-muted-foreground">
+                    {" · "}
+                    {row.durationMs} ms · {new Date(row.createdAt).toLocaleString()}
+                  </span>
+                </summary>
+                <div className="mt-2 space-y-2">
+                  <p className="text-xs text-muted-foreground">
+                    Request id{" "}
+                    <Link href={`/reports/api-log?uuid=${encodeURIComponent(row.uuid)}`} className="underline">
+                      {row.uuid}
+                    </Link>
+                  </p>
+                  <p className="text-xs font-medium">Request</p>
+                  <pre className="max-h-40 overflow-auto whitespace-pre-wrap break-all rounded bg-muted p-2 text-xs">
+                    {row.requestBody || "—"}
+                  </pre>
+                  <p className="text-xs font-medium">Response</p>
+                  <pre className="max-h-40 overflow-auto whitespace-pre-wrap break-all rounded bg-muted p-2 text-xs">
+                    {row.responseBody || "—"}
+                  </pre>
+                </div>
+              </details>
+            ))
+          )}
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>

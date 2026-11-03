@@ -3,6 +3,7 @@
 import type { PrismaClient } from '@prisma/client';
 import prisma from '@/lib/prisma';
 import { netEffectForAccountType } from '@/lib/accounting/helpers';
+import { sumAccountLinesAsOf } from '@/services/accounting/journal-lines-as-of';
 
 /** Transaction client with models needed for journal creation and balance read. */
 export type AccountingTx = Pick<PrismaClient, 'account' | 'journal' | 'journalLine'>;
@@ -20,21 +21,16 @@ export async function getAccountBalance(
   });
   if (!account) return 0;
 
-  const where: { accountId: string; journalId?: { in: string[] } } = { accountId };
   if (asOfDate) {
-    const journalIds = await prisma.journal
-      .findMany({
-        where: { date: { lte: asOfDate } },
-        select: { id: true },
-      })
-      .then((rows) => rows.map((r) => r.id));
-    if (journalIds.length === 0) return 0;
-    where.journalId = { in: journalIds };
+    const totals = await sumAccountLinesAsOf([accountId], asOfDate);
+    const sumDebit = totals.reduce((sum, row) => sum + row._sum.debitAmount, 0);
+    const sumCredit = totals.reduce((sum, row) => sum + row._sum.creditAmount, 0);
+    return netEffectForAccountType(sumDebit, sumCredit, account.type);
   }
 
   const result = await prisma.journalLine.groupBy({
     by: ['accountId'],
-    where,
+    where: { accountId },
     _sum: { debitAmount: true, creditAmount: true },
   });
 

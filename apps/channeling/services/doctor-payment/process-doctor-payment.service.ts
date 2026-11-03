@@ -21,6 +21,12 @@ import { formatCents } from "@/lib/format-money";
 import { getCurrentShift, getShiftRequirementFailure } from "@/services/shift.service";
 import { isShiftRequirementError, shiftRequirementMessage } from "@/lib/shift-requirement-error";
 import { parseSlipDateInput } from "@/lib/slip-date";
+import { resolveDoctorPaymentSplit } from "@/services/doctor-payment/split-doctor-payment.service";
+import {
+  logHiddenSessionMoves,
+  moveNonWhtBookingsToHiddenSession,
+  type HiddenSessionMoveLog,
+} from "@/services/doctor-payment/move-bookings-to-hidden-session";
 
 const JOURNAL_SEQUENCE_SCOPE = "journal";
 
@@ -74,8 +80,19 @@ export type ProcessDoctorPaymentInput = {
   userId: string | null;
 };
 
+export type ProcessDoctorPaymentReceipt = {
+  receiptId: string;
+  receiptNoString: string;
+  wht: boolean;
+};
+
 export type ProcessDoctorPaymentResult =
-  | { success: true; receiptId: string; receiptNoString: string }
+  | {
+      success: true;
+      receiptId: string;
+      receiptNoString: string;
+      receipts: ProcessDoctorPaymentReceipt[];
+    }
   | { success: false; errorCode: string; message: string };
 
 /**
@@ -165,10 +182,6 @@ export async function processDoctorPaymentService(
     }
   }
 
-  const whtPercentage = getWhtPercentage();
-  const whtAmount = wht ? (amount * whtPercentage) / 100 : 0;
-  const netAmount = amount - whtAmount;
-
   const existing = await prisma.booking.findMany({
     where: { id: { in: bookingIds }, doctorId },
     select: { id: true, status: true, doctorPayment: true },
@@ -198,12 +211,21 @@ export async function processDoctorPaymentService(
     }
   }
 
+  const splitDecision = await resolveDoctorPaymentSplit({ input, shiftId });
+  if (splitDecision.mode === "finished") return splitDecision.result;
+  const applyWht = splitDecision.applyWht;
+  const moveToHiddenBookingIds = splitDecision.moveToHiddenBookingIds ?? [];
+
+  const whtPercentage = getWhtPercentage();
+  const whtAmount = applyWht ? (amount * whtPercentage) / 100 : 0;
+  const netAmount = amount - whtAmount;
+
   const accountsResult = await resolveDoctorPaymentAccounts({
     doctorId,
     locationId,
     createdBy: userId,
     paymentMethod,
-    includeWhtPayable: wht && whtAmount > 0,
+    includeWhtPayable: applyWht && whtAmount > 0,
   });
   if ("error" in accountsResult) {
     return {
@@ -233,9 +255,10 @@ export async function processDoctorPaymentService(
     }
   }
 
-  const remarks = handed_staff.trim()
+  const remarksBase = handed_staff.trim()
     ? `DOCTOR PAYMENT Handed: ${handed_staff.trim()}`
     : "DOCTOR PAYMENT";
+  const remarks = applyWht ? remarksBase.replace("DOCTOR PAYMENT", "DOCTOR PAYMENT WHT") : remarksBase;
 
   const receiptParams: CreateReceiptWithoutBookingParams = {
     paymentMethod,
@@ -258,14 +281,16 @@ export async function processDoctorPaymentService(
     userLocationId: locationId ?? undefined,
     shiftId,
     whd: Math.round(whtAmount),
-    whdPercentage: whtPercentage,
+    whdPercentage: applyWht ? whtPercentage : 0,
     doctorId,
+    receiptSequenceKind: applyWht ? "wht" : null,
   };
 
   const journalNumberResult = await getNextSequenceNumber(JOURNAL_SEQUENCE_SCOPE, { startFrom: 1 });
   const journalNumber = journalNumberResult.success ? journalNumberResult.value : 0;
 
   let result: Awaited<ReturnType<typeof createReceiptWithoutBooking>>;
+  let hiddenMoveLogs: HiddenSessionMoveLog[] = [];
   try {
     result = await prisma.$transaction(async (tx) => {
       const r = await createReceiptWithoutBooking(tx, receiptParams);
@@ -286,6 +311,14 @@ export async function processDoctorPaymentService(
           doctorPaymentReceiptString: r.receipt.receiptNoString,
         },
       });
+
+      if (moveToHiddenBookingIds.length > 0) {
+        hiddenMoveLogs = await moveNonWhtBookingsToHiddenSession(tx, {
+          bookingIds: moveToHiddenBookingIds,
+          doctorId,
+          userId,
+        });
+      }
 
       return r;
     });
@@ -308,6 +341,8 @@ export async function processDoctorPaymentService(
     return { success: false, errorCode: result.errorCode, message: result.message };
   }
 
+  logHiddenSessionMoves(input.userId, hiddenMoveLogs);
+
   if (input.userId) {
     logActivityNonBlocking({
       userId: input.userId,
@@ -322,5 +357,12 @@ export async function processDoctorPaymentService(
     success: true,
     receiptId: result.receipt.id,
     receiptNoString: result.receipt.receiptNoString,
+    receipts: [
+      {
+        receiptId: result.receipt.id,
+        receiptNoString: result.receipt.receiptNoString,
+        wht: applyWht && whtAmount > 0,
+      },
+    ],
   };
 }

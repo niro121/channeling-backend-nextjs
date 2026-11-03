@@ -49,6 +49,12 @@ export const RESOURCES: ResourceWithOptionalActions[] = [
     actionLabels: { view: "Block / unblock appointment numbers" },
   },
   {
+    id: "channel-booking-hidden-sessions",
+    name: "Channel Booking – See hidden sessions",
+    actions: ["view"],
+    actionLabels: { view: "See hidden sessions" },
+  },
+  {
     id: "channel-booking-forced-booking",
     name: "Channel Booking – Forced bookings",
     actions: ["view"],

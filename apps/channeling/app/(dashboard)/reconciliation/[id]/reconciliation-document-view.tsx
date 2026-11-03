@@ -99,6 +99,8 @@ export type HandoverTabData = {
     cannotReconcileReason?: string | null
     /** Set when the receipt was canceled. Still tickable. */
     canceledAt?: string | null
+    /** Set for a DPAY receipt. The tick is stored in Channeling; the receipt stays in DPAY. */
+    source?: "dpay"
   }>
 }
 
@@ -527,7 +529,7 @@ export function ReconciliationDocumentView({
         </Alert>
       ) : (
         <p className="text-sm text-muted-foreground">
-          Post in batches. Only ticked receipts are deducted from the cashier till. Mark leftover lines as can&apos;t reconcile (they stay on the till) so the document can close.
+          Post in batches. Only ticked receipts are deducted from the cashier till. DPAY card, slip, cheque, and e-wallet receipts for the shift are on this list too. Mark leftover lines as can&apos;t reconcile (they stay on the till) so the document can close.
         </p>
       )}
 
@@ -761,7 +763,10 @@ export function ReconciliationDocumentView({
                                       />
                                     </TableCell>
                                     <TableCell className="py-1.5 text-xs text-muted-foreground whitespace-nowrap">{shiftLabel}</TableCell>
-                                    <TableCell className="py-1.5 font-mono text-xs">{r.receiptNoString}</TableCell>
+                                    <TableCell className="py-1.5 font-mono text-xs">
+                                      {r.source === "dpay" ? "DPAY " : ""}
+                                      {r.receiptNoString}
+                                    </TableCell>
                                     <TableCell className="py-1.5 text-xs whitespace-nowrap">
                                       {formatDateTimeWithSeconds(r.createdAt)}
                                     </TableCell>

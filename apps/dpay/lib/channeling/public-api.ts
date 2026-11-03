@@ -135,3 +135,203 @@ export async function fetchChannelingDoctors(keyword?: string): Promise<PublicDo
 export function isChannelingApiConfigured(): boolean {
   return getConfig() != null;
 }
+
+export type ChannelingCashierShift = {
+  id: string;
+  userId: string;
+  status: number;
+  statusLabel: 'active' | 'paused' | 'handover_pending';
+  locationId: string | null;
+  locationName: string | null;
+  locationCode: string | null;
+  startedAt: string;
+  endsAt: string;
+  expired: boolean;
+  canPause: boolean;
+  canResume: boolean;
+  floatBalanceCents: number;
+  floatRequest: {
+    status: 'pending' | 'approved';
+    floatNo: string | null;
+    amountCents: number;
+  } | null;
+};
+
+type ShiftResponse = {
+  shift?: ChannelingCashierShift | null;
+  error?: string;
+  error_description?: string;
+};
+
+async function channelingFetch(path: string, init?: RequestInit): Promise<Response> {
+  const config = getConfig();
+  if (!config) {
+    throw new Error(
+      'Channeling API is not configured. Set CHANNELING_API_URL, CHANNELING_API_CLIENT_ID, and CHANNELING_API_CLIENT_SECRET.'
+    );
+  }
+  const token = await getAccessToken();
+  const headers = new Headers(init?.headers);
+  headers.set('Authorization', `Bearer ${token}`);
+  let res = await fetch(`${config.baseUrl}${path}`, { ...init, headers, cache: 'no-store' });
+  if (res.status === 401) {
+    globalThis.__dpayChannelingTokenCache = undefined;
+    const fresh = await fetchAccessToken(config.baseUrl, config.clientId, config.clientSecret);
+    headers.set('Authorization', `Bearer ${fresh}`);
+    res = await fetch(`${config.baseUrl}${path}`, { ...init, headers, cache: 'no-store' });
+  }
+  return res;
+}
+
+export async function fetchChannelingShift(userId: string): Promise<ChannelingCashierShift | null> {
+  const res = await channelingFetch(`/api/public/shifts/current?userId=${encodeURIComponent(userId)}`);
+  const data = (await res.json()) as ShiftResponse;
+  if (!res.ok) {
+    throw new Error(data.error_description || data.error || 'Failed to load the Channeling shift');
+  }
+  return data.shift ?? null;
+}
+
+export async function pauseChannelingShift(userId: string): Promise<ChannelingCashierShift | null> {
+  return postShift('/api/public/shifts/pause', userId);
+}
+
+export async function resumeChannelingShift(userId: string): Promise<ChannelingCashierShift | null> {
+  return postShift('/api/public/shifts/resume', userId);
+}
+
+async function postShift(path: string, userId: string): Promise<ChannelingCashierShift | null> {
+  const res = await channelingFetch(path, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ userId }),
+  });
+  const data = (await res.json()) as ShiftResponse;
+  if (!res.ok) {
+    throw new Error(data.error_description || data.error || 'Shift update failed');
+  }
+  return data.shift ?? null;
+}
+
+export type DpayJournalShare = {
+  doctorId: string;
+  doctorCode: string;
+  doctorName: string;
+  amount: number;
+};
+
+function isTransientChannelingError(error: unknown): boolean {
+  if (!(error instanceof Error)) return true;
+  const message = error.message.toLowerCase();
+  return (
+    message.includes('fetch') ||
+    message.includes('network') ||
+    message.includes('timeout') ||
+    message.includes('aborted') ||
+    message.includes('econn') ||
+    message.includes('not responding')
+  );
+}
+
+async function postChannelingDpayJournalOnce(input: {
+  userId: string;
+  shiftId: string;
+  kind: 'patient_payment' | 'patient_refund' | 'doctor_payment' | 'doctor_payment_cancel';
+  referenceId?: string | null;
+  description: string;
+  paymentMethod: number;
+  shares: DpayJournalShare[];
+  whtAmount?: number;
+}): Promise<void> {
+  const res = await channelingFetch('/api/public/shifts/journals', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+  const data = (await res.json().catch(() => ({}))) as { error_description?: string; error?: string };
+  if (res.status >= 500) {
+    throw new Error('Channeling is not responding. Try again.');
+  }
+  if (!res.ok) {
+    throw new Error(data.error_description || data.error || 'Could not post the till journal');
+  }
+}
+
+export type ChannelingDpayJournalLine = {
+  id: string;
+  accountId: string;
+  accountCode: string | null;
+  accountName: string;
+  accountType: string;
+  debitAmount: number;
+  creditAmount: number;
+  memo: string | null;
+  paymentMethod: number | null;
+};
+
+export type ChannelingDpayJournal = {
+  id: string;
+  journalNumber: number | null;
+  date: string;
+  description: string;
+  referenceType: string | null;
+  referenceId: string | null;
+  locationId: string | null;
+  lines: ChannelingDpayJournalLine[];
+};
+
+type JournalsResponse = {
+  journals?: ChannelingDpayJournal[];
+  error?: string;
+  error_description?: string;
+};
+
+async function fetchChannelingDpayJournalsOnce(input: {
+  referenceType: 'DpayReceipt' | 'DpayDoctorPayment';
+  referenceId: string;
+}): Promise<ChannelingDpayJournal[]> {
+  const query = new URLSearchParams({
+    referenceType: input.referenceType,
+    referenceId: input.referenceId,
+  });
+  const res = await channelingFetch(`/api/public/shifts/journals?${query.toString()}`);
+  const data = (await res.json().catch(() => ({}))) as JournalsResponse;
+  if (res.status >= 500) {
+    throw new Error('Channeling is not responding. Try again.');
+  }
+  if (!res.ok) {
+    throw new Error(data.error_description || data.error || 'Could not load the till journals');
+  }
+  return Array.isArray(data.journals) ? data.journals : [];
+}
+
+/** Journals Channeling already posted for one DPAY receipt or doctor payment. Amounts are rupees. */
+export async function fetchChannelingDpayJournals(input: {
+  referenceType: 'DpayReceipt' | 'DpayDoctorPayment';
+  referenceId: string;
+}): Promise<ChannelingDpayJournal[]> {
+  try {
+    return await fetchChannelingDpayJournalsOnce(input);
+  } catch (error: unknown) {
+    if (!isTransientChannelingError(error)) throw error;
+    return await fetchChannelingDpayJournalsOnce(input);
+  }
+}
+
+export async function postChannelingDpayJournal(input: {
+  userId: string;
+  shiftId: string;
+  kind: 'patient_payment' | 'patient_refund' | 'doctor_payment' | 'doctor_payment_cancel';
+  referenceId?: string | null;
+  description: string;
+  paymentMethod: number;
+  shares: DpayJournalShare[];
+  whtAmount?: number;
+}): Promise<void> {
+  try {
+    await postChannelingDpayJournalOnce(input);
+  } catch (error: unknown) {
+    if (!isTransientChannelingError(error)) throw error;
+    await postChannelingDpayJournalOnce(input);
+  }
+}

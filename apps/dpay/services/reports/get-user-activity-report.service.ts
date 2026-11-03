@@ -1,18 +1,10 @@
 import prisma from '@/lib/prisma';
 import { authPrisma } from '@archmage/db-auth';
 import { parseReportDateTimeSl } from '@/lib/parse-report-datetime';
+import { getReportMax } from '@/lib/report-limits';
 import type { UserActivityReportResponse } from '@/types/user-activity-report';
 
-const DEFAULT_REPORT_MAX = 10000;
 const MAX_RANGE_DAYS = 62;
-
-function getReportMax(): number {
-  const raw = process.env.REPORT_MAX;
-  if (raw == null || raw === '') return DEFAULT_REPORT_MAX;
-  const n = parseInt(raw, 10);
-  if (!Number.isFinite(n) || n < 1) return DEFAULT_REPORT_MAX;
-  return n;
-}
 
 function calendarDateFromFilter(value: string): Date | null {
   const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(value.trim());

@@ -20,6 +20,9 @@ export const DoctorPaymentColumns: ColumnDef<DoctorPaymentListItem>[] = [
       return (
         <span className={`font-medium ${canceled ? "text-destructive" : ""}`}>
           {row.original.receiptNoString || "—"}
+          {row.original.doctorPaymentGroupId ? (
+            <span className="ml-2 text-xs font-normal text-muted-foreground">Split</span>
+          ) : null}
         </span>
       );
     },

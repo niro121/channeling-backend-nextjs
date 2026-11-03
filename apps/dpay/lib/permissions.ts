@@ -5,6 +5,7 @@ export const ROUTE_TO_RESOURCE: Record<string, string> = {
   '/doctor-payments': 'doctor-payments',
   '/payments': 'payments',
   '/receipts': 'receipts',
+  '/receipt-manager': 'receipt-manager',
   '/bank-accounts': 'bank-accounts',
   '/ledger': 'ledger',
   '/reconciliation': 'reconciliation',

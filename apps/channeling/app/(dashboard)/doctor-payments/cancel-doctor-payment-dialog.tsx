@@ -20,6 +20,8 @@ type CancelDoctorPaymentDialogProps = {
   onOpenChange: (open: boolean) => void;
   receiptId: string;
   receiptNoString: string;
+  /** This receipt is paired with another receipt from the same payment. */
+  cancelsPair?: boolean;
   onSuccess?: () => void;
 };
 
@@ -28,6 +30,7 @@ export function CancelDoctorPaymentDialog({
   onOpenChange,
   receiptId,
   receiptNoString,
+  cancelsPair = false,
   onSuccess,
 }: CancelDoctorPaymentDialogProps) {
   const { toast } = useToast();
@@ -49,9 +52,12 @@ export function CancelDoctorPaymentDialog({
     try {
       const result = await cancelDoctorPaymentAction(receiptId, trimmed);
       if (result.success) {
+        const numbers = result.reverseReceiptNoStrings?.length
+          ? result.reverseReceiptNoStrings.join(", ")
+          : result.reverseReceiptNoString;
         toast({
           title: "Doctor payment canceled",
-          description: `Reversal ${result.reverseReceiptNoString} has been created. Linked bookings have been updated.`,
+          description: `Reversal ${numbers} has been created. Linked bookings have been updated.`,
         });
         setReason("");
         onOpenChange(false);
@@ -89,8 +95,10 @@ export function CancelDoctorPaymentDialog({
           <DialogTitle>Cancel doctor payment</DialogTitle>
         </DialogHeader>
         <p className="text-sm text-muted-foreground">
-          This will cancel receipt <strong>{receiptNoString}</strong>, create a reversal entry, and clear doctor
-          payment on all linked bookings. This action cannot be undone.
+          This will cancel receipt <strong>{receiptNoString}</strong>
+          {cancelsPair ? " and the other receipt in this payment" : ""}, create{" "}
+          {cancelsPair ? "a reversal for each" : "a reversal"}, and clear doctor payment on all linked bookings.
+          This action cannot be undone.
         </p>
         <div className="space-y-2">
           <Label htmlFor="cancel-reason-dp">Cancel reason (required)</Label>

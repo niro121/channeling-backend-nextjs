@@ -29,6 +29,8 @@ function formatRs(amount: number): string {
 
 function bookingActionLabel(entry: BookingActivityEntry): string {
   if (entry.action === "booking.transferred") return "Transferred"
+  if (entry.action === "booking.moved-to-hidden-session") return "Moved to hidden session"
+  if (entry.action === "booking.restored-from-hidden-session") return "Restored from hidden session"
   if (entry.action === "booking.updated") return "Updated"
   if (entry.action === "booking.cancel.requested") return "Cancel requested"
   if (entry.action === "booking.cancel.approved") return "Cancel approved"

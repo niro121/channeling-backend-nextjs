@@ -1,4 +1,5 @@
 import prisma from '@/lib/prisma';
+import { requireActiveShift } from '@/lib/dpay-shift';
 import type { PatientBillDraft } from '@/types/patient-bill';
 import { draftToCreatePayload } from '@/lib/patient-bills/mappers';
 import { BILL_LINE_ITEM_STATUS } from '@/lib/patient-bills/line-item-status';
@@ -27,6 +28,9 @@ export async function createPatientBill(
   createdByName?: string | null
 ): Promise<CreatePatientBillResult> {
   try {
+    const shiftGate = await requireActiveShift(createdBy);
+    if (!shiftGate.success) return { success: false, message: shiftGate.message };
+
     const payload = draftToCreatePayload(draft);
     const bhtNumber = payload.bxtNumber.trim();
 
@@ -71,10 +75,13 @@ export async function createPatientBill(
               createdByName: createdByName ?? undefined,
               updatedBy: createdBy ?? undefined,
               updatedByName: createdByName ?? undefined,
+              shiftId: shiftGate.shift.shiftId,
               lineItems: {
                 create: payload.lineItems.map((item) => ({
                   sortOrder: item.sortOrder,
                   doctorName: item.doctorName,
+                  doctorId: item.doctorId ?? undefined,
+                  doctorCode: item.doctorCode ?? undefined,
                   description: item.description,
                   amount: item.amount,
                   status: BILL_LINE_ITEM_STATUS.active,

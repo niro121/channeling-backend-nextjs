@@ -85,7 +85,11 @@ export const getAllSessionsService = async ({
     });
 
     const doctorSessionIds = [
-      ...new Set(records.map((r) => r.doctorSessionId).filter(Boolean)),
+      ...new Set(
+        records
+          .map((r) => r.doctorSessionId)
+          .filter((id): id is string => typeof id === "string" && /^[a-f\d]{24}$/i.test(id))
+      ),
     ];
     const doctorSessions =
       doctorSessionIds.length > 0
@@ -99,7 +103,7 @@ export const getAllSessionsService = async ({
     );
     const enrichedRecords = records.map((r) => ({
       ...r,
-      originalSessionName: nameMap[r.doctorSessionId] ?? '—',
+      originalSessionName: r.hidden ? "Hidden" : (nameMap[r.doctorSessionId] ?? "—"),
     }));
 
     return {

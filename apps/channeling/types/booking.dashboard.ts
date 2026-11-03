@@ -35,6 +35,8 @@ export type Session = {
   /** `Sequence.lastValue` for scope `appointment:sessionId`, or `startingPatientNumber - 1` if no row yet. */
   appointmentSequenceLastValue?: number;
   isScan: boolean;
+  /** True for the session that holds bookings paid without WHT. */
+  hidden?: boolean;
   doctorId: string | null;
   departmentId: string | null;
   locationId: string | null;

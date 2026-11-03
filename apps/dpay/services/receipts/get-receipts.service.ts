@@ -5,9 +5,8 @@ import type {
   PatientBillReceiptStatus,
 } from '@/types/patient-bill';
 import { formatDoctorNames } from '@/lib/receipts/helpers';
+import { getReportMax } from '@/lib/report-limits';
 import type { Prisma } from '@/lib/generated/prisma';
-
-const EXPORT_LIMIT = 10000;
 
 function buildWhere(
   params: Pick<GetReceiptsParams, 'keyword' | 'method' | 'status' | 'dateFrom' | 'dateTo'>
@@ -122,6 +121,14 @@ function mapReceiptRecord(record: ReceiptRecord): ReceiptListItem {
   };
 }
 
+export async function getReceiptById(id: string): Promise<ReceiptListItem | null> {
+  const record = await prisma.patientBillReceipt.findUnique({
+    where: { id },
+    select: receiptSelect,
+  });
+  return record ? mapReceiptRecord(record) : null;
+}
+
 export async function getReceipts(params: GetReceiptsParams = {}): Promise<GetReceiptsResult> {
   const page = Math.max(1, params.page ?? 1);
   const limit = Math.min(100, Math.max(1, params.limit ?? 20));
@@ -153,7 +160,7 @@ export async function getReceiptsExport(
   const records = await prisma.patientBillReceipt.findMany({
     where,
     orderBy: { paymentDate: 'desc' },
-    take: EXPORT_LIMIT,
+    take: getReportMax(),
     select: receiptSelect,
   });
 

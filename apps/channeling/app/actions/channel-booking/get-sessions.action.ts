@@ -6,6 +6,7 @@ import {
 } from "@/services/channel-booking"
 import type { GetSessionsForChannelBookingResult } from "@/types/booking.dashboard"
 import type { Session } from "@/types/booking.dashboard"
+import { checkPermission } from "@/lib/server-permissions"
 
 /** Get sessions for channel booking: doctor + date, optionally by location. */
 export async function getSessionsForChannelBooking(
@@ -14,7 +15,8 @@ export async function getSessionsForChannelBooking(
   locationId?: string | null
 ): Promise<GetSessionsForChannelBookingResult> {
   try {
-    return await getSessionsForChannelBookingService(doctorId, date, locationId)
+    const includeHidden = await checkPermission("channel-booking-hidden-sessions", "view")
+    return await getSessionsForChannelBookingService(doctorId, date, locationId, { includeHidden })
   } catch (error: unknown) {
     console.error("getSessionsForChannelBooking error", error)
     const message = error instanceof Error ? error.message : "Failed to fetch sessions"
@@ -31,7 +33,8 @@ export async function getSessionByIdForChannelBooking(
   sessionId: string
 ): Promise<{ success: boolean; data?: Session | null; message?: string; error?: { message?: string } }> {
   try {
-    return await getSessionByIdForChannelBookingService(sessionId)
+    const includeHidden = await checkPermission("channel-booking-hidden-sessions", "view")
+    return await getSessionByIdForChannelBookingService(sessionId, { includeHidden })
   } catch (error: unknown) {
     console.error("getSessionByIdForChannelBooking error", error)
     const message = error instanceof Error ? error.message : "Failed to fetch session"

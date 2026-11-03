@@ -2,6 +2,7 @@ import prisma from "@/lib/prisma"
 import { formatLKR } from "@/lib/format-money"
 import type { DoctorPaymentPrintModel } from "@/lib/receipt-template/build-print-html"
 import { RECEIPT_METHOD } from "@/types/receipt"
+import { isWhtDoctorPaymentNumber } from "@/services/channel-booking/helpers/get-receipt-sequence"
 import {
   getDoctorCancelReceiptDetail,
   getDoctorPaymentReceiptDetail,
@@ -18,6 +19,7 @@ export type PrintDoctorPaymentOptions = {
 export type PrintDoctorPaymentResult = {
   success: boolean
   data?: DoctorPaymentPrintModel
+  slips?: DoctorPaymentPrintModel[]
   message?: string
 }
 
@@ -109,13 +111,72 @@ async function loadDetail(
   return getDoctorPaymentReceiptDetail(receiptId)
 }
 
+function sortWhtFirst<T extends { receiptNoString: string }>(rows: T[]): T[] {
+  return [...rows].sort(
+    (a, b) =>
+      Number(isWhtDoctorPaymentNumber(b.receiptNoString)) - Number(isWhtDoctorPaymentNumber(a.receiptNoString))
+  )
+}
+
+/** One receipt, or both slips in a split payment. WHT slip first. */
+async function orderedPrintReceiptIds(receiptId: string): Promise<string[] | null> {
+  const receipt = await prisma.receipt.findUnique({
+    where: { id: receiptId },
+    select: {
+      id: true,
+      method: true,
+      doctorPaymentGroupId: true,
+      reversedReceiptId: true,
+      receiptNoString: true,
+    },
+  })
+  if (!receipt) return null
+
+  if (receipt.method === RECEIPT_METHOD.DOCTOR_CANCEL) {
+    const original = receipt.reversedReceiptId
+      ? await prisma.receipt.findUnique({
+          where: { id: receipt.reversedReceiptId },
+          select: { doctorPaymentGroupId: true },
+        })
+      : null
+    if (!original?.doctorPaymentGroupId) return [receipt.id]
+    const originals = await prisma.receipt.findMany({
+      where: {
+        doctorPaymentGroupId: original.doctorPaymentGroupId,
+        method: RECEIPT_METHOD.DOCTOR_PAYMENT,
+      },
+      select: { reverseReceiptId: true, receiptNoString: true },
+    })
+    const ids = sortWhtFirst(originals)
+      .map((row) => row.reverseReceiptId)
+      .filter((id): id is string => Boolean(id))
+    return ids.length > 0 ? ids : [receipt.id]
+  }
+
+  if (receipt.method === RECEIPT_METHOD.DOCTOR_PAYMENT && receipt.doctorPaymentGroupId) {
+    const mates = await prisma.receipt.findMany({
+      where: {
+        doctorPaymentGroupId: receipt.doctorPaymentGroupId,
+        method: RECEIPT_METHOD.DOCTOR_PAYMENT,
+      },
+      select: { id: true, receiptNoString: true },
+    })
+    const ordered = sortWhtFirst(mates)
+    return ordered.length > 0 ? ordered.map((row) => row.id) : [receipt.id]
+  }
+
+  return [receipt.id]
+}
+
 /**
  * Preview does not change printCount. The first real print is the original copy.
  */
-export async function previewDoctorPaymentReceiptService(
+async function previewOneSlip(
   receiptId: string,
-  printedByUserId?: string | null,
-  options: PrintDoctorPaymentOptions = {}
+  printedByUserId: string | null | undefined,
+  options: PrintDoctorPaymentOptions,
+  generatedBy: string,
+  generatedAt: string
 ): Promise<PrintDoctorPaymentResult> {
   const receipt = await prisma.receipt.findUnique({
     where: { id: receiptId },
@@ -128,29 +189,45 @@ export async function previewDoctorPaymentReceiptService(
   ) {
     return { success: false, message: "Doctor payment receipt not found." }
   }
-
   const detail = await loadDetail(receiptId, receipt.method, options)
   if (!detail.success) return detail
-
-  const generatedBy = await resolvePrinterName(printedByUserId)
   return {
     success: true,
     data: toPrintModel(detail.data, {
       isDuplicate: Number(receipt.printCount ?? 0) >= 1,
       generatedBy,
-      generatedAt: formatGeneratedAt(new Date()),
+      generatedAt,
     }),
   }
+}
+
+export async function previewDoctorPaymentReceiptService(
+  receiptId: string,
+  printedByUserId?: string | null,
+  options: PrintDoctorPaymentOptions = {}
+): Promise<PrintDoctorPaymentResult> {
+  const ids = await orderedPrintReceiptIds(receiptId)
+  if (!ids) return { success: false, message: "Doctor payment receipt not found." }
+  const generatedBy = await resolvePrinterName(printedByUserId)
+  const generatedAt = formatGeneratedAt(new Date())
+  const slips: DoctorPaymentPrintModel[] = []
+  for (const id of ids) {
+    const slip = await previewOneSlip(id, printedByUserId, options, generatedBy, generatedAt)
+    if (!slip.success || !slip.data) return slip
+    slips.push(slip.data)
+  }
+  return { success: true, data: slips[0], slips }
 }
 
 /**
  * Same print-count rule as booking and ledger receipts:
  * count 0 prints the original; every later print is marked duplicate.
  */
-export async function printDoctorPaymentReceiptService(
+async function printOneSlip(
   receiptId: string,
-  printedByUserId?: string | null,
-  options: PrintDoctorPaymentOptions = {}
+  options: PrintDoctorPaymentOptions,
+  generatedBy: string,
+  generatedAt: string
 ): Promise<PrintDoctorPaymentResult> {
   const receipt = await prisma.receipt.findUnique({
     where: { id: receiptId },
@@ -176,14 +253,30 @@ export async function printDoctorPaymentReceiptService(
 
   const detail = await loadDetail(receiptId, receipt.method, options)
   if (!detail.success) return detail
-
-  const generatedBy = await resolvePrinterName(printedByUserId)
   return {
     success: true,
     data: toPrintModel(detail.data, {
       isDuplicate,
       generatedBy,
-      generatedAt: formatGeneratedAt(new Date()),
+      generatedAt,
     }),
   }
+}
+
+export async function printDoctorPaymentReceiptService(
+  receiptId: string,
+  printedByUserId?: string | null,
+  options: PrintDoctorPaymentOptions = {}
+): Promise<PrintDoctorPaymentResult> {
+  const ids = await orderedPrintReceiptIds(receiptId)
+  if (!ids) return { success: false, message: "Doctor payment receipt not found." }
+  const generatedBy = await resolvePrinterName(printedByUserId)
+  const generatedAt = formatGeneratedAt(new Date())
+  const slips: DoctorPaymentPrintModel[] = []
+  for (const id of ids) {
+    const slip = await printOneSlip(id, options, generatedBy, generatedAt)
+    if (!slip.success || !slip.data) return slip
+    slips.push(slip.data)
+  }
+  return { success: true, data: slips[0], slips }
 }

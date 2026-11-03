@@ -25,6 +25,7 @@ async function getLocationFromChanneling(email: string, username?: string | null
       OR: or,
     },
     select: {
+      id: true,
       userLocationId: true,
       userLocation: { select: { id: true, code: true, name: true } },
     },
@@ -196,6 +197,47 @@ export async function resolveUserPrintCode(
     console.error('resolveUserPrintCode error', error);
     return '';
   }
+}
+
+/**
+ * Channeling user id for the signed-in DPAY user, matched by email or username.
+ * The shift and the till belong to this id, not the auth login id.
+ */
+export async function getChannelingUserId(
+  authUserId: string | null | undefined
+): Promise<{ success: true; channelingUserId: string } | { success: false; message: string }> {
+  if (!authUserId?.trim()) {
+    return { success: false, message: 'You must be signed in.' };
+  }
+  if (!process.env.CHANNELING_DATABASE_URL?.trim()) {
+    return {
+      success: false,
+      message: 'CHANNELING_DATABASE_URL is not set, so the Channeling shift cannot be found.',
+    };
+  }
+
+  const authUser = await authPrisma.user.findUnique({
+    where: { id: authUserId },
+    select: { email: true, username: true },
+  });
+  if (!authUser?.email) {
+    return { success: false, message: 'Signed-in user was not found.' };
+  }
+
+  const prisma = getChannelingPrisma();
+  const or: Array<{ email?: string; username?: string }> = [{ email: authUser.email }];
+  if (authUser.username?.trim()) or.push({ username: authUser.username.trim() });
+  const channelingUser = await prisma.user.findFirst({
+    where: { status: 1, OR: or },
+    select: { id: true },
+  });
+  if (!channelingUser) {
+    return {
+      success: false,
+      message: 'No active Channeling user matches this login. The shift is started in Channeling.',
+    };
+  }
+  return { success: true, channelingUserId: channelingUser.id };
 }
 
 /** Display helper: "Ruhunu Hospital (RH)" */

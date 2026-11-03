@@ -174,7 +174,9 @@ export const getAllDoctorViewReportDataService = async ({
         const isCancelled = booking.status === 2 || !!booking.canceledAt || isCancelByRefundReceipt;
         const isPaidBooking = booking.status === 1 || paidBeforeCancel;
 
-        if (isCancelled) {
+        // Cancel is only a paid booking that was later cancelled.
+        // An unpaid cancellation is omitted from Not Paid, Paid, and Cancel.
+        if (isCancelled && (isPaidBooking || isCancelByRefundReceipt)) {
           row.cancel++;
         }
 

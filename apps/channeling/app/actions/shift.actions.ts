@@ -29,6 +29,7 @@ import { revalidatePath } from "next/cache"
 import { requirePermission, checkPermission } from "@/lib/server-permissions"
 import { HANDOVER_STATUS } from "@/types/handover"
 import { deriveHandoverCashierSummaryFilters, expectedHandoverAvailableFromTill } from "@/lib/handover-utils"
+import { DPAY_NOT_RESPONDING } from "@/lib/dpay-shift-lines"
 import { getCashierSummaryReportService } from "@/services/reports/cashier-summary.service"
 import { ensureHandoverDocumentNumber } from "@/services/shift-handover-sequence"
 import { listShiftBillAttachmentsForHandover } from "@/services/shift-bill-attachment.service"
@@ -107,7 +108,7 @@ export async function endShiftAction(shiftId: string) {
   return result
 }
 
-/** Whether the current user can end their shift with no handover (empty till, no receipts, nothing to forward). */
+/** Whether the current user can end their shift with no handover (empty till, no Channeling or DPAY receipts, no handover received on this shift). */
 export async function canEndShiftWithoutHandoverAction(): Promise<{
   success: true
   allowed: boolean
@@ -534,7 +535,7 @@ export async function getHandoverDetailAction(handoverId: string) {
     shift: handover.shift,
   })
 
-  const [tillBreakdown, includedHandovers, receivedFloats, actors, cashierSummary, billAttachments] = await Promise.all([
+  const [tillBreakdown, includedHandovers, receivedFloats, actors, cashierSummaryResult, billAttachments] = await Promise.all([
     handover.status === HANDOVER_STATUS.PENDING
       ? Promise.all([
           getTillBalanceBreakdown(handover.fromUserId),
@@ -570,11 +571,14 @@ export async function getHandoverDetailAction(handoverId: string) {
         })
           .then((r) =>
             r.success
-              ? { grandTotals: r.grandTotals, includedShifts: r.includedShifts }
-              : null
+              ? {
+                  summary: { grandTotals: r.grandTotals, includedShifts: r.includedShifts },
+                  error: null as string | null,
+                }
+              : { summary: null, error: r.message?.trim() || DPAY_NOT_RESPONDING }
           )
-          .catch(() => null)
-      : Promise.resolve(null),
+          .catch(() => ({ summary: null, error: DPAY_NOT_RESPONDING }))
+      : Promise.resolve({ summary: null, error: null as string | null }),
     listShiftBillAttachmentsForHandover(handover.id),
   ])
 
@@ -600,7 +604,8 @@ export async function getHandoverDetailAction(handoverId: string) {
       tillBreakdown,
       includedHandovers: includedWithNumbers,
       receivedFloats,
-      cashierSummary,
+      cashierSummary: cashierSummaryResult.summary,
+      cashierSummaryError: cashierSummaryResult.error,
       billAttachments,
       approvedByUser,
       rejectedByUser,

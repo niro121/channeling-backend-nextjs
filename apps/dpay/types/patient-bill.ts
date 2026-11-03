@@ -164,6 +164,8 @@ export type BillLineItemStatus = 'active' | 'deleted';
 export type BillLineItem = {
   id: string;
   doctorName: string;
+  doctorId?: string | null;
+  doctorCode?: string | null;
   description: string;
   amount: number;
   status?: BillLineItemStatus;
@@ -176,6 +178,8 @@ export type BillLineItem = {
 export type AddPatientBillLineItemInput = {
   billId: string;
   doctorName: string;
+  doctorId?: string | null;
+  doctorCode?: string | null;
   description: string;
   amount: number;
 };

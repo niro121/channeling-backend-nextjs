@@ -21,7 +21,7 @@ import 'dotenv/config';
 import prisma from '@/lib/prisma';
 import { appointmentSequenceScopeKey } from '@/services/channel-booking/helpers/appointment-number';
 import { getBookingSequenceInfo } from '@/services/channel-booking/helpers/get-booking-sequence';
-import { getReceiptSequenceInfo } from '@/services/channel-booking/helpers/get-receipt-sequence';
+import { getReceiptSequenceInfo, receiptSequenceKindFromNumber } from '@/services/channel-booking/helpers/get-receipt-sequence';
 
 const ALL_SCOPES = [
   'speciality',
@@ -198,10 +198,15 @@ async function syncReceipt(): Promise<void> {
   const maxByScope = new Map<string, number>();
 
   const receipts = await prisma.receipt.findMany({
-    select: { locationId: true, userLocationId: true, method: true, receiptNo: true },
+    select: { locationId: true, userLocationId: true, method: true, receiptNo: true, receiptNoString: true },
   });
   for (const r of receipts) {
-    const { scopeKey } = await getReceiptSequenceInfo(r.locationId, r.method, r.userLocationId);
+    const { scopeKey } = await getReceiptSequenceInfo(
+      r.locationId,
+      r.method,
+      r.userLocationId,
+      receiptSequenceKindFromNumber(r.receiptNoString)
+    );
     await bumpScopeMax(maxByScope, scopeKey, r.receiptNo);
   }
 

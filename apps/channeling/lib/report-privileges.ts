@@ -74,6 +74,26 @@ export const REPORT_PRIVILEGES: ReportPrivilege[] = [
     rank: 5,
   },
   {
+    id: "45",
+    action: "dpay-doctor-balance",
+    name: "DPAY Doctor Balance Report",
+    description:
+      "View each doctor's DPAY payable balance as of a selected date. Separate from the channeling doctor payable.",
+    route: "/reports/dpay-doctor-balance",
+    category: "Doctors",
+    rank: 5.1,
+  },
+  {
+    id: "46",
+    action: "dpay-doctor-statement",
+    name: "DPAY Doctor Statement",
+    description:
+      "Statement of one doctor's DPAY payable for a date range, with opening balance, movements, and closing balance.",
+    route: "/reports/dpay-doctor-statement",
+    category: "Doctors",
+    rank: 5.2,
+  },
+  {
     id: "5",
     action: "channel-patient-count-accounting-wise",
     name: "Channel Patient Count (Accounting Wise)",

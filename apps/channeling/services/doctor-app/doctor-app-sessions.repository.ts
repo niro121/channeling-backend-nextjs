@@ -7,6 +7,7 @@ import {
   appointmentSequenceScopeKey,
   effectiveAppointmentSequenceLastValue,
 } from "@/services/channel-booking/helpers/appointment-number"
+import { isHiddenSession } from "@/services/doctor-payment/move-bookings-to-hidden-session"
 
 export type DoctorAppSessionsDateBounds = {
   from: Date
@@ -37,15 +38,17 @@ export async function fetchDoctorAppSessionsForDoctor(
       status: { in: [0, 1] },
     }
 
-    const records = await prisma.session.findMany({
-      where,
-      include: {
-        doctor: { select: { id: true, title: true, name: true } },
-        location: { select: { id: true, name: true, city: true } },
-        room: { select: { id: true, number: true } },
-      },
-      orderBy: [{ date: "asc" }, { startTime: "asc" }],
-    })
+    const records = (
+      await prisma.session.findMany({
+        where,
+        include: {
+          doctor: { select: { id: true, title: true, name: true } },
+          location: { select: { id: true, name: true, city: true } },
+          room: { select: { id: true, number: true } },
+        },
+        orderBy: [{ date: "asc" }, { startTime: "asc" }],
+      })
+    ).filter((session) => !isHiddenSession(session.hidden))
 
     if (records.length === 0) {
       return { success: true, data: [] }

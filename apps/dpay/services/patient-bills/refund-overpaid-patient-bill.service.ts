@@ -7,6 +7,10 @@ import {
 import { isUniqueConstraintError } from '@/lib/patient-bills/sequence';
 import type { PatientBillPaymentMethod } from '@/types/patient-bill';
 import { generateOverpaymentRefundReceiptNumber } from './generate-receipt-number.service';
+import { postTillJournal, requireActiveShift } from '@/lib/dpay-shift';
+import { allocateRefundShares, parsePayableShares } from '@/lib/patient-bills/payable-shares';
+import { activeLineItemWhere } from '@/lib/patient-bills/line-item-status';
+import { isVoidablePaymentReceipt } from '@/lib/receipts/helpers';
 
 const MAX_NUMBER_RETRIES = 3;
 
@@ -69,12 +73,65 @@ export async function refundOverpaidPatientBill(
     slipDate: input.slipDate,
   });
 
+  const preview = await prisma.patientBill.findUnique({
+    where: { id: input.billId },
+    select: {
+      paidAmount: true,
+      totalAmount: true,
+      lineItems: {
+        where: { AND: [activeLineItemWhere] },
+        select: { doctorId: true, doctorCode: true, doctorName: true, amount: true, sortOrder: true },
+      },
+      receipts: {
+        select: {
+          amountPaid: true,
+          status: true,
+          cancelReceiptNumber: true,
+          refundOfReceiptId: true,
+          payableShares: true,
+        },
+      },
+    },
+  });
+  const overpaidAmount = Math.max(0, (preview?.paidAmount ?? 0) - (preview?.totalAmount ?? 0));
+  const credited = (preview?.receipts ?? [])
+    .filter(isVoidablePaymentReceipt)
+    .flatMap((receipt) => parsePayableShares(receipt.payableShares));
+  const allocated = allocateRefundShares(credited, overpaidAmount);
+  if (overpaidAmount > 0 && !allocated.success) return allocated;
+
+  const shiftGate = overpaidAmount > 0 ? await requireActiveShift(input.refundedBy) : null;
+  if (shiftGate && !shiftGate.success) return { success: false, message: shiftGate.message };
+
+  const undoOverpaymentJournal = async () => {
+    if (!shiftGate?.success || !allocated.success) return true;
+    const reversed = await postTillJournal({
+      shift: shiftGate.shift,
+      kind: 'patient_payment',
+      description: 'Reverse failed DPAY overpayment refund',
+      paymentMethod: input.refundPaymentMethod,
+      shares: allocated.shares,
+    });
+    return reversed.success;
+  };
+
+  if (shiftGate?.success && allocated.success) {
+    const journal = await postTillJournal({
+      shift: shiftGate.shift,
+      kind: 'patient_refund',
+      description: `DPAY overpayment refund`,
+      paymentMethod: input.refundPaymentMethod,
+      shares: allocated.shares,
+    });
+    if (!journal.success) return { success: false, message: journal.message };
+  }
+
   try {
     for (let attempt = 1; attempt <= MAX_NUMBER_RETRIES; attempt++) {
       const generated = await generateOverpaymentRefundReceiptNumber(input.refundedBy);
 
       try {
-        return await prisma.$transaction(async (tx) => {
+        const saved = await prisma.$transaction(async (tx): Promise<RefundOverpaidPatientBillResult> => {
           const bill = await tx.patientBill.findUnique({
             where: { id: input.billId },
             select: {
@@ -126,6 +183,8 @@ export async function refundOverpaidPatientBill(
               outstandingAfter: newOutstandingAmount,
               paymentDate: refundedAt,
               status: 'refund',
+              shiftId: shiftGate?.success ? shiftGate.shift.shiftId : undefined,
+              payableShares: allocated.success ? allocated.shares : undefined,
               cancelReason: reason,
               createdBy: input.refundedBy ?? undefined,
               createdByName: input.refundedByName?.trim() || undefined,
@@ -156,6 +215,16 @@ export async function refundOverpaidPatientBill(
             newStatus,
           };
         });
+        if (!saved.success) {
+          const undone = await undoOverpaymentJournal();
+          if (!undone) {
+            return {
+              success: false,
+              message: `${saved.message} The till could not be put back. Do not retry until it is checked.`,
+            };
+          }
+        }
+        return saved;
       } catch (error: unknown) {
         if (isUniqueConstraintError(error) && attempt < MAX_NUMBER_RETRIES) {
           continue;
@@ -164,12 +233,21 @@ export async function refundOverpaidPatientBill(
       }
     }
 
+    const undone = await undoOverpaymentJournal();
     return {
       success: false,
-      message: 'Could not assign a unique refund receipt number. Please try again.',
+      message: undone
+        ? 'Could not assign a unique refund receipt number. Please try again.'
+        : 'Could not save the refund. The till could not be put back. Do not retry until it is checked.',
     };
   } catch (error) {
+    const undone = await undoOverpaymentJournal();
     console.error('refundOverpaidPatientBill failed', error);
-    return { success: false, message: 'Failed to refund bill overpayment.' };
+    return {
+      success: false,
+      message: undone
+        ? 'Failed to refund bill overpayment.'
+        : 'Failed to refund bill overpayment. The till could not be put back. Do not retry until it is checked.',
+    };
   }
 }

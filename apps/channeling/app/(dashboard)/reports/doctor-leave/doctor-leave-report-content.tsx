@@ -97,7 +97,7 @@ function DoctorLeaveReportContentInner({
             box-shadow: none !important;
           }
 
-          /* Body table — match compact branded PDF (5.5pt / 5pt, fixed proportions) */
+          /* Body table — readable print size; PDF stays on the compact 5.5pt / 5pt path */
           .doctor-leave-report-root .rpt-print-root table {
             table-layout: fixed !important;
             width: 100% !important;
@@ -125,7 +125,7 @@ function DoctorLeaveReportContentInner({
 
           .doctor-leave-report-root .rpt-print-root th,
           .doctor-leave-report-root .rpt-print-root td {
-            font-size: 5.5pt !important;
+            font-size: 7.5pt !important;
             padding: 0.7mm 0.5mm !important;
             line-height: 1.2 !important;
             white-space: normal !important;
@@ -142,7 +142,7 @@ function DoctorLeaveReportContentInner({
             print-color-adjust: exact !important;
           }
           .doctor-leave-report-root .rpt-print-root thead th {
-            font-size: 5pt !important;
+            font-size: 7pt !important;
             font-weight: 700 !important;
             background: #e8e8e8 !important;
             -webkit-print-color-adjust: exact !important;

@@ -294,6 +294,7 @@ export default function HandoverDetailPage() {
   const { has: hasPermission } = usePermissions()
   const canSendToReconciliation = hasPermission("reconciliation", "submit-for-reconciliation")
   const [summaryLoading, setSummaryLoading] = useState(false)
+  const [summaryError, setSummaryError] = useState<string | null>(null)
   const [sendToReconLoading, setSendToReconLoading] = useState(false)
   const [ticked, setTicked] = useState<Set<string>>(new Set())
   const [autoPrintToken, setAutoPrintToken] = useState(0)
@@ -382,9 +383,18 @@ export default function HandoverDetailPage() {
       format: "summary",
     })
       .then((r) => {
-        if (r.success && r.sections) setSummarySections(r.sections)
+        if (r.success && r.sections) {
+          setSummarySections(r.sections)
+          setSummaryError(null)
+          return
+        }
+        setSummarySections([])
+        setSummaryError(r.message?.trim() || "DPAY is not responding. Try again.")
       })
-      .catch(() => setSummarySections([]))
+      .catch(() => {
+        setSummarySections([])
+        setSummaryError("DPAY is not responding. Try again.")
+      })
       .finally(() => setSummaryLoading(false))
   }, [data])
 
@@ -829,13 +839,19 @@ export default function HandoverDetailPage() {
 
           {/* Summary: cashier shift info — value from cashier summary grand totals (same as print) */}
           {(() => {
-            const cs = data.cashierSummary
+            const cs = data.cashierSummaryError ? null : data.cashierSummary
             const summaryValueCents = cs
               ? cashierSummaryGrandTotalCents(cs.grandTotals)
               : totalCents
             return (
               <div className="border-t pt-2">
                 <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1">Summary</h4>
+                {data.cashierSummaryError ? (
+                  <Alert variant="destructive" className="mb-2">
+                    <AlertTitle>DPAY</AlertTitle>
+                    <AlertDescription>{data.cashierSummaryError}</AlertDescription>
+                  </Alert>
+                ) : null}
                 <Table className={tableGrid}>
                   <TableHeader>
                     <TableRow>
@@ -861,7 +877,7 @@ export default function HandoverDetailPage() {
                         {formatDateTime(handover.createdAt)}
                       </TableCell>
                       <TableCell className={`${tdCompact} text-right tabular-nums font-medium`}>
-                        {formatCents(summaryValueCents)}
+                        {data.cashierSummaryError ? "—" : formatCents(summaryValueCents)}
                       </TableCell>
                     </TableRow>
                   </TableBody>
@@ -1088,7 +1104,8 @@ export default function HandoverDetailPage() {
           }]
         })
         const sentToReconciliationTotal = sentToReconciliationRows.reduce((s, h) => s + h.cents, 0)
-        const cs = data.cashierSummary
+        const summaryBlocked = Boolean(data.cashierSummaryError)
+        const cs = summaryBlocked ? null : data.cashierSummary
         const hasSummary = cs != null
         const summaryVal = hasSummary
           ? cashierSummaryGrandTotalCents(cs.grandTotals)
@@ -1107,7 +1124,7 @@ export default function HandoverDetailPage() {
           : 0
         const parts: { label: string; cents: number; sign: "+" | "−" }[] = []
         if (floatsInTotal > 0) parts.push({ label: "Floats In", cents: floatsInTotal, sign: "+" })
-        parts.push({ label: "Summary", cents: summaryVal, sign: "+" })
+        if (!summaryBlocked) parts.push({ label: "Summary", cents: summaryVal, sign: "+" })
         if (prevTotal > 0) parts.push({ label: "Previous Handovers", cents: prevTotal, sign: "+" })
         if (sentToReconciliationTotal > 0) {
           parts.push({ label: "Sent to reconciliation", cents: sentToReconciliationTotal, sign: "−" })
@@ -1134,7 +1151,13 @@ export default function HandoverDetailPage() {
           }))
         return (
           <Card className="border-blue-500/30 bg-blue-50/30 dark:bg-blue-950/20">
-            <CardContent className="p-3">
+            <CardContent className="p-3 space-y-2">
+              {data.cashierSummaryError ? (
+                <Alert variant="destructive">
+                  <AlertTitle>DPAY</AlertTitle>
+                  <AlertDescription>{data.cashierSummaryError}</AlertDescription>
+                </Alert>
+              ) : null}
               <div className="space-y-0.5 text-sm">
                 {parts.map((p, i) => (
                   <div key={p.label} className="flex justify-between gap-4">
@@ -1157,7 +1180,7 @@ export default function HandoverDetailPage() {
                       enteredCents={totalCents}
                     />
                   </span>
-                  <span className="tabular-nums">LKR {formatCents(collectionTotal)}</span>
+                  <span className="tabular-nums">{summaryBlocked ? "—" : `LKR ${formatCents(collectionTotal)}`}</span>
                 </div>
                 {hasSummary ? (
                   <>
@@ -1437,7 +1460,9 @@ export default function HandoverDetailPage() {
       {/* Need full receipt-level detail: single CTA to summary report */}
       <div className="flex flex-wrap items-center justify-between gap-2 text-sm print:hidden">
         <p className="text-muted-foreground">
-          {summaryLoading
+          {summaryError ? (
+            <span className="text-destructive">{summaryError}</span>
+          ) : summaryLoading
             ? "Loading…"
             : !cashierSummaryFilters
               ? "Open the cashier summary for receipts and export."

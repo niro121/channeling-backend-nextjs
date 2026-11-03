@@ -23,7 +23,7 @@ export default async function AdminKnowledgeHubPage() {
         <CardHeader>
           <CardTitle className="text-lg">Accounting Transactions</CardTitle>
           <CardDescription>
-            Readable debit/credit scenarios for channeling, ledger, and related receipt flows.
+            Readable debit/credit scenarios for channeling, ledger, and DPAY receipt flows.
           </CardDescription>
         </CardHeader>
         <CardContent>

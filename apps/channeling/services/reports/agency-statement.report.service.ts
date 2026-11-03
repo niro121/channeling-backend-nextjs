@@ -4,13 +4,19 @@ import prisma from '@/lib/prisma';
 import { getInclusiveDaySpan, getReportMaxRangeDays, getReportMaxRecords } from '@/lib/report-limits';
 import { parseReportDateTime } from '@/lib/parse-report-datetime';
 import { getAccountBalance } from '@/services/accounting/balance-calc.service';
+import { loadInIdBatches } from '@/services/accounting/journal-lines-as-of';
+import { createKeyedWorkLimiter } from '@/lib/keyed-work-limiter';
 import { formatUserDisplayName } from '@/lib/helpers/user-display.helper';
 import { netEffectForAccountType } from '@/lib/accounting/helpers';
 import { PAYMENT_METHOD_NAMES, RECEIPT_METHOD_NAMES } from '@/types/receipt';
 import type { AgencyStatementQuery, AgencyStatementReportData, AgencyStatementRow } from '@/types/reports/agency-statement';
 
 const MAX_RANGE_DAYS = getReportMaxRangeDays('agency_statement', 62);
-const MAX_JOURNALS_SCAN = getReportMaxRecords('agency_statement', 20000);
+const MAX_STATEMENT_LINES = getReportMaxRecords('agency_statement', 20000);
+
+/** Per module copy, so roughly per server process. API clients retry the same statement when it is slow, so retries must not pile up. */
+const statementLimiter = createKeyedWorkLimiter({ maxConcurrent: 2, maxQueued: 8 });
+const STATEMENT_BUSY_MESSAGE = 'Agent statements are busy. Please try again shortly.';
 
 function parseDateTime(value: string, asEnd: boolean): Date | null {
   return parseReportDateTime(value, asEnd);
@@ -26,9 +32,17 @@ function formatSessionDateTime(session: { date: Date; startTime?: Date | null } 
   return d.toLocaleDateString();
 }
 
+type AgencyStatementResult = { success: boolean; data?: AgencyStatementReportData; message?: string };
+
 export async function getAgencyStatementReportService(
   query: AgencyStatementQuery
-): Promise<{ success: boolean; data?: AgencyStatementReportData; message?: string }> {
+): Promise<AgencyStatementResult> {
+  const key = `${query.agencyId}|${query.dateFrom}|${query.dateTo}`;
+  const result = statementLimiter.run(key, () => loadAgencyStatement(query));
+  return result ?? { success: false, message: STATEMENT_BUSY_MESSAGE };
+}
+
+async function loadAgencyStatement(query: AgencyStatementQuery): Promise<AgencyStatementResult> {
   try {
     if (!query.agencyId || query.agencyId === '__all__') {
       return { success: false, message: 'Please select at least one agent.' };
@@ -78,45 +92,50 @@ export async function getAgencyStatementReportService(
 
     const openingBalanceCents = await getAccountBalance(account.id, new Date(from.getTime() - 1));
 
-    // Mongo-safe two-step filtering: first journals in range, then lines for account.
-    const matchedJournals = await prisma.journal.count({
-      where: { date: { gte: from, lte: to } },
-    });
-    if (matchedJournals > MAX_JOURNALS_SCAN) {
-      return {
-        success: false,
-        message: `Too many records in selected range (${matchedJournals}). Please narrow filters/date range.`,
-      };
-    }
-
-    const journals = await prisma.journal.findMany({
-      where: { date: { gte: from, lte: to } },
+    // Start from this account's lines (indexed), then keep those whose journal is in range.
+    const accountLines = await prisma.journalLine.findMany({
+      where: { accountId: account.id },
       select: {
         id: true,
-        date: true,
-        createdAt: true,
-        description: true,
-        referenceType: true,
-        referenceId: true,
+        journalId: true,
+        debitAmount: true,
+        creditAmount: true,
+        paymentMethod: true,
       },
-      orderBy: [{ date: 'asc' }, { createdAt: 'asc' }],
     });
-    const journalIds = journals.map((j) => j.id);
-    const journalMap = new Map(journals.map((j) => [j.id, j]));
-
-    const lines = journalIds.length
-      ? await prisma.journalLine.findMany({
-          where: { accountId: account.id, journalId: { in: journalIds } },
+    const journals = await loadInIdBatches(
+      Array.from(new Set(accountLines.map((line) => line.journalId))),
+      (batch) =>
+        prisma.journal.findMany({
+          where: { id: { in: batch }, date: { gte: from, lte: to } },
           select: {
             id: true,
-            journalId: true,
-            debitAmount: true,
-            creditAmount: true,
-            paymentMethod: true,
+            date: true,
+            createdAt: true,
+            description: true,
+            referenceType: true,
+            referenceId: true,
           },
-          orderBy: [{ journal: { date: 'asc' } }, { journal: { createdAt: 'asc' } }],
         })
-      : [];
+    );
+    const journalMap = new Map(journals.map((j) => [j.id, j]));
+
+    const lines = accountLines
+      .filter((line) => journalMap.has(line.journalId))
+      .sort((a, b) => {
+        const journalA = journalMap.get(a.journalId)!;
+        const journalB = journalMap.get(b.journalId)!;
+        return (
+          journalA.date.getTime() - journalB.date.getTime() ||
+          journalA.createdAt.getTime() - journalB.createdAt.getTime()
+        );
+      });
+    if (lines.length > MAX_STATEMENT_LINES) {
+      return {
+        success: false,
+        message: `Too many records in selected range (${lines.length}). Please narrow filters/date range.`,
+      };
+    }
 
     const receiptIds = Array.from(
       new Set(

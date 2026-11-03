@@ -1,6 +1,7 @@
 import prisma from '@/lib/prisma';
 import type { Prisma } from '@/lib/generated/prisma';
 import { parseReportDateTimeSl } from '@/lib/parse-report-datetime';
+import { getReportMax } from '@/lib/report-limits';
 import {
   eligibleDoctorPayoutBillWhere,
   unpaidDoctorLineWhere,
@@ -10,9 +11,6 @@ import type {
   DoctorDuePaymentReportResult,
   DoctorDuePaymentReportRow,
 } from '@/types/reports';
-
-const DISPLAY_LIMIT = 10000;
-const EXPORT_LIMIT = 10000;
 
 function buildBillWhere(
   params: DoctorDuePaymentReportParams
@@ -117,10 +115,12 @@ function matchesKeyword(row: DoctorDuePaymentReportRow, keyword: string): boolea
 
 async function loadDueRows(
   params: DoctorDuePaymentReportParams
-): Promise<DoctorDuePaymentReportRow[]> {
+): Promise<{ rows: DoctorDuePaymentReportRow[]; hasMore: boolean }> {
+  const cap = getReportMax();
   const bills = await prisma.patientBill.findMany({
     where: buildBillWhere(params),
     orderBy: { admissionDate: 'desc' },
+    take: cap + 1,
     select: {
       id: true,
       billNumber: true,
@@ -140,23 +140,25 @@ async function loadDueRows(
     },
   });
 
-  const rows = buildRows(bills);
+  const hasMoreBills = bills.length > cap;
+  const used = hasMoreBills ? bills.slice(0, cap) : bills;
+  let rows = buildRows(used);
   const keyword = params.keyword?.trim();
-  if (!keyword) return rows;
-  return rows.filter((row) => matchesKeyword(row, keyword));
+  if (keyword) rows = rows.filter((row) => matchesKeyword(row, keyword));
+  const hasMore = hasMoreBills || rows.length > cap;
+  if (rows.length > cap) rows = rows.slice(0, cap);
+  return { rows, hasMore };
 }
 
 export async function getDoctorDuePaymentReport(
   params: DoctorDuePaymentReportParams = {}
 ): Promise<DoctorDuePaymentReportResult> {
-  const allRows = await loadDueRows(params);
-  const hasMore = allRows.length > DISPLAY_LIMIT;
-  const data = hasMore ? allRows.slice(0, DISPLAY_LIMIT) : allRows;
-  const totalDue = allRows.reduce((sum, row) => sum + row.dueAmount, 0);
+  const { rows, hasMore } = await loadDueRows(params);
+  const totalDue = rows.reduce((sum, row) => sum + row.dueAmount, 0);
 
   return {
-    data,
-    totalRecords: allRows.length,
+    data: rows,
+    totalRecords: rows.length,
     totalDue,
     hasMore,
   };
@@ -165,6 +167,6 @@ export async function getDoctorDuePaymentReport(
 export async function getDoctorDuePaymentReportExport(
   params: DoctorDuePaymentReportParams = {}
 ): Promise<DoctorDuePaymentReportRow[]> {
-  const allRows = await loadDueRows(params);
-  return allRows.slice(0, EXPORT_LIMIT);
+  const { rows } = await loadDueRows(params);
+  return rows;
 }

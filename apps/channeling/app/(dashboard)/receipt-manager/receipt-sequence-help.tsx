@@ -17,6 +17,7 @@ const SEQUENCE_ROWS: { method: string; description: string; prefix: string }[] =
   { method: "Payment (channel)", description: "POS/card/slip payments", prefix: "{code}CHANN/" },
   { method: "Refund", description: "Channel refunds", prefix: "{code}CHANN-REF/" },
   { method: "Doctor payment", description: "Consultant payments", prefix: "{code}CHANN-DOC-PAY/" },
+  { method: "Doctor payment WHT", description: "Consultant payment with WHT", prefix: "{code}CHANN-DOC-APAY/" },
   { method: "Doctor cancel", description: "Doctor payment cancellation", prefix: "{code}CHANN-DOC-REF/" },
   { method: "Debit note (agency)", description: "Agency ledger debit", prefix: "{code}CHANN-AGN-DN/" },
   { method: "Credit note (agency)", description: "Agency ledger credit", prefix: "{code}CHANN-AGN-CN/" },
