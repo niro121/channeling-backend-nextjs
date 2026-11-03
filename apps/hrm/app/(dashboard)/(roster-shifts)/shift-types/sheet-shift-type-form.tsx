@@ -34,6 +34,7 @@ import {
   type ShiftTypeRecord
 } from '@/types/roster';
 import type { ShiftTypeFormSheetMode } from './shift-types-ui-context';
+import { buttonStyles } from '@/lib/utils/common-styles';
 
 type SheetShiftTypeFormProps = {
   open: boolean;
@@ -496,12 +497,17 @@ export default function SheetShiftTypeForm({
                   size="sm"
                   variant="outline"
                   disabled={loading}
-                  className="w-full sm:w-24 gap-1 border-red-500 text-red-500 transition-colors ease-in-out duration-100 hover:bg-red-500 hover:text-white"
+                  className={buttonStyles.cancel.normal}
                   onClick={() => onOpenChange(false)}
                 >
                   Cancel
                 </Button>
-                <Button type="submit" size="sm" disabled={loading}>
+                <Button
+                  type="submit"
+                  disabled={loading}
+                  variant="outline"
+                  className={buttonStyles.save}
+                >
                   {copy.saveLabel}
                 </Button>
               </SheetFooter>

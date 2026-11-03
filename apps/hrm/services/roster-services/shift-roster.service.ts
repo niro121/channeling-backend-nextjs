@@ -14,6 +14,7 @@ import prisma from '@/lib/prisma';
 import type { AuditUser } from '@/lib/audit-user';
 import { toAuditUser } from '@/lib/audit-user';
 import { resolveAuthUsers } from '@/lib/helpers/resolve-auth-users.helper';
+import { buildManageRosterFilterOptions } from '@/lib/helpers/manage-roster-filter-options.helper';
 import { generateRecordCode } from '@/lib/conventions/record-code-generator';
 import type {
   LoadRosterParams,
@@ -356,11 +357,12 @@ export async function loadRoster(
       });
     }
 
-    // Also filter by employment-level roster if requested
+    // Also filter by employment-level roster if requested (code match, case-insensitive)
     if (params.roster) {
+      const rosterKey = params.roster.trim().toUpperCase();
       staffWithAssignments = staffWithAssignments.filter((s) => {
         const employment = (s.employmentDetails as any)?.employment;
-        return employment?.roster === params.roster;
+        return (employment?.roster ?? '').trim().toUpperCase() === rosterKey;
       });
     }
 
@@ -504,7 +506,8 @@ export async function loadRoster(
       };
     });
 
-    // 5. Build filter options from all staff with assignments
+    // 5. Build filter options — departments/units from assignments;
+    //    rosters from Manage Rosters codes (+ legacy employment values).
     const allDepts: string[] = [];
     const allUnits: string[] = [];
     const allRosters: string[] = [];
@@ -518,10 +521,13 @@ export async function loadRoster(
       if (employment?.roster) allRosters.push(employment.roster);
     }
 
+    const rosterFilterOptions =
+      await buildManageRosterFilterOptions(allRosters);
+
     const filterOptions: RosterFilterOptions = {
       departments: uniqueStrings(allDepts).map(toOption),
       units: uniqueStrings(allUnits).map(toOption),
-      rosters: uniqueStrings(allRosters).map(toOption)
+      rosters: rosterFilterOptions
     };
 
     const summary: RosterGridSummary = {
@@ -655,7 +661,11 @@ export async function saveRosterAllocationDraft(
     }
 
     const employment = (staff.employmentDetails as { employment?: { roster?: string | null } } | null)?.employment;
-    const rosterValue = (data.roster ?? employment?.roster ?? '').trim();
+    // Manage Roster codes → uppercase; legacy placeholders (e.g. roster_a) unchanged.
+    const rosterRaw = (data.roster ?? employment?.roster ?? '').trim();
+    const rosterValue = rosterRaw.includes('_')
+      ? rosterRaw
+      : rosterRaw.toUpperCase();
     const department = (data.department ?? '').trim();
     const unit = (data.unit ?? '').trim();
 

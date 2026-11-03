@@ -8,6 +8,7 @@ import { usePermissions } from '@/components/hooks/use-permissions';
 import { deleteShiftAssignmentAction } from '@/app/actions/roster-actions/shift-assignment.actions';
 import type { ShiftAssignmentRecord } from '@/types/roster';
 import { useShiftAssignmentUi } from './shift-assignment-ui-context';
+import { buttonStyles } from '@/lib/utils/common-styles';
 
 type AssignmentRecordActionsProps = {
   record: ShiftAssignmentRecord;
@@ -109,7 +110,7 @@ export default function AssignmentRecordActions({
         handleContinue={() => {
           void handleDelete();
         }}
-        className={{ actionButton: 'bg-destructive text-destructive-foreground hover:bg-destructive/90 hover:text-destructive-foreground/90' }}
+        className={{ actionButton: buttonStyles.delete.danger }}
       />
     </>
   );

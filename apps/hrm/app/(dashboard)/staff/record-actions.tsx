@@ -3,12 +3,14 @@
 import React, { useState } from "react"
 import { StaffRecord } from "@/types/staff"
 import { Row } from "@tanstack/react-table"
-import { Button, CustomAlertDialog, DataTableRowActions, useToast } from "@archmage/ui"
+import { Button, DataTableRowActions, useToast } from "@archmage/ui"
 import { deleteStaffAction } from "@/app/actions/staff-actions/staff.actions"
-import { buildChannelingSyncDialogDescription } from "@/lib/helpers/staff-channeling-dialog.helper"
+import { ChannelingSyncAlertDialog } from "@/components/common/channeling-sync-alert-dialog"
+import { buildChannelingSyncDialog } from "@/components/common/channeling-sync-dialog.helper"
 import { Pencil, Trash2 } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { usePermissions } from "@/components/hooks/use-permissions"
+import { buttonStyles } from "@/lib/utils/common-styles"
 
 interface StaffRecordActionsProps<TData extends StaffRecord> {
   row: Row<TData>
@@ -21,13 +23,15 @@ function StaffRecordActions<TData extends StaffRecord>({ row }: StaffRecordActio
   const router = useRouter()
   const { has } = usePermissions()
   const staff = row.original
+  const hasChannelingLink = Boolean(staff.migrateSourceId)
 
-  const deleteDescription = buildChannelingSyncDialogDescription({
+  const deleteDialog = buildChannelingSyncDialog({
+    entityLabel: "staff member",
     mode: "delete",
-    hasChannelingLink: Boolean(staff.migrateSourceId),
+    hasChannelingLink,
   })
 
-  const onDeleteConfirmation = async () => {
+  const onDelete = async (syncToChanneling: boolean) => {
     if (!staff.id) {
       toast({
         variant: "destructive",
@@ -39,7 +43,7 @@ function StaffRecordActions<TData extends StaffRecord>({ row }: StaffRecordActio
 
     try {
       setLoading(true)
-      const result = await deleteStaffAction(staff.id, { syncToChanneling: true })
+      const result = await deleteStaffAction(staff.id, { syncToChanneling })
 
       if (result.isError) {
         toast({
@@ -60,9 +64,9 @@ function StaffRecordActions<TData extends StaffRecord>({ row }: StaffRecordActio
         toast({
           variant: "success",
           title: "Success",
-          description: staff.migrateSourceId
+          description: syncToChanneling
             ? "Staff was deleted from HRM and Channeling."
-            : "Staff was deleted successfully.",
+            : "Staff was deleted from HRM.",
         })
       }
 
@@ -77,55 +81,6 @@ function StaffRecordActions<TData extends StaffRecord>({ row }: StaffRecordActio
       setLoading(false)
       setShowDelConfirmation(false)
     }
-  }
-
-  const onDeleteHrmOnly = async () => {
-    if (!staff.id) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "Staff id not found.",
-      })
-      return
-    }
-
-    try {
-      setLoading(true)
-      const result = await deleteStaffAction(staff.id, { syncToChanneling: false })
-
-      if (result.isError) {
-        toast({
-          variant: "destructive",
-          title: "Error",
-          description: result.errors?.message ?? "Staff deletion unsuccessful.",
-        })
-        return
-      }
-
-      toast({
-        variant: "success",
-        title: "Success",
-        description: "Staff was deleted from HRM.",
-      })
-      router.refresh()
-    } catch (error: any) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: error.message ?? "Staff deletion unsuccessful.",
-      })
-    } finally {
-      setLoading(false)
-      setShowDelConfirmation(false)
-    }
-  }
-
-  const handleDeleteDialogVisibility = (open: boolean) => {
-    if (!open) {
-      void onDeleteHrmOnly()
-      return
-    }
-    setShowDelConfirmation(open)
   }
 
   return (
@@ -154,17 +109,19 @@ function StaffRecordActions<TData extends StaffRecord>({ row }: StaffRecordActio
           </Button>
         )}
       </DataTableRowActions>
-      <CustomAlertDialog
+      <ChannelingSyncAlertDialog
         open={showDeleteConfirmation}
-        handleVisibilityChange={handleDeleteDialogVisibility}
+        title={deleteDialog.title}
+        description={deleteDialog.description}
+        hrmOnlyLabel={deleteDialog.hrmOnlyLabel}
+        continueLabel={deleteDialog.continueLabel}
+        showContinue={hasChannelingLink}
+        hrmOnlyClassName={buttonStyles.delete.danger}
+        continueClassName={buttonStyles.delete.danger}
         loading={loading}
-        title={
-          staff.migrateSourceId
-            ? 'Delete staff from HRM and Channeling?'
-            : 'Delete staff from HRM?'
-        }
-        description={`${deleteDescription} Click Cancel to delete from HRM only, or Continue to also delete from Channeling.`}
-        handleContinue={onDeleteConfirmation}
+        onCancel={() => setShowDelConfirmation(false)}
+        onSaveHrmOnly={() => void onDelete(false)}
+        onContinue={() => void onDelete(true)}
       />
     </>
   )

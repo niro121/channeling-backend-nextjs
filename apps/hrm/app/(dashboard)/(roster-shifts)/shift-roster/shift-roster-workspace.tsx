@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useTransition } from 'react';
-import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { useToast } from '@archmage/ui';
 import {
   copyPreviousMonthRosterAction,
@@ -39,14 +39,24 @@ function emptyFilters(
     unitId: initialFilters?.unit ?? '',
     rosterId: initialFilters?.roster ?? '',
     fromDate: initialFilters?.fromDate ?? data.dayIsos[0] ?? '',
-    toDate: initialFilters?.toDate ?? data.dayIsos[data.dayIsos.length - 1] ?? '',
+    toDate:
+      initialFilters?.toDate ??
+      data.dayIsos[data.dayIsos.length - 1] ??
+      '',
     staffSearch: initialFilters?.search ?? ''
   };
 }
 
 function staffOptionsFromRows(
   rows: RosterStaffRow[]
-): Array<{ id: string; name: string; staffCode: string; department: string; unit: string; designation: string }> {
+): Array<{
+  id: string;
+  name: string;
+  staffCode: string;
+  department: string;
+  unit: string;
+  designation: string;
+}> {
   return rows.map((row) => ({
     id: row.staffId,
     name: `${row.staffName} (${row.staffCode})`,
@@ -63,77 +73,29 @@ function ShiftRosterWorkspaceInner({
 }: ShiftRosterWorkspaceProps) {
   const { toast } = useToast();
   const router = useRouter();
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
-  const [, startTransition] = useTransition();
   const {
     formTarget,
     historyRow,
     closeFormSheet,
     closeHistorySheet
   } = useShiftRosterUi();
-  const [draftFilters, setDraftFilters] = useState<RosterFilterValues>(() =>
-    emptyFilters(data, initialFilters)
-  );
   const [staffMetaVisible, setStaffMetaVisible] = useState(true);
 
+  const filters = emptyFilters(data, initialFilters);
   const staffOptions = staffOptionsFromRows(data.rows);
-  const workflowPayload = {
-    department: draftFilters.departmentId || undefined,
-    unit: draftFilters.unitId || undefined,
-    roster: draftFilters.rosterId || undefined,
-    fromDate: draftFilters.fromDate,
-    toDate: draftFilters.toDate
-  };
 
-  const handleLoad = () => {
-    const params = new URLSearchParams();
-    if (draftFilters.departmentId) params.set('department', draftFilters.departmentId);
-    if (draftFilters.unitId) params.set('unit', draftFilters.unitId);
-    if (draftFilters.rosterId) params.set('roster', draftFilters.rosterId);
-    if (draftFilters.fromDate) params.set('fromDate', draftFilters.fromDate);
-    if (draftFilters.toDate) params.set('toDate', draftFilters.toDate);
-    if (draftFilters.staffSearch.trim()) params.set('search', draftFilters.staffSearch.trim());
-    const limit = searchParams.get('limit');
-    if (limit) params.set('limit', limit);
-    const query = params.toString();
-    startTransition(() => {
-      router.push(query ? `${pathname}?${query}` : pathname);
-    });
-  };
-
-  const handleClear = () => {
-    setDraftFilters(emptyFilters(data));
-    setStaffMetaVisible(true);
-    startTransition(() => {
-      router.push(pathname);
-    });
-  };
-
-  const handleCopyPreviousWeek = async () => {
-    const result = await copyPreviousWeekRosterAction(workflowPayload);
-    if (result.isError) {
-      const errorMessage =
-        'message' in result.errors
-          ? (result.errors.message as string | undefined)
-          : undefined;
-      toast({
-        variant: 'destructive',
-        title: 'Error',
-        description: errorMessage ?? 'Could not copy previous week roster.'
-      });
-      return;
+  const runCopy = async (
+    action: typeof copyPreviousWeekRosterAction,
+    fallbackMessage: string,
+    payload: {
+      department?: string;
+      unit?: string;
+      roster?: string;
+      fromDate: string;
+      toDate: string;
     }
-    toast({
-      variant: 'success',
-      title: 'Success',
-      description: `Copied ${result.data?.copied ?? 0} allocation(s).`
-    });
-    router.refresh();
-  };
-
-  const handleCopyPreviousMonth = async () => {
-    const result = await copyPreviousMonthRosterAction(workflowPayload);
+  ) => {
+    const result = await action(payload);
     if (result.isError) {
       const errorMessage =
         'message' in result.errors
@@ -142,7 +104,7 @@ function ShiftRosterWorkspaceInner({
       toast({
         variant: 'destructive',
         title: 'Error',
-        description: errorMessage ?? 'Could not copy previous month roster.'
+        description: errorMessage ?? fallbackMessage
       });
       return;
     }
@@ -164,17 +126,24 @@ function ShiftRosterWorkspaceInner({
       <SectionRosterInstructions />
 
       <SectionRosterFilters
-        values={draftFilters}
+        initial={filters}
         departmentOptions={data.filterOptions.departments}
         unitOptions={data.filterOptions.units}
         rosterOptions={data.filterOptions.rosters}
-        onChange={(next) =>
-          setDraftFilters((prev) => ({ ...prev, ...next }))
+        onCopyPreviousWeek={(payload) =>
+          void runCopy(
+            copyPreviousWeekRosterAction,
+            'Could not copy previous week roster.',
+            payload
+          )
         }
-        onLoad={handleLoad}
-        onClear={handleClear}
-        onCopyPreviousWeek={() => void handleCopyPreviousWeek()}
-        onCopyPreviousMonth={() => void handleCopyPreviousMonth()}
+        onCopyPreviousMonth={(payload) =>
+          void runCopy(
+            copyPreviousMonthRosterAction,
+            'Could not copy previous month roster.',
+            payload
+          )
+        }
         staffMetaVisible={staffMetaVisible}
         onHideStaffMeta={() => setStaffMetaVisible(false)}
         onShowStaffMeta={() => setStaffMetaVisible(true)}
@@ -197,9 +166,9 @@ function ShiftRosterWorkspaceInner({
           target={formTarget}
           staffOptions={staffOptions}
           shiftTypes={data.shiftTypes}
-          periodFromDate={draftFilters.fromDate}
-          periodToDate={draftFilters.toDate}
-          rosterValue={draftFilters.rosterId}
+          periodFromDate={filters.fromDate}
+          periodToDate={filters.toDate}
+          rosterValue={filters.rosterId}
           onOpenChange={(next) => {
             if (!next) closeFormSheet();
           }}

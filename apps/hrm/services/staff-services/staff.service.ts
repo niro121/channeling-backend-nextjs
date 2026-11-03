@@ -9,18 +9,17 @@ import { resolveAuthUsers } from '@/lib/helpers/resolve-auth-users.helper';
 import { generateRecordCode } from '@/lib/conventions/record-code-generator';
 import { channelingStaffPayloadSchema } from '@/lib/helpers/staff-channeling-fields.helper';
 import { normalizeFingerPrintRfid } from '@/lib/helpers/attendance-timezone.helper';
-import type {
-  GetStaffParams,
-  StaffEmploymentDetails,
-  StaffEmploymentPayload,
-  StaffGeneralPayload,
-  StaffHrDetails,
-  StaffPersonnelDetails,
-  StaffPersonnelPayload
+import {
+  STAFF_CODE_PREFIX,
+  STAFF_LEGACY_CODE_PREFIX,
+  type GetStaffParams,
+  type StaffEmploymentDetails,
+  type StaffEmploymentPayload,
+  type StaffGeneralPayload,
+  type StaffHrDetails,
+  type StaffPersonnelDetails,
+  type StaffPersonnelPayload
 } from '@/types/staff';
-
-const STAFF_CODE_PREFIX = 'ST';
-const STAFF_LEGACY_CODE_PREFIX = 'ST-LG';
 
 // ** Staff Schema Validation (Channeling-aligned fields + HRM HR details) * //
 const staffSchema = channelingStaffPayloadSchema.extend({
@@ -197,7 +196,15 @@ const staffEmploymentDetailsSchema = z.object({
       staffCategory: z.string().optional().nullable(),
       staffGrade: z.string().optional().nullable(),
       staffDesignation: z.string().optional().nullable(),
-      roster: z.string().optional().nullable(),
+      basic: optionalFloat(),
+      roster: z
+        .string()
+        .optional()
+        .nullable()
+        .transform((value) => {
+          if (value == null || value === '') return null;
+          return value.trim().toUpperCase() || null;
+        }),
       shift: z.string().optional().nullable()
     })
     .optional(),
@@ -231,7 +238,8 @@ const staffEmploymentDetailsSchema = z.object({
 });
 
 const staffEmploymentPayloadSchema = z.object({
-  employmentDetails: staffEmploymentDetailsSchema.optional()
+  employmentDetails: staffEmploymentDetailsSchema.optional(),
+  acknowledgedWarnings: z.boolean().optional()
 });
 
 const staffEmploymentUpdatePayloadSchema = staffEmploymentPayloadSchema.extend({
@@ -259,8 +267,8 @@ function toHrDetailsInput(
     zoneCode: hrDetails.zoneCode ?? null,
     fingerPrintRfid: normalizeFingerPrintRfid(hrDetails.fingerPrintRfid ?? null),
     staffCodeLegacy: staffCodeLegacy ?? hrDetails.staffCodeLegacy ?? null,
-    epfNumber: hrDetails.epfNumber ?? null,
-    etfNumber: hrDetails.etfNumber ?? null,
+    epfNumber: normalizeMembershipNumber(hrDetails.epfNumber ?? null),
+    etfNumber: normalizeMembershipNumber(hrDetails.etfNumber ?? null),
     registrationNumber: hrDetails.registrationNumber ?? null,
     dateResigned: toDate(hrDetails.dateResigned),
     resignedWithoutNotice: hrDetails.resignedWithoutNotice ?? false,
@@ -268,6 +276,15 @@ function toHrDetailsInput(
     dateRetired: toDate(hrDetails.dateRetired),
     specialityIds: hrDetails.specialityIds ?? []
   };
+}
+
+/** Trim membership / device ids; empty → null. */
+function normalizeMembershipNumber(
+  value: string | null | undefined
+): string | null {
+  if (value == null) return null;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
 }
 
 /** Active staff must not share the same fingerPrintRfid (excluding `excludeStaffId`). */
@@ -291,6 +308,37 @@ async function assertFingerPrintRfidAvailable(
     return {
       ok: false,
       message: `Finger Print / RFID already assigned to active staff ${conflict.code} (${conflict.name})`
+    };
+  }
+  return { ok: true, value };
+}
+
+/**
+ * Active staff must not share the same EPF / ETF membership number
+ * (excluding `excludeStaffId`). Blank is allowed.
+ */
+async function assertMembershipNumberAvailable(
+  field: 'epfNumber' | 'etfNumber',
+  label: string,
+  raw: string | null | undefined,
+  excludeStaffId?: string
+): Promise<{ ok: true; value: string | null } | { ok: false; message: string }> {
+  const value = normalizeMembershipNumber(raw);
+  if (!value) return { ok: true, value: null };
+
+  const conflict = await prisma.staff.findFirst({
+    where: {
+      status: 1,
+      hrDetails: { is: { [field]: value } },
+      ...(excludeStaffId ? { id: { not: excludeStaffId } } : {})
+    },
+    select: { id: true, code: true, name: true }
+  });
+
+  if (conflict) {
+    return {
+      ok: false,
+      message: `${label} already assigned to active staff ${conflict.code} (${conflict.name})`
     };
   }
   return { ok: true, value };
@@ -376,6 +424,7 @@ function toEmploymentDetailsInput(
           staffCategory: employmentDetails.employment.staffCategory ?? null,
           staffGrade: employmentDetails.employment.staffGrade ?? null,
           staffDesignation: employmentDetails.employment.staffDesignation ?? null,
+          basic: employmentDetails.employment.basic ?? null,
           roster: employmentDetails.employment.roster ?? null,
           shift: employmentDetails.employment.shift ?? null
         }
@@ -424,6 +473,38 @@ async function generateStaffLegacyCode(): Promise<
   return { success: true, code: generated.code };
 }
 
+function buildStaffWhere({
+  keyword = '',
+  status
+}: {
+  keyword?: string;
+  status?: string;
+} = {}): Prisma.StaffWhereInput {
+  const term = keyword.trim();
+  const statusFilter =
+    status === '0' || status === '1' ? { status: Number.parseInt(status, 10) } : {};
+  const keywordFilter = term
+    ? {
+        OR: [
+          { name: { contains: term, mode: Prisma.QueryMode.insensitive } },
+          { code: { contains: term, mode: Prisma.QueryMode.insensitive } },
+          { nic: { contains: term, mode: Prisma.QueryMode.insensitive } },
+          {
+            contactMobile: {
+              contains: term,
+              mode: Prisma.QueryMode.insensitive
+            }
+          }
+        ]
+      }
+    : {};
+
+  return {
+    ...keywordFilter,
+    ...statusFilter
+  };
+}
+
 // ** Get Staff List Service * //
 export async function getStaff(params: GetStaffParams): Promise<{
   success: boolean;
@@ -432,34 +513,30 @@ export async function getStaff(params: GetStaffParams): Promise<{
   error?: { message?: string };
 }> {
   try {
-    const page = params.page ?? process.env.DEFAULT_PAGE ?? '0';
-    const limit = params.limit ?? process.env.DEFAULT_PER_PAGE ?? '10';
-    const keyword = params.keyword ?? '';
-    const pageNumber = Math.max(1, Number.parseInt(page, 10) || 1);
-    const maxTake =
-      Number.parseInt(process.env.EXPORT_LIMIT ?? '1000', 10) || 1000;
-    const pageSize = Math.min(
-      maxTake,
-      Math.max(1, Number.parseInt(limit, 10) || 10)
+    const pageRaw = Number.parseInt(
+      params.page ?? process.env.DEFAULT_PAGE ?? '0',
+      10
     );
-    const skip = (pageNumber - 1) * pageSize;
-    const whereClause: Prisma.StaffWhereInput = {
-      OR: [
-        { name: { contains: keyword, mode: Prisma.QueryMode.insensitive } },
-        { code: { contains: keyword, mode: Prisma.QueryMode.insensitive } },
-        { nic: { contains: keyword, mode: Prisma.QueryMode.insensitive } },
-        { contactMobile: { contains: keyword, mode: Prisma.QueryMode.insensitive } }
-      ]
-    };
+    const pageIndex = Number.isFinite(pageRaw) && pageRaw > 0 ? pageRaw : 0;
+    const limitRaw = Number.parseInt(
+      params.limit ?? process.env.DEFAULT_PER_PAGE ?? '10',
+      10
+    );
+    const pageSize = Number.isFinite(limitRaw) && limitRaw > 0 ? limitRaw : 10;
+    const skip = pageIndex * pageSize;
+    const where = buildStaffWhere({
+      keyword: params.keyword ?? '',
+      status: params.status
+    });
 
     const [records, totalRecords] = await Promise.all([
       prisma.staff.findMany({
-        where: whereClause,
+        where,
         skip,
         take: pageSize,
         orderBy: { createdAt: 'desc' }
       }),
-      prisma.staff.count({ where: whereClause })
+      prisma.staff.count({ where })
     ]);
 
     const recordsWithUsers = await resolveAuthUsers(records);
@@ -474,46 +551,40 @@ export async function getStaff(params: GetStaffParams): Promise<{
   }
 }
 
-const STAFF_EXPORT_LIMIT = 1000;
-
-/** Staff matching the search, capped for Excel/PDF export. */
-export async function getAllStaffForExport(keyword: string = ''): Promise<{
+/** Staff matching the current filters, for Excel/PDF export. */
+export async function getStaffForExport(params: {
+  keyword?: string;
+  status?: string;
+}): Promise<{
   success: boolean;
   data?: any[];
   totalRecords?: number;
-  exportLimit?: number;
-  limited?: boolean;
   message?: string;
   error?: { message?: string };
 }> {
   try {
-    const where: Prisma.StaffWhereInput = {
-      OR: [
-        { name: { contains: keyword, mode: Prisma.QueryMode.insensitive } },
-        { code: { contains: keyword, mode: Prisma.QueryMode.insensitive } },
-        { nic: { contains: keyword, mode: Prisma.QueryMode.insensitive } },
-        { contactMobile: { contains: keyword, mode: Prisma.QueryMode.insensitive } }
-      ]
-    };
-    const [records, totalRecords] = await Promise.all([
-      prisma.staff.findMany({
-        where,
-        orderBy: { createdAt: 'desc' },
-        take: STAFF_EXPORT_LIMIT
-      }),
-      prisma.staff.count({ where })
-    ]);
+    const where = buildStaffWhere({
+      keyword: params.keyword ?? '',
+      status: params.status
+    });
+    const records = await prisma.staff.findMany({
+      where,
+      orderBy: { createdAt: 'desc' }
+    });
+    const recordsWithUsers = await resolveAuthUsers(records);
+
     return {
       success: true,
-      data: records,
-      totalRecords,
-      exportLimit: STAFF_EXPORT_LIMIT,
-      limited: totalRecords > STAFF_EXPORT_LIMIT,
-      message: 'Staff fetched successfully'
+      data: recordsWithUsers,
+      totalRecords: recordsWithUsers.length,
+      message: 'Staff export fetched successfully'
     };
   } catch (error: any) {
-    console.error('getAllStaffForExport error:', error);
-    return { success: false, error: { message: error.message || 'Failed to fetch staff' } };
+    console.error('getStaffForExport error:', error);
+    return {
+      success: false,
+      error: { message: error.message || 'Failed to export staff' }
+    };
   }
 }
 
@@ -600,6 +671,36 @@ export async function createStaff(
       };
     }
 
+    const epfCheck = await assertMembershipNumberAvailable(
+      'epfNumber',
+      'EPF Number',
+      data.hrDetails?.epfNumber
+    );
+    if (!epfCheck.ok) {
+      return {
+        success: false,
+        error: {
+          message: epfCheck.message,
+          issues: { epfNumber: [epfCheck.message] }
+        }
+      };
+    }
+
+    const etfCheck = await assertMembershipNumberAvailable(
+      'etfNumber',
+      'ETF Number',
+      data.hrDetails?.etfNumber
+    );
+    if (!etfCheck.ok) {
+      return {
+        success: false,
+        error: {
+          message: etfCheck.message,
+          issues: { etfNumber: [etfCheck.message] }
+        }
+      };
+    }
+
     const staff = await prisma.staff.create({
       data: {
         code,
@@ -613,7 +714,14 @@ export async function createStaff(
         dateJoined: toDate(data.dateJoined) ?? new Date(),
         status: data.status,
         fingerPrintRfid: rfidCheck.value,
-        hrDetails: toHrDetailsInput(data.hrDetails ?? {}, legacyGenerated.code),
+        hrDetails: toHrDetailsInput(
+          {
+            ...(data.hrDetails ?? {}),
+            epfNumber: epfCheck.value,
+            etfNumber: etfCheck.value
+          },
+          legacyGenerated.code
+        ),
         ...(auditUser?.id && { createdBy: auditUser.id, updatedBy: auditUser.id })
       }
     });
@@ -687,13 +795,23 @@ export async function updateStaff(
       data.hrDetails?.fingerPrintRfid !== undefined
         ? data.hrDetails.fingerPrintRfid
         : (existing.fingerPrintRfid ?? existing.hrDetails?.fingerPrintRfid ?? null);
+    const nextEpfRaw =
+      data.hrDetails?.epfNumber !== undefined
+        ? data.hrDetails.epfNumber
+        : (existing.hrDetails?.epfNumber ?? null);
+    const nextEtfRaw =
+      data.hrDetails?.etfNumber !== undefined
+        ? data.hrDetails.etfNumber
+        : (existing.hrDetails?.etfNumber ?? null);
     const nextStatus = data.status !== undefined ? data.status : undefined;
-    // Uniqueness among active staff: if this update keeps/activates status=1, check RFID.
+    // Uniqueness among active staff: if this update keeps/activates status=1, check RFID / EPF / ETF.
     const willBeActive =
       nextStatus === undefined
-        ? true // unknown — still enforce when RFID is set; inactive conflicts are less critical
+        ? true // unknown — still enforce when set; inactive conflicts are less critical
         : nextStatus === 1;
     let nextRfid = normalizeFingerPrintRfid(nextRfidRaw ?? null);
+    let nextEpf = normalizeMembershipNumber(nextEpfRaw ?? null);
+    let nextEtf = normalizeMembershipNumber(nextEtfRaw ?? null);
     if (data.hrDetails || nextStatus === 1) {
       if (willBeActive || data.hrDetails?.fingerPrintRfid !== undefined) {
         const rfidCheck = await assertFingerPrintRfidAvailable(nextRfid, id);
@@ -707,6 +825,42 @@ export async function updateStaff(
           };
         }
         nextRfid = rfidCheck.value;
+      }
+      if (willBeActive || data.hrDetails?.epfNumber !== undefined) {
+        const epfCheck = await assertMembershipNumberAvailable(
+          'epfNumber',
+          'EPF Number',
+          nextEpf,
+          id
+        );
+        if (!epfCheck.ok) {
+          return {
+            success: false,
+            error: {
+              message: epfCheck.message,
+              issues: { epfNumber: [epfCheck.message] }
+            }
+          };
+        }
+        nextEpf = epfCheck.value;
+      }
+      if (willBeActive || data.hrDetails?.etfNumber !== undefined) {
+        const etfCheck = await assertMembershipNumberAvailable(
+          'etfNumber',
+          'ETF Number',
+          nextEtf,
+          id
+        );
+        if (!etfCheck.ok) {
+          return {
+            success: false,
+            error: {
+              message: etfCheck.message,
+              issues: { etfNumber: [etfCheck.message] }
+            }
+          };
+        }
+        nextEtf = etfCheck.value;
       }
     }
 
@@ -735,8 +889,8 @@ export async function updateStaff(
               data.hrDetails.secondaryEmail ?? existing.hrDetails?.secondaryEmail ?? null,
             zoneCode: data.hrDetails.zoneCode ?? existing.hrDetails?.zoneCode ?? null,
             fingerPrintRfid: nextRfid,
-            epfNumber: data.hrDetails.epfNumber ?? existing.hrDetails?.epfNumber ?? null,
-            etfNumber: data.hrDetails.etfNumber ?? existing.hrDetails?.etfNumber ?? null,
+            epfNumber: nextEpf,
+            etfNumber: nextEtf,
             registrationNumber:
               data.hrDetails.registrationNumber ??
               existing.hrDetails?.registrationNumber ??
@@ -897,7 +1051,12 @@ export async function updateStaffEmployment(
   success: boolean;
   data?: any;
   message?: string;
-  error?: { message?: string; issues?: Record<string, string[]> };
+  error?: {
+    message?: string;
+    issues?: Record<string, string[]>;
+    softWarnings?: string[];
+    requiresAck?: boolean;
+  };
 }> {
   try {
     const parsed = staffEmploymentUpdatePayloadSchema.safeParse({ ...payload, id });
@@ -918,11 +1077,78 @@ export async function updateStaffEmployment(
     const auditUser = toAuditUser(user);
     const existing = await prisma.staff.findUnique({
       where: { id },
-      select: { id: true }
+      select: { id: true, employmentDetails: true }
     });
 
     if (!existing) {
       return { success: false, error: { message: 'Staff not found' } };
+    }
+
+    const currentEmployment = existing.employmentDetails?.employment;
+    const nextEmployment = data.employmentDetails?.employment;
+
+    // INT-H1 — lock roster membership while any standing shift assignment exists.
+    const nextRosterRaw = nextEmployment?.roster;
+    if (nextRosterRaw !== undefined) {
+      const currentRoster = (currentEmployment?.roster ?? '')
+        .trim()
+        .toUpperCase();
+      const nextRoster =
+        nextRosterRaw == null || nextRosterRaw === ''
+          ? ''
+          : String(nextRosterRaw).trim().toUpperCase();
+
+      if (currentRoster !== nextRoster) {
+        const assignmentCount = await prisma.staffShiftAssignment.count({
+          where: { staffId: id }
+        });
+        if (assignmentCount > 0) {
+          return {
+            success: false,
+            error: {
+              message: `Roster group is locked while ${assignmentCount} standing shift assignment(s) exist. Change or remove assignments in Shift Assignment first.`,
+              issues: {
+                roster: [
+                  'Cannot change roster while standing shift assignments exist'
+                ]
+              }
+            }
+          };
+        }
+      }
+    }
+
+    // INT-H4 — Institution / Working Department soft warn when standing assignments exist.
+    if (nextEmployment) {
+      const currentInstitution = (
+        currentEmployment?.institution ?? ''
+      ).trim();
+      const currentDepartment = (currentEmployment?.department ?? '').trim();
+      const nextInstitution = (nextEmployment.institution ?? '').trim();
+      const nextDepartment = (nextEmployment.department ?? '').trim();
+      const orgChanged =
+        (nextEmployment.institution !== undefined &&
+          currentInstitution !== nextInstitution) ||
+        (nextEmployment.department !== undefined &&
+          currentDepartment !== nextDepartment);
+
+      if (orgChanged && !data.acknowledgedWarnings) {
+        const assignmentCount = await prisma.staffShiftAssignment.count({
+          where: { staffId: id }
+        });
+        if (assignmentCount > 0) {
+          return {
+            success: false,
+            error: {
+              message: `This staff member has ${assignmentCount} standing shift assignment(s). Changing Institution or Working Department does not move or update those assignments automatically.`,
+              softWarnings: [
+                `This staff member has ${assignmentCount} standing shift assignment(s). Changing Institution or Working Department does not move or update those assignments automatically.`
+              ],
+              requiresAck: true
+            }
+          };
+        }
+      }
     }
 
     const staff = await prisma.staff.update({

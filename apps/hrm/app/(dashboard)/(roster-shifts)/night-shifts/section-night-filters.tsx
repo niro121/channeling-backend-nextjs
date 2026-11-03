@@ -1,17 +1,15 @@
 'use client';
 
-import { RefreshCw, Search } from 'lucide-react';
+import { Suspense } from 'react';
+import { format } from 'date-fns';
+import { Search } from 'lucide-react';
 import {
-  Button,
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
   Combobox,
   CustomDatePickerField,
   Input,
   Label
 } from '@archmage/ui';
+import { FilterWrapper } from '@/app/(dashboard)/filter-wrapper';
 import type { RosterFilterOption } from '@/types/roster';
 
 export type NightFilterValues = {
@@ -26,164 +24,175 @@ export type NightFilterValues = {
 };
 
 type SectionNightFiltersProps = {
-  values: NightFilterValues;
+  initial?: Partial<NightFilterValues>;
   departmentOptions: RosterFilterOption[];
   unitOptions: RosterFilterOption[];
   shiftTypeOptions: RosterFilterOption[];
   statusOptions: RosterFilterOption[];
   salaryCycleOptions: RosterFilterOption[];
-  onChange: (next: Partial<NightFilterValues>) => void;
-  onSearch: () => void;
-  onClear: () => void;
 };
 
-export default function SectionNightFilters({
-  values,
+function parseLocalDate(iso?: string): Date | null {
+  if (!iso?.trim()) return null;
+  const [y, m, d] = iso.slice(0, 10).split('-').map(Number);
+  if (!y || !m || !d) return null;
+  return new Date(y, m - 1, d);
+}
+
+function toLocalDateIso(value?: Date | null): string | undefined {
+  if (!value) return undefined;
+  return format(value, 'yyyy-MM-dd');
+}
+
+function toIso(value?: Date | null): string {
+  return value ? format(value, 'yyyy-MM-dd') : '';
+}
+
+function SectionNightFiltersInner({
+  initial = {},
   departmentOptions,
   unitOptions,
   shiftTypeOptions,
   statusOptions,
-  salaryCycleOptions,
-  onChange,
-  onSearch,
-  onClear
+  salaryCycleOptions
 }: SectionNightFiltersProps) {
-  return (
-    <Card className="rounded-lg border border-border shadow-sm">
-      <CardHeader className="pb-3">
-        <CardTitle className="text-lg font-semibold">Search & Filters</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <CustomDatePickerField
-            id="fromDate"
-            placeholder="From Date"
-            value={values.fromDate}
-            onChange={(value) => onChange({ fromDate: value ?? null })}
-            onBlur={() => undefined}
-            required={false}
-            useFormikError={false}
-            styleClasses={{
-              parentDiv: 'grid grid-cols-1 gap-2 items-start',
-              labelClassName: 'text-xs uppercase text-muted-foreground',
-              inputClassName: 'w-full'
-            }}
-          />
-          <CustomDatePickerField
-            id="toDate"
-            placeholder="To Date"
-            value={values.toDate}
-            onChange={(value) => onChange({ toDate: value ?? null })}
-            onBlur={() => undefined}
-            required={false}
-            useFormikError={false}
-            styleClasses={{
-              parentDiv: 'grid grid-cols-1 gap-2 items-start',
-              labelClassName: 'text-xs uppercase text-muted-foreground',
-              inputClassName: 'w-full'
-            }}
-          />
-          <div className="space-y-2">
-            <Label className="text-xs uppercase text-muted-foreground">
-              Department
-            </Label>
-            <Combobox
-              label="Select Department"
-              options={departmentOptions}
-              value={values.departmentId}
-              defaultValue=""
-              onChange={(value) => onChange({ departmentId: value })}
-              clearable
-            />
-          </div>
-          <div className="space-y-2">
-            <Label className="text-xs uppercase text-muted-foreground">
-              Unit
-            </Label>
-            <Combobox
-              label="Select Unit"
-              options={unitOptions}
-              value={values.unitId}
-              defaultValue=""
-              onChange={(value) => onChange({ unitId: value })}
-              clearable
-            />
-          </div>
-          <div className="space-y-2">
-            <Label className="text-xs uppercase text-muted-foreground">
-              Shift Type
-            </Label>
-            <Combobox
-              label="Select Shift Type"
-              options={shiftTypeOptions}
-              value={values.shiftTypeId}
-              defaultValue=""
-              onChange={(value) => onChange({ shiftTypeId: value })}
-              clearable
-            />
-          </div>
-          <div className="space-y-2">
-            <Label
-              htmlFor="night-staff-search"
-              className="text-xs uppercase text-muted-foreground"
-            >
-              Staff
-            </Label>
-            <div className="relative">
-              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                id="night-staff-search"
-                className="pl-8"
-                placeholder="Search staff ID or name"
-                value={values.staffSearch}
-                onChange={(e) => onChange({ staffSearch: e.target.value })}
-              />
-            </div>
-          </div>
-          <div className="space-y-2">
-            <Label className="text-xs uppercase text-muted-foreground">
-              Approval Status
-            </Label>
-            <Combobox
-              label="Select Approval Status"
-              options={statusOptions}
-              value={values.statusId}
-              defaultValue=""
-              onChange={(value) => onChange({ statusId: value })}
-              clearable
-            />
-          </div>
-          <div className="space-y-2">
-            <Label className="text-xs uppercase text-muted-foreground">
-              Salary Cycle
-            </Label>
-            <Combobox
-              label="Select Salary Cycle"
-              options={salaryCycleOptions}
-              value={values.salaryCycleId}
-              defaultValue=""
-              onChange={(value) => onChange({ salaryCycleId: value })}
-              clearable
-            />
-          </div>
-        </div>
+  const initialValues = {
+    fromDate: toIso(initial.fromDate ?? null),
+    toDate: toIso(initial.toDate ?? null),
+    department: initial.departmentId ?? '',
+    unit: initial.unitId ?? '',
+    shiftTypeId: initial.shiftTypeId ?? '',
+    staffSearch: initial.staffSearch ?? '',
+    status: initial.statusId ?? '',
+    salaryCycle: initial.salaryCycleId ?? ''
+  };
 
-        <div className="flex flex-wrap gap-2">
-          <Button type="button" size="sm" className="h-9" onClick={onSearch}>
-            Search
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            className="h-9 gap-1.5"
-            onClick={onClear}
-          >
-            <RefreshCw className="h-3.5 w-3.5" />
-            Clear
-          </Button>
+  return (
+    <div className="rounded-lg border border-border bg-card p-4 shadow-sm">
+      <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+        Search & Filters
+      </h2>
+      <FilterWrapper
+        key={Object.values(initialValues).join('|')}
+        initialValues={initialValues}
+        buttonLabel="Search"
+        showClearButton
+        preserveQueryKeys={['limit']}
+        searchButton={{
+          variant: 'default',
+          className: 'h-10 shrink-0 gap-2'
+        }}
+      >
+        {({ values, setValue }) => (
+          <div className="grid w-full gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            <CustomDatePickerField
+              id="fromDate"
+              placeholder="From Date"
+              value={parseLocalDate(values.fromDate)}
+              onChange={(value) => setValue('fromDate', toLocalDateIso(value))}
+              onBlur={() => undefined}
+              required={false}
+              useFormikError={false}
+              styleClasses={{
+                parentDiv: 'grid grid-cols-1 gap-2 items-start',
+                labelClassName: 'text-xs uppercase text-muted-foreground',
+                inputClassName: 'w-full'
+              }}
+            />
+            <CustomDatePickerField
+              id="toDate"
+              placeholder="To Date"
+              value={parseLocalDate(values.toDate)}
+              onChange={(value) => setValue('toDate', toLocalDateIso(value))}
+              onBlur={() => undefined}
+              required={false}
+              useFormikError={false}
+              styleClasses={{
+                parentDiv: 'grid grid-cols-1 gap-2 items-start',
+                labelClassName: 'text-xs uppercase text-muted-foreground',
+                inputClassName: 'w-full'
+              }}
+            />
+            <Combobox
+              label="Department"
+              options={departmentOptions}
+              value={values.department ?? ''}
+              defaultValue=""
+              onChange={(value) => setValue('department', value)}
+              clearable
+              triggerClassName="self-end"
+            />
+            <Combobox
+              label="Unit"
+              options={unitOptions}
+              value={values.unit ?? ''}
+              defaultValue=""
+              onChange={(value) => setValue('unit', value)}
+              clearable
+              triggerClassName="self-end"
+            />
+            <Combobox
+              label="Shift Type"
+              options={shiftTypeOptions}
+              value={values.shiftTypeId ?? ''}
+              defaultValue=""
+              onChange={(value) => setValue('shiftTypeId', value)}
+              clearable
+              triggerClassName="self-end"
+            />
+            <div className="space-y-2">
+              <Label
+                htmlFor="night-staff-search"
+                className="text-xs uppercase text-muted-foreground"
+              >
+                Staff
+              </Label>
+              <div className="relative">
+                <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  id="night-staff-search"
+                  className="pl-8"
+                  placeholder="Search staff ID or name"
+                  value={values.staffSearch ?? ''}
+                  onChange={(e) => setValue('staffSearch', e.target.value)}
+                />
+              </div>
+            </div>
+            <Combobox
+              label="Approval Status"
+              options={statusOptions}
+              value={values.status ?? ''}
+              defaultValue=""
+              onChange={(value) => setValue('status', value)}
+              clearable
+              triggerClassName="self-end"
+            />
+            <Combobox
+              label="Salary Cycle"
+              options={salaryCycleOptions}
+              value={values.salaryCycle ?? ''}
+              defaultValue=""
+              onChange={(value) => setValue('salaryCycle', value)}
+              clearable
+              triggerClassName="self-end"
+            />
+          </div>
+        )}
+      </FilterWrapper>
+    </div>
+  );
+}
+
+export default function SectionNightFilters(props: SectionNightFiltersProps) {
+  return (
+    <Suspense
+      fallback={
+        <div className="rounded-lg border border-border bg-muted/20 px-4 py-6 text-sm text-muted-foreground">
+          Loading filters...
         </div>
-      </CardContent>
-    </Card>
+      }
+    >
+      <SectionNightFiltersInner {...props} />
+    </Suspense>
   );
 }

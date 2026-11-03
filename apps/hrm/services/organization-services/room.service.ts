@@ -277,6 +277,35 @@ export async function getLinkedZoneOptionsForRooms(locationId?: string): Promise
   }
 }
 
+/** Lightweight room options for Combobox consumers (roster Unit = Rooms master). */
+export async function getRoomOptions(): Promise<{
+  success: boolean;
+  data?: Array<{ id: string; name: string }>;
+  error?: { message?: string };
+}> {
+  try {
+    const rows = await prisma.room.findMany({
+      where: { status: 1 },
+      select: { id: true, number: true, code: true },
+      orderBy: [{ number: 'asc' }]
+    });
+
+    return {
+      success: true,
+      data: rows.map((row) => ({
+        id: row.id,
+        name: row.code ? `${row.number} (${row.code})` : row.number
+      }))
+    };
+  } catch (error: any) {
+    console.error('getRoomOptions error:', error);
+    return {
+      success: false,
+      error: { message: error.message || 'Failed to load room options' }
+    };
+  }
+}
+
 export async function getRoomList(params: GetRoomParams = {}): Promise<{
   success: boolean;
   data?: RoomServiceRecord[];

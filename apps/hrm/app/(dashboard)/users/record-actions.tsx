@@ -14,6 +14,7 @@ import {
 import type { HrmUser } from '@/types/user';
 import { deleteUser } from '@/app/actions/user-usergrp-actions/user.actions';
 import { usePermissions } from '@/components/hooks/use-permissions';
+import { buttonStyles } from '@/lib/utils/common-styles';
 
 interface UserActionsProps<TData extends HrmUser> {
   row: Row<TData>;
@@ -101,6 +102,10 @@ export default function UserRecordActions<TData extends HrmUser>({
         title="Are you absolutely sure?"
         description="This action cannot be undone. This will permanently delete this user."
         handleContinue={onDeleteConfirmation}
+        className={{
+          actionButton: buttonStyles.delete.danger,
+          cancelButton: `h-9!`
+        }}
       />
     </>
   );

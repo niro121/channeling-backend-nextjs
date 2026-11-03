@@ -118,39 +118,48 @@ Legacy mocks place **Manage Shifts** under HR Administration (templates filtered
 
 Until §34 Option A/B ships, **no Roster & Shifts refactor** is needed for Manage Shifts.
 
-### 1.1 Upcoming — Manage Rosters connection (integration wave)
+### 1.1 Manage Rosters connection (integration wave)
 
-Roster & Shifts **operational screens are complete**. Remaining work with HR Admin Manage Rosters is **integration only** — do not reopen grid/register structure.
+**Simple explanation:** Manage Rosters (HR Admin) is **not** a shift template. It defines a **roster group** (team/ward): department, business code (e.g. `CHN`), and how many shifts per person per day. **Shift Types** here are the actual shift templates (Morning, Night, etc.). **Shift Assignment** links staff ↔ shift type as standing rules. **Roster & Shifts** calendars then allocate those shifts on dates. In short: group rules in HR Admin → membership on Staff → standing rules in Shift Assignment → day duties in calendars.
 
-**Why connect?** Manage Rosters owns the **group catalog** (`CHN`). Staff membership and Roster & Shifts filters/snapshots must use that same group key so scheduling matches who belongs to which team.
+Roster & Shifts **operational screens are complete**. Remaining work is **integration hardening + INT-R4** — do not reopen grid/register structure.
 
-**Connection (intended):**
+**Connection (required):**
 
 ```
 Manage Rosters (CHN)
-        →  Staff.employment.roster = "CHN"
+        →  Staff.employment.roster = "CHN"          (membership)
+        →  StaffShiftAssignment.manageRosterId      (FK to group ObjectId)
         →  ShiftRoster / filters / allocation snapshots use "CHN"
            Period IDs stay SR-n
 ```
 
-**Today:** roster filter options are often distinct free-text values from staff/allocations; Staff Employment still uses placeholder `ROSTER_OPTIONS`. Manage Rosters CRUD is live but not yet the option source here.
+**Today:**
 
-**Upcoming deliverables (this module group):**
+| Area | Status |
+|------|--------|
+| Staff Employment membership | Manage Roster **codes** (INT-S3) |
+| Shift / Duty roster filters | Manage Rosters via `buildManageRosterFilterOptions` (INT-R3 / R7); legacy orphans dual-read |
+| Shift Assignment | Roster-first UI; `manageRosterId` required on create; same-staff + same-shift-type overlap enforced |
+| Day limit (`shiftsPerPersonPerDay`) | Stored on Manage Rosters; shown on Shift Assignment context card; **not** hard-enforced on allocate yet (**INT-R4**) |
 
-| ID | Work | Notes |
+**Deliverables:**
+
+| ID | Work | Status |
 |----|------|--------|
-| **INT-R3** | Load roster filter / create-period options from `ManageRoster` | Option `id` = **code** (`CHN`); label = name (optional code). Prefer after Staff INT-S3 so membership already uses codes. |
-| **INT-R3b** | New period + allocation snapshots write roster **code** | Keep `roster` as string field (no Prisma FK required). Dual-read old placeholders if present during transition. |
-| **INT-R4** | Enforce `shiftsPerPersonPerDay` from Manage Rosters | On allocate / fill / publish where product requires; do not invent a second rule store. |
-| — | Do **not** change | `SR-n` period codes; one `shift-roster` permission; Shift Types as template master; sidebar group boundaries |
+| **INT-R3** | Load roster filter / create-period options from `ManageRoster` | **Done (R7)** |
+| **INT-R3b** | New period + allocation snapshots write roster **code** | Keep string field; dual-read legacy during transition |
+| **INT-R4** | Enforce `shiftsPerPersonPerDay` on allocate / fill / publish (full **calendar day**) | **Upcoming (R8)** — not on standing-assignment create |
+| **INT-H2** | Server assert: assigned staff’s `employment.roster` = selected Manage Roster **code** (create / bulk / update) | **Done** |
+| **INT-H3** | Legacy null `manageRosterId` — backfill + include in Manage Rosters in-use | **Done** (HR Admin) |
+| **INT-H5** | Reject inactive shift types on assignment create/update | **Done** |
+| **INT-H6** | Case-insensitive roster-code membership lookups | **Done** |
+| **INT-H7** | Overlap ignores `inactive`; `active` + `pending` still block | **Done** |
+| — | Do **not** change | `SR-n` period codes; one `shift-roster` permission; Shift Types as template master |
 
-**Locked storage key:** store **`ManageRoster.code`**, never ObjectId, on staff membership and Roster & Shifts roster strings. Other apps that filter by roster (e.g. Payroll) should follow the same **code** convention when those consumers are aligned — track that in the owning module guide; do not change Roster & Shifts screens for that alone.
+**Locked storage key:** staff membership + Roster & Shifts roster **strings** = `ManageRoster.code`. Standing assignment FK = Manage Roster **ObjectId** (`manageRosterId`). Do not invent a second key.
 
-Full backlog IDs: `HR_ADMINISTRATION_GUIDE.md` §26, §29 (R6–R9), §32 (INT-S3, INT-R3–R6).
-
-Overtime **Process Staff Shift** stays sample/toast until the roster **read** service exists (dynamic slice D4+).
-
-**Module build order (dynamic):** shared Phase 1 types + schema → Shift Types CRUD → Shift Assignment CRUD → Roster **read** → Roster **draft write** (sheet allocate; drag persist later) → Publish / copy / fill → point Duty Roster at the same store → Amendments → Night / Overnight → Holiday. Do not persist Night/Holiday/Duty as separate copies of the week. **After screens are live:** Manage Rosters code integration (§1.1) before broader master wiring.
+Full backlog: `HR_ADMINISTRATION_GUIDE.md` §26, §29, §32 (incl. **INT-H*** post-review hardening). Staff Employment lock: `STAFF_MANAGER_GUIDE.md` §4 / §7 (**INT-H1**).
 
 ---
 
@@ -476,12 +485,32 @@ Key files under `app/(dashboard)/(roster-shifts)/shift-assignment/`:
 
 | Sheet | Opens from | Notes |
 |-------|------------|--------|
-| Assign Shift | Header | Staff required |
-| Bulk Assign Shift | Header | No staff field; banner with selected count |
-| Edit Shift Assignment | Row pencil | Prefill sample |
+| Assign Shift | Header | Roster group first, then staff in that group |
+| Bulk Assign Shift | Header | Roster group required; only selected staff in that group |
+| Edit Shift Assignment | Row pencil | Prefill including `manageRosterId` |
 | Change History | Row clock | Timeline like Shift Types; Cancel only |
 
-Fields: Staff* (assign/edit), Shift Type*, Rotation Pattern (Fixed / 2-Shift / 3-Shift / 4 On 2 Off / Weekly / Custom), Effective From*, Effective To (optional), Weekly Off (Mon–Sun), Status (Active / Pending / Inactive), Auto Assign toggle. Sticky header. Phase 0 toast save.
+Fields: Roster Group* (Manage Rosters FK — context card: name, code, department, institution, shifts/person/day), Staff* (assign/edit; scoped to roster code membership + active-rule count), Shift Type*, Rotation Pattern (Fixed / 2-Shift / 3-Shift / 4 On 2 Off / Weekly / Custom), Effective From*, Effective To (optional), Weekly Off (Mon–Sun), Status (Active / Pending / Inactive), Auto Assign toggle. `StaffShiftAssignment.manageRosterId` → `ManageRoster`. Day-limit hard enforce remains INT-R4 on allocate/publish.
+
+### 2C.2a Required behaviour (Shift Assignment)
+
+| Rule | Required behaviour |
+|------|-------------------|
+| Roster-first | Select Manage Roster group before staff; staff options = members with `employment.roster` = group **code** |
+| FK | Create always sets `manageRosterId`; update must keep a resolved roster (legacy null rows backfilled via employment code when edited) |
+| Overlap | Reject only **same staff + same shift type** with overlapping effective date ranges among `active`/`pending` rows (cross-type allowed; `inactive` ignored — INT-H7) |
+| Day limit | Context card shows `shiftsPerPersonPerDay`; **do not** hard-block standing-rule create for INT-R4 — enforce on allocate / fill / publish later |
+| Delete | Removes standing rule only; does **not** cascade-delete calendar cells |
+| Shift Types | Templates only; delete blocked when assignments / allocations / amendments reference the type |
+
+### 2C.2b Enforcement status
+
+| Rule | UI | Server |
+|------|----|--------|
+| Staff must belong to selected roster | **Done** (scope API + sheet filter) | **Done (INT-H2)** |
+| Same-type date overlap | Toast / form error | **Done** (`assertNoOverlap`; ignores `inactive`) |
+| `manageRosterId` on create | Required field | **Done** |
+| Inactive shift type rejected | Options may filter | **Done (INT-H5)** |
 
 ### 2C.3 Register
 
@@ -823,7 +852,7 @@ Key files under `app/(dashboard)/(roster-shifts)/public-holiday-shifts/`:
 - Print / PDF / Excel on the **table toolbar only**.
 - **Bulk Assign Holiday Duty** requires **≥1** selected row (else toast), same as Shift Assignment.
 - Green banner: holidays sourced from the Holiday Date master under HR Administration (`/holiday-calendar`).
-- Roster **group** filter: today may still be distinct/placeholder strings; **upcoming** load from Manage Rosters **codes** — see §1.1 (INT-R3). Department / unit / designation / grade remain on the broader HR Admin integration backlog (`HR_ADMINISTRATION_GUIDE.md` §32).
+- Roster **group** filter: loads from Manage Rosters **codes** (INT-R3 / R7) with legacy orphan dual-read. Department / unit / designation / grade remain on the broader HR Admin integration backlog (`HR_ADMINISTRATION_GUIDE.md` §32).
 
 ### 2H.2 Form sheets
 
@@ -1411,7 +1440,10 @@ HolidayCalendar 1──* RosterAllocation   (optional holidayId on the cell)
 | Done when |
 |-----------|
 | [x] Assign / Edit persist; Bulk writes one row per selected staff |
-| [x] Overlapping effective dates for the same staff rejected in the service |
+| [x] Overlapping effective dates for the same staff + same shift type rejected in the service |
+| [x] Roster-first UI + `manageRosterId` on create |
+| [x] **INT-H2** — service rejects staff whose employment roster ≠ selected Manage Roster code |
+| [x] **INT-H5** — service rejects inactive shift types on create/update |
 
 Auto Assign that **creates week cells** waits for D5.
 
@@ -1592,7 +1624,7 @@ Auto Assign that **creates week cells** waits for D5.
 | RFID / attendance engine | See `STAFF_ATTENDANCE_ARCHITECTURE.md`; enum on the cell is enough for D7; confirm sync is HR-gated |
 | Real Holiday Date master | **Done** — HR Administration `/holiday-calendar`; keep Roster as read consumer |
 | Department / Unit / Designation / Grade masters | Tracked in `HR_ADMINISTRATION_GUIDE.md` §31–32 |
-| **Manage Rosters integration (INT-R3 / R7)** | **Upcoming** — load roster options from Manage Rosters **codes**; snapshots use code; see **§1.1**. Prefer after Staff INT-S3 |
+| **Manage Rosters integration (INT-R3 / R7)** | **Done** — Shift + Duty roster filters from Manage Rosters **codes** (+ legacy dual-read); see **§1.1** |
 | Enforce `shiftsPerPersonPerDay` (INT-R4 / R8) | **Upcoming** after INT-R3 |
 | Staff employment roster value | String field stays; upcoming value = Manage Roster **code** (Staff R6 / INT-S3) — not ObjectId, not a Prisma FK |
 | HR Admin Manage Shifts | **Not required** for current system; deferred — `HR_ADMINISTRATION_GUIDE.md` §34. Keep `/shift-types` as template master until Option A/B is locked |
@@ -1648,4 +1680,22 @@ Auto Assign that **creates week cells** waits for D5.
 - `apps/hrm/docs/LEAVE_MANAGER_GUIDE.md` — leave phases and UI map (copy this process)
 - `apps/hrm/docs/OVERTIME_MANAGER_GUIDE.md` — UI-first shell; Process Staff Shift waits for D4+ read
 - `apps/hrm/docs/PERMISSION_FLOW.md` — route/resource gating
+- `apps/hrm/docs/STAFF_MANAGER_GUIDE.md` — Employment membership + standing-assignments panel (§7); **INT-H1**
+- `apps/hrm/docs/HR_ADMINISTRATION_GUIDE.md` — Manage Rosters / Change Staff; §32 **INT-H*** hardening backlog
 - `apps/hrm/prisma/schema.prisma` — six roster collections (D1)
+
+---
+
+## 10. Post-review hardening TODO (this module)
+
+Canonical table: `HR_ADMINISTRATION_GUIDE.md` §32 (**INT-H***). Roster & Shifts owners:
+
+- [x] **INT-H2** (Must) — `createAssignmentRecord` / bulk / update: staff `employment.roster` must equal resolved Manage Roster **code**
+- [x] **INT-H5** (Should) — reject inactive shift types on create/update
+- [x] **INT-H6** (Should) — case-insensitive roster-code membership in getShiftAssignmentRosterScope (and peer lookups)
+- [x] **INT-H7** (Should) — overlap ignores inactive; ctive/pending still block
+- [ ] **INT-R4 / R8** (Later) — enforce `shiftsPerPersonPerDay` on allocate / fill / publish (full calendar day)
+- [ ] **INT-H8** (Later) — overlap TOCTOU / unique compound protection if concurrent creates become an issue
+- [ ] **INT-H9** (Later) — staff delete guards for standing assignments / allocations
+
+*Last updated: Nov 2026 — INT-H2 / H5–H7 done; remaining Later INT-R4 / H8–H9 in §10 / HR Admin §32.* / INT-R4 in §10 / HR Admin §32.*

@@ -12,7 +12,9 @@ import { generateRecordCode } from '@/lib/conventions/record-code-generator';
 import {
   STAFF_GRADE_CODE_PREFIX,
   STAFF_GRADE_LEVELS,
+  STAFF_GRADE_LEVEL_LABELS,
   type GetStaffGradeParams,
+  type StaffGradeLevelId,
   type StaffGradePayload,
   type StaffGradeServiceRecord
 } from '@/types/staff-grade';
@@ -359,6 +361,43 @@ export async function deleteStaffGrade(id: string): Promise<{
     return {
       success: false,
       error: { message: error.message || 'Failed to delete staff grade' }
+    };
+  }
+}
+
+function gradeLevelLabel(gradeLevelId: string): string {
+  if (gradeLevelId in STAFF_GRADE_LEVEL_LABELS) {
+    return STAFF_GRADE_LEVEL_LABELS[gradeLevelId as StaffGradeLevelId];
+  }
+  return gradeLevelId;
+}
+
+/** Lightweight staff-grade options for Combobox consumers (Change Staff, Employment, etc.). */
+export async function getStaffGradeOptions(): Promise<{
+  success: boolean;
+  data?: Array<{ id: string; name: string }>;
+  error?: { message?: string };
+}> {
+  try {
+    const rows = await prisma.staffGrade.findMany({
+      select: { id: true, name: true, gradeLevelId: true },
+      orderBy: { name: 'asc' }
+    });
+    return {
+      success: true,
+      data: rows.map((row) => {
+        const level = gradeLevelLabel(row.gradeLevelId);
+        return {
+          id: row.id,
+          name: level ? `${row.name} (${level})` : row.name
+        };
+      })
+    };
+  } catch (error: any) {
+    console.error('getStaffGradeOptions error:', error);
+    return {
+      success: false,
+      error: { message: error.message || 'Failed to load staff grade options' }
     };
   }
 }

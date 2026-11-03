@@ -1,11 +1,9 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { format } from 'date-fns';
 import { CustomAlertDialog, useToast } from '@archmage/ui';
 import { CommonManagerHeader } from '@/components/common/common-manager-header';
-import { formatDateTime } from '@/lib/utils/date';
 import { swapDutyAllocationsAction } from '@/app/actions/roster-actions/duty-roster.actions';
 import type {
   DutyRosterFilterOptions,
@@ -41,16 +39,6 @@ type DutyRosterWorkspaceProps = {
   }>;
 };
 
-function emptyFilters(today: Date): DutyFilterValues {
-  return {
-    departmentId: '',
-    unitId: '',
-    dutyDate: today,
-    shiftId: '',
-    rosterId: ''
-  };
-}
-
 function DutyRosterWorkspaceInner({
   records,
   totalRecords,
@@ -76,33 +64,17 @@ function DutyRosterWorkspaceInner({
     closeFormSheet,
     closeHistorySheet
   } = useDutyRosterUi();
-  const [draft, setDraft] = useState<DutyFilterValues>(filters);
   const [swapLoading, setSwapLoading] = useState(false);
-
-  useEffect(() => {
-    setDraft(filters);
-  }, [filters]);
 
   const dutyDate = filters.dutyDate ?? new Date();
 
-  const pushFilters = (
-    next: DutyFilterValues,
-    nextView: DutyRosterViewMode = viewMode
-  ) => {
-    const params = new URLSearchParams();
-    const limit = searchParams.get('limit');
-    if (limit) params.set('limit', limit);
-    if (next.departmentId) params.set('department', next.departmentId);
-    if (next.unitId) params.set('unit', next.unitId);
-    if (next.shiftId) params.set('shiftTypeId', next.shiftId);
-    if (next.rosterId) params.set('roster', next.rosterId);
-    if (next.dutyDate) params.set('dutyDate', format(next.dutyDate, 'yyyy-MM-dd'));
-    if (nextView !== 'daily') params.set('view', nextView);
+  const pushViewMode = (nextView: DutyRosterViewMode) => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (nextView === 'daily') params.delete('view');
+    else params.set('view', nextView);
     const query = params.toString();
     router.push(query ? `${pathname}?${query}` : pathname);
   };
-
-  const latest = records[0];
 
   return (
     <div className="space-y-6">
@@ -117,18 +89,11 @@ function DutyRosterWorkspaceInner({
       <SectionDutyInstructions />
 
       <SectionDutyFilters
-        values={draft}
+        initial={filters}
         departmentOptions={filterOptions.departments}
         unitOptions={filterOptions.units}
         shiftOptions={filterOptions.shifts}
         rosterOptions={filterOptions.rosters}
-        onChange={(next) => setDraft((prev) => ({ ...prev, ...next }))}
-        onLoad={() => pushFilters(draft)}
-        onClear={() => {
-          const cleared = emptyFilters(new Date());
-          setDraft(cleared);
-          pushFilters(cleared, 'daily');
-        }}
       />
 
       <SectionDutyRegister
@@ -137,24 +102,9 @@ function DutyRosterWorkspaceInner({
         page={page}
         dutyDate={dutyDate}
         viewMode={viewMode}
-        onViewChange={(mode) => pushFilters(filters, mode)}
+        onViewChange={pushViewMode}
         onExport={onExport}
       />
-
-      {/* <div className="flex flex-col gap-1 text-xs text-muted-foreground sm:flex-row sm:justify-between">
-        <p>
-          Created by: {latest?.createdUser?.name || latest?.createdBy || '—'}
-          {latest?.createdAt
-            ? ` · ${formatDateTime(latest.createdAt)}`
-            : null}
-        </p>
-        <p>
-          Last updated: {latest?.updatedUser?.name || latest?.updatedBy || '—'}
-          {latest?.updatedAt
-            ? ` · ${formatDateTime(latest.updatedAt)}`
-            : null}
-        </p>
-      </div> */}
 
       {formSheet ? (
         <SheetDutyForm

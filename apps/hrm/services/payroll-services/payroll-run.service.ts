@@ -9,9 +9,9 @@ import { getInstitutionName } from '@/types/institution';
 import {
   DEPARTMENT_OPTIONS,
   ROSTER_OPTIONS,
-  STAFF_CATEGORY_OPTIONS,
   STAFF_DESIGNATION_OPTIONS
 } from '@/types/staff-employment-options';
+import { STAFF_CATEGORY_OPTIONS } from '@/types/staff-category';
 import {
   formatInstitutionCycleTitle
 } from '@/types/salary-cycle';

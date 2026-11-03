@@ -1,6 +1,12 @@
+import { redirect } from 'next/navigation';
+import { getServerSession } from 'next-auth';
 import { CommonManagerHeader } from '@/components/common/common-manager-header';
 import { getStaffSpecialityOptionsAction } from '@/app/actions/hr-admin-actions/staff-speciality.actions';
+import { getPublishedZoneOptionsAction } from '@/app/actions/organization-actions/zone.actions';
 import { getAppointmentLetterOnboardContextAction } from '@/app/actions/recruitment-actions/staff-onboard.actions';
+import { authOptions } from '@/lib/auth';
+import { logActivityNonBlocking } from '@/lib/activity-log';
+import { checkPermission } from '@/lib/server-permissions';
 import type { GeneralFormValues } from '@/types/staff';
 import TabLayout from '../tab-layout';
 
@@ -12,8 +18,27 @@ type SearchParams = {
 };
 
 export default async function StaffAddPage({ searchParams }: SearchParams) {
-  const optionsRes = await getStaffSpecialityOptionsAction({ activeOnly: true });
+  const canAdd = await checkPermission('staff', 'add');
+  if (!canAdd) {
+    redirect('/unauthorized-access');
+  }
+
+  const session = await getServerSession(authOptions);
+  if (session?.user?.id) {
+    logActivityNonBlocking({
+      userId: session.user.id,
+      action: 'staff.visited',
+      entityType: 'Staff',
+      importance: 'low'
+    });
+  }
+
+  const [optionsRes, zonesRes] = await Promise.all([
+    getStaffSpecialityOptionsAction({ activeOnly: true }),
+    getPublishedZoneOptionsAction()
+  ]);
   const specialityOptions = optionsRes.isError ? [] : (optionsRes.data ?? []);
+  const zoneOptions = zonesRes.isError ? [] : (zonesRes.data ?? []);
 
   const params = await searchParams;
   const letterId =
@@ -60,6 +85,7 @@ export default async function StaffAddPage({ searchParams }: SearchParams) {
       ) : null}
       <TabLayout
         specialityOptions={specialityOptions}
+        zoneOptions={zoneOptions}
         generalPrefill={generalPrefill}
         appointmentLetterId={appointmentLetterId}
       />

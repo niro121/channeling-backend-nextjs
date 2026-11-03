@@ -1,17 +1,8 @@
-import {
-  MANAGE_ROSTER_DEPARTMENTS,
-  MANAGE_ROSTER_DEPARTMENT_LABELS,
-  type ManageRosterDepartmentOption,
-  type ManageRosterFormValues,
-  type ManageRosterServiceRecord,
-  type ManageRosterUiRecord
+import type {
+  ManageRosterFormValues,
+  ManageRosterServiceRecord,
+  ManageRosterUiRecord
 } from '@/types/manage-roster';
-
-export const manageRosterDepartmentOptions: ManageRosterDepartmentOption[] =
-  MANAGE_ROSTER_DEPARTMENTS.map((id) => ({
-    id,
-    name: MANAGE_ROSTER_DEPARTMENT_LABELS[id]
-  }));
 
 export function emptyManageRosterFormValues(): ManageRosterFormValues {
   return {
@@ -41,9 +32,13 @@ export function mapManageRosterToUiRecord(
     code: record.code,
     name: record.name,
     departmentId: record.departmentId,
+    departmentName: record.departmentName,
     shiftsPerPersonPerDay: record.shiftsPerPersonPerDay,
     assignedStaffCount: record.assignedStaffCount,
     activeShiftCount: record.activeShiftCount,
+    inUse: Boolean(record.inUse),
+    shiftAssignmentRefCount: record.shiftAssignmentRefCount ?? 0,
+    staffMembershipCount: record.staffMembershipCount ?? 0,
     createdAt: record.createdAt,
     updatedAt: record.updatedAt,
     createdByUser: {
