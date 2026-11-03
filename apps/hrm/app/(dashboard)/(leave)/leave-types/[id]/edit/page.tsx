@@ -1,5 +1,7 @@
 import { notFound, redirect } from 'next/navigation';
 import { CommonManagerHeader } from '@/components/common/common-manager-header';
+import { fetchServerSession } from '@/lib/session';
+import { logActivityNonBlocking } from '@/lib/activity-log';
 import { checkPermission } from '@/lib/server-permissions';
 import { getLeaveTypeByIdAction } from '@/app/actions/leave-actions/leave-type.actions';
 import { leaveTypeRecordToFormValues } from '@/lib/mappers/leave-type-form.mapper';
@@ -19,6 +21,17 @@ export default async function LeaveTypeEditPage({
   }
 
   const { id } = await params;
+  const session = await fetchServerSession();
+  if (session?.user?.id) {
+    logActivityNonBlocking({
+      userId: session.user.id,
+      action: 'leave-types.visited',
+      entityType: 'LeaveType',
+      entityId: id,
+      importance: 'low'
+    });
+  }
+
   const response = await getLeaveTypeByIdAction(id);
 
   if (response.isError || !response.data) {

@@ -224,6 +224,11 @@ export type GetLeaveTypesParams = {
   allowHalfDay?: string;
 };
 
+export type GetLeaveTypesReturn = {
+  data: LeaveTypeRecord[];
+  totalRecords: number;
+};
+
 /** Client Formik values (string selects for CustomSelectField). */
 export type LeaveTypeFormValues = {
   code: string;

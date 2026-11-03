@@ -12,27 +12,37 @@ function booleanToYesNo(value: boolean): 'yes' | 'no' {
   return value ? 'yes' : 'no';
 }
 
-function parseOptionalFloat(value: string): number | null {
-  const trimmed = value?.trim();
+function parseOptionalFloat(
+  value: string | number | null | undefined
+): number | null {
+  if (value == null || value === '') return null;
+  if (typeof value === 'number') {
+    return Number.isFinite(value) && value >= 0 ? value : null;
+  }
+  const trimmed = String(value).trim();
   if (!trimmed) return null;
   const parsed = Number.parseFloat(trimmed);
-  return Number.isFinite(parsed) ? parsed : null;
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
 }
 
 export function leaveTypeFormValuesToPayload(
   values: LeaveTypeFormValues
 ): LeaveTypePayload {
   // Code is always server-generated via Sequence; never take it from the form.
+  const carryForwardAllowed = yesNoToBoolean(values.carryForwardAllowed);
+
   return {
-    name: values.name.trim(),
-    description: values.description?.trim() || null,
+    name: String(values.name ?? '').trim(),
+    description: String(values.description ?? '').trim() || null,
     isPaid: yesNoToBoolean(values.isPaid),
     requiresApproval: yesNoToBoolean(values.requiresApproval),
     allowHalfDay: yesNoToBoolean(values.allowHalfDay),
-    carryForwardAllowed: yesNoToBoolean(values.carryForwardAllowed),
+    carryForwardAllowed,
     maxDaysPerYear: parseOptionalFloat(values.maxDaysPerYear),
-    maxCarryForwardDays: parseOptionalFloat(values.maxCarryForwardDays),
-    status: Number.parseInt(values.status, 10) === 0 ? 0 : 1
+    maxCarryForwardDays: carryForwardAllowed
+      ? parseOptionalFloat(values.maxCarryForwardDays)
+      : null,
+    status: Number.parseInt(String(values.status), 10) === 0 ? 0 : 1
   };
 }
 

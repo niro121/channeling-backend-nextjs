@@ -9,7 +9,9 @@ import { generateRecordCode } from '@/lib/conventions/record-code-generator';
 import {
   LEAVE_TYPE_CODE_PREFIX,
   type GetLeaveTypesParams,
-  type LeaveTypePayload
+  type GetLeaveTypesReturn,
+  type LeaveTypePayload,
+  type LeaveTypeRecord
 } from '@/types/leave';
 
 const optionalDayAmount = z
@@ -32,7 +34,7 @@ const leaveTypePayloadSchema = z.object({
     .optional()
     .nullable()
     .transform((value) => {
-      const trimmed = value?.trim();
+      const trimmed = value == null ? '' : String(value).trim();
       return trimmed ? trimmed : null;
     }),
   isPaid: z.boolean(),
@@ -155,34 +157,42 @@ export async function getLeaveTypes(params: GetLeaveTypesParams): Promise<{
   }
 }
 
-export async function getLeaveTypesForExport(
-  params: Omit<GetLeaveTypesParams, 'page' | 'limit'>
-): Promise<{
-  success: boolean;
-  data?: any[];
-  message?: string;
-  error?: { message?: string };
-}> {
+export async function getLeaveTypesForExport({
+  keyword = '',
+  status,
+  isPaid,
+  requiresApproval,
+  allowHalfDay
+}: {
+  keyword?: string;
+  status?: string;
+  isPaid?: string;
+  requiresApproval?: string;
+  allowHalfDay?: string;
+}): Promise<GetLeaveTypesReturn> {
   try {
-    const where = buildLeaveTypeWhere(params);
-    const exportLimit =
-      Number.parseInt(process.env.EXPORT_LIMIT ?? '1000', 10) || 1000;
+    const where = buildLeaveTypeWhere({
+      keyword,
+      status,
+      isPaid,
+      requiresApproval,
+      allowHalfDay
+    });
+
     const records = await prisma.leaveType.findMany({
       where,
-      orderBy: { createdAt: 'desc' },
-      take: exportLimit
+      orderBy: { createdAt: 'desc' }
     });
+
+    const recordsWithUsers = await resolveAuthUsers(records);
+
     return {
-      success: true,
-      data: records,
-      message: 'Leave types export fetched successfully'
+      data: recordsWithUsers as LeaveTypeRecord[],
+      totalRecords: recordsWithUsers.length
     };
-  } catch (error: any) {
-    console.error('getLeaveTypesForExport error:', error);
-    return {
-      success: false,
-      error: { message: error.message || 'Failed to export leave types' }
-    };
+  } catch (error) {
+    console.error('getLeaveTypesForExport error', error);
+    throw new Error('Error getting data');
   }
 }
 
