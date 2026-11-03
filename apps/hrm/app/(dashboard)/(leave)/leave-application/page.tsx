@@ -85,10 +85,10 @@ export default async function LeaveApplicationPage({
     allowHalfDay: Boolean((type as { allowHalfDay?: boolean }).allowHalfDay)
   }));
 
-  const filterLeaveTypeOptions = [
-    { id: '__all__', name: 'All Leave Types' },
-    ...leaveTypeOptions.map(({ id, name }) => ({ id, name }))
-  ];
+  const filterLeaveTypeOptions = leaveTypeOptions.map(({ id, name }) => ({
+    id,
+    name
+  }));
 
   const approverOptions = (optionsRes.data?.approvers ?? []).map(
     (approver) => ({

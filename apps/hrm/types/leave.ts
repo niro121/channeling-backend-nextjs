@@ -119,11 +119,17 @@ export type LeaveApplicationPayload = {
 
 export const LEAVE_ENTITLEMENT_STATUSES = [
   'active',
-  'expired',
-  'pending'
+  'pending',
+  'expired'
 ] as const;
 
 export type LeaveEntitlementStatus = (typeof LEAVE_ENTITLEMENT_STATUSES)[number];
+
+export const LEAVE_ENTITLEMENT_STATUS_OPTIONS = [
+  { id: 'active', name: 'Active' },
+  { id: 'pending', name: 'Pending' },
+  { id: 'expired', name: 'Expired' }
+] as const;
 
 export type LeaveEntitlementRecord = {
   id: string;
@@ -152,9 +158,14 @@ export type GetLeaveEntitlementsParams = {
   limit?: string;
   staffId?: string;
   leaveTypeId?: string;
-  departmentId?: string; // reserved — wire when departments exist
+  departmentId?: string;
   fromDate?: string;
   toDate?: string;
+};
+
+export type GetLeaveEntitlementsReturn = {
+  data: LeaveEntitlementRecord[];
+  totalRecords: number;
 };
 
 /** Client Formik values for entitlement form. */

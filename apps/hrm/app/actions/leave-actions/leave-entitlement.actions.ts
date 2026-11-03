@@ -259,27 +259,41 @@ export async function getLeaveEntitlementsExport(params: {
   fromDate?: string;
   toDate?: string;
 }) {
+  await requirePermission('leave-entitlement', 'view');
+
   try {
-    await requirePermission('leave-entitlement', 'view');
-    const result = await getLeaveEntitlementsForExport(params);
-    if (!result.success) {
+    const response = await getLeaveEntitlementsForExport({
+      staffId: params.staffId,
+      leaveTypeId: params.leaveTypeId,
+      departmentId: params.departmentId,
+      fromDate: params.fromDate,
+      toDate: params.toDate
+    });
+
+    if (!response.data?.length) {
       return {
         success: false,
-        message: result.error?.message ?? 'Failed to export leave entitlements',
-        data: []
+        message: 'No entitlement records found',
+        data: [],
+        totalRecords: 0
       };
     }
+
     return {
       success: true,
-      data: result.data ?? [],
-      message: result.message
+      data: response.data,
+      totalRecords: response.totalRecords
     };
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('getLeaveEntitlementsExport error', error);
     return {
       success: false,
-      message: error.message ?? 'Failed to export leave entitlements',
-      data: []
+      message:
+        error instanceof Error
+          ? error.message
+          : 'Error getting data. Please try again later',
+      data: [],
+      totalRecords: 0
     };
   }
 }
@@ -288,21 +302,28 @@ export async function getLeaveEntitlementsExport(params: {
 export async function getLeaveEntitlementFormOptionsAction() {
   try {
     await requirePermission('leave-entitlement', 'view');
-    const [{ getStaffOptions }, { getLeaveTypeOptions }] = await Promise.all([
+    const [
+      { getStaffOptions },
+      { getLeaveTypeOptions },
+      { getDepartmentOptions }
+    ] = await Promise.all([
       import('@/services/staff-services/staff.service'),
-      import('@/services/leave-services/leave-type.service')
+      import('@/services/leave-services/leave-type.service'),
+      import('@/services/organization-services/department.service')
     ]);
 
-    const [staffResult, leaveTypeResult] = await Promise.all([
+    const [staffResult, leaveTypeResult, departmentResult] = await Promise.all([
       getStaffOptions(),
-      getLeaveTypeOptions()
+      getLeaveTypeOptions(),
+      getDepartmentOptions()
     ]);
 
     return {
       isError: false,
       data: {
         staff: staffResult.data ?? [],
-        leaveTypes: leaveTypeResult.data ?? []
+        leaveTypes: leaveTypeResult.data ?? [],
+        departments: departmentResult.data ?? []
       },
       errors: {}
     };
@@ -310,7 +331,7 @@ export async function getLeaveEntitlementFormOptionsAction() {
     console.error('getLeaveEntitlementFormOptionsAction error:', error);
     return {
       isError: true,
-      data: { staff: [], leaveTypes: [] },
+      data: { staff: [], leaveTypes: [], departments: [] },
       errors: {
         message: error.message ?? 'Failed to load form options'
       }

@@ -21,6 +21,8 @@ import {
   Label,
   useToast
 } from '@archmage/ui';
+import { cn } from '@/lib/utils';
+import { buttonStyles } from '@/lib/utils/common-styles';
 import {
   createLeaveEntitlementAction,
   deleteLeaveEntitlementAction,
@@ -30,9 +32,11 @@ import {
   leaveEntitlementFormValuesToPayload,
   leaveEntitlementRecordToFormValues
 } from '@/lib/mappers/leave-entitlement-form.mapper';
-import type {
-  LeaveEntitlementFormValues,
-  LeaveEntitlementRecord
+import {
+  LEAVE_ENTITLEMENT_STATUSES,
+  LEAVE_ENTITLEMENT_STATUS_OPTIONS,
+  type LeaveEntitlementFormValues,
+  type LeaveEntitlementRecord
 } from '@/types/leave';
 import { usePermissions } from '@/components/hooks/use-permissions';
 
@@ -88,7 +92,9 @@ const validationSchema = Yup.object({
     .transform((value, original) => (original === '' ? 0 : value))
     .min(0, 'Must be 0 or greater')
     .optional(),
-  status: Yup.string().oneOf(['active', 'expired', 'pending'])
+  status: Yup.string()
+    .oneOf([...LEAVE_ENTITLEMENT_STATUSES], 'Invalid status')
+    .required('Status is required')
 });
 
 function formatAuditLine(info?: AuditInfo | null): string {
@@ -388,6 +394,18 @@ export default function FormEmployeeInfo({
                       min={0}
                       styleClasses={fieldStyleClasses}
                     />
+
+                    <CustomSelectField
+                      id="status"
+                      placeholder="Status"
+                      options={[...LEAVE_ENTITLEMENT_STATUS_OPTIONS]}
+                      value={formik.values.status}
+                      onChange={(value) =>
+                        formik.setFieldValue('status', value)
+                      }
+                      required
+                      styleClasses={fieldStyleClasses}
+                    />
                   </div>
 
                   <div className="flex flex-wrap items-center justify-end gap-2 pt-2">
@@ -395,7 +413,8 @@ export default function FormEmployeeInfo({
                       <Button
                         type="button"
                         variant="outline"
-                        className="gap-1.5 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                        size="sm"
+                        className={cn('gap-1.5', buttonStyles.delete.warning)}
                         disabled={loading || deleting}
                         onClick={() => setDeleteOpen(true)}
                       >
@@ -406,11 +425,18 @@ export default function FormEmployeeInfo({
                     {canSave ? (
                       <Button
                         type="submit"
-                        className="gap-1.5"
+                        size="sm"
+                        className={cn('gap-1.5', buttonStyles.save)}
                         disabled={loading}
                       >
                         <SaveIcon className="h-4 w-4" />
-                        {loading ? 'Saving...' : 'Save'}
+                        {loading
+                          ? isEdit
+                            ? 'Updating...'
+                            : 'Saving...'
+                          : isEdit
+                            ? 'Update'
+                            : 'Save'}
                       </Button>
                     ) : null}
                   </div>
@@ -447,6 +473,9 @@ export default function FormEmployeeInfo({
         title="Delete leave entitlement?"
         description="This will permanently remove the selected entitlement record."
         handleContinue={handleDelete}
+        className={{
+          actionButton: buttonStyles.delete.danger
+        }}
       />
     </div>
   );

@@ -9,8 +9,10 @@ import {
   computeEntitlementRemaining,
   LEAVE_ENTITLEMENT_STATUSES,
   type GetLeaveEntitlementsParams,
+  type GetLeaveEntitlementsReturn,
   type LeaveEntitlementBalanceSummary,
-  type LeaveEntitlementPayload
+  type LeaveEntitlementPayload,
+  type LeaveEntitlementRecord
 } from '@/types/leave';
 
 const dayAmountSchema = z.coerce
@@ -76,7 +78,22 @@ function buildEntitlementWhere(
     where.leaveTypeId = params.leaveTypeId;
   }
 
-  // departmentId reserved for when department master exists
+  const departmentId = params.departmentId?.trim();
+  if (departmentId && departmentId !== '__all__') {
+    where.staff = {
+      is: {
+        employmentDetails: {
+          is: {
+            employment: {
+              is: {
+                department: departmentId
+              }
+            }
+          }
+        }
+      }
+    };
+  }
 
   const fromDate = parseOptionalDate(params.fromDate);
   const toDate = parseOptionalDate(params.toDate);
@@ -165,38 +182,49 @@ export async function getLeaveEntitlements(
   }
 }
 
-export async function getLeaveEntitlementsForExport(
-  params: Omit<GetLeaveEntitlementsParams, 'page' | 'limit'>
-): Promise<{
-  success: boolean;
-  data?: any[];
-  message?: string;
-  error?: { message?: string };
-}> {
+export async function getLeaveEntitlementsForExport({
+  staffId,
+  leaveTypeId,
+  departmentId,
+  fromDate,
+  toDate
+}: {
+  staffId?: string;
+  leaveTypeId?: string;
+  departmentId?: string;
+  fromDate?: string;
+  toDate?: string;
+}): Promise<GetLeaveEntitlementsReturn> {
   try {
-    const where = buildEntitlementWhere(params);
-    const exportLimit =
-      Number.parseInt(process.env.EXPORT_LIMIT ?? '1000', 10) || 1000;
+    const where = buildEntitlementWhere({
+      staffId,
+      leaveTypeId,
+      departmentId,
+      fromDate,
+      toDate
+    });
+
     const records = await prisma.leaveEntitlement.findMany({
       where,
       orderBy: [{ fromDate: 'desc' }, { createdAt: 'desc' }],
-      take: exportLimit,
       include: {
         leaveType: { select: { id: true, name: true, code: true } },
         staff: { select: { id: true, name: true, code: true } }
       }
     });
+
+    const recordsWithUsers = await resolveAuthUsers(records);
+    const data = recordsWithUsers.map(
+      mapEntitlementRecord
+    ) as LeaveEntitlementRecord[];
+
     return {
-      success: true,
-      data: records.map(mapEntitlementRecord),
-      message: 'Leave entitlements export fetched successfully'
+      data,
+      totalRecords: data.length
     };
-  } catch (error: any) {
-    console.error('getLeaveEntitlementsForExport error:', error);
-    return {
-      success: false,
-      error: { message: error.message || 'Failed to export leave entitlements' }
-    };
+  } catch (error) {
+    console.error('getLeaveEntitlementsForExport error', error);
+    throw new Error('Error getting data');
   }
 }
 
