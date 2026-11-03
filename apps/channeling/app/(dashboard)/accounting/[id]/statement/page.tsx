@@ -19,11 +19,17 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { StatementExcelExport } from './statement-excel-export';
 import { StatementPeriodPicker } from './statement-period-picker';
+import { PAYMENT_METHOD_NAMES } from '@/types/receipt';
 
 type Props = {
   params: Promise<{ id: string }>;
   searchParams: Promise<{ fromDate?: string; toDate?: string }>;
 };
+
+function paymentTypeLabel(paymentMethod: number | null | undefined): string {
+  if (paymentMethod == null) return 'Cash';
+  return PAYMENT_METHOD_NAMES[paymentMethod] ?? 'Cash';
+}
 
 export default async function AccountStatementPage({ params, searchParams }: Props) {
   const canView = await checkRouteAccess('/accounting');
@@ -74,6 +80,7 @@ export default async function AccountStatementPage({ params, searchParams }: Pro
   const closingBalance = statement?.closingBalance ?? 0;
   const lines = statement?.lines ?? [];
   const truncatedMessage = statement?.truncatedMessage;
+  const showPaymentType = account.type === 'CASH';
 
   return (
     <div className="flex-1 space-y-4 p-8 pt-6">
@@ -173,6 +180,7 @@ export default async function AccountStatementPage({ params, searchParams }: Pro
                   <TableHead>Date</TableHead>
                   <TableHead>Journal #</TableHead>
                   <TableHead>Description</TableHead>
+                  {showPaymentType && <TableHead>Type</TableHead>}
                   <TableHead>Ref</TableHead>
                   <TableHead className="text-right">Debit</TableHead>
                   <TableHead className="text-right">Credit</TableHead>
@@ -187,6 +195,9 @@ export default async function AccountStatementPage({ params, searchParams }: Pro
                     </TableCell>
                     <TableCell>{line.journalNumber ?? '-'}</TableCell>
                     <TableCell>{line.description}</TableCell>
+                    {showPaymentType && (
+                      <TableCell>{paymentTypeLabel(line.paymentMethod)}</TableCell>
+                    )}
                     <TableCell>
                       {line.referenceType && line.referenceId
                         ? `${line.referenceType}:${String(line.referenceId).slice(-6)}`
