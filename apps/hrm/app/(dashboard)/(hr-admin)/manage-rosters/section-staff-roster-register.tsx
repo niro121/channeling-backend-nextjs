@@ -6,6 +6,7 @@ import {
   DataTableExportFeature,
   useCommonDataTableContext
 } from '@/components/common/common-data-table';
+import type { StaffRosterMemberRow } from '@/types/manage-roster';
 import { useManageRosterUi } from './manage-roster-ui-context';
 import { staffRosterColumns } from './staff-roster-columns';
 
@@ -18,7 +19,7 @@ function SelectionSync() {
       (key) => rowSelection[key]
     );
     const ids = selectedKeys.map(
-      (key) => table.getRow(key).original.id as string
+      (key) => (table.getRow(key).original as StaffRosterMemberRow).id
     );
     setSelectedStaffIds(ids);
   }, [rowSelection, setSelectedStaffIds, table]);
