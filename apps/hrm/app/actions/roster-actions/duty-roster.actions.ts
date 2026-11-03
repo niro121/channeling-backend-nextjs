@@ -152,25 +152,35 @@ export async function getDutyRosterHistoryAction(id: string) {
 }
 
 export async function getDutyRosterExport(params: GetDutyRosterParams) {
+  await requirePermission('shift-roster', 'view');
+
   try {
-    await requirePermission('shift-roster', 'view');
-    const result = await getDutyRosterForExport(listParams(params));
-    if (!result.success) {
+    const response = await getDutyRosterForExport(listParams(params));
+
+    if (!response.data?.length) {
       return {
         success: false,
-        message: result.error?.message ?? 'Failed to export duty roster'
+        message: 'No duty roster rows found',
+        data: [],
+        totalRecords: 0
       };
     }
+
     return {
       success: true,
-      data: result.data ?? [],
-      message: result.message
+      data: response.data,
+      totalRecords: response.totalRecords
     };
-  } catch (error: any) {
-    console.error('getDutyRosterExport error:', error);
+  } catch (error: unknown) {
+    console.error('getDutyRosterExport error', error);
     return {
       success: false,
-      message: error.message ?? 'Failed to export duty roster'
+      message:
+        error instanceof Error
+          ? error.message
+          : 'Error getting data. Please try again later',
+      data: [],
+      totalRecords: 0
     };
   }
 }

@@ -7,6 +7,8 @@ import type { AuditUser } from '@/lib/audit-user';
 import { toAuditUser } from '@/lib/audit-user';
 import { resolveAuthUsers } from '@/lib/helpers/resolve-auth-users.helper';
 import { buildManageRosterFilterOptions } from '@/lib/helpers/manage-roster-filter-options.helper';
+import { getDepartmentOptions } from '@/services/organization-services/department.service';
+import { getRoomOptions } from '@/services/organization-services/room.service';
 import { saveRosterAllocationDraft } from '@/services/roster-services/shift-roster.service';
 import type {
   DutyAttendance,
@@ -101,7 +103,10 @@ type AllocationWithShift = {
   };
 };
 
-function mapDutyRow(record: AllocationWithShift): DutyRosterRow {
+function mapDutyRow(record: AllocationWithShift & {
+  createdUser?: DutyRosterRow['createdUser'];
+  updatedUser?: DutyRosterRow['updatedUser'];
+}): DutyRosterRow {
   return {
     id: record.id,
     staffId: record.staffId,
@@ -125,7 +130,9 @@ function mapDutyRow(record: AllocationWithShift): DutyRosterRow {
     createdAt: toIsoString(record.createdAt),
     updatedAt: toIsoString(record.updatedAt),
     createdBy: record.createdBy,
-    updatedBy: record.updatedBy
+    updatedBy: record.updatedBy,
+    createdUser: record.createdUser ?? null,
+    updatedUser: record.updatedUser ?? null
   };
 }
 
@@ -340,7 +347,8 @@ export async function getDutyRoster(params: GetDutyRosterParams): Promise<{
         })
       ]);
 
-    const withUsers = await resolveAuthUsers(records.map(mapDutyRow));
+    const withUsers = await resolveAuthUsers(records);
+    const mapped = withUsers.map(mapDutyRow);
 
     const attendanceCounts = await prisma.rosterAllocation.groupBy({
       by: ['attendance'],
@@ -367,7 +375,7 @@ export async function getDutyRoster(params: GetDutyRosterParams): Promise<{
 
     return {
       success: true,
-      data: { records: withUsers, totalRecords, summary },
+      data: { records: mapped, totalRecords, summary },
       message: 'Duty roster loaded'
     };
   } catch (error: any) {
@@ -379,11 +387,11 @@ export async function getDutyRoster(params: GetDutyRosterParams): Promise<{
   }
 }
 
-export async function getDutyRosterForExport(params: GetDutyRosterParams): Promise<{
-  success: boolean;
-  data?: DutyRosterRow[];
-  message?: string;
-  error?: { message?: string };
+export async function getDutyRosterForExport(
+  params: GetDutyRosterParams
+): Promise<{
+  data: DutyRosterRow[];
+  totalRecords: number;
 }> {
   try {
     const { fromUtc, toUtc } = resolveDutyUtcRange(params);
@@ -392,18 +400,15 @@ export async function getDutyRosterForExport(params: GetDutyRosterParams): Promi
       select: allocationSelect,
       orderBy: [{ date: 'asc' }, { staffCode: 'asc' }]
     });
-    const withUsers = await resolveAuthUsers(records.map(mapDutyRow));
+    const recordsWithUsers = await resolveAuthUsers(records);
+    const data = recordsWithUsers.map(mapDutyRow);
     return {
-      success: true,
-      data: withUsers,
-      message: 'Duty roster export fetched'
+      data,
+      totalRecords: data.length
     };
-  } catch (error: any) {
+  } catch (error) {
     console.error('getDutyRosterForExport error:', error);
-    return {
-      success: false,
-      error: { message: error.message || 'Failed to export duty roster' }
-    };
+    throw new Error('Error getting data');
   }
 }
 
@@ -414,26 +419,24 @@ export async function getDutyRosterFilterOptions(): Promise<{
   error?: { message?: string };
 }> {
   try {
-    const [allocations, assignments, shiftTypes] = await Promise.all([
-      prisma.rosterAllocation.findMany({
-        select: { department: true, unit: true, roster: true },
-        distinct: ['department', 'unit', 'roster']
-      }),
-      prisma.staffShiftAssignment.findMany({
-        select: { department: true, unit: true },
-        distinct: ['department', 'unit']
-      }),
-      prisma.shiftType.findMany({
-        where: { status: 'active' },
-        orderBy: { name: 'asc' },
-        select: { id: true, name: true, code: true }
-      })
-    ]);
-
-    const staff = await prisma.staff.findMany({
-      where: { status: 1 },
-      select: { employmentDetails: true }
-    });
+    const [departmentRes, roomRes, allocations, shiftTypes, staff] =
+      await Promise.all([
+        getDepartmentOptions(),
+        getRoomOptions(),
+        prisma.rosterAllocation.findMany({
+          select: { roster: true },
+          distinct: ['roster']
+        }),
+        prisma.shiftType.findMany({
+          where: { status: 'active' },
+          orderBy: { name: 'asc' },
+          select: { id: true, name: true, code: true }
+        }),
+        prisma.staff.findMany({
+          where: { status: 1 },
+          select: { employmentDetails: true }
+        })
+      ]);
 
     const rosterFilterOptions = await buildManageRosterFilterOptions([
       ...allocations.map((row) => row.roster),
@@ -443,15 +446,8 @@ export async function getDutyRosterFilterOptions(): Promise<{
     return {
       success: true,
       data: {
-        departments: uniqueStrings([
-          ...allocations.map((row) => row.department),
-          ...assignments.map((row) => row.department),
-          ...staff.map((row) => row.employmentDetails?.employment?.department)
-        ]).map(toOption),
-        units: uniqueStrings([
-          ...allocations.map((row) => row.unit),
-          ...assignments.map((row) => row.unit)
-        ]).map(toOption),
+        departments: departmentRes.data ?? [],
+        units: roomRes.data ?? [],
         rosters: rosterFilterOptions,
         shifts: shiftTypes.map((shift) => ({
           id: shift.id,

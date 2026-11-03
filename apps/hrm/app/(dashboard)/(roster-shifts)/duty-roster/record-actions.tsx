@@ -8,6 +8,7 @@ import { usePermissions } from '@/components/hooks/use-permissions';
 import { deleteDutyAllocationAction } from '@/app/actions/roster-actions/duty-roster.actions';
 import type { DutyRosterRow } from '@/types/roster';
 import { useDutyRosterUi } from './duty-roster-ui-context';
+import { buttonStyles } from '@/lib/utils/common-styles';
 
 type DutyRecordActionsProps = {
   record: DutyRosterRow;
@@ -109,7 +110,7 @@ export default function DutyRecordActions({ record }: DutyRecordActionsProps) {
           setOpen(false);
           router.refresh();
         }}
-        className={{ actionButton: 'bg-destructive text-destructive-foreground hover:bg-destructive/90 hover:text-destructive-foreground/90' }}
+        className={{ actionButton: buttonStyles.delete.danger }}
       />
     </>
   );

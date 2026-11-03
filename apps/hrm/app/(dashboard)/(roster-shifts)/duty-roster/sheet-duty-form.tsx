@@ -41,6 +41,7 @@ import {
   type SwapDutyPayload
 } from '@/types/roster';
 import type { DutyRosterFormSheetMode } from './duty-roster-ui-context';
+import { buttonStyles } from '@/lib/utils/common-styles';
 
 type SheetDutyFormProps = {
   open: boolean;
@@ -297,9 +298,7 @@ export default function SheetDutyForm({
           validationSchema={validationSchema}
           onSubmit={async (values, helpers) => {
             if (mode === 'swap') {
-              onSwapSubmit?.(
-                dutyFormValuesToSwapPayload(values, record?.id)
-              );
+              onSwapSubmit?.(dutyFormValuesToSwapPayload(values, record?.id));
               return;
             }
 
@@ -393,7 +392,9 @@ export default function SheetDutyForm({
                     value={formik.values.staffId}
                     onChange={(value) => formik.setFieldValue('staffId', value)}
                     required
-                    disabled={mode === 'edit' || mode === 'swap' || mode === 'replace'}
+                    disabled={
+                      mode === 'edit' || mode === 'swap' || mode === 'replace'
+                    }
                     options={formOptions.staff}
                     styleClasses={fieldStyleClasses}
                   />
@@ -563,7 +564,7 @@ export default function SheetDutyForm({
                   styleClasses={fieldStyleClasses}
                 />
 
-<div className="grid grid-cols-1 gap-2 rounded-lg border border-border bg-muted/40 px-3 py-2.5 text-xs text-muted-foreground sm:grid-cols-2">
+                <div className="grid grid-cols-1 gap-2 rounded-lg border border-border bg-muted/40 px-3 py-2.5 text-xs text-muted-foreground sm:grid-cols-2">
                   <p>
                     Created by: {showAudit ? auditCreatedBy : '—'}
                     {showAudit && auditCreatedAt !== '—'
@@ -585,13 +586,18 @@ export default function SheetDutyForm({
                   size="sm"
                   variant="outline"
                   disabled={loading}
-                  className="w-full sm:w-24 gap-1 border-red-500 text-red-500 transition-colors ease-in-out duration-100 hover:bg-red-500 hover:text-white"
+                  className={buttonStyles.cancel.normal}
                   onClick={() => onOpenChange(false)}
                 >
                   <X className="h-3.5 w-3.5" />
                   Cancel
                 </Button>
-                <Button type="submit" size="sm" disabled={loading}>
+                <Button
+                  type="submit"
+                  size="sm"
+                  disabled={loading}
+                  className={buttonStyles.save}
+                >
                   {copy.saveLabel}
                 </Button>
               </SheetFooter>

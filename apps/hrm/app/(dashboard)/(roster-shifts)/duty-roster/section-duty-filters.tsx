@@ -2,7 +2,7 @@
 
 import { Suspense } from 'react';
 import { format } from 'date-fns';
-import { Combobox, CustomDatePickerField } from '@archmage/ui';
+import { Combobox, CustomDatePickerField, Label } from '@archmage/ui';
 import { FilterWrapper } from '@/app/(dashboard)/filter-wrapper';
 import type { RosterFilterOption } from '@/types/roster';
 
@@ -71,56 +71,79 @@ function SectionDutyFiltersInner({
       >
         {({ values, setValue }) => (
           <div className="grid w-full gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
-            <Combobox
-              label="Department"
-              options={departmentOptions}
-              value={values.department ?? ''}
-              defaultValue=""
-              onChange={(value) => setValue('department', value)}
-              clearable
-              triggerClassName="self-end"
-            />
-            <Combobox
-              label="Unit"
-              options={unitOptions}
-              value={values.unit ?? ''}
-              defaultValue=""
-              onChange={(value) => setValue('unit', value)}
-              clearable
-              triggerClassName="self-end"
-            />
-            <CustomDatePickerField
-              id="dutyFilterDate"
-              placeholder="Date"
-              value={parseLocalDate(values.dutyDate)}
-              onChange={(value) => setValue('dutyDate', toLocalDateIso(value))}
-              onBlur={() => undefined}
-              required={false}
-              useFormikError={false}
-              styleClasses={{
-                parentDiv: 'grid grid-cols-1 gap-2 items-start',
-                labelClassName: 'text-xs uppercase text-muted-foreground',
-                inputClassName: 'w-full'
-              }}
-            />
-            <Combobox
-              label="Shift"
-              options={shiftOptions}
-              value={values.shiftTypeId ?? ''}
-              defaultValue=""
-              onChange={(value) => setValue('shiftTypeId', value)}
-              clearable
-              triggerClassName="self-end"
-            />
-            <Combobox
-              label="Roster"
-              options={rosterOptions}
-              value={values.roster ?? ''}
-              defaultValue=""
-              onChange={(value) => setValue('roster', value)}
-              clearable
-              triggerClassName="self-end"
-            />
+            <div className="space-y-2">
+              <Label className="text-xs uppercase text-muted-foreground">
+                Select Department
+              </Label>
+              <Combobox
+                label="Department"
+                options={departmentOptions}
+                value={values.department ?? ''}
+                defaultValue=""
+                onChange={(value) => setValue('department', value)}
+                clearable
+              />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-xs uppercase text-muted-foreground">
+                Select Unit
+              </Label>
+              <Combobox
+                label="Unit"
+                options={unitOptions}
+                value={values.unit ?? ''}
+                defaultValue=""
+                onChange={(value) => setValue('unit', value)}
+                clearable
+              />
+            </div>
+            <div>
+              <Label
+                htmlFor="dutyFilterDate"
+                className="text-xs uppercase text-muted-foreground"
+              >
+                Select Date
+              </Label>
+              <CustomDatePickerField
+                id="dutyFilterDate"
+                placeholder=""
+                value={parseLocalDate(values.dutyDate)}
+                onChange={(value) => setValue('dutyDate', toLocalDateIso(value))}
+                onBlur={() => undefined}
+                required={false}
+                useFormikError={false}
+                styleClasses={{
+                  parentDiv: 'grid grid-cols-1 items-start',
+                  inputClassName: 'w-full'
+                }}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-xs uppercase text-muted-foreground">
+                Select Shift
+              </Label>
+              <Combobox
+                label="Shift"
+                options={shiftOptions}
+                value={values.shiftTypeId ?? ''}
+                defaultValue=""
+                onChange={(value) => setValue('shiftTypeId', value)}
+                clearable
+              />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-xs uppercase text-muted-foreground">
+                Select Roster
+              </Label>
+              <Combobox
+                label="Roster"
+                options={rosterOptions}
+                value={values.roster ?? ''}
+                defaultValue=""
+                onChange={(value) => setValue('roster', value)}
+                clearable
+              />
+            </div>
           </div>
         )}
       </FilterWrapper>
