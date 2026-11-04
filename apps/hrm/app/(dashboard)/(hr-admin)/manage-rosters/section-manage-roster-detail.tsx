@@ -4,8 +4,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Form, Formik, type FormikHelpers } from 'formik';
 import * as Yup from 'yup';
-import { format } from 'date-fns';
 import { SaveIcon, Sparkles, Trash2, X } from 'lucide-react';
+import { formatAuditLine } from '@/lib/helpers/format-audit-line.helper';
 import {
   Button,
   Combobox,
@@ -59,14 +59,6 @@ const validationSchema = Yup.object({
     .required('Roster code is required')
     .max(12, 'Must be 12 characters or less')
 });
-
-function formatAuditLine(name?: string, role?: string, at?: string | null): string {
-  if (!name || !at) return '—';
-  const date = new Date(at);
-  if (Number.isNaN(date.getTime())) return '—';
-  const namePart = role ? `${name} (${role})` : name;
-  return `${namePart} · ${format(date, 'd MMM yyyy')} · ${format(date, 'HH:mm')}`;
-}
 
 function applyFieldErrors(
   helpers: FormikHelpers<ManageRosterFormValues>,

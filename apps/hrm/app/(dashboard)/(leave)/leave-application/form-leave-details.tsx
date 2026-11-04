@@ -30,6 +30,8 @@ import {
 import { Progress } from '@/components/ui/progress';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { usePermissions } from '@/components/hooks/use-permissions';
+import { cn } from '@/lib/utils';
+import { buttonStyles } from '@/lib/utils/common-styles';
 import {
   createLeaveApplicationAction,
   deleteLeaveApplicationAction,
@@ -37,6 +39,7 @@ import {
   updateLeaveApplicationAction
 } from '@/app/actions/leave-actions/leave-application.actions';
 import { getLeaveEntitlementBalanceAction } from '@/app/actions/leave-actions/leave-entitlement.actions';
+import { formatAuditLine } from '@/lib/helpers/format-audit-line.helper';
 import {
   computeLeaveApplicationDays,
   formatHalfDaySessionLabel
@@ -45,10 +48,11 @@ import {
   leaveApplicationFormValuesToPayload,
   leaveApplicationRecordToFormValues
 } from '@/lib/mappers/leave-application-form.mapper';
-import type {
-  LeaveApplicationFormValues,
-  LeaveApplicationRecord,
-  LeaveApplicationShiftRow
+import {
+  LEAVE_HALF_DAY_SESSION_OPTIONS,
+  type LeaveApplicationFormValues,
+  type LeaveApplicationRecord,
+  type LeaveApplicationShiftRow
 } from '@/types/leave';
 
 export type LeaveTypeFormOption = {
@@ -96,11 +100,6 @@ const fieldStyleClasses = {
   labelClassName: 'text-sm text-black font-semibold capitalize',
   inputClassName: 'w-full'
 };
-
-const HALF_DAY_SESSION_OPTIONS = [
-  { id: 'AM', name: 'Morning' },
-  { id: 'PM', name: 'Afternoon' }
-];
 
 const emptyValues: LeaveApplicationFormValues = {
   formNumber: '',
@@ -185,21 +184,6 @@ function previewLeaveDays(values: LeaveApplicationFormValues, allowHalfDay: bool
   }
 
   return { days, label: String(days) };
-}
-
-function formatAuditLine(info?: AuditInfo | null): string {
-  if (!info?.name || !info.at) return '—';
-
-  const date = info.at instanceof Date ? info.at : new Date(info.at);
-  if (Number.isNaN(date.getTime())) return '—';
-
-  const namePart = info.position
-    ? `${info.name} (${info.position})`
-    : info.name;
-  const datePart = format(date, 'd MMM yyyy');
-  const timePart = format(date, 'HH:mm');
-
-  return `${namePart} · ${datePart} · ${timePart}`;
 }
 
 export default function FormLeaveDetails({
@@ -631,7 +615,7 @@ export default function FormLeaveDetails({
                         id="halfDaySession"
                         placeholder="Session"
                         label="Morning / Afternoon"
-                        options={HALF_DAY_SESSION_OPTIONS}
+                        options={[...LEAVE_HALF_DAY_SESSION_OPTIONS]}
                         value={formik.values.halfDaySession}
                         onChange={(value) =>
                           formik.setFieldValue('halfDaySession', value)
@@ -1008,7 +992,8 @@ export default function FormLeaveDetails({
                       <Button
                         type="button"
                         variant="outline"
-                        className="h-9 gap-1.5 border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                        size="sm"
+                        className={cn('gap-1.5', buttonStyles.delete.warning)}
                         disabled={loading || deleting}
                         onClick={() => setDeleteOpen(true)}
                       >
@@ -1095,6 +1080,9 @@ export default function FormLeaveDetails({
         title="Delete leave application?"
         description="This will permanently remove the selected leave application."
         handleContinue={handleDelete}
+        className={{
+          actionButton: buttonStyles.delete.danger
+        }}
       />
     </div>
   );

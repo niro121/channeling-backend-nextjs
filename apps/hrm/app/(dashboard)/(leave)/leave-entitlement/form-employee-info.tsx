@@ -4,7 +4,6 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Formik, Form, type FormikHelpers } from 'formik';
 import * as Yup from 'yup';
-import { format } from 'date-fns';
 import { SaveIcon, Trash2, XIcon } from 'lucide-react';
 import {
   Button,
@@ -23,6 +22,7 @@ import {
 } from '@archmage/ui';
 import { cn } from '@/lib/utils';
 import { buttonStyles } from '@/lib/utils/common-styles';
+import { formatAuditLine } from '@/lib/helpers/format-audit-line.helper';
 import {
   createLeaveEntitlementAction,
   deleteLeaveEntitlementAction,
@@ -96,21 +96,6 @@ const validationSchema = Yup.object({
     .oneOf([...LEAVE_ENTITLEMENT_STATUSES], 'Invalid status')
     .required('Status is required')
 });
-
-function formatAuditLine(info?: AuditInfo | null): string {
-  if (!info?.name || !info.at) return '—';
-
-  const date = info.at instanceof Date ? info.at : new Date(info.at);
-  if (Number.isNaN(date.getTime())) return '—';
-
-  const namePart = info.position
-    ? `${info.name} (${info.position})`
-    : info.name;
-  const datePart = format(date, 'do MMM yyyy');
-  const timePart = format(date, 'HH:mm');
-
-  return `${namePart} · ${datePart} · ${timePart}`;
-}
 
 export default function FormEmployeeInfo({
   employeeOptions = [],

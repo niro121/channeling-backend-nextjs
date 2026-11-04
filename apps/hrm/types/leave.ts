@@ -22,6 +22,11 @@ export type LeaveApplicationStatus = (typeof LEAVE_APPLICATION_STATUSES)[number]
 export const LEAVE_HALF_DAY_SESSIONS = ['AM', 'PM'] as const;
 export type LeaveHalfDaySession = (typeof LEAVE_HALF_DAY_SESSIONS)[number];
 
+export const LEAVE_HALF_DAY_SESSION_OPTIONS = [
+  { id: 'AM', name: 'Morning' },
+  { id: 'PM', name: 'Afternoon' }
+] as const;
+
 export type LeaveApplicationShiftRow = {
   shiftLabel: string;
   from: string | Date;
@@ -78,6 +83,11 @@ export type GetLeaveApplicationsParams = {
   dateSearchBy?: string;
   /** all | yes | no */
   outWithCancel?: string;
+};
+
+export type GetLeaveApplicationsReturn = {
+  data: LeaveApplicationRecord[];
+  totalRecords: number;
 };
 
 /** Client Formik values for leave application form. */

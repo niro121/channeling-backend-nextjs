@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { Form, Formik, type FormikHelpers } from 'formik';
 import * as Yup from 'yup';
-import { format, parseISO } from 'date-fns';
+import { parseISO } from 'date-fns';
 import { SaveIcon, Trash2 } from 'lucide-react';
 import {
   Button,
@@ -16,6 +16,7 @@ import {
   useToast
 } from '@archmage/ui';
 import { cn } from '@/lib/utils';
+import { formatAuditLine } from '@/lib/helpers/format-audit-line.helper';
 import { holidayTypeOptions } from '@/lib/helpers/holiday-type.helper';
 import {
   emptyHolidayFormValues,
@@ -42,18 +43,6 @@ const validationSchema = Yup.object({
   typeId: Yup.string().required('Day type is required'),
   date: Yup.date().nullable().required('Holiday date is required')
 });
-
-function formatAuditLine(
-  name?: string,
-  role?: string,
-  at?: string | null
-): string {
-  if (!name || !at) return '—';
-  const date = new Date(at);
-  if (Number.isNaN(date.getTime())) return '—';
-  const namePart = role ? `${name} (${role})` : name;
-  return `${namePart} · ${format(date, 'd MMM yyyy')} · ${format(date, 'HH:mm')}`;
-}
 
 const CALENDAR_FROM_YEAR = 2020;
 const CALENDAR_TO_YEAR = 2035;

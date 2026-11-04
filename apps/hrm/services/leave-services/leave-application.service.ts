@@ -20,7 +20,9 @@ import {
   computeEntitlementRemaining,
   LEAVE_HALF_DAY_SESSIONS,
   type GetLeaveApplicationsParams,
+  type GetLeaveApplicationsReturn,
   type LeaveApplicationPayload,
+  type LeaveApplicationRecord,
   type LeaveApplicationShiftRow
 } from '@/types/leave';
 
@@ -262,22 +264,37 @@ export async function getLeaveApplications(
   }
 }
 
-export async function getLeaveApplicationsForExport(
-  params: Omit<GetLeaveApplicationsParams, 'page' | 'limit'>
-): Promise<{
-  success: boolean;
-  data?: any[];
-  message?: string;
-  error?: { message?: string };
-}> {
+export async function getLeaveApplicationsForExport({
+  staffId,
+  leaveTypeId,
+  approverId,
+  fromDate,
+  toDate,
+  dateSearchBy,
+  outWithCancel
+}: {
+  staffId?: string;
+  leaveTypeId?: string;
+  approverId?: string;
+  fromDate?: string;
+  toDate?: string;
+  dateSearchBy?: string;
+  outWithCancel?: string;
+}): Promise<GetLeaveApplicationsReturn> {
   try {
-    const where = buildApplicationWhere(params);
-    const exportLimit =
-      Number.parseInt(process.env.EXPORT_LIMIT ?? '1000', 10) || 1000;
+    const where = buildApplicationWhere({
+      staffId,
+      leaveTypeId,
+      approverId,
+      fromDate,
+      toDate,
+      dateSearchBy,
+      outWithCancel
+    });
+
     const records = await prisma.leaveApplication.findMany({
       where,
       orderBy: [{ createdAt: 'desc' }],
-      take: exportLimit,
       include: {
         leaveType: {
           select: { id: true, name: true, code: true, allowHalfDay: true }
@@ -285,18 +302,19 @@ export async function getLeaveApplicationsForExport(
         staff: { select: { id: true, name: true, code: true } }
       }
     });
-    const withUsers = await resolveAuthUsers(records);
+
+    const recordsWithUsers = await resolveAuthUsers(records);
+    const data = recordsWithUsers.map(
+      mapApplicationRecord
+    ) as LeaveApplicationRecord[];
+
     return {
-      success: true,
-      data: withUsers.map(mapApplicationRecord),
-      message: 'Leave applications export fetched successfully'
+      data,
+      totalRecords: data.length
     };
-  } catch (error: any) {
-    console.error('getLeaveApplicationsForExport error:', error);
-    return {
-      success: false,
-      error: { message: error.message || 'Failed to export leave applications' }
-    };
+  } catch (error) {
+    console.error('getLeaveApplicationsForExport error', error);
+    throw new Error('Error getting data');
   }
 }
 
