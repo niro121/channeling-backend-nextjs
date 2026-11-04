@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Formik, Form, type FormikHelpers } from 'formik';
 import * as Yup from 'yup';
-import { SaveIcon, Trash2, XIcon } from 'lucide-react';
+import { RotateCcw, SaveIcon, Trash2, XIcon } from 'lucide-react';
 import {
   Button,
   Card,
@@ -407,6 +407,20 @@ export default function FormEmployeeInfo({
                         Delete
                       </Button>
                     ) : null}
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="gap-1.5"
+                      disabled={loading || deleting}
+                      onClick={() => {
+                        formik.resetForm({ values: emptyValues });
+                        onClearSelection?.();
+                      }}
+                    >
+                      <RotateCcw className="h-4 w-4" />
+                      Clear
+                    </Button>
                     {canSave ? (
                       <Button
                         type="submit"

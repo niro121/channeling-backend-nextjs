@@ -91,10 +91,13 @@ export async function getLeaveEntitlementByIdAction(id: string) {
   }
 }
 
-export async function getLeaveEntitlementBalanceAction(staffId: string) {
+export async function getLeaveEntitlementBalanceAction(
+  staffId: string,
+  range?: { fromDate?: Date | string | null; toDate?: Date | string | null }
+) {
   try {
     await requirePermission('leave-entitlement', 'view');
-    const result = await getLeaveEntitlementBalance(staffId);
+    const result = await getLeaveEntitlementBalance(staffId, range);
     if (!result.success) {
       throw new Error(result.error?.message ?? 'Failed to load leave balance');
     }
@@ -124,12 +127,12 @@ export async function createLeaveEntitlementAction(
     if (!result.success) {
       return {
         isError: true,
-        errors:
-          result.error?.issues ?? {
-            message:
-              result.error?.message ??
-              'Something went wrong. Please try again later'
-          },
+        errors: {
+          message:
+            result.error?.message ??
+            'Something went wrong. Please try again later',
+          ...(result.error?.issues ?? {})
+        },
         data: {}
       };
     }
@@ -179,12 +182,12 @@ export async function updateLeaveEntitlementAction(
     if (!result.success) {
       return {
         isError: true,
-        errors:
-          result.error?.issues ?? {
-            message:
-              result.error?.message ??
-              'Something went wrong. Please try again later'
-          },
+        errors: {
+          message:
+            result.error?.message ??
+            'Something went wrong. Please try again later',
+          ...(result.error?.issues ?? {})
+        },
         data: {}
       };
     }

@@ -199,11 +199,21 @@ export type LeaveEntitlementPayload = {
   status?: LeaveEntitlementStatus | string;
 };
 
+export type LeaveEntitlementBalanceLeaveType = {
+  leaveTypeId: string;
+  leaveTypeName: string;
+  entitled: number;
+  used: number;
+  remaining: number;
+  carryForward: number;
+};
+
 export type LeaveEntitlementBalanceSummary = {
   totalEntitlement: number;
   used: number;
   remaining: number;
   carryForward: number;
+  leaveTypes: LeaveEntitlementBalanceLeaveType[];
   utilisations: { label: string; percent: number }[];
 };
 
