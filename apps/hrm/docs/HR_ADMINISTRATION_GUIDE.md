@@ -1228,6 +1228,7 @@ UI behaviour for Employment / Change Staff / Manage Rosters / Shift Assignment i
 | **INT-H6** | Case-insensitive roster-code matching for membership / counts / scope pickers | Staff + Roster + Manage Rosters | Should | **Done** |
 | **INT-H7** | Overlap ignores `inactive` standing rows; `active` + `pending` still block | Shift Assignment | Should | **Done** |
 | **INT-R4** | Enforce `shiftsPerPersonPerDay` on allocate / fill / publish (full calendar day); not on standing-assignment create | Roster calendars (R8) | Later | Upcoming |
+| **INT-L2** | Leave soft-warn + Continue on allocate / fill / publish when staff has leave that calendar day; not on standing Shift Assignment | Roster calendars + Leave | Later | Product locked |
 | **INT-H8** | Overlap / in-use check-then-write races (unique constraint or tighter transactional pattern if Mongo allows) | Shift Assignment / Manage Rosters | Later | TODO |
 | **INT-H9** | Staff delete guards when standing assignments / allocations exist | Staff | Later | TODO |
 
@@ -1241,6 +1242,7 @@ UI behaviour for Employment / Change Staff / Manage Rosters / Shift Assignment i
 - [x] **INT-H6** — Case-insensitive roster code lookups
 - [x] **INT-H7** — Overlap ignores `inactive`; `active`/`pending` still block
 - [ ] **INT-R4 / R8** — Day-limit on allocate / publish
+- [ ] **INT-L2** — Leave soft-warn + Continue on allocate / fill / publish (not standing assignment)
 - [ ] **INT-H8** — Concurrent overlap / in-use races
 - [ ] **INT-H9** — Staff delete guards
 
@@ -1253,6 +1255,7 @@ UI behaviour for Employment / Change Staff / Manage Rosters / Shift Assignment i
 | ID         | Work                                                                    | Depends on                | Status   |
 | ---------- | ----------------------------------------------------------------------- | ------------------------- | -------- |
 | **INT-L1** | Leave day counting skips `HolidayCalendar` dates where product requires | Holiday Calendar          | Deferred |
+| **INT-L2** | Roster calendar allocate / fill / publish: if staff has approved (optionally pending) leave on that **calendar day** → **soft warn + Continue** (not hard block). Do **not** apply to standing Shift Assignment create. Prefer same wave as INT-R4. | Roster & Shifts + Leave | **Later** (product locked Nov 2026) |
 | **INT-P1** | Payroll / PH allowance consumes holiday + salary masters                | Salary Cycle / Structures | Future   |
 
 
@@ -1784,4 +1787,4 @@ Server re-checks hard blocks on apply; soft warns require `acknowledgedWarnings:
 
 ---
 
-*Last updated: Nov 2026 — INT-H1–H7 done; remaining INT-R4 / INT-H8–H9 in §32.*
+*Last updated: Nov 2026 — INT-H1–H7 done; remaining INT-R4 / INT-L2 (leave soft-warn) / INT-H8–H9 in §32.*

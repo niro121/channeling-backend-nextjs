@@ -391,6 +391,6 @@ See **Phase 8**. Summary:
 
 - `apps/hrm/docs/HRM_DEVELOPMENT_GUIDELINES.md` — architecture, Staff reference, workflow
 - `apps/hrm/docs/OVERTIME_MANAGER_GUIDE.md` — UI-first shell, then dynamic phases
-- `apps/hrm/docs/ROSTER_SHIFTS_MANAGER_GUIDE.md` — Shift Roster; leave overlap stays independent in v1
+- `apps/hrm/docs/ROSTER_SHIFTS_MANAGER_GUIDE.md` — Shift Roster; cell `isLeave` ≠ Leave Application. **INT-L2 (later):** allocate / fill / publish soft-warns when staff has leave on that calendar day (Continue allowed); standing Shift Assignment is not leave-blocked. See also `HR_ADMINISTRATION_GUIDE.md` §32.
 - `apps/hrm/docs/PERMISSION_FLOW.md` — route/resource gating and Auth grants
 - `apps/hrm/prisma/schema.prisma` — source of truth for leave collections

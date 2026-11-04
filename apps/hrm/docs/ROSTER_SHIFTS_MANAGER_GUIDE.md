@@ -150,6 +150,7 @@ Manage Rosters (CHN)
 | **INT-R3** | Load roster filter / create-period options from `ManageRoster` | **Done (R7)** |
 | **INT-R3b** | New period + allocation snapshots write roster **code** | Keep string field; dual-read legacy during transition |
 | **INT-R4** | Enforce `shiftsPerPersonPerDay` on allocate / fill / publish (full **calendar day**) | **Upcoming (R8)** — not on standing-assignment create |
+| **INT-L2** | Leave Application overlap on calendar allocate / fill / publish — **soft warn + Continue** (not hard block); not on standing Shift Assignment create | **Later** — with INT-R4 wave |
 | **INT-H2** | Server assert: assigned staff’s `employment.roster` = selected Manage Roster **code** (create / bulk / update) | **Done** |
 | **INT-H3** | Legacy null `manageRosterId` — backfill + include in Manage Rosters in-use | **Done** (HR Admin) |
 | **INT-H5** | Reject inactive shift types on assignment create/update | **Done** |
@@ -500,6 +501,7 @@ Fields: Roster Group* (Manage Rosters FK — context card: name, code, departmen
 | FK | Create always sets `manageRosterId`; update must keep a resolved roster (legacy null rows backfilled via employment code when edited) |
 | Overlap | Reject only **same staff + same shift type** with overlapping effective date ranges among `active`/`pending` rows (cross-type allowed; `inactive` ignored — INT-H7) |
 | Day limit | Context card shows `shiftsPerPersonPerDay`; **do not** hard-block standing-rule create for INT-R4 — enforce on allocate / fill / publish later |
+| Leave Application | **Do not** hard-block standing Shift Assignment for leave. Calendar-day allocate / fill / publish later: soft warn + Continue if approved (and optionally pending) leave overlaps that date (**INT-L2**) |
 | Delete | Removes standing rule only; does **not** cascade-delete calendar cells |
 | Shift Types | Templates only; delete blocked when assignments / allocations / amendments reference the type |
 
@@ -1620,12 +1622,13 @@ Auto Assign that **creates week cells** waits for D5.
 | Drag-and-drop persist | Same upsert as D5 when product is ready |
 | Create Fixed Roster templates | Separate collection when specified |
 | Overtime Process Staff Shift | Replace OT sample fill with roster **read** (after D4+) |
-| Leave overlap | Tick Leave vs real `LeaveApplication` — keep independent in v1 |
+| Leave overlap (**INT-L2**) | **Locked for later:** on allocate / fill / publish (staff × **calendar day**), if approved (optionally pending) `LeaveApplication` overlaps that day → **soft warn + Continue** (`acknowledgedWarnings`). Do **not** hard-block standing Shift Assignment create. Cell `isLeave` tick stays independent of Leave Application. Same wave as INT-R4 preferred. |
 | RFID / attendance engine | See `STAFF_ATTENDANCE_ARCHITECTURE.md`; enum on the cell is enough for D7; confirm sync is HR-gated |
 | Real Holiday Date master | **Done** — HR Administration `/holiday-calendar`; keep Roster as read consumer |
 | Department / Unit / Designation / Grade masters | Tracked in `HR_ADMINISTRATION_GUIDE.md` §31–32 |
 | **Manage Rosters integration (INT-R3 / R7)** | **Done** — Shift + Duty roster filters from Manage Rosters **codes** (+ legacy dual-read); see **§1.1** |
-| Enforce `shiftsPerPersonPerDay` (INT-R4 / R8) | **Upcoming** after INT-R3 |
+| Enforce `shiftsPerPersonPerDay` (INT-R4 / R8) | **Upcoming** — calendar allocate / fill / publish |
+| Leave vs allocate soft warn (INT-L2) | **Upcoming** — prefer with INT-R4; warn + Continue only |
 | Staff employment roster value | String field stays; upcoming value = Manage Roster **code** (Staff R6 / INT-S3) — not ObjectId, not a Prisma FK |
 | HR Admin Manage Shifts | **Not required** for current system; deferred — `HR_ADMINISTRATION_GUIDE.md` §34. Keep `/shift-types` as template master until Option A/B is locked |
 | If Manage Shifts (A/B) ships later | Shared roster-scoped option loaders; deprecate dual editors; Assignment / Duty / grids / Night / Overnight / PH follow §34 follow-up table |
@@ -1694,8 +1697,9 @@ Canonical table: `HR_ADMINISTRATION_GUIDE.md` §32 (**INT-H***). Roster & Shifts
 - [x] **INT-H5** (Should) — reject inactive shift types on create/update
 - [x] **INT-H6** (Should) — case-insensitive roster-code membership in getShiftAssignmentRosterScope (and peer lookups)
 - [x] **INT-H7** (Should) — overlap ignores inactive; ctive/pending still block
-- [ ] **INT-R4 / R8** (Later) — enforce `shiftsPerPersonPerDay` on allocate / fill / publish (full calendar day)
-- [ ] **INT-H8** (Later) — overlap TOCTOU / unique compound protection if concurrent creates become an issue
-- [ ] **INT-H9** (Later) — staff delete guards for standing assignments / allocations
-
-*Last updated: Nov 2026 — INT-H2 / H5–H7 done; remaining Later INT-R4 / H8–H9 in §10 / HR Admin §32.* / INT-R4 in §10 / HR Admin §32.*
+- [ ] **INT-R4 / R8** (Later) — enforce shiftsPerPersonPerDay on allocate / fill / publish (full calendar day)
+- [ ] **INT-L2** (Later) — allocate / fill / publish: soft warn + Continue when staff has leave on that calendar day (not on standing Shift Assignment)
+- [ ] **INT-H8** (Later) — overlap TOCTOU / unique compound protection if concurrent creates become an issue
+- [ ] **INT-H9** (Later) — staff delete guards for standing assignments / allocations
+
+*Last updated: Nov 2026 — INT-H2 / H5–H7 done; later INT-R4 / INT-L2 (leave soft-warn) / H8–H9 in §10 / HR Admin §32.*
