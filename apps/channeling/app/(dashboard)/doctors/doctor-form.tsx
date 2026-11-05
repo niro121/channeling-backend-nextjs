@@ -115,8 +115,12 @@ export default function DoctorForm({
       .optional(),
     mobile: Yup.string()
       .transform((v) => (typeof v === 'string' ? v.trim().replace(/\s/g, '') : v))
-      .required('Mobile number is required')
-      .matches(sriLankaMobileRegex, 'Mobile Number Ex: 07x xxxxxxx'),
+      .matches(sriLankaMobileRegex, {
+        message: 'Mobile Number Ex: 07x xxxxxxx',
+        excludeEmptyString: true
+      })
+      .nullable()
+      .optional(),
     registrationNumber: Yup.string().trim().nullable().optional(),
     tinNumber: Yup.string().trim().nullable().optional(),
     nic: Yup.string().trim().nullable().optional(),
@@ -394,7 +398,7 @@ export default function DoctorForm({
 
               <div className={styleClasses.parentDiv}>
                 <Label htmlFor="mobile" className={styleClasses.labelClassName}>
-                  Mobile <span className="text-destructive">*</span>
+                  Mobile
                 </Label>
                 <div className={styleClasses.inputClassName}>
                   <Input
