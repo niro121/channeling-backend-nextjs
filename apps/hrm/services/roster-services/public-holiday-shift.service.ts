@@ -107,7 +107,8 @@ const holidayShiftPayloadSchema = z.object({
   grantLieuLeave: z.boolean().optional().default(false),
   sendToPayroll: z.boolean().optional().default(false),
   status: z.string().optional().default('pending_approval'),
-  remarks: z.string().max(500).optional().nullable()
+  remarks: z.string().max(500).optional().nullable(),
+  acknowledgedWarnings: z.boolean().optional()
 });
 
 function toIsoString(value: Date | string | null | undefined): string {
@@ -615,7 +616,12 @@ export async function createPublicHolidayShift(
 ): Promise<{
   success: boolean;
   data?: PublicHolidayShiftRecord;
-  error?: { message?: string; issues?: Record<string, string[]> };
+  error?: {
+    message?: string;
+    issues?: Record<string, string[]>;
+    softWarnings?: string[];
+    requiresAck?: boolean;
+  };
 }> {
   try {
     const parsed = holidayShiftPayloadSchema.safeParse(payload);
@@ -691,7 +697,8 @@ export async function createPublicHolidayShift(
         department: snapshot.department,
         unit: snapshot.unit,
         roster: snapshot.roster,
-        comments: data.remarks?.trim() ?? ''
+        comments: data.remarks?.trim() ?? '',
+        acknowledgedWarnings: data.acknowledgedWarnings
       },
       user
     );
@@ -701,7 +708,9 @@ export async function createPublicHolidayShift(
         success: false,
         error: {
           message: draftResult.error?.message ?? 'Could not create holiday shift allocation',
-          issues: draftResult.error?.issues
+          issues: draftResult.error?.issues,
+          softWarnings: draftResult.error?.softWarnings,
+          requiresAck: draftResult.error?.requiresAck
         }
       };
     }
@@ -739,7 +748,12 @@ export async function updatePublicHolidayShift(
 ): Promise<{
   success: boolean;
   data?: PublicHolidayShiftRecord;
-  error?: { message?: string; issues?: Record<string, string[]> };
+  error?: {
+    message?: string;
+    issues?: Record<string, string[]>;
+    softWarnings?: string[];
+    requiresAck?: boolean;
+  };
 }> {
   try {
     const parsed = holidayShiftPayloadSchema.safeParse(payload);
@@ -825,7 +839,8 @@ export async function updatePublicHolidayShift(
           department: snapshot.department,
           unit: snapshot.unit,
           roster: snapshot.roster,
-          comments: data.remarks?.trim() ?? ''
+          comments: data.remarks?.trim() ?? '',
+          acknowledgedWarnings: data.acknowledgedWarnings
         },
         user
       );
@@ -834,7 +849,9 @@ export async function updatePublicHolidayShift(
           success: false,
           error: {
             message: draftResult.error?.message ?? 'Could not update holiday shift allocation',
-            issues: draftResult.error?.issues
+            issues: draftResult.error?.issues,
+            softWarnings: draftResult.error?.softWarnings,
+            requiresAck: draftResult.error?.requiresAck
           }
         };
       }

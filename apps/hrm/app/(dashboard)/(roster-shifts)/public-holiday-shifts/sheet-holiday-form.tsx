@@ -1,12 +1,13 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Form, Formik, type FormikProps } from 'formik';
+import { Form, Formik, type FormikHelpers, type FormikProps } from 'formik';
 import * as Yup from 'yup';
 import { format, parseISO } from 'date-fns';
 import { X } from 'lucide-react';
 import {
   Button,
+  CustomAlertDialog,
   CustomFormField,
   CustomSelectField,
   Label,
@@ -166,6 +167,13 @@ export default function SheetHolidayForm({
 }: SheetHolidayFormProps) {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [confirmDescription, setConfirmDescription] = useState('');
+  const pendingAckRef = useRef(false);
+  const pendingSubmitRef = useRef<{
+    values: HolidayFormValues;
+    helpers: FormikHelpers<HolidayFormValues>;
+  } | null>(null);
   const copy = sheetCopy(mode);
   const isBulk = mode === 'bulk';
   const showStaff = mode !== 'bulk';
@@ -205,7 +213,75 @@ export default function SheetHolidayForm({
     return emptyValues();
   }, [isEdit, record]);
 
+  const persistHoliday = async (values: HolidayFormValues) => {
+    setLoading(true);
+    try {
+      const payload = holidayFormValuesToPayload(values, {
+        acknowledgedWarnings: pendingAckRef.current
+      });
+      const result =
+        isEdit && record
+          ? await updatePublicHolidayShiftAction(record.id, payload)
+          : await createPublicHolidayShiftAction(payload);
+
+      if (result.isError) {
+        const errorMap = result.errors as Record<
+          string,
+          string | string[] | boolean | undefined
+        >;
+        if (errorMap.requiresAck) {
+          const softWarnings = Array.isArray(errorMap.softWarnings)
+            ? errorMap.softWarnings.filter(
+                (item): item is string => typeof item === 'string'
+              )
+            : [];
+          pendingSubmitRef.current = {
+            values,
+            helpers: {} as FormikHelpers<HolidayFormValues>
+          };
+          setConfirmDescription(
+            softWarnings.join(' ') ||
+              (typeof errorMap.message === 'string'
+                ? errorMap.message
+                : 'This staff member has leave on that holiday date. Continue anyway?')
+          );
+          setConfirmOpen(true);
+          return;
+        }
+
+        toast({
+          variant: 'destructive',
+          title: 'Error',
+          description:
+            (typeof errorMap.message === 'string'
+              ? errorMap.message
+              : undefined) || 'Holiday shift save unsuccessful.'
+        });
+        return;
+      }
+
+      pendingAckRef.current = false;
+      toast({
+        variant: 'success',
+        title: 'Success',
+        description: isEdit
+          ? 'Holiday shift was updated successfully'
+          : 'Holiday shift was created successfully'
+      });
+      onSaved();
+    } catch (err: any) {
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: err.message || 'Holiday shift save unsuccessful.'
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
+    <>
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
         side="right"
@@ -221,41 +297,8 @@ export default function SheetHolidayForm({
           enableReinitialize
           validationSchema={validationSchema}
           onSubmit={async (values) => {
-            setLoading(true);
-            try {
-              const payload = holidayFormValuesToPayload(values);
-              const result = isEdit && record
-                ? await updatePublicHolidayShiftAction(record.id, payload)
-                : await createPublicHolidayShiftAction(payload);
-
-              if (result.isError) {
-                toast({
-                  variant: 'destructive',
-                  title: 'Error',
-                  description:
-                    result.errors?.message || 'Holiday shift save unsuccessful.'
-                });
-                return;
-              }
-
-              toast({
-                variant: 'success',
-                title: 'Success',
-                description: isEdit
-                  ? 'Holiday shift was updated successfully'
-                  : 'Holiday shift was created successfully'
-              });
-              onSaved();
-            } catch (err: any) {
-              toast({
-                variant: 'destructive',
-                title: 'Error',
-                description:
-                  err.message || 'Holiday shift save unsuccessful.'
-              });
-            } finally {
-              setLoading(false);
-            }
+            pendingAckRef.current = false;
+            await persistHoliday(values);
           }}
         >
           {(formik) => (
@@ -583,5 +626,31 @@ export default function SheetHolidayForm({
         </Formik>
       </SheetContent>
     </Sheet>
+
+    <CustomAlertDialog
+      open={confirmOpen}
+      title="Staff has leave on this date"
+      description={confirmDescription}
+      loading={loading}
+      handleVisibilityChange={(nextOpen) => {
+        if (!nextOpen) {
+          pendingSubmitRef.current = null;
+          pendingAckRef.current = false;
+        }
+        setConfirmOpen(nextOpen);
+      }}
+      handleContinue={async () => {
+        const pending = pendingSubmitRef.current;
+        if (!pending) {
+          setConfirmOpen(false);
+          return;
+        }
+        pendingAckRef.current = true;
+        setConfirmOpen(false);
+        await persistHoliday(pending.values);
+        pendingSubmitRef.current = null;
+      }}
+    />
+    </>
   );
 }

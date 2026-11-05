@@ -46,7 +46,8 @@ export function holidayRecordToFormValues(
 }
 
 export function holidayFormValuesToPayload(
-  values: HolidayFormValues
+  values: HolidayFormValues,
+  options?: { acknowledgedWarnings?: boolean }
 ): PublicHolidayShiftPayload {
   return {
     holidayId: values.holidayId,
@@ -59,7 +60,10 @@ export function holidayFormValuesToPayload(
     grantLieuLeave: values.grantLieuLeave,
     sendToPayroll: values.sendToPayroll,
     status: values.status,
-    remarks: values.remarks || null
+    remarks: values.remarks || null,
+    ...(options?.acknowledgedWarnings
+      ? { acknowledgedWarnings: true }
+      : {})
   };
 }
 

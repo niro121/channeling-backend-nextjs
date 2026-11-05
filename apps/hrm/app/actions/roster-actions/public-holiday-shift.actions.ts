@@ -164,7 +164,11 @@ export async function createPublicHolidayShiftAction(
         data: null,
         errors: {
           message: result.error?.message ?? 'Could not save holiday shift',
-          ...(result.error?.issues ?? {})
+          ...(result.error?.issues ?? {}),
+          ...(result.error?.softWarnings
+            ? { softWarnings: result.error.softWarnings }
+            : {}),
+          ...(result.error?.requiresAck ? { requiresAck: true } : {})
         }
       };
     }
@@ -209,7 +213,11 @@ export async function updatePublicHolidayShiftAction(
         data: null,
         errors: {
           message: result.error?.message ?? 'Could not update holiday shift',
-          ...(result.error?.issues ?? {})
+          ...(result.error?.issues ?? {}),
+          ...(result.error?.softWarnings
+            ? { softWarnings: result.error.softWarnings }
+            : {}),
+          ...(result.error?.requiresAck ? { requiresAck: true } : {})
         }
       };
     }
