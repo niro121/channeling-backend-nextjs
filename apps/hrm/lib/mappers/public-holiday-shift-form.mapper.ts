@@ -13,7 +13,7 @@ export type HolidayFormValues = {
   workedHours: string;
   payRate: string;
   holidayAllowance: string;
-  dutyLocation: string;
+  dutyLocationDepartmentId: string;
   status: string;
   grantLieuLeave: boolean;
   sendToPayroll: boolean;
@@ -37,7 +37,7 @@ export function holidayRecordToFormValues(
     workedHours: record.workedHours.toFixed(2),
     payRate: record.payRate,
     holidayAllowance: record.holidayAllowance.toFixed(2).replace(/,/g, ''),
-    dutyLocation: record.dutyLocation,
+    dutyLocationDepartmentId: record.dutyLocationDepartmentId,
     status: record.status,
     grantLieuLeave: record.lieuLeave,
     sendToPayroll: record.sendToPayroll,
@@ -52,11 +52,10 @@ export function holidayFormValuesToPayload(
     holidayId: values.holidayId,
     staffId: values.staffId,
     shiftTypeId: values.shiftId,
-    dutyDate: values.dutyDate ?? '',
     workedHours: parseNumber(values.workedHours),
     payRate: values.payRate,
     holidayAllowance: parseNumber(values.holidayAllowance),
-    dutyLocation: values.dutyLocation || null,
+    dutyLocationDepartmentId: values.dutyLocationDepartmentId || null,
     grantLieuLeave: values.grantLieuLeave,
     sendToPayroll: values.sendToPayroll,
     status: values.status,

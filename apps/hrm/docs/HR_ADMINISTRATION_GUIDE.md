@@ -162,7 +162,7 @@ model HolidayCalendar {
 | ------------- | -------------------------------------------------------------------------------------------------------------------------- |
 | `code`        | Auto-generated via `generateRecordCode('HOL')` ? `HOL-1`, `HOL-2`, ? (`HOLIDAY_CALENDAR_CODE_PREFIX` in `types/roster.ts`) |
 | `name`        | Display name (e.g. *Nikini Full Moon Poya Day*, *Christmas Day*)                                                           |
-| `typeId`      | One of `poya`, `mercantile`, `public` (`HOLIDAY_TYPES` in `types/roster.ts`)                                               |
+| `typeId`      | One of `poya`, `mercantile`, `public` (`HOLIDAY_TYPES` in `types/holiday-calendar.ts`)                                    |
 | `date`        | **Calendar date** (store as UTC midnight or normalized local date ? match existing roster date helpers)                    |
 | `allocations` | Reverse relation: `RosterAllocation.holidayId` ? this record                                                               |
 
@@ -195,7 +195,7 @@ model HolidayCalendar {
 
 ## 4. Holiday types
 
-Defined in `apps/hrm/types/roster.ts`:
+Defined in `apps/hrm/types/holiday-calendar.ts`:
 
 ```ts
 export const HOLIDAY_TYPES = ['poya', 'mercantile', 'public'] as const;
@@ -209,7 +209,7 @@ export const HOLIDAY_TYPES = ['poya', 'mercantile', 'public'] as const;
 | `public`     | Public     | National / institutional public holidays |
 
 
-Display labels today live in `public-holiday-shift.service.ts` (`HOLIDAY_TYPE_LABELS`). When building Holiday Calendar, **move labels to a shared helper** (e.g. `lib/helpers/holiday-type.helper.ts`) so Roster and HR Admin stay in sync.
+Display labels live in `lib/helpers/holiday-type.helper.ts` (`HOLIDAY_TYPE_LABELS`) so Holiday Calendar and Public Holiday Shifts stay in sync.
 
 ---
 

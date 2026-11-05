@@ -3,11 +3,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Form, Formik, type FormikProps } from 'formik';
 import * as Yup from 'yup';
-import { parseISO } from 'date-fns';
+import { format, parseISO } from 'date-fns';
 import { X } from 'lucide-react';
 import {
   Button,
-  CustomDatePickerField,
   CustomFormField,
   CustomSelectField,
   Label,
@@ -30,11 +29,13 @@ import {
   createPublicHolidayShiftAction,
   updatePublicHolidayShiftAction
 } from '@/app/actions/roster-actions/public-holiday-shift.actions';
-import type {
-  PublicHolidayShiftFormOptions,
-  PublicHolidayShiftRecord
+import {
+  DEFAULT_HOLIDAY_PAY_RATE,
+  type PublicHolidayShiftFormOptions,
+  type PublicHolidayShiftRecord
 } from '@/types/roster';
 import type { PublicHolidayFormSheetMode } from './public-holiday-shifts-ui-context';
+import { buttonStyles } from '@/lib/utils/common-styles';
 
 type SheetHolidayFormProps = {
   open: boolean;
@@ -60,9 +61,9 @@ function emptyValues(): HolidayFormValues {
     shiftId: '',
     dutyDate: null,
     workedHours: '',
-    payRate: '2.00',
+    payRate: DEFAULT_HOLIDAY_PAY_RATE,
     holidayAllowance: '',
-    dutyLocation: '',
+    dutyLocationDepartmentId: '',
     status: 'pending_approval',
     grantLieuLeave: false,
     sendToPayroll: false,
@@ -126,7 +127,7 @@ function AutoStaffLocation({
     prev.current = staffId;
     const found = staff.find((s) => s.id === staffId);
     if (!found) return;
-    void setFieldValue('dutyLocation', found.dutyLocation);
+    void setFieldValue('dutyLocationDepartmentId', found.departmentId);
   }, [setFieldValue, staffId, staff]);
   return null;
 }
@@ -174,7 +175,7 @@ export default function SheetHolidayForm({
   const holidayTypes = formOptions?.holidayTypes ?? [];
   const shifts = formOptions?.shifts ?? [];
   const staffList = formOptions?.staff ?? [];
-  const locations = formOptions?.locations ?? [];
+  const departments = formOptions?.departments ?? [];
   const payRates = formOptions?.payRates ?? [];
   const statuses = formOptions?.statuses ?? [];
 
@@ -229,22 +230,28 @@ export default function SheetHolidayForm({
 
               if (result.isError) {
                 toast({
+                  variant: 'destructive',
                   title: 'Error',
-                  description: result.errors?.message || 'Save failed',
-                  variant: 'destructive'
+                  description:
+                    result.errors?.message || 'Holiday shift save unsuccessful.'
                 });
                 return;
               }
 
               toast({
-                title: isEdit ? 'Holiday shift updated' : 'Holiday shift created'
+                variant: 'success',
+                title: 'Success',
+                description: isEdit
+                  ? 'Holiday shift was updated successfully'
+                  : 'Holiday shift was created successfully'
               });
               onSaved();
             } catch (err: any) {
               toast({
+                variant: 'destructive',
                 title: 'Error',
-                description: err.message || 'Unexpected error',
-                variant: 'destructive'
+                description:
+                  err.message || 'Holiday shift save unsuccessful.'
               });
             } finally {
               setLoading(false);
@@ -293,17 +300,46 @@ export default function SheetHolidayForm({
                       styleClasses={fieldStyleClasses}
                     />
                   </div>
-                  <CustomSelectField
-                    id="holidayTypeId"
-                    placeholder="Holiday Type"
-                    value={formik.values.holidayTypeId}
-                    onChange={(value) =>
-                      formik.setFieldValue('holidayTypeId', value)
-                    }
-                    required
-                    options={holidayTypes}
-                    styleClasses={fieldStyleClasses}
-                  />
+                  <div className={fieldStyleClasses.parentDiv}>
+                    <Label
+                      htmlFor="holidayTypeId"
+                      className={fieldStyleClasses.labelClassName}
+                    >
+                      Holiday Type
+                    </Label>
+                    <div
+                      id="holidayTypeId"
+                      className="rounded-lg border border-border bg-muted/40 px-3 py-2.5 text-sm text-foreground"
+                    >
+                      {holidayTypes.find(
+                        (t) => t.id === formik.values.holidayTypeId
+                      )?.name || (
+                        <span className="text-muted-foreground">
+                          Select a holiday to see its type
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div className={fieldStyleClasses.parentDiv}>
+                    <Label
+                      htmlFor="dutyDate"
+                      className={fieldStyleClasses.labelClassName}
+                    >
+                      Duty Date
+                    </Label>
+                    <div
+                      id="dutyDate"
+                      className="rounded-lg border border-border bg-muted/40 px-3 py-2.5 text-sm text-foreground"
+                    >
+                      {formik.values.dutyDate ? (
+                        format(formik.values.dutyDate, 'MMMM do, yyyy')
+                      ) : (
+                        <span className="text-muted-foreground">
+                          Select a holiday to see its date
+                        </span>
+                      )}
+                    </div>
+                  </div>
                   {showStaff ? (
                     <CustomSelectField
                       id="staffId"
@@ -328,17 +364,81 @@ export default function SheetHolidayForm({
                     options={shifts}
                     styleClasses={fieldStyleClasses}
                   />
-                  <CustomDatePickerField
-                    id="dutyDate"
-                    placeholder="Duty Date"
-                    value={formik.values.dutyDate}
-                    onChange={(value) =>
-                      formik.setFieldValue('dutyDate', value ?? null)
+                  {(() => {
+                    const selectedStaff = staffList.find(
+                      (s) => s.id === formik.values.staffId
+                    );
+                    const institutionId = selectedStaff?.institutionId ?? '';
+                    const filtered = institutionId
+                      ? departments.filter(
+                          (d) => d.institutionId === institutionId
+                        )
+                      : departments;
+                    const selectedDeptId =
+                      formik.values.dutyLocationDepartmentId;
+                    const dutyLocationOptions = filtered.map((d) => ({
+                      id: d.id,
+                      name: d.name
+                    }));
+                    if (
+                      selectedDeptId &&
+                      !dutyLocationOptions.some((d) => d.id === selectedDeptId)
+                    ) {
+                      const orphan = departments.find(
+                        (d) => d.id === selectedDeptId
+                      );
+                      if (orphan) {
+                        dutyLocationOptions.unshift({
+                          id: orphan.id,
+                          name: orphan.name
+                        });
+                      } else if (record?.dutyLocation) {
+                        dutyLocationOptions.unshift({
+                          id: selectedDeptId,
+                          name: record.dutyLocation
+                        });
+                      }
                     }
-                    onBlur={formik.handleBlur}
-                    required
-                    styleClasses={fieldStyleClasses}
-                  />
+
+                    return (
+                      <>
+                        <div className={fieldStyleClasses.parentDiv}>
+                          <Label
+                            htmlFor="workingLocation"
+                            className={fieldStyleClasses.labelClassName}
+                          >
+                            Working Location
+                          </Label>
+                          <div
+                            id="workingLocation"
+                            className="rounded-lg border border-border bg-muted/40 px-3 py-2.5 text-sm text-foreground"
+                          >
+                            {selectedStaff?.institutionName || (
+                              <span className="text-muted-foreground">
+                                {showStaff
+                                  ? 'Select a staff member to see institution'
+                                  : 'Bulk uses each staff member’s institution'}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <CustomSelectField
+                          id="dutyLocationDepartmentId"
+                          placeholder="Duty Location"
+                          value={formik.values.dutyLocationDepartmentId}
+                          onChange={(value) =>
+                            formik.setFieldValue(
+                              'dutyLocationDepartmentId',
+                              value
+                            )
+                          }
+                          required={false}
+                          options={dutyLocationOptions}
+                          styleClasses={fieldStyleClasses}
+                        />
+                      </>
+                    );
+                  })()}
                   <CustomFormField
                     id="workedHours"
                     type="number"
@@ -370,17 +470,6 @@ export default function SheetHolidayForm({
                     onBlur={formik.handleBlur}
                     required={false}
                     min={0}
-                    styleClasses={fieldStyleClasses}
-                  />
-                  <CustomSelectField
-                    id="dutyLocation"
-                    placeholder="Duty Location"
-                    value={formik.values.dutyLocation}
-                    onChange={(value) =>
-                      formik.setFieldValue('dutyLocation', value)
-                    }
-                    required={false}
-                    options={locations}
                     styleClasses={fieldStyleClasses}
                   />
                   <CustomSelectField
@@ -479,13 +568,13 @@ export default function SheetHolidayForm({
                   variant="outline"
                   disabled={loading}
                   size="sm"
-                  className="w-full sm:w-24 gap-1 border-red-500 text-red-500 transition-colors ease-in-out duration-100 hover:bg-red-500 hover:text-white"
+                  className={buttonStyles.cancel.normal}
                   onClick={() => onOpenChange(false)}
                 >
                   <X className="h-3.5 w-3.5" />
                   Cancel
                 </Button>
-                <Button type="submit" size="sm" disabled={loading}>
+                <Button type="submit" size="sm" disabled={loading} className={buttonStyles.save}>
                   {copy.saveLabel}
                 </Button>
               </SheetFooter>

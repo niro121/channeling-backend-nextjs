@@ -28,6 +28,11 @@ type Props = {
   summary: PublicHolidayShiftSummary;
   initialFilters: PublicHolidayShiftFilterOptions | null;
   formOptions: PublicHolidayShiftFormOptions | null;
+  onExport: () => Promise<{
+    success: boolean;
+    message?: string;
+    data?: Record<string, unknown>[];
+  }>;
 };
 
 function PublicHolidayShiftsWorkspaceInner({
@@ -35,7 +40,8 @@ function PublicHolidayShiftsWorkspaceInner({
   totalRecords,
   summary,
   initialFilters,
-  formOptions
+  formOptions,
+  onExport
 }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -87,6 +93,7 @@ function PublicHolidayShiftsWorkspaceInner({
       <SectionHolidayRegister
         items={initialRows}
         totalCount={totalRecords}
+        onExport={onExport}
       />
 
       {formSheet ? (

@@ -568,6 +568,8 @@ model RosterAllocation {
   otHours   Float   @default(0)
 
   dutyLocation    String  @default("")
+  /// Optional FK for duty place (holiday / duty modules). Display name stays in dutyLocation.
+  dutyLocationDepartmentId String? @db.ObjectId
   /// Snapshot of supervising staff (no Staff relation required).
   supervisorId    String? @db.ObjectId
   supervisorName  String  @default("")
@@ -596,6 +598,7 @@ model RosterAllocation {
   staff       Staff             @relation(fields: [staffId], references: [id])
   shiftType   ShiftType         @relation(fields: [shiftTypeId], references: [id])
   holiday     HolidayCalendar?  @relation(fields: [holidayId], references: [id])
+  dutyLocationDepartment Department? @relation(fields: [dutyLocationDepartmentId], references: [id])
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -606,6 +609,7 @@ model RosterAllocation {
   @@index([shiftRosterId])
   @@index([shiftTypeId])
   @@index([holidayId])
+  @@index([dutyLocationDepartmentId])
   @@index([date])
   @@index([status])
   @@index([department, unit])
@@ -1184,6 +1188,7 @@ model Department {
   vacancyRequests VacancyRequest[]
   jobPosts        JobPost[]
   manageRosters   ManageRoster[]
+  rosterAllocations RosterAllocation[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

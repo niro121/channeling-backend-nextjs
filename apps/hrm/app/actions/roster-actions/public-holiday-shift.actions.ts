@@ -299,24 +299,48 @@ export async function getPublicHolidayShiftHistoryAction(id: string) {
   }
 }
 
-export async function getPublicHolidayShiftsExportAction(
+export async function getPublicHolidayShiftsExport(
   params: GetPublicHolidayShiftsParams
 ) {
+  await requirePermission('shift-roster', 'view');
+
   try {
-    await requirePermission('shift-roster', 'view');
-    const result = await getPublicHolidayShiftsForExport(listParams(params));
-    if (!result.success) {
+    const response = await getPublicHolidayShiftsForExport({
+      holidayId: params.holidayId,
+      holidayTypeId: params.holidayTypeId,
+      fromDate: params.fromDate,
+      toDate: params.toDate,
+      department: params.department,
+      unit: params.unit,
+      payRate: params.payRate,
+      status: params.status,
+      search: params.search
+    });
+
+    if (!response.data?.length) {
       return {
         success: false,
-        message: result.error?.message ?? 'Failed to export holiday shifts'
+        message: 'No holiday shifts found',
+        data: [],
+        totalRecords: 0
       };
     }
-    return { success: true, data: result.data ?? [] };
-  } catch (error: any) {
-    console.error('getPublicHolidayShiftsExportAction error', error);
+
+    return {
+      success: true,
+      data: response.data,
+      totalRecords: response.totalRecords
+    };
+  } catch (error: unknown) {
+    console.error('getPublicHolidayShiftsExport error', error);
     return {
       success: false,
-      message: error.message ?? 'Failed to export holiday shifts'
+      message:
+        error instanceof Error
+          ? error.message
+          : 'Error getting data. Please try again later',
+      data: [],
+      totalRecords: 0
     };
   }
 }

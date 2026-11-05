@@ -6,7 +6,8 @@ import { logActivityNonBlocking } from '@/lib/activity-log';
 import {
   getPublicHolidayShiftsAction,
   getPublicHolidayShiftFilterOptionsAction,
-  getPublicHolidayShiftFormOptionsAction
+  getPublicHolidayShiftFormOptionsAction,
+  getPublicHolidayShiftsExport
 } from '@/app/actions/roster-actions/public-holiday-shift.actions';
 import type { GetPublicHolidayShiftsParams } from '@/types/roster';
 import PublicHolidayShiftsWorkspace from './public-holiday-shifts-workspace';
@@ -69,6 +70,45 @@ export default async function PublicHolidayShiftsPage({
     lieuDaysGranted: 0
   };
 
+  const handleExport = async () => {
+    'use server';
+
+    const exportResponse = await getPublicHolidayShiftsExport(params);
+    if (!exportResponse.success || !exportResponse.data?.length) {
+      return {
+        success: false,
+        message: exportResponse.success
+          ? 'No holiday shifts found'
+          : (exportResponse.message ?? 'Failed to export holiday shifts')
+      };
+    }
+
+    return {
+      success: true,
+      data: exportResponse.data.map((row) => ({
+        staffCode: row.staffCode,
+        staffName: row.staffName,
+        department: row.department,
+        unit: row.unit,
+        holidayName: row.holidayName,
+        holidayType: row.holidayType,
+        dutyDate: row.dutyDate,
+        shiftLabel: row.shiftLabel,
+        workedHours: row.workedHours,
+        payRate: row.payRate,
+        holidayAllowance: row.holidayAllowance,
+        dutyLocation: row.dutyLocation,
+        lieuLeave: row.lieuLeave ? 'Yes' : 'No',
+        sendToPayroll: row.sendToPayroll ? 'Yes' : 'No',
+        status: row.status,
+        updatedBy: row.updatedUser?.name ?? '',
+        updatedAt: row.updatedAt,
+        createdBy: row.createdUser?.name ?? '',
+        createdAt: row.createdAt
+      }))
+    };
+  };
+
   return (
     <PublicHolidayShiftsWorkspace
       initialRows={records}
@@ -76,6 +116,7 @@ export default async function PublicHolidayShiftsPage({
       summary={summary}
       initialFilters={filterResult.data ?? null}
       formOptions={formResult.data ?? null}
+      onExport={handleExport}
     />
   );
 }

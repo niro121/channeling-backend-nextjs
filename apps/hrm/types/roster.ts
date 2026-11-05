@@ -1,4 +1,5 @@
 import type { AuthUserSummary } from '@/lib/helpers/resolve-auth-users.helper';
+import type { HolidayTypeId } from '@/types/holiday-calendar';
 
 /** `generateRecordCode('SHF')` → SHF-1 */
 export const SHIFT_TYPE_CODE_PREFIX = 'SHF';
@@ -81,11 +82,9 @@ export const OVERNIGHT_ALLOCATION_DATES = ['shift_start', 'shift_end', 'split_bo
 export type OvernightAllocationDate =
   (typeof OVERNIGHT_ALLOCATION_DATES)[number];
 
-export const HOLIDAY_TYPES = ['poya', 'mercantile', 'public'] as const;
-export type HolidayTypeId = (typeof HOLIDAY_TYPES)[number];
-
 export const HOLIDAY_PAY_RATES = ['1.50', '2.00', '2.50'] as const;
 export type HolidayPayRate = (typeof HOLIDAY_PAY_RATES)[number];
+export const DEFAULT_HOLIDAY_PAY_RATE: HolidayPayRate = '2.00';
 
 export type RosterFilterOption = {
   id: string;
@@ -1104,6 +1103,7 @@ export type PublicHolidayShiftRecord = RosterAuditFields & {
   payRate: string;
   holidayAllowance: number;
   dutyLocation: string;
+  dutyLocationDepartmentId: string;
   lieuLeave: boolean;
   sendToPayroll: boolean;
   status: PublicHolidayShiftStatus;
@@ -1136,11 +1136,13 @@ export type PublicHolidayShiftPayload = {
   holidayId: string;
   staffId: string;
   shiftTypeId: string;
-  dutyDate: Date | string;
+  /** Optional; server always derives duty date from HolidayCalendar. */
+  dutyDate?: Date | string | null;
   workedHours?: number | null;
   payRate: string;
   holidayAllowance?: number | null;
-  dutyLocation?: string | null;
+  /** Department ObjectId — server snapshots name into dutyLocation. */
+  dutyLocationDepartmentId?: string | null;
   grantLieuLeave: boolean;
   sendToPayroll: boolean;
   status: string;
@@ -1162,11 +1164,14 @@ export type PublicHolidayShiftFormOptions = {
   shifts: (RosterFilterOption & { workedHours: string })[];
   staff: (RosterFilterOption & {
     staffCode: string;
+    departmentId: string;
     department: string;
     unit: string;
-    dutyLocation: string;
+    institutionId: string;
+    institutionName: string;
   })[];
-  locations: RosterFilterOption[];
+  /** Published departments; filter client-side by staff institutionId. */
+  departments: (RosterFilterOption & { institutionId: string })[];
   payRates: RosterFilterOption[];
   statuses: RosterFilterOption[];
 };

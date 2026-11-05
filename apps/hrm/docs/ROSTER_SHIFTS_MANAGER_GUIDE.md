@@ -867,9 +867,10 @@ Key files under `app/(dashboard)/(roster-shifts)/public-holiday-shifts/`:
 
 Field behaviour (locked):
 
-- Public Holiday, Holiday Type, Staff (not Bulk), Shift, Duty Date, Pay Rate required.
-- Holiday selection auto-fills **Holiday Type** and **Duty Date** (both remain editable).
-- Shift auto-fills **Worked Hours** (editable). Staff auto-fills **Duty Location** (editable).
+- Public Holiday, Staff (not Bulk), Shift, Pay Rate required.
+- Layout: Holiday (full) → Holiday Type | Duty Date → Staff | Shift → remaining fields.
+- Holiday selection auto-fills **Holiday Type** and **Duty Date** (both read-only cards from Holiday Calendar). Server derives allocation date from the holiday; client `dutyDate` is ignored.
+- Shift auto-fills **Worked Hours** (editable). Staff shows **Working Location** (institution, read-only) and auto-fills **Duty Location** from working department (Department master options filtered by that institution; editable). Persist `dutyLocationDepartmentId` FK + name snapshot in `dutyLocation`.
 - Pay Rate: **1.50x / 2.00x / 2.50x**. Grant Lieu Leave maps to Lieu Leave Yes/No. Send to Payroll is **form only**.
 - Status: Draft / Pending Approval / Approved / Rejected / **Amended**. New defaults to Pending Approval.
 
@@ -1393,7 +1394,7 @@ HolidayCalendar 1──* RosterAllocation   (optional holidayId on the cell)
 | Leave on a cell | Boolean `isLeave`; does **not** create a Leave Application in v1 |
 | Duty extras on the cell | `dutyLocation`, supervisor id/name snapshots, `attendance` (`present` \| `late` \| `absent` \| null), comments |
 | Overnight on the cell | Start/end date-time; stored `day1Hours` / `day2Hours` / `totalHours`; attendance allocation date (`shift_start` \| `shift_end`) |
-| Holiday on the cell | Optional `holidayId`; `payRate` (`1.50` \| `2.00` \| `2.50`); `holidayAllowance`; `grantLieuLeave`; `sendToPayroll` |
+| Holiday on the cell | Optional `holidayId`; `payRate` (`1.50` \| `2.00` \| `2.50`); `holidayAllowance`; `grantLieuLeave`; `sendToPayroll`; `dutyLocationDepartmentId` FK + `dutyLocation` name snapshot |
 | Night extras on the cell | Night hours / OT / allowances as stored floats when the shift type is night; consecutive nights **computed** in the service (not a stored counter as source of truth) |
 | Hours / OT | Stored floats on the allocation; derive from shift type duration when creating the cell |
 | Snapshots | Department / unit / roster **strings** on `ShiftRoster` and on each allocation (same pattern as Overtime). **Upcoming:** roster string = `ManageRoster.code` (§1.1) |
@@ -1697,9 +1698,9 @@ Canonical table: `HR_ADMINISTRATION_GUIDE.md` §32 (**INT-H***). Roster & Shifts
 - [x] **INT-H5** (Should) — reject inactive shift types on create/update
 - [x] **INT-H6** (Should) — case-insensitive roster-code membership in getShiftAssignmentRosterScope (and peer lookups)
 - [x] **INT-H7** (Should) — overlap ignores inactive; ctive/pending still block
-- [ ] **INT-R4 / R8** (Later) — enforce shiftsPerPersonPerDay on allocate / fill / publish (full calendar day)
-- [ ] **INT-L2** (Later) — allocate / fill / publish: soft warn + Continue when staff has leave on that calendar day (not on standing Shift Assignment)
-- [ ] **INT-H8** (Later) — overlap TOCTOU / unique compound protection if concurrent creates become an issue
-- [ ] **INT-H9** (Later) — staff delete guards for standing assignments / allocations
-
-*Last updated: Nov 2026 — INT-H2 / H5–H7 done; later INT-R4 / INT-L2 (leave soft-warn) / H8–H9 in §10 / HR Admin §32.*
+- [ ] **INT-R4 / R8** (Later) — enforce shiftsPerPersonPerDay on allocate / fill / publish (full calendar day)
+- [ ] **INT-L2** (Later) — allocate / fill / publish: soft warn + Continue when staff has leave on that calendar day (not on standing Shift Assignment)
+- [ ] **INT-H8** (Later) — overlap TOCTOU / unique compound protection if concurrent creates become an issue
+- [ ] **INT-H9** (Later) — staff delete guards for standing assignments / allocations
+
+*Last updated: Nov 2026 — INT-H2 / H5–H7 done; later INT-R4 / INT-L2 (leave soft-warn) / H8–H9 in §10 / HR Admin §32.*
