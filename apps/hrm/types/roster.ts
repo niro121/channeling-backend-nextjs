@@ -563,6 +563,9 @@ export type LoadRosterResult = {
   periodAudit: ShiftRosterPeriodAudit | null;
 };
 
+export const ROSTER_ALLOCATION_SOURCES = ['standing', 'adhoc'] as const;
+export type RosterAllocationSource = (typeof ROSTER_ALLOCATION_SOURCES)[number];
+
 export type SaveRosterAllocationDraftPayload = {
   allocationId?: string;
   staffId: string;
@@ -578,8 +581,16 @@ export type SaveRosterAllocationDraftPayload = {
   otHours?: number;
   comments?: string | null;
   dutyLocation?: string | null;
+  dutyLocationDepartmentId?: string | null;
+  dutyZoneId?: string | null;
+  dutyRoomId?: string | null;
   supervisorId?: string | null;
   attendance?: DutyAttendance | string | null;
+  /** standing = StaffShiftAssignment; adhoc = Shift Type master only. */
+  allocationSource?: RosterAllocationSource | string | null;
+  staffShiftAssignmentId?: string | null;
+  /** INT-L2 — Continue after leave soft-warn. */
+  acknowledgedWarnings?: boolean;
 };
 
 /* ---------------------------------
@@ -596,11 +607,16 @@ export type DutyRosterRow = RosterAuditFields & {
   startTime: string;
   endTime: string;
   dutyLocation: string;
+  dutyLocationDepartmentId: string | null;
+  dutyZoneId: string | null;
+  dutyRoomId: string | null;
   wardUnit: string;
   department: string;
   roster: string;
   supervisorId: string | null;
   supervisorName: string;
+  allocationSource: RosterAllocationSource | string;
+  staffShiftAssignmentId: string | null;
   status: RosterAllocationStatus | string;
   attendance: DutyAttendance | string | null;
   comments: string;
@@ -634,25 +650,66 @@ export type DutyRosterStaffOption = RosterFilterOption & {
   staffCode: string;
   dutyLocation: string;
   wardUnit: string;
+  institutionId: string;
+  institutionName: string;
+  workingDepartmentId: string;
+  workingDepartmentName: string;
+  roster: string;
+};
+
+export type DutyRosterDepartmentOption = RosterFilterOption & {
+  institutionId: string;
+};
+
+export type DutyRosterZoneOption = RosterFilterOption & {
+  locationId: string;
+};
+
+export type DutyRosterRoomOption = RosterFilterOption & {
+  zoneId: string;
+  locationId: string;
+};
+
+export type DutyRosterStandingAssignmentOption = RosterFilterOption & {
+  shiftTypeId: string;
+  shiftName: string;
+  startTime: string;
+  endTime: string;
+  rosterCode: string;
+  rosterName: string;
+  department: string;
+  unit: string;
+  designation: string;
+  rotationPattern: string;
+  weeklyOffDay: string;
+  effectiveFrom: string;
+  effectiveTo: string | null;
+  status: string;
 };
 
 export type DutyRosterFormOptions = {
   staff: DutyRosterStaffOption[];
   shiftTypes: DutyRosterShiftOption[];
   supervisors: RosterFilterOption[];
-  locations: RosterFilterOption[];
-  units: RosterFilterOption[];
+  departments: DutyRosterDepartmentOption[];
+  zones: DutyRosterZoneOption[];
+  rooms: DutyRosterRoomOption[];
 };
 
 export type DutyRosterFormValues = {
+  /** true = standing assignment mode; false = ad-hoc */
+  useStandingAssignment: boolean;
   staffId: string;
   otherStaffId: string;
+  staffShiftAssignmentId: string;
   shiftTypeId: string;
   dutyDate: Date | null;
   startTime: string;
   endTime: string;
-  dutyLocation: string;
-  wardUnit: string;
+  useWorkingDepartment: boolean;
+  dutyLocationDepartmentId: string;
+  dutyZoneId: string;
+  dutyRoomId: string;
   supervisorId: string;
   attendance: string;
   comments: string;
@@ -683,6 +740,30 @@ export type SwapDutyPayload = {
   staffId: string;
   otherStaffId: string;
   dutyDate: Date | string;
+  /** UI-only — confirm dialog copy (stripped by Zod on save). */
+  confirmSummary?: string;
+};
+
+/** Staff already on duty for a calendar date — Swap partner picker. */
+export type DutyRosterSwapCandidate = {
+  id: string;
+  allocationId: string;
+  staffId: string;
+  name: string;
+  staffCode: string;
+  staffName: string;
+  shiftTypeId: string;
+  shiftName: string;
+  startTime: string;
+  endTime: string;
+  dutyLocation: string;
+  wardUnit: string;
+  department: string;
+  roster: string;
+  supervisorName: string;
+  status: string;
+  allocationSource: string;
+  date: string;
 };
 
 export type ReplaceDutyPayload = {
@@ -690,6 +771,8 @@ export type ReplaceDutyPayload = {
   staffId: string;
   replacementStaffId: string;
   dutyDate: Date | string;
+  /** UI-only — confirm dialog copy (stripped before service call). */
+  confirmSummary?: string;
 };
 
 export type UpdateDutyAttendancePayload = {
@@ -1147,6 +1230,8 @@ export type PublicHolidayShiftPayload = {
   sendToPayroll: boolean;
   status: string;
   remarks?: string | null;
+  /** INT-L2 — Continue after leave soft-warn. */
+  acknowledgedWarnings?: boolean;
 };
 
 export type PublicHolidayShiftFilterOptions = {

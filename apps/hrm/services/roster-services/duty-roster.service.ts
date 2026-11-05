@@ -10,6 +10,7 @@ import { buildManageRosterFilterOptions } from '@/lib/helpers/manage-roster-filt
 import { getDepartmentOptions } from '@/services/organization-services/department.service';
 import { getRoomOptions } from '@/services/organization-services/room.service';
 import { saveRosterAllocationDraft } from '@/services/roster-services/shift-roster.service';
+import { getInstitutionName } from '@/types/institution';
 import type {
   DutyAttendance,
   DutyRosterFilterOptions,
@@ -17,7 +18,9 @@ import type {
   DutyRosterHistoryEntry,
   DutyRosterRow,
   DutyRosterStaffOption,
+  DutyRosterStandingAssignmentOption,
   DutyRosterSummary,
+  DutyRosterSwapCandidate,
   GetDutyRosterParams,
   ReplaceDutyPayload,
   RosterAllocationStatus,
@@ -28,6 +31,13 @@ import type {
 } from '@/types/roster';
 import { parseDutyView, dutyRangeBounds } from '@/lib/utils/duty-roster-view';
 import { DUTY_ATTENDANCE_VALUES } from '@/types/roster';
+
+function parseInstitutionId(value: string | null | undefined): number | null {
+  if (!value?.trim()) return null;
+  if (value === 'ruhunu_hospitals') return 0;
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) && parsed >= 0 && parsed <= 3 ? parsed : null;
+}
 
 const PUBLISHED_LOCK_MESSAGE =
   'This date is already published. Use a roster amendment before changing it.';
@@ -61,9 +71,17 @@ function todayIso(): string {
   return isoDate(new Date());
 }
 
-function publishedLockError() {
+function publishedLockError(): {
+  success: false;
+  error: {
+    message: string;
+    issues?: Record<string, string[]>;
+    softWarnings?: string[];
+    requiresAck?: boolean;
+  };
+} {
   return {
-    success: false as const,
+    success: false,
     error: {
       message: PUBLISHED_LOCK_MESSAGE,
       issues: {
@@ -86,6 +104,11 @@ type AllocationWithShift = {
   status: string;
   isLeave: boolean;
   dutyLocation: string;
+  dutyLocationDepartmentId: string | null;
+  dutyZoneId: string | null;
+  dutyRoomId: string | null;
+  allocationSource: string;
+  staffShiftAssignmentId: string | null;
   supervisorId: string | null;
   supervisorName: string;
   attendance: string | null;
@@ -117,11 +140,16 @@ function mapDutyRow(record: AllocationWithShift & {
     startTime: record.shiftType.startTime,
     endTime: record.shiftType.endTime,
     dutyLocation: record.dutyLocation,
+    dutyLocationDepartmentId: record.dutyLocationDepartmentId,
+    dutyZoneId: record.dutyZoneId,
+    dutyRoomId: record.dutyRoomId,
     wardUnit: record.unit,
     department: record.department,
     roster: record.roster,
     supervisorId: record.supervisorId,
     supervisorName: record.supervisorName,
+    allocationSource: record.allocationSource || 'adhoc',
+    staffShiftAssignmentId: record.staffShiftAssignmentId,
     status: record.status as RosterAllocationStatus,
     attendance: (record.attendance as DutyAttendance | null) ?? null,
     comments: record.comments,
@@ -235,6 +263,11 @@ const allocationSelect = {
   status: true,
   isLeave: true,
   dutyLocation: true,
+  dutyLocationDepartmentId: true,
+  dutyZoneId: true,
+  dutyRoomId: true,
+  allocationSource: true,
+  staffShiftAssignmentId: true,
   supervisorId: true,
   supervisorName: true,
   attendance: true,
@@ -472,7 +505,7 @@ export async function getDutyRosterFormOptions(): Promise<{
   error?: { message?: string };
 }> {
   try {
-    const [staffRecords, shiftTypes, allocationSnaps, assignmentSnaps] =
+    const [staffRecords, shiftTypes, departments, zones, rooms] =
       await Promise.all([
         prisma.staff.findMany({
           where: { status: 1 },
@@ -483,6 +516,7 @@ export async function getDutyRosterFormOptions(): Promise<{
             id: true,
             name: true,
             code: true,
+            employmentDetails: true,
             shiftAssignments: {
               where: { status: 'active' },
               select: { unit: true, department: true },
@@ -502,34 +536,85 @@ export async function getDutyRosterFormOptions(): Promise<{
             endTime: true
           }
         }),
-        prisma.rosterAllocation.findMany({
-          select: { dutyLocation: true, unit: true },
-          distinct: ['dutyLocation', 'unit']
+        prisma.department.findMany({
+          where: { status: 1 },
+          orderBy: { name: 'asc' },
+          select: { id: true, name: true, institution: true }
         }),
-        prisma.staffShiftAssignment.findMany({
-          select: { unit: true },
-          distinct: ['unit']
+        prisma.zone.findMany({
+          where: { status: 1 },
+          orderBy: { name: 'asc' },
+          select: { id: true, name: true, code: true, locationId: true }
+        }),
+        prisma.room.findMany({
+          where: { status: 1 },
+          orderBy: { number: 'asc' },
+          select: {
+            id: true,
+            number: true,
+            code: true,
+            zoneId: true,
+            locationId: true
+          }
         })
       ]);
 
-    const staff: DutyRosterStaffOption[] = staffRecords.map((record) => ({
-      id: record.id,
-      name: record.code
-        ? `${record.code} — ${record.name}`
-        : (record.name ?? ''),
-      staffCode: record.code ?? '',
-      dutyLocation: '',
-      wardUnit: record.shiftAssignments[0]?.unit?.trim() || ''
-    }));
+    const departmentById = new Map(
+      departments.map((d) => [d.id, d] as const)
+    );
+    const departmentsByNameInstitution = new Map(
+      departments.map((d) => [`${d.institution}::${d.name.trim().toLowerCase()}`, d] as const)
+    );
 
-    const units = uniqueStrings([
-      ...allocationSnaps.map((row) => row.unit),
-      ...assignmentSnaps.map((row) => row.unit)
-    ]).map(toOption);
-    const locations = uniqueStrings([
-      ...allocationSnaps.map((row) => row.dutyLocation),
-      ...units.map((row) => row.name)
-    ]).map(toOption);
+    const staff: DutyRosterStaffOption[] = staffRecords.map((record) => {
+      const employment = (
+        record.employmentDetails as {
+          employment?: {
+            institution?: string;
+            department?: string;
+            roster?: string;
+          };
+        } | null
+      )?.employment;
+      const institutionNum = parseInstitutionId(employment?.institution);
+      const institutionId =
+        institutionNum != null ? String(institutionNum) : '';
+      const rawDept = employment?.department?.trim() || '';
+      const byId = rawDept ? departmentById.get(rawDept) : undefined;
+      const byName =
+        !byId && rawDept && institutionNum != null
+          ? departmentsByNameInstitution.get(
+              `${institutionNum}::${rawDept.toLowerCase()}`
+            )
+          : undefined;
+      const workingDept = byId || byName;
+      const assignmentDept = record.shiftAssignments[0]?.department?.trim() || '';
+      const assignmentDeptRow = assignmentDept
+        ? departmentById.get(assignmentDept) ||
+          (institutionNum != null
+            ? departmentsByNameInstitution.get(
+                `${institutionNum}::${assignmentDept.toLowerCase()}`
+              )
+            : undefined)
+        : undefined;
+
+      return {
+        id: record.id,
+        name: record.code
+          ? `${record.code} — ${record.name}`
+          : (record.name ?? ''),
+        staffCode: record.code ?? '',
+        dutyLocation: workingDept?.name || assignmentDept || '',
+        wardUnit: record.shiftAssignments[0]?.unit?.trim() || '',
+        institutionId,
+        institutionName:
+          institutionNum != null ? getInstitutionName(institutionNum) : '',
+        workingDepartmentId: workingDept?.id || assignmentDeptRow?.id || '',
+        workingDepartmentName:
+          workingDept?.name || assignmentDeptRow?.name || assignmentDept || '',
+        roster: employment?.roster?.trim() || ''
+      };
+    });
 
     return {
       success: true,
@@ -545,8 +630,22 @@ export async function getDutyRosterFormOptions(): Promise<{
           id: record.id,
           name: record.name
         })),
-        locations,
-        units
+        departments: departments.map((d) => ({
+          id: d.id,
+          name: d.name,
+          institutionId: String(d.institution)
+        })),
+        zones: zones.map((z) => ({
+          id: z.id,
+          name: z.code ? `${z.code} — ${z.name}` : z.name,
+          locationId: z.locationId
+        })),
+        rooms: rooms.map((r) => ({
+          id: r.id,
+          name: r.code ? `${r.number} (${r.code})` : r.number,
+          zoneId: r.zoneId,
+          locationId: r.locationId
+        }))
       },
       message: 'Duty roster form options fetched'
     };
@@ -556,6 +655,174 @@ export async function getDutyRosterFormOptions(): Promise<{
       success: false,
       error: {
         message: error.message || 'Failed to load duty roster form options'
+      }
+    };
+  }
+}
+
+export async function getStaffStandingAssignmentsForDuty(
+  staffId: string,
+  dutyDate: Date | string
+): Promise<{
+  success: boolean;
+  data?: DutyRosterStandingAssignmentOption[];
+  message?: string;
+  error?: { message?: string };
+}> {
+  try {
+    const id = staffId?.trim();
+    if (!id) {
+      return { success: true, data: [] };
+    }
+
+    const raw =
+      typeof dutyDate === 'string' ? parseISO(dutyDate.slice(0, 10)) : dutyDate;
+    const day = new Date(
+      Date.UTC(raw.getFullYear(), raw.getMonth(), raw.getDate())
+    );
+    const nextDay = new Date(day);
+    nextDay.setUTCDate(nextDay.getUTCDate() + 1);
+
+    const rows = await prisma.staffShiftAssignment.findMany({
+      where: {
+        staffId: id,
+        status: { in: ['active', 'pending'] },
+        effectiveFrom: { lt: nextDay },
+        OR: [{ effectiveTo: null }, { effectiveTo: { gte: day } }]
+      },
+      orderBy: [{ effectiveFrom: 'desc' }],
+      select: {
+        id: true,
+        code: true,
+        department: true,
+        unit: true,
+        designation: true,
+        rotationPattern: true,
+        weeklyOffDay: true,
+        status: true,
+        effectiveFrom: true,
+        effectiveTo: true,
+        shiftType: {
+          select: {
+            id: true,
+            name: true,
+            code: true,
+            startTime: true,
+            endTime: true,
+            status: true
+          }
+        },
+        manageRoster: {
+          select: { code: true, name: true }
+        }
+      }
+    });
+
+    const data: DutyRosterStandingAssignmentOption[] = rows
+      .filter((row) => row.shiftType.status === 'active')
+      .map((row) => {
+        const shiftLabel = row.shiftType.code
+          ? `${row.shiftType.code} — ${row.shiftType.name}`
+          : row.shiftType.name;
+        return {
+          id: row.id,
+          name: row.code ? `${row.code} — ${shiftLabel}` : shiftLabel,
+          shiftTypeId: row.shiftType.id,
+          shiftName: shiftLabel,
+          startTime: row.shiftType.startTime,
+          endTime: row.shiftType.endTime,
+          rosterCode: row.manageRoster?.code ?? '',
+          rosterName: row.manageRoster?.name ?? '',
+          department: row.department,
+          unit: row.unit,
+          designation: row.designation,
+          rotationPattern: row.rotationPattern,
+          weeklyOffDay: row.weeklyOffDay,
+          effectiveFrom: toIsoString(row.effectiveFrom),
+          effectiveTo: row.effectiveTo ? toIsoString(row.effectiveTo) : null,
+          status: row.status
+        };
+      });
+
+    return {
+      success: true,
+      data,
+      message: 'Standing assignments fetched'
+    };
+  } catch (error: any) {
+    console.error('getStaffStandingAssignmentsForDuty error:', error);
+    return {
+      success: false,
+      error: {
+        message: error.message || 'Failed to load standing assignments'
+      }
+    };
+  }
+}
+
+export async function getDutySwapCandidates(
+  dutyDate: Date | string
+): Promise<{
+  success: boolean;
+  data?: DutyRosterSwapCandidate[];
+  message?: string;
+  error?: { message?: string };
+}> {
+  try {
+    const raw =
+      typeof dutyDate === 'string' ? parseISO(dutyDate.slice(0, 10)) : dutyDate;
+    const day = new Date(
+      Date.UTC(raw.getFullYear(), raw.getMonth(), raw.getDate())
+    );
+
+    const rows = await prisma.rosterAllocation.findMany({
+      where: { date: day },
+      orderBy: [{ staffName: 'asc' }],
+      select: allocationSelect
+    });
+
+    const data: DutyRosterSwapCandidate[] = rows.map((row) => {
+      const shiftLabel =
+        row.shiftType.chipLabel ||
+        (row.shiftType.code
+          ? `${row.shiftType.code} — ${row.shiftType.name}`
+          : row.shiftType.name);
+      const staffLabel = row.staffCode
+        ? `${row.staffCode} — ${row.staffName}`
+        : row.staffName;
+      return {
+        id: row.staffId,
+        allocationId: row.id,
+        staffId: row.staffId,
+        name: staffLabel,
+        staffCode: row.staffCode,
+        staffName: row.staffName,
+        shiftTypeId: row.shiftTypeId,
+        shiftName: shiftLabel,
+        startTime: row.shiftType.startTime,
+        endTime: row.shiftType.endTime,
+        dutyLocation: row.dutyLocation,
+        wardUnit: row.unit,
+        department: row.department,
+        roster: row.roster,
+        supervisorName: row.supervisorName,
+        status: row.status,
+        allocationSource: row.allocationSource || 'adhoc',
+        date: toIsoString(row.date)
+      };
+    });
+
+    return {
+      success: true,
+      data,
+      message: 'Swap candidates fetched'
+    };
+  } catch (error: any) {
+    console.error('getDutySwapCandidates error:', error);
+    return {
+      success: false,
+      error: {
+        message: error.message || 'Failed to load swap candidates'
       }
     };
   }
@@ -587,13 +854,28 @@ export async function saveDutyAllocation(
     }
   }
 
-  if (payload.staffId && !payload.department) {
+  if (!payload.dutyLocationDepartmentId?.trim()) {
+    return {
+      success: false,
+      error: {
+        message: 'Duty department is required',
+        issues: {
+          dutyLocationDepartmentId: ['Select a duty department']
+        }
+      }
+    };
+  }
+
+  if (payload.staffId) {
     const snapshot = await getStaffSnapshot(payload.staffId);
     if (snapshot) {
       payload = {
         ...payload,
-        department: payload.department ?? snapshot.department,
-        unit: payload.unit ?? snapshot.unit,
+        // Let saveRosterAllocationDraft snapshot department / room unit from FKs.
+        department: undefined,
+        unit: payload.dutyRoomId?.trim()
+          ? undefined
+          : (payload.unit ?? snapshot.unit),
         roster: payload.roster ?? snapshot.roster
       };
     }

@@ -27,7 +27,23 @@ type RosterWorkflowPayload = {
   roster?: string;
   fromDate: string;
   toDate: string;
+  acknowledgedWarnings?: boolean;
 };
+
+function softAckErrors(error?: {
+  message?: string;
+  issues?: Record<string, string[]>;
+  softWarnings?: string[];
+  requiresAck?: boolean;
+}) {
+  return {
+    ...(error?.issues ?? {}),
+    message:
+      error?.message ?? 'Something went wrong. Please try again later',
+    ...(error?.softWarnings ? { softWarnings: error.softWarnings } : {}),
+    ...(error?.requiresAck ? { requiresAck: true } : {})
+  };
+}
 
 export async function loadRosterAction(params: LoadRosterParams): Promise<{
   isError: boolean;
@@ -81,12 +97,7 @@ export async function saveRosterAllocationDraftAction(
       return {
         isError: true,
         data: {},
-        errors:
-          result.error?.issues ?? {
-            message:
-              result.error?.message ??
-              'Something went wrong. Please try again later'
-          }
+        errors: softAckErrors(result.error)
       };
     }
 
@@ -214,7 +225,11 @@ export async function publishRosterAction(data: RosterWorkflowPayload) {
     const auditUser = await getAuditUser();
     const result = await publishRoster(data, auditUser);
     if (!result.success) {
-      throw new Error(result.error?.message ?? 'Failed to publish roster');
+      return {
+        isError: true,
+        data: null,
+        errors: softAckErrors(result.error)
+      };
     }
 
     if (auditUser?.id) {
@@ -257,7 +272,11 @@ async function handleCopyAction(
         : await fillOldRosterDraft(data, auditUser);
 
   if (!result.success) {
-    throw new Error(result.error?.message ?? 'Failed to copy roster');
+    return {
+      isError: true,
+      data: null,
+      errors: softAckErrors(result.error)
+    };
   }
   const copyData =
     'data' in result && result.data

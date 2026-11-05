@@ -36,23 +36,8 @@ function isAttendance(value: string | null | undefined): value is DutyAttendance
   return value === 'present' || value === 'late' || value === 'absent';
 }
 
-const dateColumn: ColumnDef<DutyRosterRow> = {
-  id: 'date',
-  accessorFn: (row) => row.date?.slice(0, 10) ?? '',
-  header: () => <span className="whitespace-nowrap">Duty Date</span>,
-  cell: ({ row }) => (
-    <span className="whitespace-nowrap tabular-nums">
-      {formatDutyDateLabel(row.original.date)}
-    </span>
-  )
-};
-
-export function getDutyRosterColumns(
-  showDate: boolean
-): ColumnDef<DutyRosterRow>[] {
-  return showDate
-    ? [dateColumn, ...dutyRosterBaseColumns]
-    : dutyRosterBaseColumns;
+export function getDutyRosterColumns(): ColumnDef<DutyRosterRow>[] {
+  return dutyRosterBaseColumns;
 }
 
 const dutyRosterBaseColumns: ColumnDef<DutyRosterRow>[] = [
@@ -72,6 +57,16 @@ const dutyRosterBaseColumns: ColumnDef<DutyRosterRow>[] = [
     accessorKey: 'shiftName',
     header: 'Shift',
     cell: ({ row }) => <span>{row.original.shiftName}</span>
+  },
+  {
+    id: 'date',
+    accessorFn: (row) => row.date?.slice(0, 10) ?? '',
+    header: () => <span className="whitespace-nowrap">Duty Date</span>,
+    cell: ({ row }) => (
+      <span className="whitespace-nowrap tabular-nums">
+        {formatDutyDateLabel(row.original.date)}
+      </span>
+    )
   },
   {
     accessorKey: 'startTime',

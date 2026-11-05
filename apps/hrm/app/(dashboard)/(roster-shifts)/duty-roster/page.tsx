@@ -52,8 +52,9 @@ const EMPTY_FORM_OPTIONS: DutyRosterFormOptions = {
   staff: [],
   shiftTypes: [],
   supervisors: [],
-  locations: [],
-  units: []
+  departments: [],
+  zones: [],
+  rooms: []
 };
 
 function parseDutyDate(value?: string): Date {

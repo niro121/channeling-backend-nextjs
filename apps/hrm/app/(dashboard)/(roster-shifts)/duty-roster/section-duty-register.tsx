@@ -41,12 +41,11 @@ export default function SectionDutyRegister({
 }: SectionDutyRegisterProps) {
   const dateLabel = dutyRangeLabel(dutyDate, viewMode);
   const grouped = viewMode !== 'daily';
-  const showDate = grouped;
   const exportColumns = [
-    ...(showDate ? ['Duty Date'] : []),
     'Staff ID',
     'Staff Name',
     'Shift',
+    'Duty Date',
     'Start Time',
     'End Time',
     'Duty Location',
@@ -60,10 +59,10 @@ export default function SectionDutyRegister({
     'Created At'
   ];
   const exportKeys = [
-    ...(showDate ? ['date'] : []),
     'staffCode',
     'staffName',
     'shiftName',
+    'date',
     'startTime',
     'endTime',
     'dutyLocation',
@@ -114,7 +113,7 @@ export default function SectionDutyRegister({
             ))}
           </div>
         }
-        columns={getDutyRosterColumns(showDate)}
+        columns={getDutyRosterColumns()}
         data={items}
         rowCount={totalRecords}
         page={page}
