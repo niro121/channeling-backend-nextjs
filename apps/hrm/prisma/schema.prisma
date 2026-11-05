@@ -652,6 +652,10 @@ model RosterAmendment {
   @@index([createdAt(sort: Desc)])
 }
 
+/* ---------------------------------
+HR ADMINISTRATION
+--------------------------------- */
+
 /// v1 Holiday Date stub (Roster-owned until HR Administration exists).
 model HolidayCalendar {
   id     String   @id @default(auto()) @map("_id") @db.ObjectId
@@ -670,10 +674,6 @@ model HolidayCalendar {
   @@unique([date])
   @@index([typeId])
 }
-
-/* ---------------------------------
-HR ADMINISTRATION
---------------------------------- */
 
 model Designation {
   id          String  @id @default(auto()) @map("_id") @db.ObjectId

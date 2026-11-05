@@ -28,9 +28,11 @@ import {
   deleteHolidayCalendarAction,
   updateHolidayCalendarAction
 } from '@/app/actions/hr-admin-actions/holiday-calendar.actions';
+import { getCalendarYearRange } from '@/lib/utils/date';
 import type { HolidayCalendarFormValues } from '@/types/holiday-calendar';
 import SectionHolidayImpact from './section-holiday-impact';
 import { useHolidayCalendarUi } from './holiday-calendar-ui-context';
+import { buttonStyles } from '@/lib/utils/common-styles';
 
 const fieldStyleClasses = {
   parentDiv: 'grid grid-cols-1 gap-1.5 items-start',
@@ -43,9 +45,6 @@ const validationSchema = Yup.object({
   typeId: Yup.string().required('Day type is required'),
   date: Yup.date().nullable().required('Holiday date is required')
 });
-
-const CALENDAR_FROM_YEAR = 2020;
-const CALENDAR_TO_YEAR = 2035;
 
 function HolidayDetailCalendar({
   selected,
@@ -64,6 +63,16 @@ function HolidayDetailCalendar({
     if (selected) setDisplayMonth(selected);
   }, [selected]);
 
+  const { startMonth, endMonth } = useMemo(
+    () =>
+      getCalendarYearRange([
+        displayMonth.getFullYear(),
+        ...(selected ? [selected.getFullYear()] : []),
+        ...holidayDates.map((date) => date.getFullYear())
+      ]),
+    [displayMonth, selected, holidayDates]
+  );
+
   return (
     <div className="shrink-0 lg:w-[22rem]">
       <div className="rounded-lg border border-border bg-background p-3">
@@ -76,8 +85,8 @@ function HolidayDetailCalendar({
             if (date) onSelect(date);
           }}
           captionLayout="dropdown"
-          startMonth={new Date(CALENDAR_FROM_YEAR, 0)}
-          endMonth={new Date(CALENDAR_TO_YEAR, 11)}
+          startMonth={startMonth}
+          endMonth={endMonth}
           modifiers={{ holiday: holidayDates }}
           modifiersClassNames={{
             holiday: 'bg-primary/10 font-semibold text-primary'
@@ -190,7 +199,7 @@ export default function SectionHolidayDetail() {
         }
         toast({
           variant: 'destructive',
-          title: 'Save failed',
+          title: 'Error',
           description:
             (typeof errors?.message === 'string' && errors.message) ||
             (typeof (errors as any)?.date?.[0] === 'string' &&
@@ -203,8 +212,12 @@ export default function SectionHolidayDetail() {
       setIsNew(false);
       setSelectedId(result.data.id);
       toast({
-        title: 'Saved',
-        description: isNew || !selectedRecord ? 'Holiday created.' : 'Holiday updated.'
+        variant: 'success',
+        title: 'Success',
+        description:
+          isNew || !selectedRecord
+            ? 'Holiday was created successfully.'
+            : 'Holiday was updated successfully.'
       });
       navigateAfterSave(result.data.id, dateKey);
     } finally {
@@ -221,10 +234,10 @@ export default function SectionHolidayDetail() {
       if (result.isError) {
         toast({
           variant: 'destructive',
-          title: 'Cannot delete',
+          title: 'Error',
           description:
             (result.errors as { message?: string })?.message ??
-            'Unable to delete holiday.'
+            'Holiday deletion unsuccessful.'
         });
         setDeleteOpen(false);
         return;
@@ -233,7 +246,11 @@ export default function SectionHolidayDetail() {
       setDeleteOpen(false);
       setSelectedId(null);
       setIsNew(false);
-      toast({ title: 'Deleted', description: 'Holiday removed.' });
+      toast({
+        variant: 'success',
+        title: 'Success',
+        description: 'Holiday was deleted successfully.'
+      });
 
       const params = new URLSearchParams(searchParams.toString());
       params.delete('id');
@@ -265,7 +282,7 @@ export default function SectionHolidayDetail() {
               size="sm"
               onClick={() => setDeleteOpen(true)}
               disabled={!selectedRecord || isNew || saving}
-              className="h-9 gap-1.5 border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
+              className={buttonStyles.delete.warning}
             >
               <Trash2 className="h-4 w-4" />
               Delete
@@ -274,7 +291,7 @@ export default function SectionHolidayDetail() {
               type="submit"
               form="holiday-calendar-form"
               size="sm"
-              className="h-9 gap-1.5"
+              className={buttonStyles.save}
               disabled={saving}
             >
               <SaveIcon className="h-4 w-4" />
@@ -400,6 +417,10 @@ export default function SectionHolidayDetail() {
         handleVisibilityChange={setDeleteOpen}
         handleContinue={handleDelete}
         loading={saving}
+        className={{
+          actionButton: buttonStyles.delete.danger,
+          cancelButton: `h-9!`
+        }}
       />
     </div>
   );
