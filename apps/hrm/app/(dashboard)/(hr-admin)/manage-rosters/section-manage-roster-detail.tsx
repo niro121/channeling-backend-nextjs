@@ -29,7 +29,7 @@ import {
 import {
   buildManageRosterCodeSuggestion,
   uniquifyManageRosterCode
-} from '@/lib/helpers/manage-roster-code.helper';
+} from '@/lib/helpers/roster/manage-roster-code.helper';
 import { useManageRosterUi } from './manage-roster-ui-context';
 import DialogRosterInspect, {
   type RosterInspectDialogMode
