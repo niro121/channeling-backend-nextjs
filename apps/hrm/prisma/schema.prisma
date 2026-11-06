@@ -618,7 +618,9 @@ model RosterAllocation {
   createdBy String?  @db.ObjectId
   updatedBy String?  @db.ObjectId
 
-  @@unique([staffId, date])
+  /// Multiple shifts/day allowed; same shift type on the same calendar day is not.
+  @@unique([staffId, date, shiftTypeId])
+  @@index([staffId, date])
   @@index([shiftRosterId])
   @@index([shiftTypeId])
   @@index([holidayId])

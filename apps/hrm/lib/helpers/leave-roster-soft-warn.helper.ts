@@ -1,5 +1,12 @@
-import { format } from 'date-fns';
+import { format, parseISO } from 'date-fns';
 import prisma from '@/lib/prisma';
+import { dutyOverlapsLeaveWindow } from '@/lib/helpers/shift-time-overlap.helper';
+import {
+  colomboCivilDayUtc,
+  colomboDayEndInstant,
+  colomboDayStartInstant,
+  toColomboDateIso
+} from '@/lib/helpers/attendance-timezone.helper';
 
 /** Leave statuses that trigger INT-L2 soft warn on roster allocate / fill / publish. */
 export const LEAVE_SOFT_WARN_STATUSES = ['approved', 'pending'] as const;
@@ -10,6 +17,8 @@ export type LeaveSoftWarnHit = {
   fromDate: Date;
   toDate: Date;
   leaveTypeName: string;
+  days: number;
+  halfDaySession: string | null;
 };
 
 export type LeaveSoftWarnResult =
@@ -22,33 +31,45 @@ export type LeaveSoftWarnResult =
       hits: LeaveSoftWarnHit[];
     };
 
-function toUtcDay(date: Date): Date {
-  return new Date(
-    Date.UTC(date.getFullYear(), date.getMonth(), date.getDate())
-  );
+/**
+ * Hospital civil day as UTC midnight.
+ * Duty dates are already UTC midnight; leave picker dates are often local
+ * midnight — `colomboCivilDayUtc` maps both to the same Asia/Colombo day.
+ */
+function resolveDutyCivilDayUtc(date: Date): Date {
+  return colomboCivilDayUtc(date);
 }
 
-function endOfUtcDay(date: Date): Date {
-  const day = toUtcDay(date);
-  return new Date(day.getTime() + 24 * 60 * 60 * 1000 - 1);
+function formatColomboDayLabel(civilDayUtc: Date): string {
+  try {
+    return format(parseISO(toColomboDateIso(civilDayUtc)), 'dd MMM yyyy');
+  } catch {
+    return toColomboDateIso(civilDayUtc);
+  }
 }
 
 /**
- * Find Leave Applications for staff that overlap a calendar day
+ * Find Leave Applications for staff that overlap a hospital calendar day
  * (approved + pending). Rejected / cancelled are ignored.
+ *
+ * Overlap uses Asia/Colombo day bounds so leave stored as local midnight
+ * still matches RosterAllocation dates stored as UTC midnight.
  */
 export async function findStaffLeaveOverlappingDay(input: {
   staffId: string;
   date: Date;
 }): Promise<LeaveSoftWarnHit[]> {
-  const dayStart = toUtcDay(input.date);
-  const dayEnd = endOfUtcDay(input.date);
+  const civilDayUtc = resolveDutyCivilDayUtc(input.date);
+  const dayStart = colomboDayStartInstant(civilDayUtc);
+  const dayEndExclusive = colomboDayEndInstant(civilDayUtc);
+  // Inclusive end for Mongo `lte` (1ms before next Colombo midnight).
+  const dayEndInclusive = new Date(dayEndExclusive.getTime() - 1);
 
   const rows = await prisma.leaveApplication.findMany({
     where: {
       staffId: input.staffId,
       status: { in: [...LEAVE_SOFT_WARN_STATUSES] },
-      fromDate: { lte: dayEnd },
+      fromDate: { lte: dayEndInclusive },
       toDate: { gte: dayStart }
     },
     select: {
@@ -56,6 +77,8 @@ export async function findStaffLeaveOverlappingDay(input: {
       status: true,
       fromDate: true,
       toDate: true,
+      days: true,
+      halfDaySession: true,
       leaveType: { select: { name: true } }
     },
     orderBy: { fromDate: 'asc' },
@@ -67,21 +90,47 @@ export async function findStaffLeaveOverlappingDay(input: {
     status: row.status,
     fromDate: row.fromDate,
     toDate: row.toDate,
+    days: row.days,
+    halfDaySession: row.halfDaySession,
     leaveTypeName: row.leaveType?.name?.trim() || 'Leave'
   }));
 }
 
 function formatLeaveHit(hit: LeaveSoftWarnHit): string {
+  const fromIso = toColomboDateIso(hit.fromDate);
+  const toIso = toColomboDateIso(hit.toDate);
   const range =
-    hit.fromDate.toISOString().slice(0, 10) ===
-    hit.toDate.toISOString().slice(0, 10)
-      ? format(hit.fromDate, 'dd MMM yyyy')
-      : `${format(hit.fromDate, 'dd MMM yyyy')}–${format(hit.toDate, 'dd MMM yyyy')}`;
-  return `${hit.leaveTypeName} (${hit.status}) ${range}`;
+    fromIso === toIso
+      ? formatColomboDayLabel(colomboCivilDayUtc(hit.fromDate))
+      : `${formatColomboDayLabel(colomboCivilDayUtc(hit.fromDate))}–${formatColomboDayLabel(colomboCivilDayUtc(hit.toDate))}`;
+  const half =
+    hit.days === 0.5 && hit.halfDaySession
+      ? ` ${hit.halfDaySession} half-day`
+      : '';
+  return `${hit.leaveTypeName} (${hit.status})${half} ${range}`;
+}
+
+function filterHitsForDutyWindow(
+  hits: LeaveSoftWarnHit[],
+  startTime?: string | null,
+  endTime?: string | null
+): LeaveSoftWarnHit[] {
+  if (!startTime?.trim() || !endTime?.trim()) {
+    return hits;
+  }
+  return hits.filter((hit) =>
+    dutyOverlapsLeaveWindow({
+      startTime,
+      endTime,
+      halfDaySession: hit.halfDaySession,
+      days: hit.days
+    })
+  );
 }
 
 /**
- * INT-L2 — soft warn when allocating on a day the staff has leave.
+ * INT-L2 — soft warn when allocating on a day the staff has leave that
+ * overlaps the duty shift window (full-day leave, or half-day AM/PM).
  * Not a hard block: pass `acknowledgedWarnings: true` to continue.
  */
 export async function assertLeaveSoftWarn(input: {
@@ -89,17 +138,25 @@ export async function assertLeaveSoftWarn(input: {
   date: Date;
   acknowledgedWarnings?: boolean;
   staffLabel?: string;
+  /** When set, half-day leave only warns if it intersects this shift. */
+  startTime?: string | null;
+  endTime?: string | null;
 }): Promise<LeaveSoftWarnResult> {
-  const hits = await findStaffLeaveOverlappingDay({
+  const dayHits = await findStaffLeaveOverlappingDay({
     staffId: input.staffId,
     date: input.date
   });
+  const hits = filterHitsForDutyWindow(
+    dayHits,
+    input.startTime,
+    input.endTime
+  );
 
   if (hits.length === 0 || input.acknowledgedWarnings) {
     return { ok: true, hits };
   }
 
-  const dayLabel = format(toUtcDay(input.date), 'dd MMM yyyy');
+  const dayLabel = formatColomboDayLabel(resolveDutyCivilDayUtc(input.date));
   const who = input.staffLabel?.trim() || 'This staff member';
   const details = hits.map(formatLeaveHit).join('; ');
   const softWarnings = [
@@ -117,7 +174,13 @@ export async function assertLeaveSoftWarn(input: {
 
 /** Batch INT-L2 check for publish / fill: unique staff×day leave hits. */
 export async function assertLeaveSoftWarnForAllocations(input: {
-  rows: Array<{ staffId: string; staffLabel?: string; date: Date }>;
+  rows: Array<{
+    staffId: string;
+    staffLabel?: string;
+    date: Date;
+    startTime?: string | null;
+    endTime?: string | null;
+  }>;
   acknowledgedWarnings?: boolean;
 }): Promise<LeaveSoftWarnResult> {
   if (input.acknowledgedWarnings || input.rows.length === 0) {
@@ -129,7 +192,7 @@ export async function assertLeaveSoftWarnForAllocations(input: {
   const allHits: LeaveSoftWarnHit[] = [];
 
   for (const row of input.rows) {
-    const key = `${row.staffId}|${row.date.toISOString().slice(0, 10)}`;
+    const key = `${row.staffId}|${toColomboDateIso(resolveDutyCivilDayUtc(row.date))}|${row.startTime ?? ''}|${row.endTime ?? ''}`;
     if (seen.has(key)) continue;
     seen.add(key);
 
@@ -137,6 +200,8 @@ export async function assertLeaveSoftWarnForAllocations(input: {
       staffId: row.staffId,
       date: row.date,
       staffLabel: row.staffLabel,
+      startTime: row.startTime,
+      endTime: row.endTime,
       acknowledgedWarnings: false
     });
     if (!result.ok) {

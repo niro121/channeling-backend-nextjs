@@ -25,8 +25,8 @@ export default function SectionDutyInstructions() {
                     Duty Roster Procedure
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    Daily list of the same allocations shown on the Shift
-                    Roster week grid.
+                    List, Days, Weeks, and Months views of the same
+                    RosterAllocation store as Shift Roster.
                   </p>
                 </div>
               </div>
@@ -69,11 +69,15 @@ export default function SectionDutyInstructions() {
                 </p>
                 <p>
                   <span className="font-medium text-foreground">
-                    6. Weekly / Monthly:
+                    6. Views:
                   </span>{' '}
-                  Those buttons load a date-range list for the week (Sun–Sat)
-                  or month of the selected date. Use Shift Roster for the
-                  staff × day grid.
+                  <span className="font-medium text-foreground">List</span> is
+                  the staff-grouped table for one date.{' '}
+                  <span className="font-medium text-foreground">Days</span> /
+                  <span className="font-medium text-foreground"> Weeks</span> /
+                  <span className="font-medium text-foreground"> Months</span>{' '}
+                  show cards; click a card to open duties in a dialog. Use Shift
+                  Roster for the staff × day planning grid.
                 </p>
               </div>
             </AccordionContent>

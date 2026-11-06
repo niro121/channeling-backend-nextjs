@@ -191,7 +191,8 @@ function ReplacementPreviewCard({
       <div className="space-y-2 rounded-lg border border-amber-500/50 bg-amber-50/50 px-3 py-3 text-sm dark:bg-amber-950/20">
         <p className="font-semibold text-foreground">Replacement preview</p>
         <p className="text-muted-foreground">
-          Select a staff member who does not already have a duty on this date.
+          Select a staff member who does not already have this shift type on
+          this date.
         </p>
       </div>
     );
@@ -360,13 +361,23 @@ export default function SheetDutyReplaceForm({
               staffOptions.find(
                 (row) => row.id === formik.values.replacementStaffId
               ) ?? null;
-            const onDutyIds = new Set(onDuty.map((row) => row.staffId));
+            // Block only staff who already hold the same shift type that day.
+            const sameShiftStaffIds = new Set(
+              onDuty
+                .filter(
+                  (row) =>
+                    !!current?.shiftTypeId &&
+                    row.shiftTypeId === current.shiftTypeId
+                )
+                .map((row) => row.staffId)
+            );
             const primaryOptions = lockedFromRow
               ? onDuty.filter((row) => row.staffId === formik.values.staffId)
               : onDuty;
             const replacementOptions = staffOptions.filter(
               (row) =>
-                row.id !== formik.values.staffId && !onDutyIds.has(row.id)
+                row.id !== formik.values.staffId &&
+                !sameShiftStaffIds.has(row.id)
             );
             const primaryStanding = standing[0] ?? null;
 
@@ -456,9 +467,9 @@ export default function SheetDutyReplaceForm({
                       formik.values.staffId &&
                       replacementOptions.length === 0 ? (
                         <p className="text-xs text-muted-foreground">
-                          No free staff for{' '}
+                          No eligible staff for{' '}
                           {dutyDateKey(formik.values.dutyDate) || 'this date'}.
-                          Everyone else already has a duty.
+                          Everyone else already has this shift type.
                         </p>
                       ) : null}
                     </div>

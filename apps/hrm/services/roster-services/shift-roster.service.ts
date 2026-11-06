@@ -20,9 +20,18 @@ import {
   assertLeaveSoftWarnForAllocations
 } from '@/lib/helpers/leave-roster-soft-warn.helper';
 import {
+  assertWeeklyOffSoftWarn,
+  assertWeeklyOffSoftWarnForAllocations
+} from '@/lib/helpers/weekly-off-soft-warn.helper';
+import {
   assertStaffDayShiftLimit,
   getShiftsPerPersonPerDayLimit
 } from '@/lib/helpers/shifts-per-person-per-day.helper';
+import {
+  shiftsOverlap,
+  shiftToInterval,
+  intervalsOverlap
+} from '@/lib/helpers/shift-time-overlap.helper';
 import { generateRecordCode } from '@/lib/conventions/record-code-generator';
 import type {
   LoadRosterParams,
@@ -435,10 +444,6 @@ export async function loadRoster(
 
     // 4. Build grid rows
     const weekMeta = buildWeekMeta(fromDate, toDate);
-    const emptyShifts = Object.fromEntries(
-      weekMeta.dayIsos.map((d) => [d, null])
-    ) as Record<string, ShiftCell | null>;
-
     let totalShifts = 0;
     let totalHoursSum = 0;
     let conflictCount = 0;
@@ -456,20 +461,24 @@ export async function loadRoster(
         (a) => a.staffId === staff.id
       );
 
-      const shifts = { ...emptyShifts };
+      const shifts: Record<string, ShiftCell[]> = Object.fromEntries(
+        weekMeta.dayIsos.map((d) => [d, [] as ShiftCell[]])
+      );
       let rowTotalHours = 0;
       let rowOtHours = 0;
       let rowStatus: RosterStaffRow['status'] = 'none';
-      const dateAllocCounts = new Map<string, number>();
+      const dayIntervals = new Map<
+        string,
+        Array<{ start: number; end: number }>
+      >();
 
       for (const alloc of staffAllocations) {
         const dateKey = iso(alloc.date);
-        dateAllocCounts.set(dateKey, (dateAllocCounts.get(dateKey) ?? 0) + 1);
 
         if (shifts[dateKey] !== undefined) {
           const st = shiftTypeMap.get(alloc.shiftTypeId);
           const allocAudit = allocationById.get(alloc.id);
-          shifts[dateKey] = {
+          const cell: ShiftCell = {
             allocationId: alloc.id,
             shiftTypeId: alloc.shiftTypeId,
             code: st?.code ?? '?',
@@ -485,9 +494,22 @@ export async function loadRoster(
             createdUser: allocAudit?.createdUser ?? null,
             updatedUser: allocAudit?.updatedUser ?? null
           };
+          shifts[dateKey] = [...shifts[dateKey], cell];
           totalShifts++;
           rowTotalHours += alloc.hours;
           rowOtHours += alloc.otHours;
+
+          const times = st?.timeRange?.split('-');
+          if (times && times.length === 2) {
+            const interval = shiftToInterval(times[0], times[1]);
+            if (interval) {
+              const existing = dayIntervals.get(dateKey) ?? [];
+              if (existing.some((other) => intervalsOverlap(interval, other))) {
+                conflictCount++;
+              }
+              dayIntervals.set(dateKey, [...existing, interval]);
+            }
+          }
 
           if (alloc.status === 'published') rowStatus = 'published';
           else if (alloc.status === 'amended' && rowStatus !== 'published')
@@ -501,8 +523,11 @@ export async function loadRoster(
         }
       }
 
-      for (const count of dateAllocCounts.values()) {
-        if (count > 1) conflictCount++;
+      // Stable order within each day by start time label.
+      for (const dayIso of weekMeta.dayIsos) {
+        shifts[dayIso] = [...shifts[dayIso]].sort((a, b) =>
+          a.timeRange.localeCompare(b.timeRange)
+        );
       }
 
       totalHoursSum += rowTotalHours;
@@ -698,8 +723,11 @@ export async function saveRosterAllocationDraft(
         where: { id: data.shiftTypeId },
         select: {
           id: true,
+          name: true,
           durationHours: true,
-          status: true
+          status: true,
+          startTime: true,
+          endTime: true
         }
       }),
       staffShiftAssignmentId
@@ -982,43 +1010,104 @@ export async function saveRosterAllocationDraft(
       };
     }
 
-    // INT-L2 — soft warn when Leave Application overlaps this calendar day.
+    const staffLabel = staff.name
+      ? staff.code
+        ? `${staff.name} (${staff.code})`
+        : staff.name
+      : undefined;
+
+    // INT-L2 — soft warn when leave overlaps this duty shift window (full / half day).
     const leaveWarn = await assertLeaveSoftWarn({
       staffId: data.staffId,
       date: rosterDate,
       acknowledgedWarnings: data.acknowledgedWarnings,
-      staffLabel: staff.name
-        ? staff.code
-          ? `${staff.name} (${staff.code})`
-          : staff.name
-        : undefined
+      startTime: shiftType.startTime,
+      endTime: shiftType.endTime,
+      staffLabel
     });
-    if (!leaveWarn.ok) {
+
+    // Weekly off — soft warn when duty falls on covering standing assignment off day.
+    const weeklyOffWarn = await assertWeeklyOffSoftWarn({
+      staffId: data.staffId,
+      date: rosterDate,
+      acknowledgedWarnings: data.acknowledgedWarnings,
+      staffLabel
+    });
+
+    if (!leaveWarn.ok || !weeklyOffWarn.ok) {
+      const softWarnings = [
+        ...(!leaveWarn.ok ? leaveWarn.softWarnings : []),
+        ...(!weeklyOffWarn.ok ? weeklyOffWarn.softWarnings : [])
+      ];
       return {
         success: false,
         error: {
-          message: leaveWarn.message,
-          softWarnings: leaveWarn.softWarnings,
+          message: softWarnings[0] ?? 'Acknowledge warnings to continue',
+          softWarnings,
           requiresAck: true
         }
       };
     }
 
-    const duplicate = await prisma.rosterAllocation.findFirst({
+    // Same staff + date + shift type is not allowed.
+    const duplicateShift = await prisma.rosterAllocation.findFirst({
       where: {
         staffId: data.staffId,
         date: rosterDate,
+        shiftTypeId: data.shiftTypeId,
         ...(data.allocationId ? { id: { not: data.allocationId } } : {})
       },
       select: { id: true }
     });
 
-    if (duplicate) {
+    if (duplicateShift) {
       return {
         success: false,
         error: {
-          message: 'A roster allocation already exists for this staff member on that date',
-          issues: { rosterDate: ['Duplicate staff/date allocation is not allowed'] }
+          message:
+            'This staff member already has this shift type on that date',
+          issues: {
+            shiftTypeId: ['Duplicate shift type for the same day is not allowed'],
+            rosterDate: ['Pick a different shift type or date']
+          }
+        }
+      };
+    }
+
+    // Block overlapping duty windows with other allocations that day.
+    const sameDayOthers = await prisma.rosterAllocation.findMany({
+      where: {
+        staffId: data.staffId,
+        date: rosterDate,
+        ...(data.allocationId ? { id: { not: data.allocationId } } : {})
+      },
+      select: {
+        id: true,
+        shiftType: { select: { name: true, startTime: true, endTime: true } }
+      }
+    });
+
+    const overlapping = sameDayOthers.find((row) =>
+      shiftsOverlap({
+        startTime: shiftType.startTime,
+        endTime: shiftType.endTime,
+        otherStartTime: row.shiftType.startTime,
+        otherEndTime: row.shiftType.endTime
+      })
+    );
+
+    if (overlapping) {
+      const otherName = overlapping.shiftType.name || 'another shift';
+      const otherWindow = `${overlapping.shiftType.startTime}–${overlapping.shiftType.endTime}`;
+      return {
+        success: false,
+        error: {
+          message: `This duty overlaps ${otherName} (${otherWindow}) on the same day`,
+          issues: {
+            shiftTypeId: [
+              `Overlaps ${otherName} (${otherWindow}) — choose a non-overlapping shift`
+            ]
+          }
         }
       };
     }
@@ -1117,8 +1206,12 @@ export async function saveRosterAllocationDraft(
       return {
         success: false,
         error: {
-          message: 'A roster allocation already exists for this staff member on that date',
-          issues: { rosterDate: ['Duplicate staff/date allocation is not allowed'] }
+          message:
+            'This staff member already has this shift type on that date',
+          issues: {
+            shiftTypeId: ['Duplicate shift type for the same day is not allowed'],
+            rosterDate: ['Pick a different shift type or date']
+          }
         }
       };
     }
@@ -1329,23 +1422,32 @@ export async function publishRoster(
         }
       }
 
-      // INT-L2 — soft warn before publish when draft cells overlap leave.
+      // INT-L2 + weekly-off soft warn before publish.
+      const publishSoftRows = draftAllocations.map((row) => ({
+        staffId: row.staffId,
+        date: row.date,
+        staffLabel: row.staffCode
+          ? `${row.staffName} (${row.staffCode})`
+          : row.staffName || row.staffId
+      }));
       const leaveWarn = await assertLeaveSoftWarnForAllocations({
-        rows: draftAllocations.map((row) => ({
-          staffId: row.staffId,
-          date: row.date,
-          staffLabel: row.staffCode
-            ? `${row.staffName} (${row.staffCode})`
-            : row.staffName || row.staffId
-        })),
+        rows: publishSoftRows,
         acknowledgedWarnings: parsed.data.acknowledgedWarnings
       });
-      if (!leaveWarn.ok) {
+      const weeklyOffWarn = await assertWeeklyOffSoftWarnForAllocations({
+        rows: publishSoftRows,
+        acknowledgedWarnings: parsed.data.acknowledgedWarnings
+      });
+      if (!leaveWarn.ok || !weeklyOffWarn.ok) {
+        const softWarnings = [
+          ...(!leaveWarn.ok ? leaveWarn.softWarnings : []),
+          ...(!weeklyOffWarn.ok ? weeklyOffWarn.softWarnings : [])
+        ];
         return {
           success: false,
           error: {
-            message: leaveWarn.message,
-            softWarnings: leaveWarn.softWarnings,
+            message: softWarnings[0] ?? 'Acknowledge warnings to continue',
+            softWarnings,
             requiresAck: true
           }
         };
@@ -1464,7 +1566,7 @@ async function copyRosterPattern(
     };
   }
 
-  // INT-L2 — soft-warn once for fill/copy targets that overlap leave.
+  // INT-L2 + weekly-off soft-warn once for fill/copy targets.
   const plannedTargets: Array<{ staffId: string; date: Date }> = [];
   for (const alloc of sourceAllocations) {
     const targetDate = toTargetDate(alloc.date);
@@ -1475,12 +1577,20 @@ async function copyRosterPattern(
     rows: plannedTargets,
     acknowledgedWarnings
   });
-  if (!leaveWarn.ok) {
+  const weeklyOffWarn = await assertWeeklyOffSoftWarnForAllocations({
+    rows: plannedTargets,
+    acknowledgedWarnings
+  });
+  if (!leaveWarn.ok || !weeklyOffWarn.ok) {
+    const softWarnings = [
+      ...(!leaveWarn.ok ? leaveWarn.softWarnings : []),
+      ...(!weeklyOffWarn.ok ? weeklyOffWarn.softWarnings : [])
+    ];
     return {
       success: false,
       error: {
-        message: leaveWarn.message,
-        softWarnings: leaveWarn.softWarnings,
+        message: softWarnings[0] ?? 'Acknowledge warnings to continue',
+        softWarnings,
         requiresAck: true
       }
     };

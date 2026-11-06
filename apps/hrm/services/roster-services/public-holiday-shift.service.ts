@@ -817,7 +817,11 @@ export async function updatePublicHolidayShift(
           success: false,
           error: {
             message: 'A roster allocation already exists for this staff member on that date',
-            issues: { dutyDate: ['Duplicate staff/date allocation is not allowed'] }
+            issues: {
+              dutyDate: [
+                'Duplicate shift type for the same staff/date is not allowed'
+              ]
+            }
           }
         };
       }

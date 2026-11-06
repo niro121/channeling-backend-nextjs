@@ -504,7 +504,8 @@ export type RosterStaffRow = {
   department: string;
   unit: string;
   designation: string;
-  shifts: Record<string, ShiftCell | null>;
+  /** Day ISO → zero or more allocated shifts (multi-shift / day allowed). */
+  shifts: Record<string, ShiftCell[]>;
   totalHours: number;
   otHours: number;
   status: 'published' | 'draft' | 'amended' | 'none';
@@ -631,14 +632,28 @@ export type DutyRosterSummary = {
   unfilledDuties: number;
 };
 
-export const DUTY_ROSTER_VIEW_MODES = ['daily', 'weekly', 'monthly'] as const;
+/** List = table; Days/Weeks/Months = card browsers with drill-down. */
+export const DUTY_ROSTER_VIEW_MODES = [
+  'list',
+  'days',
+  'weeks',
+  'months'
+] as const;
 export type DutyRosterViewMode = (typeof DUTY_ROSTER_VIEW_MODES)[number];
+
+/** Legacy query aliases still accepted by `parseDutyView`. */
+export const DUTY_ROSTER_VIEW_ALIASES: Record<string, DutyRosterViewMode> = {
+  daily: 'list',
+  weekly: 'weeks',
+  monthly: 'months'
+};
 
 export type DutyRosterFilterOptions = {
   departments: RosterFilterOption[];
   units: RosterFilterOption[];
   rosters: RosterFilterOption[];
   shifts: RosterFilterOption[];
+  staff: RosterFilterOption[];
 };
 
 export type DutyRosterShiftOption = RosterFilterOption & {
@@ -722,6 +737,7 @@ export type GetDutyRosterParams = {
   unit?: string;
   roster?: string;
   shiftTypeId?: string;
+  staffId?: string;
   dutyDate?: string;
   view?: DutyRosterViewMode | string;
   search?: string;
@@ -742,6 +758,8 @@ export type SwapDutyPayload = {
   dutyDate: Date | string;
   /** UI-only — confirm dialog copy (stripped by Zod on save). */
   confirmSummary?: string;
+  /** INT-L2 — Continue after leave soft-warn. */
+  acknowledgedWarnings?: boolean;
 };
 
 /** Staff already on duty for a calendar date — Swap partner picker. */
@@ -773,6 +791,8 @@ export type ReplaceDutyPayload = {
   dutyDate: Date | string;
   /** UI-only — confirm dialog copy (stripped before service call). */
   confirmSummary?: string;
+  /** INT-L2 — Continue after leave soft-warn. */
+  acknowledgedWarnings?: boolean;
 };
 
 export type UpdateDutyAttendancePayload = {

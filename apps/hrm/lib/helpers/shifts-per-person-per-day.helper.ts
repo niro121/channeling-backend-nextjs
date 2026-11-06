@@ -28,7 +28,7 @@ function normalizeRosterCode(value: string | null | undefined): string {
 
 /**
  * Resolve Manage Roster `shiftsPerPersonPerDay` for a roster code.
- * Missing / legacy codes default to 1 (matches `@@unique([staffId, date])` v1 ceiling).
+ * Missing / legacy codes default to 1.
  */
 export async function getShiftsPerPersonPerDayLimit(
   rosterCode: string | null | undefined
@@ -55,7 +55,7 @@ export async function getShiftsPerPersonPerDayLimit(
 
 /**
  * INT-R4: reject when staff already has ≥ Manage Roster day limit on that calendar day.
- * v1 schema still enforces hospital-wide `@@unique([staffId, date])` (max 1 cell).
+ * Multiple different shift types are allowed up to this limit; same shift type is blocked separately.
  */
 export async function assertStaffDayShiftLimit(input: {
   staffId: string;

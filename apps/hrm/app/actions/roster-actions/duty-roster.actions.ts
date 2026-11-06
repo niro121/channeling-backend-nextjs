@@ -34,6 +34,7 @@ function listParams(params: GetDutyRosterParams): GetDutyRosterParams {
     unit: params.unit,
     roster: params.roster,
     shiftTypeId: params.shiftTypeId,
+    staffId: params.staffId,
     dutyDate: params.dutyDate,
     view: params.view,
     search: params.search
@@ -310,12 +311,16 @@ export async function swapDutyAllocationsAction(data: SwapDutyPayload) {
     if (!result.success) {
       return {
         isError: true,
-        errors:
-          result.error?.issues ?? {
-            message:
-              result.error?.message ??
-              'Something went wrong. Please try again later'
-          },
+        errors: {
+          ...(result.error?.issues ?? {}),
+          message:
+            result.error?.message ??
+            'Something went wrong. Please try again later',
+          ...(result.error?.softWarnings
+            ? { softWarnings: result.error.softWarnings }
+            : {}),
+          ...(result.error?.requiresAck ? { requiresAck: true } : {})
+        },
         data: {}
       };
     }
@@ -361,12 +366,16 @@ export async function replaceDutyStaffAction(data: ReplaceDutyPayload) {
     if (!result.success) {
       return {
         isError: true,
-        errors:
-          result.error?.issues ?? {
-            message:
-              result.error?.message ??
-              'Something went wrong. Please try again later'
-          },
+        errors: {
+          ...(result.error?.issues ?? {}),
+          message:
+            result.error?.message ??
+            'Something went wrong. Please try again later',
+          ...(result.error?.softWarnings
+            ? { softWarnings: result.error.softWarnings }
+            : {}),
+          ...(result.error?.requiresAck ? { requiresAck: true } : {})
+        },
         data: {}
       };
     }

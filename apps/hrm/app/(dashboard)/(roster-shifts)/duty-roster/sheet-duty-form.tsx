@@ -172,21 +172,23 @@ function StandingAssignmentLoader({
   open,
   staffId,
   dutyDate,
-  useStandingAssignment,
   setAssignments,
   setLoadingAssignments,
-  onEmptyStandingAssignments
+  onStandingCoverageChange
 }: {
   open: boolean;
   staffId: string;
   dutyDate: Date | null;
-  useStandingAssignment: boolean;
   setAssignments: (rows: DutyRosterStandingAssignmentOption[]) => void;
   setLoadingAssignments: (loading: boolean) => void;
-  onEmptyStandingAssignments?: (staffId: string, dateKey: string) => void;
+  onStandingCoverageChange?: (input: {
+    staffId: string;
+    dateKey: string;
+    hasCoverage: boolean;
+  }) => void;
 }) {
   useEffect(() => {
-    if (!open || !useStandingAssignment || !staffId || !dutyDate) {
+    if (!open || !staffId || !dutyDate) {
       setAssignments([]);
       return;
     }
@@ -200,12 +202,23 @@ function StandingAssignmentLoader({
         setLoadingAssignments(false);
         if (respond?.isError) {
           setAssignments([]);
+          if (dateKey) {
+            onStandingCoverageChange?.({
+              staffId,
+              dateKey,
+              hasCoverage: false
+            });
+          }
           return;
         }
         const rows = respond?.data ?? [];
         setAssignments(rows);
-        if (rows.length === 0 && dateKey) {
-          onEmptyStandingAssignments?.(staffId, dateKey);
+        if (dateKey) {
+          onStandingCoverageChange?.({
+            staffId,
+            dateKey,
+            hasCoverage: rows.length > 0
+          });
         }
       }
     );
@@ -215,12 +228,11 @@ function StandingAssignmentLoader({
     };
   }, [
     dutyDate,
-    onEmptyStandingAssignments,
+    onStandingCoverageChange,
     open,
     setAssignments,
     setLoadingAssignments,
-    staffId,
-    useStandingAssignment
+    staffId
   ]);
 
   return null;
@@ -401,7 +413,13 @@ export default function SheetDutyForm({
     DutyRosterStandingAssignmentOption[]
   >([]);
   const [loadingAssignments, setLoadingAssignments] = useState(false);
+  /** Staff/date keys already auto-flipped off (avoid toast spam). */
   const autoAdhocKeysRef = useRef<Set<string>>(new Set());
+  /** Staff/date keys already auto-flipped on. */
+  const autoStandingKeysRef = useRef<Set<string>>(new Set());
+  /** User manually chose ad-hoc while coverage existed — don't force standing back on for that staff/date. */
+  const userForcedAdhocKeysRef = useRef<Set<string>>(new Set());
+  const coverageContextRef = useRef('');
   const pendingAckRef = useRef(false);
   const pendingSubmitRef = useRef<{
     values: DutyRosterFormValues;
@@ -409,27 +427,88 @@ export default function SheetDutyForm({
   } | null>(null);
   const formikRef = useRef<FormikProps<DutyRosterFormValues> | null>(null);
 
+  const initialValues = useMemo(() => {
+    if (record && (mode === 'edit' || mode === 'swap' || mode === 'replace')) {
+      return dutyRosterRowToFormValues(record, defaultDate);
+    }
+    return emptyDutyFormValues(defaultDate);
+  }, [defaultDate, mode, record]);
+
   useEffect(() => {
     if (!open) {
       autoAdhocKeysRef.current.clear();
+      autoStandingKeysRef.current.clear();
+      userForcedAdhocKeysRef.current.clear();
+      coverageContextRef.current = '';
       setStandingAssignments([]);
+      return;
     }
-  }, [open]);
+    // Preserve intentional ad-hoc on edit/swap/replace — don't auto-flip to standing.
+    if (
+      record &&
+      !initialValues.useStandingAssignment &&
+      initialValues.staffId
+    ) {
+      const dateKey = dutyDateKey(initialValues.dutyDate);
+      if (dateKey) {
+        userForcedAdhocKeysRef.current.add(
+          `${initialValues.staffId}|${dateKey}`
+        );
+      }
+    }
+  }, [initialValues, open, record]);
 
-  const handleEmptyStandingAssignments = useMemo(() => {
-    return (staffId: string, dateKey: string) => {
-      const key = `${staffId}|${dateKey}`;
-      if (autoAdhocKeysRef.current.has(key)) return;
-      autoAdhocKeysRef.current.add(key);
+  const handleStandingCoverageChange = useMemo(() => {
+    return (input: {
+      staffId: string;
+      dateKey: string;
+      hasCoverage: boolean;
+    }) => {
+      const key = `${input.staffId}|${input.dateKey}`;
       const formik = formikRef.current;
-      if (!formik?.values.useStandingAssignment) return;
-      void formik.setFieldValue('useStandingAssignment', false);
+      if (!formik) return;
+
+      if (coverageContextRef.current !== key) {
+        coverageContextRef.current = key;
+      }
+
+      if (!input.hasCoverage) {
+        autoStandingKeysRef.current.delete(key);
+        if (!formik.values.useStandingAssignment) return;
+        if (autoAdhocKeysRef.current.has(key)) {
+          void formik.setFieldValue('useStandingAssignment', false);
+          void formik.setFieldValue('staffShiftAssignmentId', '');
+          void formik.setFieldValue('shiftTypeId', '');
+          return;
+        }
+        autoAdhocKeysRef.current.add(key);
+        void formik.setFieldValue('useStandingAssignment', false);
+        void formik.setFieldValue('staffShiftAssignmentId', '');
+        void formik.setFieldValue('shiftTypeId', '');
+        toast({
+          title: 'Switched to ad-hoc duty',
+          description:
+            'No standing assignment covers this duty date. Pick a shift type manually, or create a Shift Assignment for that window.'
+        });
+        return;
+      }
+
+      // Coverage exists for this staff × date.
+      autoAdhocKeysRef.current.delete(key);
+      if (formik.values.useStandingAssignment) return;
+      if (userForcedAdhocKeysRef.current.has(key)) return;
+      if (autoStandingKeysRef.current.has(key)) {
+        void formik.setFieldValue('useStandingAssignment', true);
+        return;
+      }
+      autoStandingKeysRef.current.add(key);
+      void formik.setFieldValue('useStandingAssignment', true);
       void formik.setFieldValue('staffShiftAssignmentId', '');
       void formik.setFieldValue('shiftTypeId', '');
       toast({
-        title: 'Switched to ad-hoc duty',
+        title: 'Switched to standing assignment',
         description:
-          'No standing assignment covers this duty date. Pick a shift type manually, or create a Shift Assignment for that window.'
+          'A covering Shift Assignment exists for this duty date. Select the assigned shift.'
       });
     };
   }, [toast]);
@@ -479,13 +558,6 @@ export default function SheetDutyForm({
       }),
     [mode, needsOtherStaff, showDutyPlace]
   );
-
-  const initialValues = useMemo(() => {
-    if (record && (mode === 'edit' || mode === 'swap' || mode === 'replace')) {
-      return dutyRosterRowToFormValues(record, defaultDate);
-    }
-    return emptyDutyFormValues(defaultDate);
-  }, [defaultDate, mode, record]);
 
   const auditCreatedBy = record?.createdUser?.name || record?.createdBy || '—';
   const auditUpdatedBy = record?.updatedUser?.name || record?.updatedBy || '—';
@@ -652,10 +724,9 @@ export default function SheetDutyForm({
                     open={open}
                     staffId={formik.values.staffId}
                     dutyDate={formik.values.dutyDate}
-                    useStandingAssignment={formik.values.useStandingAssignment}
                     setAssignments={setStandingAssignments}
                     setLoadingAssignments={setLoadingAssignments}
-                    onEmptyStandingAssignments={handleEmptyStandingAssignments}
+                    onStandingCoverageChange={handleStandingCoverageChange}
                   />
                   <AutoShiftTimes
                     shiftTypeId={formik.values.shiftTypeId}
@@ -689,14 +760,30 @@ export default function SheetDutyForm({
                             From standing assignment
                           </p>
                           <p className="text-xs text-muted-foreground">
-                            Turn off for ad-hoc duty when staff has no covering
-                            assignment for this date (or none at all). Empty
-                            windows auto-switch to ad-hoc once.
+                            Auto-switches with staff × duty date coverage.
+                            Manually turn off to force ad-hoc even when a
+                            standing assignment exists.
                           </p>
                         </div>
                         <Switch
                           checked={formik.values.useStandingAssignment}
                           onCheckedChange={(checked) => {
+                            const dateKey = dutyDateKey(
+                              formik.values.dutyDate
+                            );
+                            const key =
+                              formik.values.staffId && dateKey
+                                ? `${formik.values.staffId}|${dateKey}`
+                                : '';
+                            if (key) {
+                              if (!checked) {
+                                userForcedAdhocKeysRef.current.add(key);
+                                autoStandingKeysRef.current.delete(key);
+                              } else {
+                                userForcedAdhocKeysRef.current.delete(key);
+                                autoAdhocKeysRef.current.delete(key);
+                              }
+                            }
                             void formik.setFieldValue(
                               'useStandingAssignment',
                               checked
