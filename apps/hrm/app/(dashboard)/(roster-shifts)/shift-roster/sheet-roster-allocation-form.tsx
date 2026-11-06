@@ -1,13 +1,14 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Form, Formik, type FormikProps } from 'formik';
+import { Form, Formik, type FormikHelpers, type FormikProps } from 'formik';
 import * as Yup from 'yup';
 import { parseISO } from 'date-fns';
 import { X } from 'lucide-react';
 import {
   Button,
+  CustomAlertDialog,
   CustomDatePickerField,
   CustomFormField,
   CustomSelectField,
@@ -23,6 +24,7 @@ import { saveRosterAllocationDraftAction } from '@/app/actions/roster-actions/sh
 import { formatAuditDateTime } from '@/lib/utils/date';
 import type { ShiftTypeChip } from '@/types/roster';
 import type { RosterAllocationFormTarget } from './shift-roster-ui-context';
+import { buttonStyles } from '@/lib/utils/common-styles';
 
 type StaffOption = {
   id: string;
@@ -186,6 +188,13 @@ export default function SheetRosterAllocationForm({
   const { toast } = useToast();
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [confirmDescription, setConfirmDescription] = useState('');
+  const pendingAckRef = useRef(false);
+  const pendingSubmitRef = useRef<{
+    values: RosterAllocationFormValues;
+    helpers: FormikHelpers<RosterAllocationFormValues>;
+  } | null>(null);
   const mode = target.mode;
 
   const shiftTypeOptions = useMemo(
@@ -215,7 +224,102 @@ export default function SheetRosterAllocationForm({
   const auditUpdatedAt =
     mode === 'edit' ? formatAuditDateTime(target.shift?.updatedAt) : '—';
 
+  const persistAllocation = async (
+    values: RosterAllocationFormValues,
+    helpers: FormikHelpers<RosterAllocationFormValues>
+  ) => {
+    try {
+      setLoading(true);
+      const response = await saveRosterAllocationDraftAction({
+        allocationId: target.shift?.allocationId,
+        staffId: values.staffId,
+        shiftTypeId: values.shiftTypeId,
+        rosterDate: values.rosterDate ?? '',
+        periodFromDate,
+        periodToDate,
+        department: values.department,
+        unit: values.unit,
+        designation: values.designation,
+        roster: rosterValue,
+        isLeave: values.isLeave,
+        otHours: Number(values.otHours || 0),
+        comments: values.comments,
+        acknowledgedWarnings: pendingAckRef.current
+      });
+
+      if (response.isError) {
+        const errorMap = response.errors as Record<
+          string,
+          string | string[] | boolean | undefined
+        >;
+
+        if (errorMap.requiresAck) {
+          const softWarnings = Array.isArray(errorMap.softWarnings)
+            ? errorMap.softWarnings.filter(
+                (item): item is string => typeof item === 'string'
+              )
+            : [];
+          pendingSubmitRef.current = { values, helpers };
+          setConfirmDescription(
+            softWarnings.join(' ') ||
+              (typeof errorMap.message === 'string'
+                ? errorMap.message
+                : 'This staff member has leave on that date. Continue anyway?')
+          );
+          setConfirmOpen(true);
+          return;
+        }
+
+        const formErrors: Record<string, string> = {};
+        Object.keys(errorMap).forEach((key) => {
+          if (
+            key === 'message' ||
+            key === 'softWarnings' ||
+            key === 'requiresAck'
+          ) {
+            return;
+          }
+          const value = errorMap[key];
+          const msg = Array.isArray(value) ? value[0] : value;
+          if (typeof msg === 'string' && msg) formErrors[key] = msg;
+        });
+        if (Object.keys(formErrors).length) helpers.setErrors(formErrors);
+        toast({
+          variant: 'destructive',
+          title: 'Error',
+          description:
+            (typeof errorMap.message === 'string'
+              ? errorMap.message
+              : undefined) ?? 'Roster allocation could not be saved.'
+        });
+        return;
+      }
+
+      pendingAckRef.current = false;
+      toast({
+        variant: 'success',
+        title: 'Success',
+        description:
+          mode === 'edit' ? 'Roster draft updated.' : 'Roster draft saved.'
+      });
+      onOpenChange(false);
+      router.refresh();
+    } catch (error: unknown) {
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description:
+          error instanceof Error
+            ? error.message
+            : 'Roster allocation could not be saved.'
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
+    <>
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
         side="right"
@@ -231,66 +335,8 @@ export default function SheetRosterAllocationForm({
           enableReinitialize
           validationSchema={validationSchema}
           onSubmit={async (values, helpers) => {
-            try {
-              setLoading(true);
-              const response = await saveRosterAllocationDraftAction({
-                allocationId: target.shift?.allocationId,
-                staffId: values.staffId,
-                shiftTypeId: values.shiftTypeId,
-                rosterDate: values.rosterDate ?? '',
-                periodFromDate,
-                periodToDate,
-                department: values.department,
-                unit: values.unit,
-                designation: values.designation,
-                roster: rosterValue,
-                isLeave: values.isLeave,
-                otHours: Number(values.otHours || 0),
-                comments: values.comments
-              });
-
-              if (response.isError) {
-                const errorMap = response.errors as Record<string, string | string[] | undefined>;
-                const formErrors: Record<string, string> = {};
-                Object.keys(errorMap).forEach((key) => {
-                  if (key === 'message') return;
-                  const value = errorMap[key];
-                  const msg = Array.isArray(value) ? value[0] : value;
-                  if (msg) formErrors[key] = msg;
-                });
-                if (Object.keys(formErrors).length) helpers.setErrors(formErrors);
-                toast({
-                  variant: 'destructive',
-                  title: 'Error',
-                  description:
-                    (response.errors.message as string) ??
-                    'Roster allocation could not be saved.'
-                });
-                return;
-              }
-
-              toast({
-                variant: 'success',
-                title: 'Success',
-                description:
-                  mode === 'edit'
-                    ? 'Roster draft updated.'
-                    : 'Roster draft saved.'
-              });
-              onOpenChange(false);
-              router.refresh();
-            } catch (error: unknown) {
-              toast({
-                variant: 'destructive',
-                title: 'Error',
-                description:
-                  error instanceof Error
-                    ? error.message
-                    : 'Roster allocation could not be saved.'
-              });
-            } finally {
-              setLoading(false);
-            }
+            pendingAckRef.current = false;
+            await persistAllocation(values, helpers);
           }}
         >
           {(formik) => (
@@ -459,13 +505,13 @@ export default function SheetRosterAllocationForm({
                   size="sm"
                   variant="outline"
                   disabled={loading}
-                  className="w-full sm:w-24 gap-1 border-red-500 text-red-500 transition-colors ease-in-out duration-100 hover:bg-red-500 hover:text-white"
+                  className={buttonStyles.cancel.normal}
                   onClick={() => onOpenChange(false)}
                 >
                   <X className="h-3.5 w-3.5" />
                   Cancel
                 </Button>
-                <Button type="submit" size="sm" disabled={loading}>
+                <Button type="submit" size="sm" disabled={loading} className={buttonStyles.save}>
                   {saveLabel}
                 </Button>
               </SheetFooter>
@@ -474,5 +520,31 @@ export default function SheetRosterAllocationForm({
         </Formik>
       </SheetContent>
     </Sheet>
+
+    <CustomAlertDialog
+      open={confirmOpen}
+      title="Staff has leave on this date"
+      description={confirmDescription}
+      loading={loading}
+      handleVisibilityChange={(nextOpen) => {
+        if (!nextOpen) {
+          pendingSubmitRef.current = null;
+          pendingAckRef.current = false;
+        }
+        setConfirmOpen(nextOpen);
+      }}
+      handleContinue={async () => {
+        const pending = pendingSubmitRef.current;
+        if (!pending) {
+          setConfirmOpen(false);
+          return;
+        }
+        pendingAckRef.current = true;
+        setConfirmOpen(false);
+        await persistAllocation(pending.values, pending.helpers);
+        pendingSubmitRef.current = null;
+      }}
+    />
+    </>
   );
 }

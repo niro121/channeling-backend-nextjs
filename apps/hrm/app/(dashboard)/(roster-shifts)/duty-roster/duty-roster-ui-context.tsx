@@ -8,7 +8,11 @@ import {
   useState,
   type ReactNode
 } from 'react';
-import type { DutyRosterRow, SwapDutyPayload } from '@/types/roster';
+import type {
+  DutyRosterRow,
+  ReplaceDutyPayload,
+  SwapDutyPayload
+} from '@/types/roster';
 
 export type DutyRosterFormSheetMode = 'assign' | 'edit' | 'swap' | 'replace';
 
@@ -22,6 +26,8 @@ type DutyRosterUiContextValue = {
   historyRecord: DutyRosterRow | null;
   swapConfirmOpen: boolean;
   pendingSwap: SwapDutyPayload | null;
+  replaceConfirmOpen: boolean;
+  pendingReplace: ReplaceDutyPayload | null;
   openAssign: () => void;
   openEdit: (record: DutyRosterRow) => void;
   openSwap: (record?: DutyRosterRow) => void;
@@ -29,6 +35,8 @@ type DutyRosterUiContextValue = {
   openHistory: (record: DutyRosterRow) => void;
   requestSwapConfirm: (payload: SwapDutyPayload) => void;
   closeSwapConfirm: () => void;
+  requestReplaceConfirm: (payload: ReplaceDutyPayload) => void;
+  closeReplaceConfirm: () => void;
   closeFormSheet: () => void;
   closeHistorySheet: () => void;
 };
@@ -44,6 +52,9 @@ export function DutyRosterUiProvider({ children }: { children: ReactNode }) {
   );
   const [swapConfirmOpen, setSwapConfirmOpen] = useState(false);
   const [pendingSwap, setPendingSwap] = useState<SwapDutyPayload | null>(null);
+  const [replaceConfirmOpen, setReplaceConfirmOpen] = useState(false);
+  const [pendingReplace, setPendingReplace] =
+    useState<ReplaceDutyPayload | null>(null);
 
   const openAssign = useCallback(() => {
     setFormSheet({ mode: 'assign', record: null });
@@ -75,6 +86,16 @@ export function DutyRosterUiProvider({ children }: { children: ReactNode }) {
     setPendingSwap(null);
   }, []);
 
+  const requestReplaceConfirm = useCallback((payload: ReplaceDutyPayload) => {
+    setPendingReplace(payload);
+    setReplaceConfirmOpen(true);
+  }, []);
+
+  const closeReplaceConfirm = useCallback(() => {
+    setReplaceConfirmOpen(false);
+    setPendingReplace(null);
+  }, []);
+
   const closeFormSheet = useCallback(() => setFormSheet(null), []);
   const closeHistorySheet = useCallback(() => setHistoryRecord(null), []);
 
@@ -84,6 +105,8 @@ export function DutyRosterUiProvider({ children }: { children: ReactNode }) {
       historyRecord,
       swapConfirmOpen,
       pendingSwap,
+      replaceConfirmOpen,
+      pendingReplace,
       openAssign,
       openEdit,
       openSwap,
@@ -91,6 +114,8 @@ export function DutyRosterUiProvider({ children }: { children: ReactNode }) {
       openHistory,
       requestSwapConfirm,
       closeSwapConfirm,
+      requestReplaceConfirm,
+      closeReplaceConfirm,
       closeFormSheet,
       closeHistorySheet
     }),
@@ -99,6 +124,8 @@ export function DutyRosterUiProvider({ children }: { children: ReactNode }) {
       historyRecord,
       swapConfirmOpen,
       pendingSwap,
+      replaceConfirmOpen,
+      pendingReplace,
       openAssign,
       openEdit,
       openSwap,
@@ -106,6 +133,8 @@ export function DutyRosterUiProvider({ children }: { children: ReactNode }) {
       openHistory,
       requestSwapConfirm,
       closeSwapConfirm,
+      requestReplaceConfirm,
+      closeReplaceConfirm,
       closeFormSheet,
       closeHistorySheet
     ]

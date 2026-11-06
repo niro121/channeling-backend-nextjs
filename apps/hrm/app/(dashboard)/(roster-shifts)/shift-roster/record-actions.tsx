@@ -28,7 +28,7 @@ export default function RosterRecordActions({
   const canDelete = has('shift-roster', 'delete');
 
   const handleEdit = () => {
-    const dateIso = dayIsos.find((d) => record.shifts[d] != null);
+    const dateIso = dayIsos.find((d) => (record.shifts[d] ?? []).length > 0);
     if (!dateIso) {
       toast({
         title: 'No shift allocated this week',
@@ -36,7 +36,7 @@ export default function RosterRecordActions({
       });
       return;
     }
-    const shift = record.shifts[dateIso];
+    const shift = record.shifts[dateIso]?.[0];
     if (!shift) return;
     openEdit({ row: record, dateIso, shift });
   };

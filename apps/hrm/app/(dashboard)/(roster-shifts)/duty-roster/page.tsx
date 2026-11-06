@@ -30,6 +30,7 @@ type SearchParams = {
     shiftTypeId?: string;
     view?: string;
     dutyDate?: string;
+    staffId?: string;
     search?: string;
   }>;
 };
@@ -45,15 +46,17 @@ const EMPTY_FILTERS: DutyRosterFilterOptions = {
   departments: [],
   units: [],
   rosters: [],
-  shifts: []
+  shifts: [],
+  staff: []
 };
 
 const EMPTY_FORM_OPTIONS: DutyRosterFormOptions = {
   staff: [],
   shiftTypes: [],
   supervisors: [],
-  locations: [],
-  units: []
+  departments: [],
+  zones: [],
+  rooms: []
 };
 
 function parseDutyDate(value?: string): Date {
@@ -89,7 +92,8 @@ export default async function DutyRosterPage({ searchParams }: SearchParams) {
     unitId: params?.unit ?? '',
     dutyDate,
     shiftId: params?.shiftTypeId ?? '',
-    rosterId: params?.roster ?? ''
+    rosterId: params?.roster ?? '',
+    staffId: params?.staffId ?? ''
   };
 
   const listParams = {
@@ -99,6 +103,7 @@ export default async function DutyRosterPage({ searchParams }: SearchParams) {
     unit: params?.unit,
     roster: params?.roster,
     shiftTypeId: params?.shiftTypeId,
+    staffId: params?.staffId,
     dutyDate: format(dutyDate, 'yyyy-MM-dd'),
     view: viewMode,
     search: params?.search
@@ -142,9 +147,7 @@ export default async function DutyRosterPage({ searchParams }: SearchParams) {
     return {
       success: true,
       data: exportResponse.data.map((row) => ({
-        ...(viewMode !== 'daily'
-          ? { date: row.date ? row.date.slice(0, 10) : '' }
-          : {}),
+        date: row.date ? row.date.slice(0, 10) : '',
         staffCode: row.staffCode,
         staffName: row.staffName,
         shiftName: row.shiftName,

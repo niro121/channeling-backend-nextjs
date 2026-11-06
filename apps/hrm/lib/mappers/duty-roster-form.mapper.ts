@@ -14,14 +14,18 @@ function weekBounds(dutyDate: Date): { from: Date; to: Date } {
 
 export function emptyDutyFormValues(defaultDate: Date): DutyRosterFormValues {
   return {
+    useStandingAssignment: true,
     staffId: '',
     otherStaffId: '',
+    staffShiftAssignmentId: '',
     shiftTypeId: '',
     dutyDate: defaultDate,
     startTime: '07:00',
     endTime: '15:00',
-    dutyLocation: '',
-    wardUnit: '',
+    useWorkingDepartment: true,
+    dutyLocationDepartmentId: '',
+    dutyZoneId: '',
+    dutyRoomId: '',
     supervisorId: '',
     attendance: 'unmarked',
     comments: ''
@@ -32,15 +36,20 @@ export function dutyRosterRowToFormValues(
   row: DutyRosterRow,
   defaultDate: Date
 ): DutyRosterFormValues {
+  const isStanding = row.allocationSource === 'standing';
   return {
+    useStandingAssignment: isStanding,
     staffId: row.staffId,
     otherStaffId: '',
+    staffShiftAssignmentId: row.staffShiftAssignmentId ?? '',
     shiftTypeId: row.shiftTypeId,
     dutyDate: row.date ? new Date(row.date) : defaultDate,
     startTime: row.startTime || '07:00',
     endTime: row.endTime || '15:00',
-    dutyLocation: row.dutyLocation,
-    wardUnit: row.wardUnit,
+    useWorkingDepartment: false,
+    dutyLocationDepartmentId: row.dutyLocationDepartmentId ?? '',
+    dutyZoneId: row.dutyZoneId ?? '',
+    dutyRoomId: row.dutyRoomId ?? '',
     supervisorId: row.supervisorId ?? '',
     attendance: row.attendance || 'unmarked',
     comments: row.comments
@@ -49,10 +58,12 @@ export function dutyRosterRowToFormValues(
 
 export function dutyFormValuesToSavePayload(
   values: DutyRosterFormValues,
-  allocationId?: string
+  allocationId?: string,
+  options?: { acknowledgedWarnings?: boolean }
 ): SaveRosterAllocationDraftPayload {
   const dutyDate = values.dutyDate as Date;
   const { from, to } = weekBounds(dutyDate);
+  const standing = values.useStandingAssignment;
   return {
     allocationId,
     staffId: values.staffId,
@@ -60,14 +71,23 @@ export function dutyFormValuesToSavePayload(
     rosterDate: dutyDate,
     periodFromDate: from,
     periodToDate: to,
-    unit: values.wardUnit || null,
-    dutyLocation: values.dutyLocation || '',
+    dutyLocationDepartmentId: values.dutyLocationDepartmentId || null,
+    dutyZoneId: values.dutyZoneId || null,
+    dutyRoomId: values.dutyRoomId || null,
+    unit: null,
     supervisorId: values.supervisorId || null,
+    allocationSource: standing ? 'standing' : 'adhoc',
+    staffShiftAssignmentId: standing
+      ? values.staffShiftAssignmentId || null
+      : null,
     attendance:
       values.attendance && values.attendance !== 'unmarked'
         ? (values.attendance as SaveRosterAllocationDraftPayload['attendance'])
         : null,
-    comments: values.comments || ''
+    comments: values.comments || '',
+    ...(options?.acknowledgedWarnings
+      ? { acknowledgedWarnings: true }
+      : {})
   };
 }
 

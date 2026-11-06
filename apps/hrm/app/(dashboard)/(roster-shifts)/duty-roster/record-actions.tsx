@@ -12,9 +12,14 @@ import { buttonStyles } from '@/lib/utils/common-styles';
 
 type DutyRecordActionsProps = {
   record: DutyRosterRow;
+  /** Called after a successful delete (e.g. close / prune a parent dialog). */
+  onDeleted?: (id: string) => void;
 };
 
-export default function DutyRecordActions({ record }: DutyRecordActionsProps) {
+export default function DutyRecordActions({
+  record,
+  onDeleted
+}: DutyRecordActionsProps) {
   const { toast } = useToast();
   const router = useRouter();
   const { has } = usePermissions();
@@ -108,6 +113,7 @@ export default function DutyRecordActions({ record }: DutyRecordActionsProps) {
             description: 'Duty allocation deleted.'
           });
           setOpen(false);
+          onDeleted?.(record.id);
           router.refresh();
         }}
         className={{ actionButton: buttonStyles.delete.danger }}

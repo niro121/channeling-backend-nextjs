@@ -52,6 +52,22 @@ export function getColomboParts(instant: Date): ColomboDateParts {
   };
 }
 
+const COLOMBO_WEEKDAY_IDS = [
+  'sunday',
+  'monday',
+  'tuesday',
+  'wednesday',
+  'thursday',
+  'friday',
+  'saturday'
+] as const;
+
+/** Weekday id (`sunday`…`saturday`) for the Asia/Colombo civil day of an instant. */
+export function getColomboWeekdayId(instant: Date): string {
+  const zoned = toColombo(instant);
+  return COLOMBO_WEEKDAY_IDS[zoned.getDay()] ?? 'sunday';
+}
+
 /** `yyyy-MM-dd` for the Asia/Colombo civil day of an instant. */
 export function toColomboDateIso(instant: Date): string {
   return format(toColombo(instant), 'yyyy-MM-dd');

@@ -36,60 +36,73 @@ function isAttendance(value: string | null | undefined): value is DutyAttendance
   return value === 'present' || value === 'late' || value === 'absent';
 }
 
-const dateColumn: ColumnDef<DutyRosterRow> = {
-  id: 'date',
-  accessorFn: (row) => row.date?.slice(0, 10) ?? '',
-  header: () => <span className="whitespace-nowrap">Duty Date</span>,
-  cell: ({ row }) => (
-    <span className="whitespace-nowrap tabular-nums">
-      {formatDutyDateLabel(row.original.date)}
-    </span>
-  )
-};
+export function getDutyRosterColumns(options?: {
+  /** When grouped by staff, omit per-row Staff ID / Name (shown on group header). */
+  groupedByStaff?: boolean;
+}): ColumnDef<DutyRosterRow>[] {
+  const groupedByStaff = options?.groupedByStaff === true;
+  const staffColumns: ColumnDef<DutyRosterRow>[] = groupedByStaff
+    ? [
+        {
+          id: 'staffId',
+          accessorKey: 'staffId',
+          header: 'Staff',
+          enableHiding: true
+        }
+      ]
+    : [
+        {
+          accessorKey: 'staffCode',
+          header: () => <span className="whitespace-nowrap">Staff ID</span>,
+          cell: ({ row }) => (
+            <span className="font-medium tabular-nums">
+              {row.original.staffCode}
+            </span>
+          )
+        },
+        {
+          accessorKey: 'staffName',
+          header: 'Staff Name',
+          cell: ({ row }) => <span>{row.original.staffName}</span>
+        }
+      ];
 
-export function getDutyRosterColumns(
-  showDate: boolean
-): ColumnDef<DutyRosterRow>[] {
-  return showDate
-    ? [dateColumn, ...dutyRosterBaseColumns]
-    : dutyRosterBaseColumns;
+  return [...staffColumns, ...dutyRosterShiftColumns];
 }
 
-const dutyRosterBaseColumns: ColumnDef<DutyRosterRow>[] = [
-  {
-    accessorKey: 'staffCode',
-    header: () => <span className="whitespace-nowrap">Staff ID</span>,
-    cell: ({ row }) => (
-      <span className="font-medium tabular-nums">{row.original.staffCode}</span>
-    )
-  },
-  {
-    accessorKey: 'staffName',
-    header: 'Staff Name',
-    cell: ({ row }) => <span>{row.original.staffName}</span>
-  },
+const dutyRosterShiftColumns: ColumnDef<DutyRosterRow>[] = [
   {
     accessorKey: 'shiftName',
     header: 'Shift',
-    cell: ({ row }) => <span>{row.original.shiftName}</span>
+    cell: ({ row }) => <span className='whitespace-nowrap font-medium'>{row.original.shiftName}</span>
+  },
+  {
+    id: 'date',
+    accessorFn: (row) => row.date?.slice(0, 10) ?? '',
+    header: () => <span className="whitespace-nowrap">Duty Date</span>,
+    cell: ({ row }) => (
+      <span className="whitespace-nowrap font-medium tabular-nums">
+        {formatDutyDateLabel(row.original.date)}
+      </span>
+    )
   },
   {
     accessorKey: 'startTime',
     header: () => <span className="whitespace-nowrap">Start Time</span>,
     cell: ({ row }) => (
-      <span className="tabular-nums">{row.original.startTime}</span>
+      <span className="whitespace-nowrap font-medium tabular-nums">{row.original.startTime}</span>
     )
   },
   {
     accessorKey: 'endTime',
     header: () => <span className="whitespace-nowrap">End Time</span>,
     cell: ({ row }) => (
-      <span className="tabular-nums">{row.original.endTime}</span>
+      <span className="whitespace-nowrap font-medium tabular-nums">{row.original.endTime}</span>
     )
   },
   {
     accessorKey: 'dutyLocation',
-    header: () => <span className="whitespace-nowrap">Duty Location</span>,
+    header: () => <span className="whitespace-nowrap">Duty Department</span>,
     cell: ({ row }) => (
       <span className="text-muted-foreground">
         {row.original.dutyLocation || '—'}
@@ -98,7 +111,7 @@ const dutyRosterBaseColumns: ColumnDef<DutyRosterRow>[] = [
   },
   {
     accessorKey: 'wardUnit',
-    header: () => <span className="whitespace-nowrap">Ward / Unit</span>,
+    header: () => <span className="whitespace-nowrap">Room / Unit</span>,
     cell: ({ row }) => (
       <span className="text-muted-foreground">
         {row.original.wardUnit || '—'}

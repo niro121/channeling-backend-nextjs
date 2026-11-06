@@ -8,12 +8,12 @@ Leave / Overtime are the process references — see `LEAVE_MANAGER_GUIDE.md` and
 **Domain (Phase 1 map):** locked in this doc (17 Aug 2026).  
 **D1:** Six collections in `schema.prisma` + `types/roster.ts`; `prisma db push` applied locally.  
 **D6:** Shift Roster workflow is live on `/shift-roster` (publish, fill new, fill old, copy previous week/month, draft save guards on published dates).  
-**D7:** Duty Roster is live on `/duty-roster` (same `RosterAllocation` store; assign / edit / swap / replace / attendance; published dates locked).  
+**D7:** Duty Roster is live on `/duty-roster` (same `RosterAllocation` store; standing / ad-hoc assign, place FKs, swap / replace / attendance; published dates locked).  
 **D8:** Roster Amendments is live on `/roster-amendments` (CRUD; Approve applies to published cells; Reject leaves roster unchanged).  
 **D9:** Night Shifts is live on `/night-shifts` (derived from `RosterAllocation` where `ShiftType.isNightShift`; consecutive nights computed; Add refuses existing staff+date).  
 **D10:** Overnight Shifts is live on `/overnight-shifts` (derived from `RosterAllocation` where `ShiftType.isOvernight`; day-split hours stored; Recalculate Splits rewrites fields; Add refuses existing staff+date).  
 **Build path:** UI first (done), then **Types/Zod → Service → Actions → wire UI**. Vertical slices, one collection or read/write path at a time.  
-Pages must not call Prisma. No business rules in components. Next: **D11 Public Holiday Shifts**.
+Pages must not call Prisma. No business rules in components. Operational screens complete; remaining **INT-H8 / INT-H9**.
 
 **Locked product decisions (Roster & Shifts group):**
 - Sidebar group: **Roster & Shifts**
@@ -122,7 +122,7 @@ Until §34 Option A/B ships, **no Roster & Shifts refactor** is needed for Manag
 
 **Simple explanation:** Manage Rosters (HR Admin) is **not** a shift template. It defines a **roster group** (team/ward): department, business code (e.g. `CHN`), and how many shifts per person per day. **Shift Types** here are the actual shift templates (Morning, Night, etc.). **Shift Assignment** links staff ↔ shift type as standing rules. **Roster & Shifts** calendars then allocate those shifts on dates. In short: group rules in HR Admin → membership on Staff → standing rules in Shift Assignment → day duties in calendars.
 
-Roster & Shifts **operational screens are complete**. Remaining work is **integration hardening + INT-R4** — do not reopen grid/register structure.
+Roster & Shifts **operational screens are complete**. Remaining work is later **INT-H8–H9** — do not reopen grid/register structure.
 
 **Connection (required):**
 
@@ -141,7 +141,7 @@ Manage Rosters (CHN)
 | Staff Employment membership | Manage Roster **codes** (INT-S3) |
 | Shift / Duty roster filters | Manage Rosters via `buildManageRosterFilterOptions` (INT-R3 / R7); legacy orphans dual-read |
 | Shift Assignment | Roster-first UI; `manageRosterId` required on create; same-staff + same-shift-type overlap enforced |
-| Day limit (`shiftsPerPersonPerDay`) | Stored on Manage Rosters; shown on Shift Assignment context card; **not** hard-enforced on allocate yet (**INT-R4**) |
+| Day limit (`shiftsPerPersonPerDay`) | Stored on Manage Rosters; shown on Shift Assignment context card; **enforced** on allocate / fill-copy / publish (**INT-R4**). Multiple different shift types/day allowed up to the limit; same shift type / overlapping times blocked |
 
 **Deliverables:**
 
@@ -149,7 +149,9 @@ Manage Rosters (CHN)
 |----|------|--------|
 | **INT-R3** | Load roster filter / create-period options from `ManageRoster` | **Done (R7)** |
 | **INT-R3b** | New period + allocation snapshots write roster **code** | Keep string field; dual-read legacy during transition |
-| **INT-R4** | Enforce `shiftsPerPersonPerDay` on allocate / fill / publish (full **calendar day**) | **Upcoming (R8)** — not on standing-assignment create |
+| **INT-R4** | Enforce `shiftsPerPersonPerDay` on allocate / fill / publish (full **calendar day**) | **Done (R8)** — `assertStaffDayShiftLimit` in `saveRosterAllocationDraft` + publish pre-check; not on standing-assignment create |
+| **INT-L2** | Leave Application overlap on calendar allocate / fill / publish — **soft warn + Continue** (not hard block); not on standing Shift Assignment create | **Done** — `assertLeaveSoftWarn` + `acknowledgedWarnings` |
+| — | Weekly-off day on covering standing assignment — soft warn + Continue on allocate / fill / publish / Duty Swap / Replace (same `acknowledgedWarnings` ack as INT-L2) | **Done** — `assertWeeklyOffSoftWarn` |
 | **INT-H2** | Server assert: assigned staff’s `employment.roster` = selected Manage Roster **code** (create / bulk / update) | **Done** |
 | **INT-H3** | Legacy null `manageRosterId` — backfill + include in Manage Rosters in-use | **Done** (HR Admin) |
 | **INT-H5** | Reject inactive shift types on assignment create/update | **Done** |
@@ -499,7 +501,9 @@ Fields: Roster Group* (Manage Rosters FK — context card: name, code, departmen
 | Roster-first | Select Manage Roster group before staff; staff options = members with `employment.roster` = group **code** |
 | FK | Create always sets `manageRosterId`; update must keep a resolved roster (legacy null rows backfilled via employment code when edited) |
 | Overlap | Reject only **same staff + same shift type** with overlapping effective date ranges among `active`/`pending` rows (cross-type allowed; `inactive` ignored — INT-H7) |
-| Day limit | Context card shows `shiftsPerPersonPerDay`; **do not** hard-block standing-rule create for INT-R4 — enforce on allocate / fill / publish later |
+| Day limit | Context card shows `shiftsPerPersonPerDay`; **do not** hard-block standing-rule create — allocate / fill-copy / publish enforced (**INT-R4**) |
+| Leave Application | **Do not** hard-block standing Shift Assignment for leave. Calendar allocate / fill / publish: soft warn + Continue if approved or pending leave overlaps that date (**INT-L2**) |
+| Weekly off | Standing `weeklyOffDay` is informational on assignment create. Calendar allocate / fill / publish / Duty Swap / Replace: soft warn + Continue when the duty’s Asia/Colombo weekday matches any covering active/pending assignment’s weekly off (same `acknowledgedWarnings` as INT-L2) |
 | Delete | Removes standing rule only; does **not** cascade-delete calendar cells |
 | Shift Types | Templates only; delete blocked when assignments / allocations / amendments reference the type |
 
@@ -536,12 +540,10 @@ Daily department/unit duty list. Same permission as the rest of Roster & Shifts 
 │ [ Load Roster ] [ Clear ]                                                 │
 └───────────────────────────────────────────────────────────────────────────┘
 
-┌─ Duty Roster (CommonDataTable) ───────────────────────────────────────────┐
-│ Daily | Weekly* | Monthly*                       [ Columns ] [ Print/… ]  │
-│ Staff ID │ Name │ Shift │ Start │ End │ Location │ Ward/Unit │ Supervisor │
-│ Status │ Attendance │ Updated │ Created │ Actions (Swap / Edit / Del / Hist)│
+┌─ Duty Roster views ───────────────────────────────────────────────────────┐
+│ List | Days | Weeks | Months                     [ Columns ] [ Print/… ]  │
+│ List → staff-grouped table · Days/Weeks/Months → cards → CustomDialog     │
 └───────────────────────────────────────────────────────────────────────────┘
-* Weekly / Monthly: date-range lists (Duty Date column); grid stays on Shift Roster
 ```
 
 Key files under `app/(dashboard)/(roster-shifts)/duty-roster/`:
@@ -553,39 +555,51 @@ Key files under `app/(dashboard)/(roster-shifts)/duty-roster/`:
 | `duty-roster-ui-context.tsx` | Open Assign / Edit / Swap / Replace / History; swap confirm |
 | `header-actions.tsx` | **Assign Staff**, **Swap Shift**, **Replace Staff** (no Print/Excel/PDF) |
 | `section-duty-summary.tsx` | Four count cards |
-| `section-duty-filters.tsx` | Dept / Unit / Date / Shift / Roster; date defaults to today |
-| `section-duty-register.tsx` | `CommonDataTable` + Daily/Weekly/Monthly + export |
+| `section-duty-filters.tsx` | Mode-aware filters (date / year+month / year) + staff/dept/unit/shift/roster |
+| `section-duty-register.tsx` | **List** — staff-grouped `CommonDataTable` + export |
+| `section-duty-days-board.tsx` / `weeks` / `months` | Card browsers |
+| `dialog-duty-range.tsx` | Drill-down dialog with staff-grouped duties |
+| `section-duty-view-toolbar.tsx` | List / Days / Weeks / Months switcher |
 | `section-duty-instructions.tsx` | Collapsible Duty Roster procedure |
 | `columns.tsx` / `record-actions.tsx` | Columns + Swap / Edit / Delete / History |
-| `sheet-duty-form.tsx` | Assign / Edit / Swap / Replace form |
+| `sheet-duty-form.tsx` | Assign / Edit form |
+| `sheet-duty-swap-form.tsx` | Swap sheet (two duty cards + confirm) |
+| `sheet-duty-replace-form.tsx` | Replace sheet (handover + incoming cards + confirm) |
 | `sheet-duty-history.tsx` | Timeline history; **Cancel only** |
 
 ### 2D.1 Header and views
 
-- Print / PDF / Excel live on the **table toolbar only** (not the page header).
-- **Daily** is the default list. **Weekly** / **Monthly** load a date-range list for the selected date (Sun–Sat week, like Shift Roster). The staff × day grid stays on `/shift-roster`.
-- Header Swap / Replace open **full forms** (no selected-row requirement). No table checkboxes — Assign / Swap / Replace / Edit / Delete are header or row actions, not bulk selection.
+- Print / PDF / Excel live on the **List** table toolbar only (not the page header).
+- **List** (default): staff-grouped table for one **date**. **Days**: day cards for **year + month**. **Weeks**: week cards (Sun–Sat) for that month. **Months**: 12 cards for a **year**. Card click opens a staff-grouped duties dialog.
+- Filters change with mode. Optional Staff / Dept / Unit / Shift / Roster always available.
+- Header Swap / Replace open **full forms**. No table checkboxes.
 
 ### 2D.2 Form sheets
 
 | Sheet | Opens from | Notes |
 |-------|------------|--------|
-| Assign Staff | Header | Staff*, Shift Type*, date*, location, ward/unit, supervisor, status |
-| Swap Shift | Header or row Swap | Two staff + date/shift; Save → confirm dialog → toast |
-| Replace Staff | Header | Current staff + replacement staff |
-| Edit Duty | Row pencil | Prefill sample |
+| Assign Staff | Header | Mode switch → Staff* → Duty date* → Assigned shift* (or ad-hoc Shift Type*) → place → supervisor |
+| Swap Shift | Header or row Swap | Dedicated swap sheet: current + partner duty cards; partner border accent; Save → `CustomAlertDialog` confirm → toast |
+| Replace Staff | Header or row | Dedicated replace sheet: duty-to-hand-over + incoming preview cards; Save → confirm |
+| Edit Duty | Row pencil | Prefill live allocation (standing / ad-hoc) |
 | Change History | Row clock | Timeline like Shift Types; Cancel only |
 
 Field behaviour (locked):
 
-- **Start / End** auto from Shift Type (disabled).
-- **Duty Location / Ward-Unit** prefilled from staff, still editable.
-- **Supervisor** editable.
-- Status: **Draft / Pending Approval / Published / Amended**. New assign defaults to Draft.
+- **Mode:** **From standing assignment** (default) vs **Ad-hoc duty**. Standing loads covering `StaffShiftAssignment` rows for staff × duty date (fetched whenever staff/date change, even in ad-hoc). **No covering row** → auto-switch to ad-hoc (toast). **Coverage appears** (e.g. date moved into an effective window) → auto-switch back to standing (toast), unless the user manually forced ad-hoc for that staff×date.
+- **Order:** Staff → Duty date (defaults to register filter / today) → Assigned shift (standing) or Shift Type (ad-hoc) → read-only context card → place → supervisor.
+- **Start / End** auto from Shift Type / assignment (disabled).
+- **Duty department***: switch **Use staff working department** (default on). Off → department combobox scoped to staff institution. Persists `dutyLocationDepartmentId` (+ name snapshot).
+- **Zone** / **Unit–Room** optional (`dutyZoneId` / `dutyRoomId`).
+- **Supervisor** staff combobox (excludes duty staff).
+- Persist `allocationSource` (`standing` \| `adhoc`) + optional `staffShiftAssignmentId`.
+- Status follows allocation / period (Draft / Published / Amended). INT-R4 / INT-L2 / weekly-off soft warn still apply on save.
 
-Swap confirm: `CustomAlertDialog` — “Swap this duty shift?” / both members notified. Continue then toast. Swap is between two registered staff.
+**Swap sheet (locked):** Only staff already on duty that date appear. Current staff locked when opened from a row; **Swap with** excludes the same staff. Two read-only cards — current duty (neutral border) and swap partner (sky accent border) with shift / times / department / location / roster / supervisor. Both must already have a cell (else use Replace). Save opens `CustomAlertDialog` (“Swap this duty shift?” + named summary) before persist. **INT-L2:** soft warn + Continue if **either** staff has approved/pending leave on that day. **Weekly off:** soft warn + Continue if either staff’s covering standing assignment weekly off matches the Asia/Colombo weekday.
 
-Sticky sheet header. Phase 0 toast save (except swap, which confirms first).
+**Replace sheet (locked):** Staff to replace must already have a duty; replacement must **not** (unique staff×date). Current staff locked from row. Two cards — **Duty to hand over** (neutral) and **Replacement preview** (amber accent: institution / working dept / roster / standing if any + “Will take over this duty” summary). Same staff excluded; on-duty staff excluded from replacement list. Save opens `CustomAlertDialog` (“Replace this duty staff?” + named summary) before persist. Shift/place stay on the cell; only `staffId` changes. **INT-L2:** soft warn + Continue if **replacement** staff has approved/pending leave on that day. **Weekly off:** soft warn + Continue if replacement’s covering standing weekly off matches that weekday.
+
+Sticky sheet header.
 
 ### 2D.3 Register
 
@@ -865,9 +879,10 @@ Key files under `app/(dashboard)/(roster-shifts)/public-holiday-shifts/`:
 
 Field behaviour (locked):
 
-- Public Holiday, Holiday Type, Staff (not Bulk), Shift, Duty Date, Pay Rate required.
-- Holiday selection auto-fills **Holiday Type** and **Duty Date** (both remain editable).
-- Shift auto-fills **Worked Hours** (editable). Staff auto-fills **Duty Location** (editable).
+- Public Holiday, Staff (not Bulk), Shift, Pay Rate required.
+- Layout: Holiday (full) → Holiday Type | Duty Date → Staff | Shift → remaining fields.
+- Holiday selection auto-fills **Holiday Type** and **Duty Date** (both read-only cards from Holiday Calendar). Server derives allocation date from the holiday; client `dutyDate` is ignored.
+- Shift auto-fills **Worked Hours** (editable). Staff shows **Working Location** (institution, read-only) and auto-fills **Duty Location** from working department (Department master options filtered by that institution; editable). Persist `dutyLocationDepartmentId` FK + name snapshot in `dutyLocation`.
 - Pay Rate: **1.50x / 2.00x / 2.50x**. Grant Lieu Leave maps to Lieu Leave Yes/No. Send to Payroll is **form only**.
 - Status: Draft / Pending Approval / Approved / Rejected / **Amended**. New defaults to Pending Approval.
 
@@ -1386,12 +1401,12 @@ HolidayCalendar 1──* RosterAllocation   (optional holidayId on the cell)
 | Status (assignment) | `active` / `pending` / `inactive` |
 | Status (amendment) | `draft` / `pending_approval` / `approved` / `rejected` |
 | Status (shift type) | Active / Inactive (or `status` 0\|1 like leave types) |
-| Allocation uniqueness | **`@@unique([staffId, date])` hospital-wide** — one shift per staff per calendar date |
+| Allocation uniqueness | **`@@unique([staffId, date, shiftTypeId])`** — multiple shifts/day OK; same shift type on the same day blocked; time-overlap also rejected |
 | Fill / copy | Must **not** insert a second cell for an existing staff+date; upsert empty cells or shift dates by 7 days (copy previous week) |
 | Leave on a cell | Boolean `isLeave`; does **not** create a Leave Application in v1 |
 | Duty extras on the cell | `dutyLocation`, supervisor id/name snapshots, `attendance` (`present` \| `late` \| `absent` \| null), comments |
 | Overnight on the cell | Start/end date-time; stored `day1Hours` / `day2Hours` / `totalHours`; attendance allocation date (`shift_start` \| `shift_end`) |
-| Holiday on the cell | Optional `holidayId`; `payRate` (`1.50` \| `2.00` \| `2.50`); `holidayAllowance`; `grantLieuLeave`; `sendToPayroll` |
+| Holiday on the cell | Optional `holidayId`; `payRate` (`1.50` \| `2.00` \| `2.50`); `holidayAllowance`; `grantLieuLeave`; `sendToPayroll`; `dutyLocationDepartmentId` FK + `dutyLocation` name snapshot |
 | Night extras on the cell | Night hours / OT / allowances as stored floats when the shift type is night; consecutive nights **computed** in the service (not a stored counter as source of truth) |
 | Hours / OT | Stored floats on the allocation; derive from shift type duration when creating the cell |
 | Snapshots | Department / unit / roster **strings** on `ShiftRoster` and on each allocation (same pattern as Overtime). **Upcoming:** roster string = `ManageRoster.code` (§1.1) |
@@ -1620,12 +1635,15 @@ Auto Assign that **creates week cells** waits for D5.
 | Drag-and-drop persist | Same upsert as D5 when product is ready |
 | Create Fixed Roster templates | Separate collection when specified |
 | Overtime Process Staff Shift | Replace OT sample fill with roster **read** (after D4+) |
-| Leave overlap | Tick Leave vs real `LeaveApplication` — keep independent in v1 |
+| Leave overlap (**INT-L2**) | **Done:** on allocate / fill / publish **and Duty Swap / Replace**, if approved or pending `LeaveApplication` overlaps the **duty shift window** (full-day leave, or half-day AM/PM intersecting the shift) → **soft warn + Continue** (`acknowledgedWarnings`). Day overlap uses **Asia/Colombo civil bounds** so leave local-midnight dates match duty UTC-midnight dates. Swap checks both sides; Replace checks incoming staff. Do **not** hard-block standing Shift Assignment create. Cell `isLeave` tick stays independent of Leave Application. |
+| Weekly-off soft warn | **Done:** on allocate / fill / publish **and Duty Swap / Replace**, if any covering active/pending `StaffShiftAssignment.weeklyOffDay` matches the duty’s **Asia/Colombo weekday** → soft warn + Continue (same `acknowledgedWarnings`). Prefer any covering assignment (not only the one linked on the cell). Combined with INT-L2 in one Continue dialog when both fire. |
 | RFID / attendance engine | See `STAFF_ATTENDANCE_ARCHITECTURE.md`; enum on the cell is enough for D7; confirm sync is HR-gated |
 | Real Holiday Date master | **Done** — HR Administration `/holiday-calendar`; keep Roster as read consumer |
 | Department / Unit / Designation / Grade masters | Tracked in `HR_ADMINISTRATION_GUIDE.md` §31–32 |
 | **Manage Rosters integration (INT-R3 / R7)** | **Done** — Shift + Duty roster filters from Manage Rosters **codes** (+ legacy dual-read); see **§1.1** |
-| Enforce `shiftsPerPersonPerDay` (INT-R4 / R8) | **Upcoming** after INT-R3 |
+| Enforce `shiftsPerPersonPerDay` (INT-R4 / R8) | **Done** — allocate (`saveRosterAllocationDraft`), fill/copy via same path, publish pre-check |
+| Leave vs allocate soft warn (INT-L2) | **Done** — soft warn + Continue on allocate / fill-copy / publish |
+| Weekly-off vs allocate soft warn | **Done** — soft warn + Continue on allocate / fill-copy / publish / Duty Swap / Replace (`assertWeeklyOffSoftWarn`) |
 | Staff employment roster value | String field stays; upcoming value = Manage Roster **code** (Staff R6 / INT-S3) — not ObjectId, not a Prisma FK |
 | HR Admin Manage Shifts | **Not required** for current system; deferred — `HR_ADMINISTRATION_GUIDE.md` §34. Keep `/shift-types` as template master until Option A/B is locked |
 | If Manage Shifts (A/B) ships later | Shared roster-scoped option loaders; deprecate dual editors; Assignment / Duty / grids / Night / Overnight / PH follow §34 follow-up table |
@@ -1694,8 +1712,10 @@ Canonical table: `HR_ADMINISTRATION_GUIDE.md` §32 (**INT-H***). Roster & Shifts
 - [x] **INT-H5** (Should) — reject inactive shift types on create/update
 - [x] **INT-H6** (Should) — case-insensitive roster-code membership in getShiftAssignmentRosterScope (and peer lookups)
 - [x] **INT-H7** (Should) — overlap ignores inactive; ctive/pending still block
-- [ ] **INT-R4 / R8** (Later) — enforce `shiftsPerPersonPerDay` on allocate / fill / publish (full calendar day)
+- [x] **INT-R4 / R8** — enforce shiftsPerPersonPerDay on allocate / fill / publish (full calendar day)
+- [x] **INT-L2** — allocate / fill / publish: soft warn + Continue when staff has leave on that calendar day (not on standing Shift Assignment)
+- [x] **Weekly-off soft warn** — allocate / fill / publish / Duty Swap / Replace when covering standing `weeklyOffDay` matches Colombo weekday
 - [ ] **INT-H8** (Later) — overlap TOCTOU / unique compound protection if concurrent creates become an issue
 - [ ] **INT-H9** (Later) — staff delete guards for standing assignments / allocations
 
-*Last updated: Nov 2026 — INT-H2 / H5–H7 done; remaining Later INT-R4 / H8–H9 in §10 / HR Admin §32.* / INT-R4 in §10 / HR Admin §32.*
+*Last updated: Nov 2026 — INT-H2 / H5–H7 / INT-R4 / INT-L2 / weekly-off soft warn done; later H8–H9 in §10 / HR Admin §32.*
