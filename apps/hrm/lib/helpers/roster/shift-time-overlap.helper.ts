@@ -83,15 +83,14 @@ export function dutyOverlapsLeaveWindow(input: {
   const shift = shiftToInterval(input.startTime, input.endTime);
   if (!shift) return true; // fail-safe: warn if times unknown
 
-  const isHalf =
-    isHalfDaySession(input.halfDaySession) &&
-    (input.days == null || input.days === 0.5);
-
-  if (!isHalf) {
+  if (
+    !isHalfDaySession(input.halfDaySession) ||
+    (input.days != null && input.days !== 0.5)
+  ) {
     return true;
   }
 
-  const leave = HALF_DAY_LEAVE_WINDOWS[input.halfDaySession!];
+  const leave = HALF_DAY_LEAVE_WINDOWS[input.halfDaySession];
   // Compare only the portion of the shift that falls on the duty calendar day [0, 1440).
   const onDutyDay: MinuteInterval = {
     start: shift.start,
