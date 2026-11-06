@@ -9,7 +9,7 @@ import { generateRecordCode } from '@/lib/conventions/record-code-generator';
 import {
   calcTotalWorkingHours,
   normalizeShiftTime
-} from '@/lib/helpers/shift-duration.helper';
+} from '@/lib/helpers/roster/shift-duration.helper';
 import {
   SHIFT_TYPE_CATEGORIES,
   SHIFT_TYPE_CATEGORY_OPTIONS,

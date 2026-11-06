@@ -18,17 +18,19 @@ type SectionDutySummaryProps = {
 
 export default function SectionDutySummary({
   summary,
-  viewMode = 'daily'
+  viewMode = 'list'
 }: SectionDutySummaryProps) {
   const periodLabel =
-    viewMode === 'weekly'
-      ? 'this week'
-      : viewMode === 'monthly'
+    viewMode === 'days'
+      ? 'this month'
+      : viewMode === 'weeks'
         ? 'this month'
-        : 'this date';
+        : viewMode === 'months'
+          ? 'this year'
+          : 'this date';
   const cards: SummaryCard[] = [
     {
-      label: viewMode === 'daily' ? 'On Duty Today' : 'On Duty',
+      label: viewMode === 'list' ? 'On Duty Today' : 'On Duty',
       value: String(summary.onDutyToday),
       subText: `Allocations ${periodLabel}`,
       icon: <ClipboardList className="h-4 w-4 text-emerald-700" />,

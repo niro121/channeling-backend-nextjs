@@ -4,7 +4,6 @@ import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Form, Formik, type FormikHelpers } from 'formik';
 import * as Yup from 'yup';
-import { format } from 'date-fns';
 import { CheckCircle2, Circle, SaveIcon, Trash2, X } from 'lucide-react';
 import {
   Button,
@@ -13,6 +12,7 @@ import {
   CustomSelectField,
   useToast
 } from '@archmage/ui';
+import { formatAuditLine } from '@/lib/helpers/format-audit-line.helper';
 import { cn } from '@/lib/utils';
 import {
   emptyPaysheetComponentFormValues,
@@ -58,18 +58,6 @@ const validationSchema = Yup.object({
   }),
   includedForIds: Yup.array().of(Yup.string())
 });
-
-function formatAuditLine(
-  name?: string,
-  role?: string,
-  at?: string | null
-): string {
-  if (!name || !at) return '—';
-  const date = new Date(at);
-  if (Number.isNaN(date.getTime())) return '—';
-  const namePart = role ? `${name} (${role})` : name;
-  return `${namePart} · ${format(date, 'd MMM yyyy')} · ${format(date, 'HH:mm')}`;
-}
 
 function toggleIncluded(current: string[], id: string): string[] {
   return current.includes(id)

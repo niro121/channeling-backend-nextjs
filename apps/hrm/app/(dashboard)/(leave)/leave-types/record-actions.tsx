@@ -13,6 +13,7 @@ import { Pencil, Trash2 } from 'lucide-react';
 import { usePermissions } from '@/components/hooks/use-permissions';
 import { deleteLeaveTypeAction } from '@/app/actions/leave-actions/leave-type.actions';
 import type { LeaveTypeRecord } from '@/types/leave';
+import { buttonStyles } from '@/lib/utils/common-styles';
 
 interface LeaveTypeRecordActionsProps {
   row: Row<LeaveTypeRecord>;
@@ -95,6 +96,10 @@ export default function LeaveTypeRecordActions({
         title="Delete leave type?"
         description={`This will remove ${leaveType.name}. This action cannot be undone.`}
         handleContinue={onDelete}
+        className={{
+          actionButton: buttonStyles.delete.danger,
+          cancelButton: `h-9!`
+        }}
       />
     </>
   );

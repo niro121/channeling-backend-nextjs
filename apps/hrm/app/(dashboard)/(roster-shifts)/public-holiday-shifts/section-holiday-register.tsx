@@ -10,10 +10,7 @@ import {
   useCommonDataTableContext
 } from '@/components/common/common-data-table';
 import { usePermissions } from '@/components/hooks/use-permissions';
-import {
-  deletePublicHolidayShiftAction,
-  getPublicHolidayShiftsExportAction
-} from '@/app/actions/roster-actions/public-holiday-shift.actions';
+import { deletePublicHolidayShiftAction } from '@/app/actions/roster-actions/public-holiday-shift.actions';
 import type { PublicHolidayShiftRecord } from '@/types/roster';
 import { holidayShiftColumns } from './columns';
 import { usePublicHolidayShiftsUi } from './public-holiday-shifts-ui-context';
@@ -21,6 +18,11 @@ import { usePublicHolidayShiftsUi } from './public-holiday-shifts-ui-context';
 type SectionHolidayRegisterProps = {
   items: PublicHolidayShiftRecord[];
   totalCount: number;
+  onExport: () => Promise<{
+    success: boolean;
+    message?: string;
+    data?: Record<string, unknown>[];
+  }>;
 };
 
 function SelectionSync() {
@@ -59,7 +61,8 @@ function RegisterToolbarLeft({ totalCount }: { totalCount: number }) {
 
 export default function SectionHolidayRegister({
   items,
-  totalCount
+  totalCount,
+  onExport
 }: SectionHolidayRegisterProps) {
   const router = useRouter();
   const { toast } = useToast();
@@ -92,7 +95,9 @@ export default function SectionHolidayRegister({
           }
           if (deleted > 0) {
             toast({
-              title: `${deleted} holiday shift${deleted === 1 ? '' : 's'} deleted`
+              variant: 'success',
+              title: 'Success',
+              description: `${deleted} holiday shift${deleted === 1 ? '' : 's'} deleted successfully.`
             });
             router.refresh();
           }
@@ -111,13 +116,7 @@ export default function SectionHolidayRegister({
           <DataTableExportFeature
             showColumnToggle
             showPrintButton
-            serverData={async () => {
-              const result = await getPublicHolidayShiftsExportAction({});
-              if (!result.success) {
-                return { success: false, data: [] };
-              }
-              return { success: true, data: result.data ?? [] };
-            }}
+            serverData={onExport}
             columns={[
               'Staff ID',
               'Staff Name',

@@ -778,7 +778,11 @@ export async function updateOvernightShift(
           error: {
             message:
               'A roster allocation already exists for this staff member on that date',
-            issues: { startDate: ['Duplicate staff/date allocation is not allowed'] }
+            issues: {
+              startDate: [
+                'Duplicate shift type for the same staff/date is not allowed'
+              ]
+            }
           }
         };
       }

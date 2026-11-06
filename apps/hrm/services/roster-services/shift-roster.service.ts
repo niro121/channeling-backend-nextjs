@@ -14,7 +14,24 @@ import prisma from '@/lib/prisma';
 import type { AuditUser } from '@/lib/audit-user';
 import { toAuditUser } from '@/lib/audit-user';
 import { resolveAuthUsers } from '@/lib/helpers/resolve-auth-users.helper';
-import { buildManageRosterFilterOptions } from '@/lib/helpers/manage-roster-filter-options.helper';
+import { buildManageRosterFilterOptions } from '@/lib/helpers/roster/manage-roster-filter-options.helper';
+import {
+  assertLeaveSoftWarn,
+  assertLeaveSoftWarnForAllocations
+} from '@/lib/helpers/roster/leave-roster-soft-warn.helper';
+import {
+  assertWeeklyOffSoftWarn,
+  assertWeeklyOffSoftWarnForAllocations
+} from '@/lib/helpers/roster/weekly-off-soft-warn.helper';
+import {
+  assertStaffDayShiftLimit,
+  getShiftsPerPersonPerDayLimit
+} from '@/lib/helpers/roster/shifts-per-person-per-day.helper';
+import {
+  shiftsOverlap,
+  shiftToInterval,
+  intervalsOverlap
+} from '@/lib/helpers/roster/shift-time-overlap.helper';
 import { generateRecordCode } from '@/lib/conventions/record-code-generator';
 import type {
   LoadRosterParams,
@@ -134,8 +151,14 @@ const saveDraftSchema = z.object({
   otHours: z.coerce.number().min(0, 'OT hours must be 0 or greater').optional().default(0),
   comments: z.string().max(500).optional().nullable(),
   dutyLocation: z.string().optional().nullable(),
+  dutyLocationDepartmentId: z.string().optional().nullable(),
+  dutyZoneId: z.string().optional().nullable(),
+  dutyRoomId: z.string().optional().nullable(),
   supervisorId: z.string().optional().nullable(),
-  attendance: z.enum(DUTY_ATTENDANCE_VALUES).optional().nullable()
+  attendance: z.enum(DUTY_ATTENDANCE_VALUES).optional().nullable(),
+  allocationSource: z.enum(['standing', 'adhoc']).optional().nullable(),
+  staffShiftAssignmentId: z.string().optional().nullable(),
+  acknowledgedWarnings: z.boolean().optional()
 });
 
 const toggleLeaveSchema = z.object({
@@ -148,7 +171,8 @@ const workflowRangeSchema = z.object({
   unit: z.string().optional(),
   roster: z.string().optional(),
   fromDate: z.string().min(1, 'From date is required'),
-  toDate: z.string().min(1, 'To date is required')
+  toDate: z.string().min(1, 'To date is required'),
+  acknowledgedWarnings: z.boolean().optional()
 });
 
 function normalizeRangeInput(input: z.infer<typeof workflowRangeSchema>) {
@@ -420,10 +444,6 @@ export async function loadRoster(
 
     // 4. Build grid rows
     const weekMeta = buildWeekMeta(fromDate, toDate);
-    const emptyShifts = Object.fromEntries(
-      weekMeta.dayIsos.map((d) => [d, null])
-    ) as Record<string, ShiftCell | null>;
-
     let totalShifts = 0;
     let totalHoursSum = 0;
     let conflictCount = 0;
@@ -441,20 +461,24 @@ export async function loadRoster(
         (a) => a.staffId === staff.id
       );
 
-      const shifts = { ...emptyShifts };
+      const shifts: Record<string, ShiftCell[]> = Object.fromEntries(
+        weekMeta.dayIsos.map((d) => [d, [] as ShiftCell[]])
+      );
       let rowTotalHours = 0;
       let rowOtHours = 0;
       let rowStatus: RosterStaffRow['status'] = 'none';
-      const dateAllocCounts = new Map<string, number>();
+      const dayIntervals = new Map<
+        string,
+        Array<{ start: number; end: number }>
+      >();
 
       for (const alloc of staffAllocations) {
         const dateKey = iso(alloc.date);
-        dateAllocCounts.set(dateKey, (dateAllocCounts.get(dateKey) ?? 0) + 1);
 
         if (shifts[dateKey] !== undefined) {
           const st = shiftTypeMap.get(alloc.shiftTypeId);
           const allocAudit = allocationById.get(alloc.id);
-          shifts[dateKey] = {
+          const cell: ShiftCell = {
             allocationId: alloc.id,
             shiftTypeId: alloc.shiftTypeId,
             code: st?.code ?? '?',
@@ -470,9 +494,22 @@ export async function loadRoster(
             createdUser: allocAudit?.createdUser ?? null,
             updatedUser: allocAudit?.updatedUser ?? null
           };
+          shifts[dateKey] = [...shifts[dateKey], cell];
           totalShifts++;
           rowTotalHours += alloc.hours;
           rowOtHours += alloc.otHours;
+
+          const times = st?.timeRange?.split('-');
+          if (times && times.length === 2) {
+            const interval = shiftToInterval(times[0], times[1]);
+            if (interval) {
+              const existing = dayIntervals.get(dateKey) ?? [];
+              if (existing.some((other) => intervalsOverlap(interval, other))) {
+                conflictCount++;
+              }
+              dayIntervals.set(dateKey, [...existing, interval]);
+            }
+          }
 
           if (alloc.status === 'published') rowStatus = 'published';
           else if (alloc.status === 'amended' && rowStatus !== 'published')
@@ -486,8 +523,11 @@ export async function loadRoster(
         }
       }
 
-      for (const count of dateAllocCounts.values()) {
-        if (count > 1) conflictCount++;
+      // Stable order within each day by start time label.
+      for (const dayIso of weekMeta.dayIsos) {
+        shifts[dayIso] = [...shifts[dayIso]].sort((a, b) =>
+          a.timeRange.localeCompare(b.timeRange)
+        );
       }
 
       totalHoursSum += rowTotalHours;
@@ -578,7 +618,12 @@ export async function saveRosterAllocationDraft(
   success: boolean;
   data?: { id: string; shiftRosterId: string };
   message?: string;
-  error?: { message?: string; issues?: Record<string, string[]> };
+  error?: {
+    message?: string;
+    issues?: Record<string, string[]>;
+    softWarnings?: string[];
+    requiresAck?: boolean;
+  };
 }> {
   try {
     const parsed = saveDraftSchema.safeParse(payload);
@@ -634,7 +679,37 @@ export async function saveRosterAllocationDraft(
       };
     }
 
-    const [staff, shiftType] = await Promise.all([
+    const allocationSource =
+      data.allocationSource === 'standing' ? 'standing' : 'adhoc';
+    const staffShiftAssignmentId =
+      data.staffShiftAssignmentId?.trim() || null;
+
+    if (allocationSource === 'standing' && !staffShiftAssignmentId) {
+      return {
+        success: false,
+        error: {
+          message: 'Select a standing shift assignment',
+          issues: {
+            staffShiftAssignmentId: [
+              'Standing mode requires an assigned shift'
+            ]
+          }
+        }
+      };
+    }
+    if (allocationSource === 'adhoc' && staffShiftAssignmentId) {
+      return {
+        success: false,
+        error: {
+          message: 'Ad-hoc duty cannot link a standing assignment',
+          issues: {
+            staffShiftAssignmentId: ['Clear standing assignment for ad-hoc']
+          }
+        }
+      };
+    }
+
+    const [staff, shiftType, standingAssignment] = await Promise.all([
       prisma.staff.findUnique({
         where: { id: data.staffId },
         select: {
@@ -648,26 +723,206 @@ export async function saveRosterAllocationDraft(
         where: { id: data.shiftTypeId },
         select: {
           id: true,
-          durationHours: true
+          name: true,
+          durationHours: true,
+          status: true,
+          startTime: true,
+          endTime: true
         }
-      })
+      }),
+      staffShiftAssignmentId
+        ? prisma.staffShiftAssignment.findUnique({
+            where: { id: staffShiftAssignmentId },
+            select: {
+              id: true,
+              staffId: true,
+              shiftTypeId: true,
+              status: true,
+              effectiveFrom: true,
+              effectiveTo: true,
+              department: true,
+              unit: true,
+              manageRoster: { select: { code: true } }
+            }
+          })
+        : Promise.resolve(null)
     ]);
 
     if (!staff) {
       return { success: false, error: { message: 'Staff member not found' } };
     }
-    if (!shiftType) {
-      return { success: false, error: { message: 'Shift type not found' } };
+    if (!shiftType || shiftType.status !== 'active') {
+      return {
+        success: false,
+        error: {
+          message: 'Shift type not found or inactive',
+          issues: { shiftTypeId: ['Select an active shift type'] }
+        }
+      };
+    }
+
+    if (allocationSource === 'standing') {
+      if (!standingAssignment) {
+        return {
+          success: false,
+          error: {
+            message: 'Standing shift assignment not found',
+            issues: { staffShiftAssignmentId: ['Select a valid assignment'] }
+          }
+        };
+      }
+      if (standingAssignment.staffId !== data.staffId) {
+        return {
+          success: false,
+          error: {
+            message: 'Assignment does not belong to the selected staff member',
+            issues: { staffShiftAssignmentId: ['Select an assignment for this staff'] }
+          }
+        };
+      }
+      if (
+        standingAssignment.status !== 'active' &&
+        standingAssignment.status !== 'pending'
+      ) {
+        return {
+          success: false,
+          error: {
+            message: 'Standing assignment is inactive',
+            issues: { staffShiftAssignmentId: ['Select an active or pending assignment'] }
+          }
+        };
+      }
+      if (standingAssignment.shiftTypeId !== data.shiftTypeId) {
+        return {
+          success: false,
+          error: {
+            message: 'Shift type must match the standing assignment',
+            issues: { shiftTypeId: ['Must match the selected assignment'] }
+          }
+        };
+      }
+      const assignFrom = new Date(
+        Date.UTC(
+          standingAssignment.effectiveFrom.getUTCFullYear(),
+          standingAssignment.effectiveFrom.getUTCMonth(),
+          standingAssignment.effectiveFrom.getUTCDate()
+        )
+      );
+      const assignTo = standingAssignment.effectiveTo
+        ? new Date(
+            Date.UTC(
+              standingAssignment.effectiveTo.getUTCFullYear(),
+              standingAssignment.effectiveTo.getUTCMonth(),
+              standingAssignment.effectiveTo.getUTCDate()
+            )
+          )
+        : null;
+      if (rosterDate < assignFrom || (assignTo && rosterDate > assignTo)) {
+        return {
+          success: false,
+          error: {
+            message: 'Duty date is outside the standing assignment window',
+            issues: {
+              rosterDate: ['Must fall within the assignment effective dates']
+            }
+          }
+        };
+      }
     }
 
     const employment = (staff.employmentDetails as { employment?: { roster?: string | null } } | null)?.employment;
     // Manage Roster codes → uppercase; legacy placeholders (e.g. roster_a) unchanged.
-    const rosterRaw = (data.roster ?? employment?.roster ?? '').trim();
+    const rosterRaw = (
+      data.roster ??
+      standingAssignment?.manageRoster?.code ??
+      employment?.roster ??
+      ''
+    ).trim();
     const rosterValue = rosterRaw.includes('_')
       ? rosterRaw
       : rosterRaw.toUpperCase();
-    const department = (data.department ?? '').trim();
-    const unit = (data.unit ?? '').trim();
+
+    let dutyLocationName = (data.dutyLocation ?? '').trim();
+    let dutyLocationDepartmentId =
+      data.dutyLocationDepartmentId?.trim() || null;
+    if (dutyLocationDepartmentId) {
+      const dept = await prisma.department.findUnique({
+        where: { id: dutyLocationDepartmentId },
+        select: { id: true, name: true, status: true }
+      });
+      if (!dept || dept.status !== 1) {
+        return {
+          success: false,
+          error: {
+            message: 'Duty department not found or unpublished',
+            issues: {
+              dutyLocationDepartmentId: ['Select a published department']
+            }
+          }
+        };
+      }
+      dutyLocationName = dept.name;
+    }
+
+    const dutyZoneId = data.dutyZoneId?.trim() || null;
+    if (dutyZoneId) {
+      const zone = await prisma.zone.findUnique({
+        where: { id: dutyZoneId },
+        select: { id: true, status: true }
+      });
+      if (!zone || zone.status !== 1) {
+        return {
+          success: false,
+          error: {
+            message: 'Duty zone not found or unpublished',
+            issues: { dutyZoneId: ['Select a published zone'] }
+          }
+        };
+      }
+    }
+
+    const dutyRoomId = data.dutyRoomId?.trim() || null;
+    let roomUnitLabel = '';
+    if (dutyRoomId) {
+      const room = await prisma.room.findUnique({
+        where: { id: dutyRoomId },
+        select: { id: true, number: true, code: true, zoneId: true, status: true }
+      });
+      if (!room || room.status !== 1) {
+        return {
+          success: false,
+          error: {
+            message: 'Duty room not found or unpublished',
+            issues: { dutyRoomId: ['Select a published room'] }
+          }
+        };
+      }
+      if (dutyZoneId && room.zoneId !== dutyZoneId) {
+        return {
+          success: false,
+          error: {
+            message: 'Room does not belong to the selected zone',
+            issues: { dutyRoomId: ['Select a room in the chosen zone'] }
+          }
+        };
+      }
+      roomUnitLabel = room.code
+        ? `${room.number} (${room.code})`
+        : room.number;
+    }
+
+    const department = (
+      data.department ??
+      dutyLocationName ??
+      standingAssignment?.department ??
+      ''
+    ).trim();
+    const unit = (
+      data.unit ??
+      roomUnitLabel ??
+      standingAssignment?.unit ??
+      ''
+    ).trim();
 
     const existingAllocation = data.allocationId
       ? await prisma.rosterAllocation.findUnique({
@@ -677,9 +932,14 @@ export async function saveRosterAllocationDraft(
             shiftRosterId: true,
             status: true,
             dutyLocation: true,
+            dutyLocationDepartmentId: true,
+            dutyZoneId: true,
+            dutyRoomId: true,
             supervisorId: true,
             supervisorName: true,
-            attendance: true
+            attendance: true,
+            allocationSource: true,
+            staffShiftAssignmentId: true
           }
         })
       : null;
@@ -732,21 +992,122 @@ export async function saveRosterAllocationDraft(
       };
     }
 
-    const duplicate = await prisma.rosterAllocation.findFirst({
+    // INT-R4 — Manage Roster shifts-per-person-per-day (full calendar day).
+    const dayLimit = await assertStaffDayShiftLimit({
+      staffId: data.staffId,
+      date: rosterDate,
+      rosterCode: rosterValue,
+      excludeAllocationId: data.allocationId,
+      issueField: 'rosterDate'
+    });
+    if (!dayLimit.ok) {
+      return {
+        success: false,
+        error: {
+          message: dayLimit.message,
+          issues: dayLimit.issues
+        }
+      };
+    }
+
+    const staffLabel = staff.name
+      ? staff.code
+        ? `${staff.name} (${staff.code})`
+        : staff.name
+      : undefined;
+
+    // INT-L2 — soft warn when leave overlaps this duty shift window (full / half day).
+    const leaveWarn = await assertLeaveSoftWarn({
+      staffId: data.staffId,
+      date: rosterDate,
+      acknowledgedWarnings: data.acknowledgedWarnings,
+      startTime: shiftType.startTime,
+      endTime: shiftType.endTime,
+      staffLabel
+    });
+
+    // Weekly off — soft warn when duty falls on covering standing assignment off day.
+    const weeklyOffWarn = await assertWeeklyOffSoftWarn({
+      staffId: data.staffId,
+      date: rosterDate,
+      acknowledgedWarnings: data.acknowledgedWarnings,
+      staffLabel
+    });
+
+    if (!leaveWarn.ok || !weeklyOffWarn.ok) {
+      const softWarnings = [
+        ...(!leaveWarn.ok ? leaveWarn.softWarnings : []),
+        ...(!weeklyOffWarn.ok ? weeklyOffWarn.softWarnings : [])
+      ];
+      return {
+        success: false,
+        error: {
+          message: softWarnings[0] ?? 'Acknowledge warnings to continue',
+          softWarnings,
+          requiresAck: true
+        }
+      };
+    }
+
+    // Same staff + date + shift type is not allowed.
+    const duplicateShift = await prisma.rosterAllocation.findFirst({
       where: {
         staffId: data.staffId,
         date: rosterDate,
+        shiftTypeId: data.shiftTypeId,
         ...(data.allocationId ? { id: { not: data.allocationId } } : {})
       },
       select: { id: true }
     });
 
-    if (duplicate) {
+    if (duplicateShift) {
       return {
         success: false,
         error: {
-          message: 'A roster allocation already exists for this staff member on that date',
-          issues: { rosterDate: ['Duplicate staff/date allocation is not allowed'] }
+          message:
+            'This staff member already has this shift type on that date',
+          issues: {
+            shiftTypeId: ['Duplicate shift type for the same day is not allowed'],
+            rosterDate: ['Pick a different shift type or date']
+          }
+        }
+      };
+    }
+
+    // Block overlapping duty windows with other allocations that day.
+    const sameDayOthers = await prisma.rosterAllocation.findMany({
+      where: {
+        staffId: data.staffId,
+        date: rosterDate,
+        ...(data.allocationId ? { id: { not: data.allocationId } } : {})
+      },
+      select: {
+        id: true,
+        shiftType: { select: { name: true, startTime: true, endTime: true } }
+      }
+    });
+
+    const overlapping = sameDayOthers.find((row) =>
+      shiftsOverlap({
+        startTime: shiftType.startTime,
+        endTime: shiftType.endTime,
+        otherStartTime: row.shiftType.startTime,
+        otherEndTime: row.shiftType.endTime
+      })
+    );
+
+    if (overlapping) {
+      const otherName = overlapping.shiftType.name || 'another shift';
+      const otherWindow = `${overlapping.shiftType.startTime}–${overlapping.shiftType.endTime}`;
+      return {
+        success: false,
+        error: {
+          message: `This duty overlaps ${otherName} (${otherWindow}) on the same day`,
+          issues: {
+            shiftTypeId: [
+              `Overlaps ${otherName} (${otherWindow}) — choose a non-overlapping shift`
+            ]
+          }
         }
       };
     }
@@ -761,6 +1122,12 @@ export async function saveRosterAllocationDraft(
     });
 
     const auditUser = toAuditUser(user);
+    const resolvedDutyLocation =
+      data.dutyLocationDepartmentId !== undefined ||
+      data.dutyLocation !== undefined
+        ? dutyLocationName || (data.dutyLocation?.trim() ?? '')
+        : (existingAllocation?.dutyLocation ?? dutyLocationName);
+
     const allocationData = {
       shiftRosterId,
       staffId: data.staffId,
@@ -776,10 +1143,23 @@ export async function saveRosterAllocationDraft(
       hours: shiftType.durationHours ?? 0,
       otHours: data.otHours ?? 0,
       comments: data.comments?.trim() ?? '',
-      dutyLocation:
-        data.dutyLocation !== undefined
-          ? (data.dutyLocation?.trim() ?? '')
-          : (existingAllocation?.dutyLocation ?? ''),
+      dutyLocation: resolvedDutyLocation,
+      dutyLocationDepartmentId:
+        data.dutyLocationDepartmentId !== undefined
+          ? dutyLocationDepartmentId
+          : (existingAllocation?.dutyLocationDepartmentId ??
+            dutyLocationDepartmentId),
+      dutyZoneId:
+        data.dutyZoneId !== undefined
+          ? dutyZoneId
+          : (existingAllocation?.dutyZoneId ?? dutyZoneId),
+      dutyRoomId:
+        data.dutyRoomId !== undefined
+          ? dutyRoomId
+          : (existingAllocation?.dutyRoomId ?? dutyRoomId),
+      allocationSource,
+      staffShiftAssignmentId:
+        allocationSource === 'standing' ? staffShiftAssignmentId : null,
       supervisorId,
       supervisorName,
       attendance:
@@ -826,8 +1206,12 @@ export async function saveRosterAllocationDraft(
       return {
         success: false,
         error: {
-          message: 'A roster allocation already exists for this staff member on that date',
-          issues: { rosterDate: ['Duplicate staff/date allocation is not allowed'] }
+          message:
+            'This staff member already has this shift type on that date',
+          issues: {
+            shiftTypeId: ['Duplicate shift type for the same day is not allowed'],
+            rosterDate: ['Pick a different shift type or date']
+          }
         }
       };
     }
@@ -959,7 +1343,11 @@ export async function publishRoster(
   success: boolean;
   data?: { rosterCount: number; allocationCount: number };
   message?: string;
-  error?: { message?: string };
+  error?: {
+    message?: string;
+    softWarnings?: string[];
+    requiresAck?: boolean;
+  };
 }> {
   try {
     const parsed = workflowRangeSchema.safeParse(input);
@@ -989,6 +1377,82 @@ export async function publishRoster(
 
     const draftIds = rosters.filter((r) => r.status === 'draft').map((r) => r.id);
     if (draftIds.length > 0) {
+      // INT-R4 — block publish when any staff exceeds Manage Roster day limit.
+      const draftAllocations = await prisma.rosterAllocation.findMany({
+        where: { shiftRosterId: { in: draftIds } },
+        select: { staffId: true, staffName: true, staffCode: true, date: true, roster: true }
+      });
+      const counts = new Map<
+        string,
+        { staffId: string; staffLabel: string; date: Date; roster: string; count: number }
+      >();
+      for (const row of draftAllocations) {
+        const key = `${row.staffId}|${row.date.toISOString().slice(0, 10)}|${row.roster}`;
+        const existing = counts.get(key);
+        if (existing) {
+          existing.count += 1;
+        } else {
+          counts.set(key, {
+            staffId: row.staffId,
+            staffLabel: row.staffCode
+              ? `${row.staffName} (${row.staffCode})`
+              : row.staffName || row.staffId,
+            date: row.date,
+            roster: row.roster,
+            count: 1
+          });
+        }
+      }
+
+      const limitCache = new Map<string, number>();
+      for (const entry of counts.values()) {
+        let limit = limitCache.get(entry.roster);
+        if (limit == null) {
+          const resolved = await getShiftsPerPersonPerDayLimit(entry.roster);
+          limit = resolved.limit;
+          limitCache.set(entry.roster, limit);
+        }
+        if (entry.count > limit) {
+          return {
+            success: false,
+            error: {
+              message: `${entry.staffLabel} has ${entry.count} shift(s) on ${format(entry.date, 'dd MMM yyyy')}, but roster “${entry.roster || '—'}” allows ${limit} per person per day. Fix the draft before publishing.`
+            }
+          };
+        }
+      }
+
+      // INT-L2 + weekly-off soft warn before publish.
+      const publishSoftRows = draftAllocations.map((row) => ({
+        staffId: row.staffId,
+        date: row.date,
+        staffLabel: row.staffCode
+          ? `${row.staffName} (${row.staffCode})`
+          : row.staffName || row.staffId
+      }));
+      const leaveWarn = await assertLeaveSoftWarnForAllocations({
+        rows: publishSoftRows,
+        acknowledgedWarnings: parsed.data.acknowledgedWarnings
+      });
+      const weeklyOffWarn = await assertWeeklyOffSoftWarnForAllocations({
+        rows: publishSoftRows,
+        acknowledgedWarnings: parsed.data.acknowledgedWarnings
+      });
+      if (!leaveWarn.ok || !weeklyOffWarn.ok) {
+        const softWarnings = [
+          ...(!leaveWarn.ok ? leaveWarn.softWarnings : []),
+          ...(!weeklyOffWarn.ok ? weeklyOffWarn.softWarnings : [])
+        ];
+        return {
+          success: false,
+          error: {
+            message: softWarnings[0] ?? 'Acknowledge warnings to continue',
+            softWarnings,
+            requiresAck: true
+          }
+        };
+      }
+
       await prisma.shiftRoster.updateMany({
         where: { id: { in: draftIds } },
         data: {
@@ -1036,7 +1500,11 @@ async function copyRosterPattern(
   success: boolean;
   data?: { copied: number; skipped: number };
   message?: string;
-  error?: { message?: string };
+  error?: {
+    message?: string;
+    softWarnings?: string[];
+    requiresAck?: boolean;
+  };
 }> {
   const parsed = workflowRangeSchema.safeParse(input);
   if (!parsed.success) {
@@ -1044,6 +1512,7 @@ async function copyRosterPattern(
   }
 
   const range = normalizeRangeInput(parsed.data);
+  const acknowledgedWarnings = parsed.data.acknowledgedWarnings === true;
   const targetDays = eachDayOfInterval({
     start: range.fromDate,
     end: range.toDate
@@ -1097,6 +1566,36 @@ async function copyRosterPattern(
     };
   }
 
+  // INT-L2 + weekly-off soft-warn once for fill/copy targets.
+  const plannedTargets: Array<{ staffId: string; date: Date }> = [];
+  for (const alloc of sourceAllocations) {
+    const targetDate = toTargetDate(alloc.date);
+    if (targetDate < range.fromDate || targetDate > range.toDate) continue;
+    plannedTargets.push({ staffId: alloc.staffId, date: targetDate });
+  }
+  const leaveWarn = await assertLeaveSoftWarnForAllocations({
+    rows: plannedTargets,
+    acknowledgedWarnings
+  });
+  const weeklyOffWarn = await assertWeeklyOffSoftWarnForAllocations({
+    rows: plannedTargets,
+    acknowledgedWarnings
+  });
+  if (!leaveWarn.ok || !weeklyOffWarn.ok) {
+    const softWarnings = [
+      ...(!leaveWarn.ok ? leaveWarn.softWarnings : []),
+      ...(!weeklyOffWarn.ok ? weeklyOffWarn.softWarnings : [])
+    ];
+    return {
+      success: false,
+      error: {
+        message: softWarnings[0] ?? 'Acknowledge warnings to continue',
+        softWarnings,
+        requiresAck: true
+      }
+    };
+  }
+
   await fillNewRosterDraft(parsed.data, user);
 
   let copied = 0;
@@ -1133,7 +1632,8 @@ async function copyRosterPattern(
         roster: alloc.roster,
         isLeave: alloc.isLeave,
         otHours: alloc.otHours,
-        comments: alloc.comments
+        comments: alloc.comments,
+        acknowledgedWarnings
       },
       user
     );

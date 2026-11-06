@@ -14,9 +14,12 @@ function initialsFromName(name: string): string {
 }
 
 function formatDuration(days: number, halfDaySession?: string | null): string {
-  if (days === 0.5) {
-    const session = formatHalfDaySessionLabel(halfDaySession);
-    return session ? `0.5 day (${session})` : '0.5 day';
+  const session = formatHalfDaySessionLabel(halfDaySession);
+  const isHalfDay =
+    days === 0.5 || halfDaySession === 'AM' || halfDaySession === 'PM';
+
+  if (isHalfDay) {
+    return session ? `Half day (${session})` : 'Half day';
   }
   if (days === 1) return '1 day';
   return `${days} days`;
@@ -29,17 +32,17 @@ function formatDateRangeLabel(fromDate: Date, toDate: Date): string {
     fromDate.getDate() === toDate.getDate();
 
   if (sameDay) {
-    return format(fromDate, 'd MMM');
+    return format(fromDate, 'd MMM yyyy');
   }
 
   if (
     fromDate.getMonth() === toDate.getMonth() &&
     fromDate.getFullYear() === toDate.getFullYear()
   ) {
-    return `${format(fromDate, 'd')}–${format(toDate, 'd MMM')}`;
+    return `${format(fromDate, 'd')}–${format(toDate, 'd MMM yyyy')}`;
   }
 
-  return `${format(fromDate, 'd MMM')} – ${format(toDate, 'd MMM')}`;
+  return `${format(fromDate, 'd MMM yyyy')} – ${format(toDate, 'd MMM yyyy')}`;
 }
 
 export type LeaveManagementCounts = {
@@ -169,11 +172,19 @@ export type LeaveCalendarDayEntry = {
   name: string;
   department?: string;
   leaveType: string;
+  status: 'pending' | 'approved';
+  dateRange?: string;
+  duration?: string;
 };
 
 export type LeaveCalendarDaysMap = Record<
   string,
-  { count: number; entries: LeaveCalendarDayEntry[] }
+  {
+    count: number;
+    pendingCount: number;
+    approvedCount: number;
+    entries: LeaveCalendarDayEntry[];
+  }
 >;
 
 function toDateKey(date: Date): string {
@@ -197,22 +208,30 @@ export async function getLeaveCalendarDays(params: {
 
     const records = await prisma.leaveApplication.findMany({
       where: {
-        status: 'approved',
+        status: { in: ['pending', 'approved'] },
         fromDate: { lte: monthEnd },
         toDate: { gte: monthStart }
       },
       include: {
         leaveType: { select: { name: true } },
-        staff: { select: { name: true } }
-      }
+        staff: { select: { name: true, code: true } }
+      },
+      orderBy: [{ status: 'asc' }, { fromDate: 'asc' }]
     });
 
     const map: LeaveCalendarDaysMap = {};
 
     for (const row of records) {
+      if (row.status !== 'pending' && row.status !== 'approved') continue;
+
       const rangeStart =
         row.fromDate < monthStart ? monthStart : startOfDay(row.fromDate);
       const rangeEnd = row.toDate > monthEnd ? monthEnd : startOfDay(row.toDate);
+      const status = row.status;
+      const name = row.staff?.name ?? 'Unknown';
+      const leaveType = row.leaveType?.name ?? 'Leave';
+      const dateRange = formatDateRangeLabel(row.fromDate, row.toDate);
+      const duration = formatDuration(row.days, row.halfDaySession);
 
       for (
         let cursor = new Date(rangeStart);
@@ -221,14 +240,24 @@ export async function getLeaveCalendarDays(params: {
       ) {
         const key = toDateKey(cursor);
         if (!map[key]) {
-          map[key] = { count: 0, entries: [] };
+          map[key] = {
+            count: 0,
+            pendingCount: 0,
+            approvedCount: 0,
+            entries: []
+          };
         }
         map[key].entries.push({
           id: `${row.id}-${key}`,
-          name: row.staff?.name ?? 'Unknown',
-          leaveType: row.leaveType?.name ?? 'Leave'
+          name,
+          leaveType,
+          status,
+          dateRange,
+          duration
         });
-        map[key].count = map[key].entries.length;
+        map[key].count += 1;
+        if (status === 'pending') map[key].pendingCount += 1;
+        else map[key].approvedCount += 1;
       }
     }
 

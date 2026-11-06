@@ -6,6 +6,7 @@ import { format, parseISO } from 'date-fns';
 import { ChevronLeft, ChevronRight, Plus, Search } from 'lucide-react';
 import { Button, Input, useToast } from '@archmage/ui';
 import { cn } from '@/lib/utils';
+import { buttonStyles } from '@/lib/utils/common-styles';
 import { holidayTypeLabel } from '@/lib/helpers/holiday-type.helper';
 import { useHolidayCalendarUi } from './holiday-calendar-ui-context';
 
@@ -152,7 +153,7 @@ export default function SectionHolidayList() {
           </Button>
         </div>
         <div className="flex gap-2">
-          <Button type="button" variant="outline" size="sm" onClick={handleAdd}>
+          <Button type="button" size="sm" className={buttonStyles.save} onClick={handleAdd}>
             <Plus className="mr-1 h-4 w-4" />
             Add
           </Button>

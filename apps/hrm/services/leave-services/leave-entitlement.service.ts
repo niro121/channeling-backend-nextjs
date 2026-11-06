@@ -9,8 +9,10 @@ import {
   computeEntitlementRemaining,
   LEAVE_ENTITLEMENT_STATUSES,
   type GetLeaveEntitlementsParams,
+  type GetLeaveEntitlementsReturn,
   type LeaveEntitlementBalanceSummary,
-  type LeaveEntitlementPayload
+  type LeaveEntitlementPayload,
+  type LeaveEntitlementRecord
 } from '@/types/leave';
 
 const dayAmountSchema = z.coerce
@@ -76,7 +78,22 @@ function buildEntitlementWhere(
     where.leaveTypeId = params.leaveTypeId;
   }
 
-  // departmentId reserved for when department master exists
+  const departmentId = params.departmentId?.trim();
+  if (departmentId && departmentId !== '__all__') {
+    where.staff = {
+      is: {
+        employmentDetails: {
+          is: {
+            employment: {
+              is: {
+                department: departmentId
+              }
+            }
+          }
+        }
+      }
+    };
+  }
 
   const fromDate = parseOptionalDate(params.fromDate);
   const toDate = parseOptionalDate(params.toDate);
@@ -90,6 +107,34 @@ function buildEntitlementWhere(
   }
 
   return where;
+}
+
+const OVERLAP_CONFLICT_MESSAGE =
+  'An entitlement already exists for this employee, leave type, and overlapping date range.';
+
+async function findOverlappingLeaveEntitlement(params: {
+  staffId: string;
+  leaveTypeId: string;
+  fromDate: Date;
+  toDate: Date;
+  excludeId?: string;
+}) {
+  return prisma.leaveEntitlement.findFirst({
+    where: {
+      staffId: params.staffId,
+      leaveTypeId: params.leaveTypeId,
+      fromDate: { lte: params.toDate },
+      toDate: { gte: params.fromDate },
+      ...(params.excludeId ? { id: { not: params.excludeId } } : {})
+    },
+    select: {
+      id: true,
+      fromDate: true,
+      toDate: true,
+      status: true
+    },
+    orderBy: { fromDate: 'desc' }
+  });
 }
 
 function mapEntitlementRecord(record: any) {
@@ -165,38 +210,49 @@ export async function getLeaveEntitlements(
   }
 }
 
-export async function getLeaveEntitlementsForExport(
-  params: Omit<GetLeaveEntitlementsParams, 'page' | 'limit'>
-): Promise<{
-  success: boolean;
-  data?: any[];
-  message?: string;
-  error?: { message?: string };
-}> {
+export async function getLeaveEntitlementsForExport({
+  staffId,
+  leaveTypeId,
+  departmentId,
+  fromDate,
+  toDate
+}: {
+  staffId?: string;
+  leaveTypeId?: string;
+  departmentId?: string;
+  fromDate?: string;
+  toDate?: string;
+}): Promise<GetLeaveEntitlementsReturn> {
   try {
-    const where = buildEntitlementWhere(params);
-    const exportLimit =
-      Number.parseInt(process.env.EXPORT_LIMIT ?? '1000', 10) || 1000;
+    const where = buildEntitlementWhere({
+      staffId,
+      leaveTypeId,
+      departmentId,
+      fromDate,
+      toDate
+    });
+
     const records = await prisma.leaveEntitlement.findMany({
       where,
       orderBy: [{ fromDate: 'desc' }, { createdAt: 'desc' }],
-      take: exportLimit,
       include: {
         leaveType: { select: { id: true, name: true, code: true } },
         staff: { select: { id: true, name: true, code: true } }
       }
     });
+
+    const recordsWithUsers = await resolveAuthUsers(records);
+    const data = recordsWithUsers.map(
+      mapEntitlementRecord
+    ) as LeaveEntitlementRecord[];
+
     return {
-      success: true,
-      data: records.map(mapEntitlementRecord),
-      message: 'Leave entitlements export fetched successfully'
+      data,
+      totalRecords: data.length
     };
-  } catch (error: any) {
-    console.error('getLeaveEntitlementsForExport error:', error);
-    return {
-      success: false,
-      error: { message: error.message || 'Failed to export leave entitlements' }
-    };
+  } catch (error) {
+    console.error('getLeaveEntitlementsForExport error', error);
+    throw new Error('Error getting data');
   }
 }
 
@@ -239,7 +295,8 @@ export async function getLeaveEntitlementById(id: string): Promise<{
 }
 
 export async function getLeaveEntitlementBalance(
-  staffId: string
+  staffId: string,
+  range?: { fromDate?: Date | string | null; toDate?: Date | string | null }
 ): Promise<{
   success: boolean;
   data?: LeaveEntitlementBalanceSummary;
@@ -255,33 +312,79 @@ export async function getLeaveEntitlementBalance(
           used: 0,
           remaining: 0,
           carryForward: 0,
+          leaveTypes: [],
           utilisations: []
         }
       };
     }
 
+    const fromDate = range?.fromDate ? new Date(range.fromDate) : null;
+    const toDate = range?.toDate ? new Date(range.toDate) : null;
+    const hasValidFrom =
+      fromDate !== null && !Number.isNaN(fromDate.getTime());
+    const hasValidTo = toDate !== null && !Number.isNaN(toDate.getTime());
+
     const records = await prisma.leaveEntitlement.findMany({
-      where: { staffId, status: { in: ['active', 'pending'] } },
+      where: {
+        staffId,
+        status: { in: ['active', 'pending'] },
+        ...(hasValidFrom || hasValidTo
+          ? {
+              // Overlap: entitlement.fromDate <= range.to && entitlement.toDate >= range.from
+              ...(hasValidTo ? { fromDate: { lte: toDate! } } : {}),
+              ...(hasValidFrom ? { toDate: { gte: fromDate! } } : {})
+            }
+          : {})
+      },
       include: {
-        leaveType: { select: { name: true } }
-      }
+        leaveType: { select: { id: true, name: true, code: true } }
+      },
+      orderBy: { fromDate: 'desc' }
     });
 
-    const totalEntitlement = records.reduce((sum, row) => sum + row.entitled, 0);
-    const used = records.reduce((sum, row) => sum + row.used, 0);
-    const remaining = records.reduce((sum, row) => sum + row.remaining, 0);
-    const carryForward = records.reduce(
+    // One row per leave type (latest overlapping entitlement period).
+    const byLeaveType = new Map<string, (typeof records)[number]>();
+    for (const row of records) {
+      if (!byLeaveType.has(row.leaveTypeId)) {
+        byLeaveType.set(row.leaveTypeId, row);
+      }
+    }
+    const uniqueRecords = Array.from(byLeaveType.values());
+
+    const totalEntitlement = uniqueRecords.reduce(
+      (sum, row) => sum + row.entitled,
+      0
+    );
+    const used = uniqueRecords.reduce((sum, row) => sum + row.used, 0);
+    const remaining = uniqueRecords.reduce(
+      (sum, row) => sum + row.remaining,
+      0
+    );
+    const carryForward = uniqueRecords.reduce(
       (sum, row) => sum + row.carryForward,
       0
     );
 
-    const utilisations = records
+    const leaveTypes = uniqueRecords.map((row) => ({
+      leaveTypeId: row.leaveTypeId,
+      leaveTypeName: row.leaveType?.name
+        ? row.leaveType.code
+          ? `${row.leaveType.code} — ${row.leaveType.name}`
+          : row.leaveType.name
+        : 'Leave',
+      entitled: row.entitled,
+      used: row.used,
+      remaining: row.remaining,
+      carryForward: row.carryForward
+    }));
+
+    const utilisations = leaveTypes
       .map((row) => {
         const base = row.entitled + row.carryForward;
         const percent =
           base > 0 ? Math.round((row.used / base) * 100) : 0;
         return {
-          label: `${row.leaveType?.name ?? 'Leave'} Utilisation`,
+          label: `${row.leaveTypeName} Utilisation`,
           percent: Math.min(100, Math.max(0, percent))
         };
       })
@@ -294,6 +397,7 @@ export async function getLeaveEntitlementBalance(
         used,
         remaining,
         carryForward,
+        leaveTypes,
         utilisations
       }
     };
@@ -358,6 +462,25 @@ export async function createLeaveEntitlement(
       };
     }
 
+    const overlapping = await findOverlappingLeaveEntitlement({
+      staffId: data.staffId,
+      leaveTypeId: data.leaveTypeId,
+      fromDate: data.fromDate,
+      toDate: data.toDate
+    });
+    if (overlapping) {
+      return {
+        success: false,
+        error: {
+          message: OVERLAP_CONFLICT_MESSAGE,
+          issues: {
+            fromDate: [OVERLAP_CONFLICT_MESSAGE],
+            toDate: [OVERLAP_CONFLICT_MESSAGE]
+          }
+        }
+      };
+    }
+
     const used = 0;
     const remaining = computeEntitlementRemaining(
       data.entitled,
@@ -398,8 +521,11 @@ export async function createLeaveEntitlement(
       return {
         success: false,
         error: {
-          message:
-            'An entitlement already exists for this employee, leave type, and date range.'
+          message: OVERLAP_CONFLICT_MESSAGE,
+          issues: {
+            fromDate: [OVERLAP_CONFLICT_MESSAGE],
+            toDate: [OVERLAP_CONFLICT_MESSAGE]
+          }
         }
       };
     }
@@ -462,6 +588,28 @@ export async function updateLeaveEntitlement(
       };
     }
 
+    const staffId = data.staffId ?? existing.staffId;
+    const leaveTypeId = data.leaveTypeId ?? existing.leaveTypeId;
+    const overlapping = await findOverlappingLeaveEntitlement({
+      staffId,
+      leaveTypeId,
+      fromDate,
+      toDate,
+      excludeId: id
+    });
+    if (overlapping) {
+      return {
+        success: false,
+        error: {
+          message: OVERLAP_CONFLICT_MESSAGE,
+          issues: {
+            fromDate: [OVERLAP_CONFLICT_MESSAGE],
+            toDate: [OVERLAP_CONFLICT_MESSAGE]
+          }
+        }
+      };
+    }
+
     const record = await prisma.leaveEntitlement.update({
       where: { id },
       data: {
@@ -492,8 +640,11 @@ export async function updateLeaveEntitlement(
       return {
         success: false,
         error: {
-          message:
-            'An entitlement already exists for this employee, leave type, and date range.'
+          message: OVERLAP_CONFLICT_MESSAGE,
+          issues: {
+            fromDate: [OVERLAP_CONFLICT_MESSAGE],
+            toDate: [OVERLAP_CONFLICT_MESSAGE]
+          }
         }
       };
     }
