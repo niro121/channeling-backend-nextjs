@@ -126,9 +126,9 @@ function compareValues(a: string | number, b: string | number): number {
 function getSortValue(row: RosterStaffRow, key: SortableKey): string | number {
   if (key.startsWith('day:')) {
     const dayIso = key.slice(4);
-    const shift = row.shifts[dayIso];
-    if (!shift) return '';
-    return `${shift.code} ${shift.label}`;
+    const dayShifts = row.shifts[dayIso] ?? [];
+    if (!dayShifts.length) return '';
+    return dayShifts.map((s) => `${s.code} ${s.label}`).join(' ');
   }
   switch (key) {
     case 'staffCode':
@@ -210,10 +210,10 @@ export default function SectionRosterGrid({
       for (const dayIso of dayIsos) {
         const dayQuery = columnFilters.day[dayIso] ?? '';
         if (!dayQuery.trim()) continue;
-        const shift = row.shifts[dayIso];
-        const hay = shift
-          ? `${shift.code} ${shift.label} ${shift.timeRange}`
-          : '';
+        const dayShifts = row.shifts[dayIso] ?? [];
+        const hay = dayShifts
+          .map((s) => `${s.code} ${s.label} ${s.timeRange}`)
+          .join(' ');
         if (!matchesFilter(hay, dayQuery)) return false;
       }
 
@@ -257,18 +257,15 @@ export default function SectionRosterGrid({
 
   const toggleLeave = async (
     allocationId: string,
-    staffId: string,
-    dateIso: string,
     current: boolean
   ) => {
-    const key = `${staffId}:${dateIso}`;
-    setLeaveOverrides((prev) => ({ ...prev, [key]: !current }));
+    setLeaveOverrides((prev) => ({ ...prev, [allocationId]: !current }));
     const result = await toggleRosterAllocationLeaveAction({
       allocationId,
       isLeave: !current
     });
     if (result.isError) {
-      setLeaveOverrides((prev) => ({ ...prev, [key]: current }));
+      setLeaveOverrides((prev) => ({ ...prev, [allocationId]: current }));
       toast({
         variant: 'destructive',
         title: 'Error',
@@ -568,9 +565,8 @@ export default function SectionRosterGrid({
                           </>
                         ) : null}
                         {dayIsos.map((dayIso) => {
-                          const shift = row.shifts[dayIso];
-                          const leaveKey = `${row.staffId}:${dayIso}`;
-                          if (!shift) {
+                          const dayShifts = row.shifts[dayIso] ?? [];
+                          if (!dayShifts.length) {
                             return (
                               <TableCell
                                 key={dayIso}
@@ -597,34 +593,53 @@ export default function SectionRosterGrid({
                               </TableCell>
                             );
                           }
-                          const isLeave =
-                            leaveOverrides[leaveKey] ?? shift.isLeave;
                           return (
                             <TableCell
                               key={dayIso}
                               className={cn('align-top', CELL_SEP)}
                             >
-                              <ShiftChip
-                                shift={{ ...shift, isLeave }}
-                                onLeaveToggle={() =>
-                                  void toggleLeave(
-                                    shift.allocationId,
-                                    row.staffId,
-                                    dayIso,
-                                    isLeave
-                                  )
-                                }
-                                onClick={
-                                  canEdit
-                                    ? () =>
-                                        openEdit({
-                                          row,
-                                          dateIso: dayIso,
-                                          shift
-                                        })
-                                    : undefined
-                                }
-                              />
+                              <div className="flex flex-col gap-1.5">
+                                {dayShifts.map((shift) => {
+                                  const isLeave =
+                                    leaveOverrides[shift.allocationId] ??
+                                    shift.isLeave;
+                                  return (
+                                    <ShiftChip
+                                      key={shift.allocationId}
+                                      shift={{ ...shift, isLeave }}
+                                      onLeaveToggle={() =>
+                                        void toggleLeave(
+                                          shift.allocationId,
+                                          isLeave
+                                        )
+                                      }
+                                      onClick={
+                                        canEdit
+                                          ? () =>
+                                              openEdit({
+                                                row,
+                                                dateIso: dayIso,
+                                                shift
+                                              })
+                                          : undefined
+                                      }
+                                    />
+                                  );
+                                })}
+                                {canEdit ? (
+                                  <button
+                                    type="button"
+                                    className="inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-[11px] font-medium text-primary/80 hover:bg-primary/5 hover:text-primary"
+                                    onClick={() =>
+                                      openAdd({ row, dateIso: dayIso })
+                                    }
+                                    aria-label={`Add another shift for ${row.staffName} on ${dayIso}`}
+                                  >
+                                    <Plus className="h-3 w-3" />
+                                    Add shift
+                                  </button>
+                                ) : null}
+                              </div>
                             </TableCell>
                           );
                         })}
