@@ -3,7 +3,6 @@
 import { useMemo, useState } from 'react';
 import { Formik, Form, type FormikHelpers } from 'formik';
 import * as Yup from 'yup';
-import { format } from 'date-fns';
 import { RotateCcw, SaveIcon, Trash2 } from 'lucide-react';
 import {
   Button,
@@ -19,6 +18,7 @@ import {
   useToast
 } from '@archmage/ui';
 import { usePermissions } from '@/components/hooks/use-permissions';
+import { formatAuditLine } from '@/lib/helpers/format-audit-line.helper';
 import {
   CustomDateTimePartsField,
   emptyDateTimeParts,
@@ -93,18 +93,6 @@ function recordToFormValues(
     comment: record.comment,
     deleteComment: ''
   };
-}
-
-function formatAuditLine(
-  name?: string,
-  position?: string,
-  at?: string | null
-): string {
-  if (!name || !at) return '—';
-  const date = new Date(at);
-  if (Number.isNaN(date.getTime())) return '—';
-  const namePart = position ? `${name} (${position})` : name;
-  return `${namePart} · ${format(date, 'd MMM yyyy')} · ${format(date, 'HH:mm')}`;
 }
 
 export default function FormExtraShiftNormal({

@@ -2,7 +2,11 @@ import React, { Suspense } from 'react';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { getServerSession } from 'next-auth';
-import { BulkDeleteButton, Button, CustomDataTable } from '@archmage/ui';
+import { Button } from '@archmage/ui';
+import {
+  CommonDataTable,
+  DataTableBulkDeleteFeature
+} from '@/components/common/common-data-table';
 import { Plus } from 'lucide-react';
 import Loading from '../../loading';
 import { authOptions } from '@/lib/auth';
@@ -105,7 +109,7 @@ export default async function LeaveTypesPage({ searchParams }: SearchParams) {
   return (
     <div className="overflow-hidden">
       <Suspense fallback={<Loading />}>
-        <CustomDataTable
+        <CommonDataTable
           heading="Leave Types"
           subHeading="Manage leave type definitions used by entitlement and application workflows."
           columns={leaveTypeColumns}
@@ -116,14 +120,29 @@ export default async function LeaveTypesPage({ searchParams }: SearchParams) {
           deleteServerAction={bulkDeleteLeaveTypesAction}
           getBulkDeleteDescription={bulkDeleteDescription}
           toolbarLeft={
+            <LeaveTypeFilterSection
+              status={params?.status}
+              isPaid={params?.isPaid}
+              requiresApproval={params?.requiresApproval}
+              allowHalfDay={params?.allowHalfDay}
+            />
+          }
+          toolbarRight={
             <div className="flex flex-col gap-3 flex-1 min-w-0">
-              <LeaveTypeFilterSection
-                status={params?.status}
-                isPaid={params?.isPaid}
-                requiresApproval={params?.requiresApproval}
-                allowHalfDay={params?.allowHalfDay}
-              />
-              <div className="flex items-center">
+              <div className="flex items-start justify-end gap-2 shrink-0">
+                <DataTableBulkDeleteFeature />
+                {canAdd ? (
+                  <Link href="/leave-types/add">
+                    <Button size="sm" className="gap-1.5 h-9 cursor-pointer">
+                      <Plus className="h-4 w-4" />
+                      <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">
+                        Add New
+                      </span>
+                    </Button>
+                  </Link>
+                ) : null}
+              </div>
+              <div className="flex items-center justify-end">
                 <ExportWrapper
                   serverData={handleExport}
                   columns={[
@@ -150,22 +169,6 @@ export default async function LeaveTypesPage({ searchParams }: SearchParams) {
               </div>
             </div>
           }
-          toolbarRight={
-            <div className="flex items-start gap-2 shrink-0">
-              <BulkDeleteButton />
-              {canAdd ? (
-                <Link href="/leave-types/add">
-                  <Button size="sm" className="gap-1.5 h-9 cursor-pointer">
-                    <Plus className="h-4 w-4" />
-                    <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">
-                      Add New
-                    </span>
-                  </Button>
-                </Link>
-              ) : null}
-            </div>
-          }
-          hideAutoBulkDelete
         />
       </Suspense>
     </div>

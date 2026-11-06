@@ -295,9 +295,12 @@ export default function FormLeaveType({
                       id="carryForwardAllowed"
                       placeholder="Carry Forward Allowed"
                       value={formik.values.carryForwardAllowed}
-                      onChange={(value) =>
-                        formik.setFieldValue('carryForwardAllowed', value)
-                      }
+                      onChange={(value) => {
+                        formik.setFieldValue('carryForwardAllowed', value);
+                        if (value !== 'yes') {
+                          formik.setFieldValue('maxCarryForwardDays', '');
+                        }
+                      }}
                       required
                       options={YES_NO_OPTIONS}
                       styleClasses={fieldStyleClasses}
@@ -313,17 +316,19 @@ export default function FormLeaveType({
                       min={0}
                       styleClasses={fieldStyleClasses}
                     />
-                    <CustomFormField
-                      id="maxCarryForwardDays"
-                      type="number"
-                      placeholder="Max Carry Forward Days"
-                      value={formik.values.maxCarryForwardDays}
-                      onChange={formik.handleChange}
-                      onBlur={formik.handleBlur}
-                      required={false}
-                      min={0}
-                      styleClasses={fieldStyleClasses}
-                    />
+                    {formik.values.carryForwardAllowed === 'yes' ? (
+                      <CustomFormField
+                        id="maxCarryForwardDays"
+                        type="number"
+                        placeholder="Max Carry Forward Days"
+                        value={formik.values.maxCarryForwardDays}
+                        onChange={formik.handleChange}
+                        onBlur={formik.handleBlur}
+                        required={false}
+                        min={0}
+                        styleClasses={fieldStyleClasses}
+                      />
+                    ) : null}
                   </div>
 
                   <CustomSelectField

@@ -1,12 +1,18 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Formik, Form, type FormikHelpers } from 'formik';
+import {
+  Formik,
+  Form,
+  useFormikContext,
+  type FormikHelpers
+} from 'formik';
 import * as Yup from 'yup';
 import { format } from 'date-fns';
 import {
   CirclePlay,
+  Info,
   Plane,
   RotateCcw,
   SaveIcon,
@@ -14,6 +20,7 @@ import {
   XIcon
 } from 'lucide-react';
 import {
+  Badge,
   Button,
   Card,
   CardContent,
@@ -30,6 +37,8 @@ import {
 import { Progress } from '@/components/ui/progress';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { usePermissions } from '@/components/hooks/use-permissions';
+import { cn } from '@/lib/utils';
+import { buttonStyles } from '@/lib/utils/common-styles';
 import {
   createLeaveApplicationAction,
   deleteLeaveApplicationAction,
@@ -37,6 +46,7 @@ import {
   updateLeaveApplicationAction
 } from '@/app/actions/leave-actions/leave-application.actions';
 import { getLeaveEntitlementBalanceAction } from '@/app/actions/leave-actions/leave-entitlement.actions';
+import { formatAuditLine } from '@/lib/helpers/format-audit-line.helper';
 import {
   computeLeaveApplicationDays,
   formatHalfDaySessionLabel
@@ -45,10 +55,12 @@ import {
   leaveApplicationFormValuesToPayload,
   leaveApplicationRecordToFormValues
 } from '@/lib/mappers/leave-application-form.mapper';
-import type {
-  LeaveApplicationFormValues,
-  LeaveApplicationRecord,
-  LeaveApplicationShiftRow
+import {
+  LEAVE_HALF_DAY_SESSION_OPTIONS,
+  type LeaveApplicationFormValues,
+  type LeaveApplicationRecord,
+  type LeaveApplicationShiftRow,
+  type LeaveEntitlementBalanceLeaveType
 } from '@/types/leave';
 
 export type LeaveTypeFormOption = {
@@ -85,7 +97,6 @@ type AuditInfo = {
 type FormLeaveDetailsProps = {
   staffOptions?: FilterOption[];
   leaveTypeOptions?: LeaveTypeFormOption[];
-  approverOptions?: FilterOption[];
   shiftOptions?: FilterOption[];
   selectedRecord?: LeaveApplicationRecord | null;
   onClearSelection?: () => void;
@@ -96,11 +107,6 @@ const fieldStyleClasses = {
   labelClassName: 'text-sm text-black font-semibold capitalize',
   inputClassName: 'w-full'
 };
-
-const HALF_DAY_SESSION_OPTIONS = [
-  { id: 'AM', name: 'Morning' },
-  { id: 'PM', name: 'Afternoon' }
-];
 
 const emptyValues: LeaveApplicationFormValues = {
   formNumber: '',
@@ -187,25 +193,94 @@ function previewLeaveDays(values: LeaveApplicationFormValues, allowHalfDay: bool
   return { days, label: String(days) };
 }
 
-function formatAuditLine(info?: AuditInfo | null): string {
-  if (!info?.name || !info.at) return '—';
+function resolveLeaveRange(values: LeaveApplicationFormValues): {
+  fromDate: Date | null;
+  toDate: Date | null;
+} {
+  const fromDate = values.fromDate ?? null;
+  if (!fromDate) {
+    return { fromDate: null, toDate: null };
+  }
+  const toDate = values.isHalfDay
+    ? values.fromDate
+    : values.toDate ?? values.fromDate;
+  return { fromDate, toDate: toDate ?? null };
+}
 
-  const date = info.at instanceof Date ? info.at : new Date(info.at);
-  if (Number.isNaN(date.getTime())) return '—';
+/** Keeps staff entitlement notice in sync with staff + leave date range. */
+function StaffEntitlementBalanceSync({
+  loadStaffBalance,
+  clearStaffBalance
+}: {
+  loadStaffBalance: (
+    staffId: string,
+    range?: { fromDate?: Date | null; toDate?: Date | null }
+  ) => Promise<void>;
+  clearStaffBalance: () => void;
+}) {
+  const { values } = useFormikContext<LeaveApplicationFormValues>();
+  const staffId = values.staffId;
+  const { fromDate, toDate } = resolveLeaveRange(values);
+  const fromKey = fromDate ? fromDate.getTime() : null;
+  const toKey = toDate ? toDate.getTime() : null;
 
-  const namePart = info.position
-    ? `${info.name} (${info.position})`
-    : info.name;
-  const datePart = format(date, 'd MMM yyyy');
-  const timePart = format(date, 'HH:mm');
+  useEffect(() => {
+    if (!staffId) {
+      clearStaffBalance();
+      return;
+    }
+    void loadStaffBalance(staffId, { fromDate, toDate });
+  }, [staffId, fromKey, toKey, loadStaffBalance, clearStaffBalance]);
 
-  return `${namePart} · ${datePart} · ${timePart}`;
+  return null;
+}
+
+/** Keeps Entitle / Utilized / Balance in sync with staff, leave type, and dates. */
+function LeaveBalanceSnapshotSync({
+  loadLeaveBalance,
+  clearLeaveBalance
+}: {
+  loadLeaveBalance: (params: {
+    staffId: string;
+    leaveTypeId: string;
+    fromDate: Date;
+    toDate: Date;
+  }) => Promise<void>;
+  clearLeaveBalance: () => void;
+}) {
+  const { values } = useFormikContext<LeaveApplicationFormValues>();
+  const staffId = values.staffId;
+  const leaveTypeId = values.leaveTypeId;
+  const { fromDate, toDate } = resolveLeaveRange(values);
+  const fromKey = fromDate ? fromDate.getTime() : null;
+  const toKey = toDate ? toDate.getTime() : null;
+
+  useEffect(() => {
+    if (!staffId || !leaveTypeId || !fromDate || !toDate) {
+      clearLeaveBalance();
+      return;
+    }
+    void loadLeaveBalance({
+      staffId,
+      leaveTypeId,
+      fromDate,
+      toDate
+    });
+  }, [
+    staffId,
+    leaveTypeId,
+    fromKey,
+    toKey,
+    loadLeaveBalance,
+    clearLeaveBalance
+  ]);
+
+  return null;
 }
 
 export default function FormLeaveDetails({
   staffOptions = [],
   leaveTypeOptions = [],
-  approverOptions = [],
   shiftOptions = [],
   selectedRecord = null,
   onClearSelection
@@ -221,14 +296,21 @@ export default function FormLeaveDetails({
   const [staffBalance, setStaffBalance] = useState({
     total: 0,
     used: 0,
-    remaining: 0
+    remaining: 0,
+    leaveTypes: [] as LeaveEntitlementBalanceLeaveType[]
   });
+  const [staffBalanceLoading, setStaffBalanceLoading] = useState(false);
 
   const isEdit = Boolean(selectedRecord?.id);
-  const canSave = isEdit
-    ? has('leave-application', 'edit')
-    : has('leave-application', 'add');
-  const canDelete = has('leave-application', 'delete');
+  const isReadOnly = Boolean(
+    selectedRecord?.id && selectedRecord.status !== 'pending'
+  );
+  const canSave =
+    !isReadOnly &&
+    (isEdit
+      ? has('leave-application', 'edit')
+      : has('leave-application', 'add'));
+  const canDelete = has('leave-application', 'delete') && !isReadOnly;
 
   const formInitialValues: LeaveApplicationFormValues = selectedRecord
     ? leaveApplicationRecordToFormValues(selectedRecord)
@@ -241,8 +323,64 @@ export default function FormLeaveDetails({
     return map;
   }, [leaveTypeOptions]);
 
+  const clearStaffBalance = useCallback(() => {
+    setStaffBalance({
+      total: 0,
+      used: 0,
+      remaining: 0,
+      leaveTypes: []
+    });
+  }, []);
+
+  const clearLeaveBalance = useCallback(() => {
+    setBalance(emptyBalance);
+  }, []);
+
+  const loadStaffBalance = useCallback(
+    async (
+      staffId: string,
+      range?: { fromDate?: Date | null; toDate?: Date | null }
+    ) => {
+      setStaffBalanceLoading(true);
+      try {
+        const result = await getLeaveEntitlementBalanceAction(staffId, range);
+        if (result.isError || !result.data) {
+          clearStaffBalance();
+          return;
+        }
+        setStaffBalance({
+          total: result.data.totalEntitlement,
+          used: result.data.used,
+          remaining: result.data.remaining,
+          leaveTypes: result.data.leaveTypes ?? []
+        });
+      } finally {
+        setStaffBalanceLoading(false);
+      }
+    },
+    [clearStaffBalance]
+  );
+
+  const loadLeaveBalance = useCallback(
+    async (params: {
+      staffId: string;
+      leaveTypeId: string;
+      fromDate: Date;
+      toDate: Date;
+    }) => {
+      const result = await getLeaveApplicationBalanceSnapshotAction(params);
+      if (result.isError || !result.data) {
+        clearLeaveBalance();
+        return;
+      }
+      setBalance(result.data);
+    },
+    [clearLeaveBalance]
+  );
+
   useEffect(() => {
     if (selectedRecord) {
+      // Prefer stored snapshots immediately; live sync refreshes when form values settle.
       setBalance({
         entitle: Number(selectedRecord.entitleSnapshot ?? 0),
         utilized: Number(selectedRecord.utilizedSnapshot ?? 0),
@@ -262,33 +400,6 @@ export default function FormLeaveDetails({
       setShiftRows([]);
     }
   }, [selectedRecord]);
-
-  useEffect(() => {
-    const staffId = selectedRecord?.staffId;
-    if (!staffId) {
-      setStaffBalance({ total: 0, used: 0, remaining: 0 });
-      return;
-    }
-
-    let cancelled = false;
-    void (async () => {
-      const result = await getLeaveEntitlementBalanceAction(staffId);
-      if (cancelled) return;
-      if (result.isError || !result.data) {
-        setStaffBalance({ total: 0, used: 0, remaining: 0 });
-        return;
-      }
-      setStaffBalance({
-        total: result.data.totalEntitlement,
-        used: result.data.used,
-        remaining: result.data.remaining
-      });
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [selectedRecord?.staffId]);
 
   const utilisationPercent =
     staffBalance.total > 0
@@ -317,6 +428,7 @@ export default function FormLeaveDetails({
       resetForm
     }: FormikHelpers<LeaveApplicationFormValues>
   ) => {
+    if (isReadOnly) return;
     try {
       setLoading(true);
       const shifts: LeaveApplicationShiftRow[] = shiftRows.map((row) => ({
@@ -453,15 +565,24 @@ export default function FormLeaveDetails({
       <Card className="rounded-lg border border-border shadow-sm">
         <CardHeader className="space-y-1.5">
           <div className="flex items-start justify-between gap-3">
-            <CardTitle className="text-lg font-semibold">
-              Leave Form Details
-            </CardTitle>
+            <div className="min-w-0 space-y-1">
+              <CardTitle className="text-lg font-semibold">
+                {isReadOnly ? 'Leave Application' : 'Leave Form Details'}
+              </CardTitle>
+              {isReadOnly && selectedRecord?.status ? (
+                <Badge
+                  variant="secondary"
+                  className="capitalize"
+                >
+                  {selectedRecord.status}
+                </Badge>
+              ) : null}
+            </div>
             {isEdit ? (
               <Button
                 type="button"
-                variant="ghost"
                 size="sm"
-                className="gap-1"
+                className={cn('gap-1.5', buttonStyles.save)}
                 onClick={() => onClearSelection?.()}
               >
                 <XIcon className="h-4 w-4" />
@@ -478,6 +599,8 @@ export default function FormLeaveDetails({
             onSubmit={handleSubmit}
           >
             {(formik) => {
+              const leaveRange = resolveLeaveRange(formik.values);
+              const hasLeaveDates = Boolean(leaveRange.fromDate);
               const allowHalfDay = Boolean(
                 leaveTypeAllowHalfDay.get(formik.values.leaveTypeId)
               );
@@ -527,31 +650,6 @@ export default function FormLeaveDetails({
                           popoverClassName="w-[var(--radix-popover-trigger-width)] min-w-60"
                           onChange={(value) => {
                             formik.setFieldValue('staffId', value);
-                            if (value) {
-                              void getLeaveEntitlementBalanceAction(value).then(
-                                (result) => {
-                                  if (result.isError || !result.data) {
-                                    setStaffBalance({
-                                      total: 0,
-                                      used: 0,
-                                      remaining: 0
-                                    });
-                                    return;
-                                  }
-                                  setStaffBalance({
-                                    total: result.data.totalEntitlement,
-                                    used: result.data.used,
-                                    remaining: result.data.remaining
-                                  });
-                                }
-                              );
-                            } else {
-                              setStaffBalance({
-                                total: 0,
-                                used: 0,
-                                remaining: 0
-                              });
-                            }
                           }}
                         />
                       )}
@@ -562,6 +660,75 @@ export default function FormLeaveDetails({
                       </p>
                     ) : null}
                   </div>
+
+                  <StaffEntitlementBalanceSync
+                    loadStaffBalance={loadStaffBalance}
+                    clearStaffBalance={clearStaffBalance}
+                  />
+                  <LeaveBalanceSnapshotSync
+                    loadLeaveBalance={loadLeaveBalance}
+                    clearLeaveBalance={clearLeaveBalance}
+                  />
+
+                  {formik.values.staffId ? (
+                    <div className="rounded-lg border border-primary/20 bg-primary/5 px-3 py-3">
+                      <div className="mb-2 flex items-start gap-2">
+                        <Info className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-semibold text-foreground">
+                            Staff leave entitlements
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {hasLeaveDates
+                              ? 'Leave types and balances for entitlement periods that cover the selected leave dates.'
+                              : 'All active leave entitlements for the selected staff. Choose leave dates to filter by period.'}
+                          </p>
+                        </div>
+                      </div>
+
+                      {staffBalanceLoading ? (
+                        <p className="text-xs text-muted-foreground">
+                          Loading entitlements…
+                        </p>
+                      ) : staffBalance.leaveTypes.length === 0 ? (
+                        <p className="text-xs text-muted-foreground">
+                          {hasLeaveDates
+                            ? 'No leave entitlements cover the selected date range for this staff member.'
+                            : 'No active leave entitlements found for this staff member.'}
+                        </p>
+                      ) : (
+                        <div className="overflow-hidden rounded-md border border-border bg-background">
+                          <div className="grid grid-cols-[1.4fr_0.7fr_0.7fr_0.8fr] gap-2 border-b border-border bg-muted/40 px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                            <span>Leave Type</span>
+                            <span className="text-right">Entitled</span>
+                            <span className="text-right">Used</span>
+                            <span className="text-right">Remaining</span>
+                          </div>
+                          <ul className="divide-y divide-border">
+                            {staffBalance.leaveTypes.map((row) => (
+                              <li
+                                key={`${row.leaveTypeId}-${row.leaveTypeName}`}
+                                className="grid grid-cols-[1.4fr_0.7fr_0.7fr_0.8fr] gap-2 px-2.5 py-1.5 text-xs"
+                              >
+                                <span className="truncate font-medium text-foreground">
+                                  {row.leaveTypeName}
+                                </span>
+                                <span className="text-right tabular-nums text-muted-foreground">
+                                  {row.entitled}
+                                </span>
+                                <span className="text-right tabular-nums text-muted-foreground">
+                                  {row.used}
+                                </span>
+                                <span className="text-right font-semibold tabular-nums text-foreground">
+                                  {row.remaining}
+                                </span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                    </div>
+                  ) : null}
 
                   <CustomSelectField
                     id="leaveTypeId"
@@ -579,6 +746,7 @@ export default function FormLeaveDetails({
                       }
                     }}
                     required
+                    disabled={isReadOnly}
                     styleClasses={fieldStyleClasses}
                   />
 
@@ -589,6 +757,7 @@ export default function FormLeaveDetails({
                         type="checkbox"
                         className="h-4 w-4 rounded border-border"
                         checked={formik.values.isHalfDay}
+                        disabled={isReadOnly}
                         onChange={(event) => {
                           const checked = event.target.checked;
                           formik.setFieldValue('isHalfDay', checked);
@@ -619,6 +788,7 @@ export default function FormLeaveDetails({
                         }}
                         onBlur={formik.handleBlur}
                         required
+                        disabled={isReadOnly}
                         styleClasses={fieldStyleClasses}
                         error={formik.errors.fromDate as string | undefined}
                         touched={formik.touched.fromDate}
@@ -631,12 +801,13 @@ export default function FormLeaveDetails({
                         id="halfDaySession"
                         placeholder="Session"
                         label="Morning / Afternoon"
-                        options={HALF_DAY_SESSION_OPTIONS}
+                        options={[...LEAVE_HALF_DAY_SESSION_OPTIONS]}
                         value={formik.values.halfDaySession}
                         onChange={(value) =>
                           formik.setFieldValue('halfDaySession', value)
                         }
                         required
+                        disabled={isReadOnly}
                         styleClasses={fieldStyleClasses}
                       />
                       {formik.touched.halfDaySession &&
@@ -657,6 +828,7 @@ export default function FormLeaveDetails({
                         }
                         onBlur={formik.handleBlur}
                         required
+                        disabled={isReadOnly}
                         styleClasses={fieldStyleClasses}
                         error={formik.errors.fromDate as string | undefined}
                         touched={formik.touched.fromDate}
@@ -674,6 +846,7 @@ export default function FormLeaveDetails({
                         }
                         onBlur={formik.handleBlur}
                         required
+                        disabled={isReadOnly}
                         styleClasses={fieldStyleClasses}
                         error={formik.errors.toDate as string | undefined}
                         touched={formik.touched.toDate}
@@ -692,53 +865,55 @@ export default function FormLeaveDetails({
                   </div>
 
                   <div className="space-y-3 rounded-lg border border-border bg-muted/30 p-3">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="h-9 gap-1.5"
-                      onClick={async () => {
-                        if (
-                          !formik.values.staffId ||
-                          !formik.values.leaveTypeId ||
-                          !formik.values.fromDate ||
-                          (!formik.values.isHalfDay && !formik.values.toDate)
-                        ) {
-                          toast({
-                            variant: 'destructive',
-                            title: 'Missing details',
-                            description:
-                              'Select staff, leave type, and dates before recalculating.'
-                          });
-                          return;
-                        }
+                    {!isReadOnly ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-9 gap-1.5"
+                        onClick={async () => {
+                          if (
+                            !formik.values.staffId ||
+                            !formik.values.leaveTypeId ||
+                            !formik.values.fromDate ||
+                            (!formik.values.isHalfDay && !formik.values.toDate)
+                          ) {
+                            toast({
+                              variant: 'destructive',
+                              title: 'Missing details',
+                              description:
+                                'Select staff, leave type, and dates before recalculating.'
+                            });
+                            return;
+                          }
 
-                        const result =
-                          await getLeaveApplicationBalanceSnapshotAction({
-                            staffId: formik.values.staffId,
-                            leaveTypeId: formik.values.leaveTypeId,
-                            fromDate: formik.values.fromDate,
-                            toDate:
-                              effectiveToDate ?? formik.values.fromDate
-                          });
+                          const result =
+                            await getLeaveApplicationBalanceSnapshotAction({
+                              staffId: formik.values.staffId,
+                              leaveTypeId: formik.values.leaveTypeId,
+                              fromDate: formik.values.fromDate,
+                              toDate:
+                                effectiveToDate ?? formik.values.fromDate
+                            });
 
-                        if (result.isError || !result.data) {
-                          toast({
-                            variant: 'destructive',
-                            title: 'Error',
-                            description:
-                              result.errors?.message ??
-                              'Unable to recalculate balance.'
-                          });
-                          return;
-                        }
+                          if (result.isError || !result.data) {
+                            toast({
+                              variant: 'destructive',
+                              title: 'Error',
+                              description:
+                                result.errors?.message ??
+                                'Unable to recalculate balance.'
+                            });
+                            return;
+                          }
 
-                        setBalance(result.data);
-                      }}
-                    >
-                      <CirclePlay className="h-4 w-4" />
-                      Recalculate
-                    </Button>
+                          setBalance(result.data);
+                        }}
+                      >
+                        <CirclePlay className="h-4 w-4" />
+                        Recalculate
+                      </Button>
+                    ) : null}
                     <div className="grid grid-cols-3 gap-2 text-center text-sm">
                       <div>
                         <p className="text-xs font-medium text-muted-foreground">
@@ -768,46 +943,48 @@ export default function FormLeaveDetails({
                   </div>
 
                   <div className="space-y-3 rounded-lg border border-border bg-muted/30 p-3">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="h-9 gap-1.5"
-                      onClick={() => {
-                        if (!formik.values.fromDate || !effectiveToDate) {
-                          toast({
-                            variant: 'destructive',
-                            title: 'Missing dates',
-                            description:
-                              'Set leave date(s) before processing shifts.'
-                          });
-                          return;
-                        }
-                        const sessionLabel = formatHalfDaySessionLabel(
-                          formik.values.halfDaySession
-                        );
-                        setShiftRows([
-                          {
-                            id: '1',
-                            shift: formik.values.isHalfDay
-                              ? `Half day${sessionLabel ? ` (${sessionLabel})` : ''}`
-                              : 'Leave day',
-                            from: format(
-                              formik.values.fromDate,
-                              'EEE MMM d HH:mm'
-                            ),
-                            to: format(effectiveToDate, 'EEE MMM d HH:mm'),
-                            shiftDate: formik.values.fromDate
+                    {!isReadOnly ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-9 gap-1.5"
+                        onClick={() => {
+                          if (!formik.values.fromDate || !effectiveToDate) {
+                            toast({
+                              variant: 'destructive',
+                              title: 'Missing dates',
+                              description:
+                                'Set leave date(s) before processing shifts.'
+                            });
+                            return;
                           }
-                        ]);
-                      }}
-                    >
-                      <CirclePlay className="h-4 w-4" />
-                      Process Shift
-                    </Button>
-                    <div className="overflow-hidden rounded-md border border-border bg-background">
-                      <table className="w-full text-left text-xs">
-                        <thead className="bg-muted/50 text-muted-foreground">
+                          const sessionLabel = formatHalfDaySessionLabel(
+                            formik.values.halfDaySession
+                          );
+                          setShiftRows([
+                            {
+                              id: '1',
+                              shift: formik.values.isHalfDay
+                                ? `Half day${sessionLabel ? ` (${sessionLabel})` : ''}`
+                                : 'Leave day',
+                              from: format(
+                                formik.values.fromDate,
+                                'EEE MMM d HH:mm'
+                              ),
+                              to: format(effectiveToDate, 'EEE MMM d HH:mm'),
+                              shiftDate: formik.values.fromDate
+                            }
+                          ]);
+                        }}
+                      >
+                        <CirclePlay className="h-4 w-4" />
+                        Process Shift
+                      </Button>
+                    ) : null}
+                    <div className="max-h-48 overflow-auto rounded-md border border-border bg-background">
+                      <table className="w-full min-w-max text-left text-xs">
+                        <thead className="sticky top-0 bg-muted/50 text-muted-foreground">
                           <tr>
                             <th className="px-2 py-1.5 font-medium">Shift</th>
                             <th className="px-2 py-1.5 font-medium">From</th>
@@ -848,22 +1025,24 @@ export default function FormLeaveDetails({
                   </div>
 
                   <div className="space-y-3 rounded-lg border border-border bg-muted/30 p-3">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="h-9 gap-1.5"
-                      onClick={() => {
-                        toast({
-                          title: 'Coming soon',
-                          description:
-                            'Process Lieu Shift will wire when shift masters land.'
-                        });
-                      }}
-                    >
-                      <CirclePlay className="h-4 w-4" />
-                      Process Lieu Shift
-                    </Button>
+                    {!isReadOnly ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-9 gap-1.5"
+                        onClick={() => {
+                          toast({
+                            title: 'Coming soon',
+                            description:
+                              'Process Lieu Shift will wire when shift masters land.'
+                          });
+                        }}
+                      >
+                        <CirclePlay className="h-4 w-4" />
+                        Process Lieu Shift
+                      </Button>
+                    ) : null}
                     <div className={fieldStyleClasses.parentDiv}>
                       <div className={fieldStyleClasses.inputClassName}>
                         <Combobox
@@ -872,6 +1051,7 @@ export default function FormLeaveDetails({
                           value={formik.values.lieuShiftId}
                           defaultValue=""
                           clearable
+                          disabled={isReadOnly}
                           triggerClassName="w-full max-w-none font-normal!"
                           popoverClassName="w-[var(--radix-popover-trigger-width)] min-w-60"
                           onChange={(value) =>
@@ -891,6 +1071,7 @@ export default function FormLeaveDetails({
                     }
                     onBlur={formik.handleBlur}
                     required={false}
+                    disabled
                     styleClasses={fieldStyleClasses}
                     captionLayout="dropdown"
                     fromYear={2000}
@@ -902,18 +1083,11 @@ export default function FormLeaveDetails({
                       Leave Approved Person
                     </Label>
                     <div className={fieldStyleClasses.inputClassName}>
-                      <Combobox
-                        label="Search approver"
-                        options={approverOptions}
-                        value={formik.values.approverId}
-                        defaultValue=""
-                        clearable
-                        triggerClassName="w-full max-w-none font-normal!"
-                        popoverClassName="w-[var(--radix-popover-trigger-width)] min-w-60"
-                        onChange={(value) =>
-                          formik.setFieldValue('approverId', value)
-                        }
-                      />
+                      <div className="rounded-md border border-border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
+                        {selectedRecord?.approverName?.trim()
+                          ? selectedRecord.approverName
+                          : '—'}
+                      </div>
                     </div>
                   </div>
 
@@ -941,6 +1115,7 @@ export default function FormLeaveDetails({
                     onChange={formik.handleChange}
                     onBlur={formik.handleBlur}
                     required={false}
+                    disabled={isReadOnly}
                     styleClasses={fieldStyleClasses}
                   />
 
@@ -963,6 +1138,7 @@ export default function FormLeaveDetails({
                         formik.resetForm({ values: emptyValues });
                         setBalance(emptyBalance);
                         setShiftRows([]);
+                        clearStaffBalance();
                         onClearSelection?.();
                       }}
                     >
@@ -981,8 +1157,10 @@ export default function FormLeaveDetails({
                         <RadioGroupItem
                           value="yes"
                           id="with-out-cancel"
+                          disabled={isReadOnly}
                           onClick={(event) => {
                             event.preventDefault();
+                            if (isReadOnly) return;
                             formik.setFieldValue(
                               'outWithCancel',
                               !formik.values.outWithCancel
@@ -991,9 +1169,15 @@ export default function FormLeaveDetails({
                         />
                         <Label
                           htmlFor="with-out-cancel"
-                          className="cursor-pointer font-normal"
+                          className={cn(
+                            'font-normal',
+                            isReadOnly
+                              ? 'cursor-default text-muted-foreground'
+                              : 'cursor-pointer'
+                          )}
                           onClick={(event) => {
                             event.preventDefault();
+                            if (isReadOnly) return;
                             formik.setFieldValue(
                               'outWithCancel',
                               !formik.values.outWithCancel
@@ -1008,7 +1192,8 @@ export default function FormLeaveDetails({
                       <Button
                         type="button"
                         variant="outline"
-                        className="h-9 gap-1.5 border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                        size="sm"
+                        className={cn('gap-1.5', buttonStyles.delete.warning)}
                         disabled={loading || deleting}
                         onClick={() => setDeleteOpen(true)}
                       >
@@ -1095,6 +1280,9 @@ export default function FormLeaveDetails({
         title="Delete leave application?"
         description="This will permanently remove the selected leave application."
         handleContinue={handleDelete}
+        className={{
+          actionButton: buttonStyles.delete.danger
+        }}
       />
     </div>
   );

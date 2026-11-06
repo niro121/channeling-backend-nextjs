@@ -20,7 +20,9 @@ import {
   computeEntitlementRemaining,
   LEAVE_HALF_DAY_SESSIONS,
   type GetLeaveApplicationsParams,
+  type GetLeaveApplicationsReturn,
   type LeaveApplicationPayload,
+  type LeaveApplicationRecord,
   type LeaveApplicationShiftRow
 } from '@/types/leave';
 
@@ -188,17 +190,6 @@ function buildApplicationWhere(
   return where;
 }
 
-async function resolveApproverName(
-  approverId?: string | null
-): Promise<string | null> {
-  if (!approverId) return null;
-  const user = await authPrisma.user.findUnique({
-    where: { id: approverId },
-    select: { id: true, name: true }
-  });
-  return user?.name ?? null;
-}
-
 export async function getLeaveApplications(
   params: GetLeaveApplicationsParams
 ): Promise<{
@@ -262,22 +253,37 @@ export async function getLeaveApplications(
   }
 }
 
-export async function getLeaveApplicationsForExport(
-  params: Omit<GetLeaveApplicationsParams, 'page' | 'limit'>
-): Promise<{
-  success: boolean;
-  data?: any[];
-  message?: string;
-  error?: { message?: string };
-}> {
+export async function getLeaveApplicationsForExport({
+  staffId,
+  leaveTypeId,
+  approverId,
+  fromDate,
+  toDate,
+  dateSearchBy,
+  outWithCancel
+}: {
+  staffId?: string;
+  leaveTypeId?: string;
+  approverId?: string;
+  fromDate?: string;
+  toDate?: string;
+  dateSearchBy?: string;
+  outWithCancel?: string;
+}): Promise<GetLeaveApplicationsReturn> {
   try {
-    const where = buildApplicationWhere(params);
-    const exportLimit =
-      Number.parseInt(process.env.EXPORT_LIMIT ?? '1000', 10) || 1000;
+    const where = buildApplicationWhere({
+      staffId,
+      leaveTypeId,
+      approverId,
+      fromDate,
+      toDate,
+      dateSearchBy,
+      outWithCancel
+    });
+
     const records = await prisma.leaveApplication.findMany({
       where,
       orderBy: [{ createdAt: 'desc' }],
-      take: exportLimit,
       include: {
         leaveType: {
           select: { id: true, name: true, code: true, allowHalfDay: true }
@@ -285,18 +291,19 @@ export async function getLeaveApplicationsForExport(
         staff: { select: { id: true, name: true, code: true } }
       }
     });
-    const withUsers = await resolveAuthUsers(records);
+
+    const recordsWithUsers = await resolveAuthUsers(records);
+    const data = recordsWithUsers.map(
+      mapApplicationRecord
+    ) as LeaveApplicationRecord[];
+
     return {
-      success: true,
-      data: withUsers.map(mapApplicationRecord),
-      message: 'Leave applications export fetched successfully'
+      data,
+      totalRecords: data.length
     };
-  } catch (error: any) {
-    console.error('getLeaveApplicationsForExport error:', error);
-    return {
-      success: false,
-      error: { message: error.message || 'Failed to export leave applications' }
-    };
+  } catch (error) {
+    console.error('getLeaveApplicationsForExport error', error);
+    throw new Error('Error getting data');
   }
 }
 
@@ -468,17 +475,6 @@ export async function createLeaveApplication(
       };
     }
 
-    const approverName = await resolveApproverName(data.approverId);
-    if (data.approverId && !approverName) {
-      return {
-        success: false,
-        error: {
-          message: 'Approver not found',
-          issues: { approverId: ['Selected approver was not found'] }
-        }
-      };
-    }
-
     const shifts = mapShiftsForWrite(data.shifts as LeaveApplicationShiftRow[]);
 
     const record = await prisma.leaveApplication.create({
@@ -491,8 +487,9 @@ export async function createLeaveApplication(
         days,
         halfDaySession,
         requestedDate: data.requestedDate ?? new Date(),
-        approverId: data.approverId || null,
-        approverName: approverName,
+        // Approver is set only when leave management approves.
+        approverId: null,
+        approverName: null,
         status: 'pending',
         outWithCancel: data.outWithCancel ?? false,
         comment: data.comment ?? null,
@@ -650,17 +647,6 @@ export async function updateLeaveApplication(
       };
     }
 
-    const approverName = await resolveApproverName(data.approverId);
-    if (data.approverId && !approverName) {
-      return {
-        success: false,
-        error: {
-          message: 'Approver not found',
-          issues: { approverId: ['Selected approver was not found'] }
-        }
-      };
-    }
-
     const shifts =
       data.shifts !== undefined
         ? mapShiftsForWrite(data.shifts as LeaveApplicationShiftRow[])
@@ -676,8 +662,7 @@ export async function updateLeaveApplication(
         days,
         halfDaySession,
         requestedDate: data.requestedDate ?? existing.requestedDate,
-        approverId: data.approverId || null,
-        approverName: approverName,
+        // Do not overwrite leave-management approver from the application form.
         outWithCancel: data.outWithCancel ?? false,
         comment: data.comment ?? null,
         lieuShiftId: data.lieuShiftId ?? null,
@@ -1095,7 +1080,10 @@ export async function deleteLeaveApplications(ids: string[]): Promise<{
 
 export type LeaveApproverOption = { id: string; name: string };
 
-/** Auth users who can act as leave approvers (admin or leave-application/leave-management edit). */
+/**
+ * Auth users who can approve leave (for filters / leave management identity).
+ * Application form shows approver read-only after approval.
+ */
 export async function getLeaveApproverOptions(): Promise<{
   success: boolean;
   data?: LeaveApproverOption[];

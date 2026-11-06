@@ -506,6 +506,7 @@ model StaffShiftAssignment {
   staff        Staff         @relation(fields: [staffId], references: [id])
   shiftType    ShiftType     @relation(fields: [shiftTypeId], references: [id])
   manageRoster ManageRoster? @relation(fields: [manageRosterId], references: [id])
+  rosterAllocations RosterAllocation[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -568,11 +569,22 @@ model RosterAllocation {
   otHours   Float   @default(0)
 
   dutyLocation    String  @default("")
+  /// Optional FK for duty place (holiday / duty modules). Display name stays in dutyLocation.
+  dutyLocationDepartmentId String? @db.ObjectId
+  /// Optional facility zone for duty place.
+  dutyZoneId String? @db.ObjectId
+  /// Optional facility room / unit for duty place.
+  dutyRoomId String? @db.ObjectId
   /// Snapshot of supervising staff (no Staff relation required).
   supervisorId    String? @db.ObjectId
   supervisorName  String  @default("")
   attendance      String? // present | late | absent
   comments        String  @default("")
+
+  /// standing = from StaffShiftAssignment; adhoc = manual Shift Type (no standing rule).
+  allocationSource String @default("adhoc") // standing | adhoc
+  /// Set when allocationSource = standing; null for adhoc / legacy rows.
+  staffShiftAssignmentId String? @db.ObjectId
 
   startAt                  DateTime?
   endAt                    DateTime?
@@ -596,16 +608,27 @@ model RosterAllocation {
   staff       Staff             @relation(fields: [staffId], references: [id])
   shiftType   ShiftType         @relation(fields: [shiftTypeId], references: [id])
   holiday     HolidayCalendar?  @relation(fields: [holidayId], references: [id])
+  dutyLocationDepartment Department? @relation(fields: [dutyLocationDepartmentId], references: [id])
+  dutyZone    Zone?             @relation(fields: [dutyZoneId], references: [id])
+  dutyRoom    Room?             @relation(fields: [dutyRoomId], references: [id])
+  staffShiftAssignment StaffShiftAssignment? @relation(fields: [staffShiftAssignmentId], references: [id])
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   createdBy String?  @db.ObjectId
   updatedBy String?  @db.ObjectId
 
-  @@unique([staffId, date])
+  /// Multiple shifts/day allowed; same shift type on the same calendar day is not.
+  @@unique([staffId, date, shiftTypeId])
+  @@index([staffId, date])
   @@index([shiftRosterId])
   @@index([shiftTypeId])
   @@index([holidayId])
+  @@index([dutyLocationDepartmentId])
+  @@index([dutyZoneId])
+  @@index([dutyRoomId])
+  @@index([staffShiftAssignmentId])
+  @@index([allocationSource])
   @@index([date])
   @@index([status])
   @@index([department, unit])
@@ -652,6 +675,10 @@ model RosterAmendment {
   @@index([createdAt(sort: Desc)])
 }
 
+/* ---------------------------------
+HR ADMINISTRATION
+--------------------------------- */
+
 /// v1 Holiday Date stub (Roster-owned until HR Administration exists).
 model HolidayCalendar {
   id     String   @id @default(auto()) @map("_id") @db.ObjectId
@@ -670,10 +697,6 @@ model HolidayCalendar {
   @@unique([date])
   @@index([typeId])
 }
-
-/* ---------------------------------
-HR ADMINISTRATION
---------------------------------- */
 
 model Designation {
   id          String  @id @default(auto()) @map("_id") @db.ObjectId
@@ -1184,6 +1207,7 @@ model Department {
   vacancyRequests VacancyRequest[]
   jobPosts        JobPost[]
   manageRosters   ManageRoster[]
+  rosterAllocations RosterAllocation[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1207,6 +1231,8 @@ model Zone {
   /** 0 = unpublish, 1 = publish */
   status          Int     @default(1)
   migrateSourceId String? // Channeling Zone.id
+
+  rosterAllocations RosterAllocation[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1234,6 +1260,8 @@ model Room {
   /** 0 = unpublish, 1 = publish */
   status          Int     @default(1)
   migrateSourceId String? // Channeling Room.id
+
+  rosterAllocations RosterAllocation[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

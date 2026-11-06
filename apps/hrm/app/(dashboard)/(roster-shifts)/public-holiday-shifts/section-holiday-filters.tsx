@@ -4,7 +4,8 @@ import { Suspense } from 'react';
 import { format } from 'date-fns';
 import {
   Combobox,
-  CustomDatePickerField
+  CustomDatePickerField,
+  Label
 } from '@archmage/ui';
 import { FilterWrapper } from '@/app/(dashboard)/filter-wrapper';
 import type { RosterFilterOption } from '@/types/roster';
@@ -84,24 +85,32 @@ function SectionHolidayFiltersInner({
       >
         {({ values, setValue }) => (
           <div className="grid w-full gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            <Combobox
-              label="Holiday"
-              options={holidayOptions}
-              value={values.holidayId ?? ''}
-              defaultValue=""
-              onChange={(value) => setValue('holidayId', value)}
-              clearable
-              triggerClassName="self-end"
-            />
-            <Combobox
-              label="Holiday Type"
-              options={holidayTypeOptions}
-              value={values.holidayTypeId ?? ''}
-              defaultValue=""
-              onChange={(value) => setValue('holidayTypeId', value)}
-              clearable
-              triggerClassName="self-end"
-            />
+            <div className="space-y-2">
+              <Label className="text-xs uppercase text-muted-foreground">
+                Select Holiday
+              </Label>
+              <Combobox
+                label="Holiday"
+                options={holidayOptions}
+                value={values.holidayId ?? ''}
+                defaultValue=""
+                onChange={(value) => setValue('holidayId', value)}
+                clearable
+              />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-xs uppercase text-muted-foreground">
+                Select Holiday Type
+              </Label>
+              <Combobox
+                label="Holiday Type"
+                options={holidayTypeOptions}
+                value={values.holidayTypeId ?? ''}
+                defaultValue=""
+                onChange={(value) => setValue('holidayTypeId', value)}
+                clearable
+              />
+            </div>
             <CustomDatePickerField
               id="fromDate"
               placeholder="From Date"
@@ -130,42 +139,58 @@ function SectionHolidayFiltersInner({
                 inputClassName: 'w-full'
               }}
             />
-            <Combobox
-              label="Department"
-              options={departmentOptions}
-              value={values.department ?? ''}
-              defaultValue=""
-              onChange={(value) => setValue('department', value)}
-              clearable
-              triggerClassName="self-end"
-            />
-            <Combobox
-              label="Unit"
-              options={unitOptions}
-              value={values.unit ?? ''}
-              defaultValue=""
-              onChange={(value) => setValue('unit', value)}
-              clearable
-              triggerClassName="self-end"
-            />
-            <Combobox
-              label="Pay Rate"
-              options={payRateOptions}
-              value={values.payRate ?? ''}
-              defaultValue=""
-              onChange={(value) => setValue('payRate', value)}
-              clearable
-              triggerClassName="self-end"
-            />
-            <Combobox
-              label="Approval Status"
-              options={statusOptions}
-              value={values.status ?? ''}
-              defaultValue=""
-              onChange={(value) => setValue('status', value)}
-              clearable
-              triggerClassName="self-end"
-            />
+            <div className="space-y-2">
+              <Label className="text-xs uppercase text-muted-foreground">
+                Select Department
+              </Label>
+              <Combobox
+                label="Department"
+                options={departmentOptions}
+                value={values.department ?? ''}
+                defaultValue=""
+                onChange={(value) => setValue('department', value)}
+                clearable
+              />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-xs uppercase text-muted-foreground">
+                Select Unit
+              </Label>
+              <Combobox
+                label="Unit"
+                options={unitOptions}
+                value={values.unit ?? ''}
+                defaultValue=""
+                onChange={(value) => setValue('unit', value)}
+                clearable
+              />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-xs uppercase text-muted-foreground">
+                Select Pay Rate
+              </Label>
+              <Combobox
+                label="Pay Rate"
+                options={payRateOptions}
+                value={values.payRate ?? ''}
+                defaultValue=""
+                onChange={(value) => setValue('payRate', value)}
+                clearable
+              />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-xs uppercase text-muted-foreground">
+                Select Approval Status
+              </Label>
+              <Combobox
+                label="Approval Status"
+                options={statusOptions}
+                value={values.status ?? ''}
+                defaultValue=""
+                onChange={(value) => setValue('status', value)}
+                clearable
+              />
+            </div>
           </div>
         )}
       </FilterWrapper>

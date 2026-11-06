@@ -4,8 +4,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Form, Formik, type FormikHelpers } from 'formik';
 import * as Yup from 'yup';
-import { format } from 'date-fns';
 import { SaveIcon, Trash2, X } from 'lucide-react';
+import { formatAuditLine } from '@/lib/helpers/format-audit-line.helper';
 import {
   Button,
   CustomAlertDialog,
@@ -49,14 +49,6 @@ function emptyStaffGradeFormValues(): StaffGradeFormValues {
     code: '',
     gradeLevelId: ''
   };
-}
-
-function formatAuditLine(name?: string, role?: string, at?: string | null): string {
-  if (!name || !at) return '—';
-  const date = new Date(at);
-  if (Number.isNaN(date.getTime())) return '—';
-  const namePart = role ? `${name} (${role})` : name;
-  return `${namePart} · ${format(date, 'd MMM yyyy')} · ${format(date, 'HH:mm')}`;
 }
 
 export default function SectionStaffGradeDetail() {

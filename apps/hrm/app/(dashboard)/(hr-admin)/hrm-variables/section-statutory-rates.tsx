@@ -3,8 +3,8 @@
 import { useMemo, useState } from 'react';
 import { Form, Formik, type FormikHelpers } from 'formik';
 import * as Yup from 'yup';
-import { format } from 'date-fns';
 import { SaveIcon } from 'lucide-react';
+import { formatAuditLine } from '@/lib/helpers/format-audit-line.helper';
 import { Button, CustomFormField, useToast } from '@archmage/ui';
 import { saveStatutoryRatesAction } from '@/app/actions/hr-admin-actions/hrm-variable.actions';
 import {
@@ -34,18 +34,6 @@ const validationSchema = Yup.object({
   etfEmployee: rateField,
   etfCompany: rateField
 });
-
-function formatAuditLine(
-  name?: string,
-  role?: string,
-  at?: string | null
-): string {
-  if (!name || !at) return '—';
-  const date = new Date(at);
-  if (Number.isNaN(date.getTime())) return '—';
-  const namePart = role ? `${name} (${role})` : name;
-  return `${namePart} · ${format(date, 'd MMM yyyy')} · ${format(date, 'HH:mm')}`;
-}
 
 function applyFieldErrors(
   helpers: FormikHelpers<HrmStatutoryRatesFormValues>,

@@ -261,33 +261,47 @@ export async function bulkDeleteLeaveTypesAction(ids: string[]) {
 }
 
 export async function getLeaveTypesExport(params: {
+  keyword?: string;
   status?: string;
   isPaid?: string;
   requiresApproval?: string;
   allowHalfDay?: string;
-  keyword?: string;
 }) {
+  await requirePermission('leave-types', 'view');
+
   try {
-    await requirePermission('leave-types', 'view');
-    const result = await getLeaveTypesForExport(params);
-    if (!result.success) {
+    const response = await getLeaveTypesForExport({
+      keyword: params.keyword ?? '',
+      status: params.status,
+      isPaid: params.isPaid,
+      requiresApproval: params.requiresApproval,
+      allowHalfDay: params.allowHalfDay
+    });
+
+    if (!response.data?.length) {
       return {
         success: false,
-        message: result.error?.message ?? 'Failed to export leave types',
-        data: []
+        message: 'No leave types found',
+        data: [],
+        totalRecords: 0
       };
     }
+
     return {
       success: true,
-      data: result.data ?? [],
-      message: result.message
+      data: response.data,
+      totalRecords: response.totalRecords
     };
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('getLeaveTypesExport error', error);
     return {
       success: false,
-      message: error.message ?? 'Failed to export leave types',
-      data: []
+      message:
+        error instanceof Error
+          ? error.message
+          : 'Error getting data. Please try again later',
+      data: [],
+      totalRecords: 0
     };
   }
 }

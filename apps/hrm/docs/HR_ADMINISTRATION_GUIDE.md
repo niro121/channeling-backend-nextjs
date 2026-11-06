@@ -162,7 +162,7 @@ model HolidayCalendar {
 | ------------- | -------------------------------------------------------------------------------------------------------------------------- |
 | `code`        | Auto-generated via `generateRecordCode('HOL')` ? `HOL-1`, `HOL-2`, ? (`HOLIDAY_CALENDAR_CODE_PREFIX` in `types/roster.ts`) |
 | `name`        | Display name (e.g. *Nikini Full Moon Poya Day*, *Christmas Day*)                                                           |
-| `typeId`      | One of `poya`, `mercantile`, `public` (`HOLIDAY_TYPES` in `types/roster.ts`)                                               |
+| `typeId`      | One of `poya`, `mercantile`, `public` (`HOLIDAY_TYPES` in `types/holiday-calendar.ts`)                                    |
 | `date`        | **Calendar date** (store as UTC midnight or normalized local date ? match existing roster date helpers)                    |
 | `allocations` | Reverse relation: `RosterAllocation.holidayId` ? this record                                                               |
 
@@ -195,7 +195,7 @@ model HolidayCalendar {
 
 ## 4. Holiday types
 
-Defined in `apps/hrm/types/roster.ts`:
+Defined in `apps/hrm/types/holiday-calendar.ts`:
 
 ```ts
 export const HOLIDAY_TYPES = ['poya', 'mercantile', 'public'] as const;
@@ -209,7 +209,7 @@ export const HOLIDAY_TYPES = ['poya', 'mercantile', 'public'] as const;
 | `public`     | Public     | National / institutional public holidays |
 
 
-Display labels today live in `public-holiday-shift.service.ts` (`HOLIDAY_TYPE_LABELS`). When building Holiday Calendar, **move labels to a shared helper** (e.g. `lib/helpers/holiday-type.helper.ts`) so Roster and HR Admin stay in sync.
+Display labels live in `lib/helpers/holiday-type.helper.ts` (`HOLIDAY_TYPE_LABELS`) so Holiday Calendar and Public Holiday Shifts stay in sync.
 
 ---
 
@@ -923,7 +923,7 @@ Manage Rosters master          Staff Employment              Shift Assignment / 
 | **Staff Employment** | Puts a staff member **in** a group (`employment.roster` = group **code**); locks membership when standing assignments exist |
 | **Change Staff** | Effective-dated dept/status/etc.; soft-warns on dept when standing assignments exist; does **not** edit roster |
 | **Shift Assignment** | Standing rules; roster-first; `manageRosterId` FK; overlap = same staff + same shift type |
-| **Roster calendars** | Filters / snapshots that same **code**; periods with auto `SR-n`; allocate / publish (INT-R4 later) |
+| **Roster calendars** | Filters / snapshots that same **code**; periods with auto `SR-n`; allocate / publish (**INT-R4** day-limit enforced) |
 
 **Yes — there must be a connection.** Manage Rosters is the group catalog; Roster & Shifts is the scheduling engine. They are not duplicates and must not be merged in the sidebar.
 
@@ -938,7 +938,7 @@ Manage Rosters master          Staff Employment              Shift Assignment / 
 | Shift Assignment FK | `manageRosterId` required on create; optional on legacy rows |
 | `ShiftRoster.roster` / allocation snapshots | String = group **code** (no Prisma FK) |
 | Manage Rosters `departmentId` | **Wired** Prisma `@relation` → `Department`; many rosters per dept |
-| Day-limit enforce | **Upcoming** INT-R4 / R8 (full calendar day on allocate / publish) |
+| Day-limit enforce | **Done** INT-R4 / R8 (full calendar day on allocate / fill-copy / publish) |
 
 ### Locked storage key (do not reopen)
 
@@ -959,7 +959,7 @@ Manage Rosters master          Staff Employment              Shift Assignment / 
 | Roster code (`CHN`) | Required unique uppercase key; HR-entered **or** Generate from name + department; **locked after create**; **not** `generateRecordCode('SR')` |
 | Period codes (`SR-n`) | Stay owned by Roster & Shifts; never reused here |
 | Department | **Departments** master via Combobox (`departmentId` = ObjectId); **many rosters per department** |
-| Shifts per person per day | Required positive integer (≥ 1); means **full calendar day**; Roster & Shifts enforces on allocate / publish later (INT-R4) — **not** on standing-assignment create |
+| Shifts per person per day | Required positive integer (≥ 1); means **full calendar day**; Roster & Shifts enforces on allocate / fill-copy / publish (**INT-R4**) — **not** on standing-assignment create |
 | In-use lock | **Derived** (no DB flag): if any `StaffShiftAssignment.manageRosterId` **or** Staff `employment.roster` = code → **block update + delete** (UI + service). Legacy null-FK rows counted + backfilled on update/delete (**INT-H3**) |
 | Actions | Cancel / Delete / Save at the **bottom of the detail form** |
 | Summary cards | Assigned staff / linked dept / active standing assignments — counts live; click **Assigned staff** / **Active shifts** → CustomDialog inspect lists (R9/R10) |
@@ -1088,11 +1088,11 @@ apps/hrm/
 | **R6 — Staff integration** | Staff Employment roster select from Manage Rosters; store **code**; remove `ROSTER_OPTIONS` placeholders for this field | **Done** (with Change Staff CS4) — see §32 INT-S3 |
 | **R6b — Department on Manage Rosters** | `departmentId` options from Departments master (drop placeholder enum); Combobox; many per dept | **Done** |
 | **R7 — Roster & Shifts integration** | Roster filters/options load Manage Roster **codes**; snapshots keep string = code; keep `SR-n` for periods only | **Done** — see §32 INT-R3 + Roster guide §1.1 |
-| **R8 — Rule enforcement** | Enforce `shiftsPerPersonPerDay` on allocate / publish where product requires | **Upcoming** — INT-R4 |
+| **R8 — Rule enforcement** | Enforce `shiftsPerPersonPerDay` on allocate / publish where product requires | **Done** — INT-R4 |
 | **R9 — Summary counts** | Assigned staff count (match `employment.roster` → code); active standing assignment count | **Done** — INT-R6 (+ active assignment count) |
 | **R10 — Inspect dialogs** | Click **Active shifts** / **# Assigned staff** → CustomDialog with staff/assignment tables (read-only) | **Done** — INT-R10 |
 
-**R0–R7 (+ R6b) + R9/R10 shipped.** Remaining: **R8 / INT-R4** (day-limit on allocate/publish) and **§32 INT-H*** post-review hardening (server locks, membership assert, legacy FK). Do not reopen Manage Rosters CRUD unless product asks.
+**R0–R10 (+ R6b) shipped** for Manage Rosters. Remaining roster hardening: **§32 INT-H8–H9**. Do not reopen Manage Rosters CRUD unless product asks.
 
 ---
 
@@ -1196,7 +1196,7 @@ Track candidates here until each module gets its own detailed section.
 | **INT-R1** | Designation filters / snapshots use Designation master                                                                                       | Designations                 | Deferred (D7)       |
 | **INT-R2** | Staff grade filters use Staff Grade master                                                                                                   | Staff Grades                 | Deferred (G7)       |
 | **INT-R3** | Roster filters/options use Manage Roster **codes** (`CHN`); stop building roster options only from distinct free-text; keep `SR-n` for period IDs only | Manage Rosters + prefer INT-S3 first | **Done (R7)** — Shift + Duty roster filters via `buildManageRosterFilterOptions` (legacy orphans dual-read) |
-| **INT-R4** | Enforce Manage Roster `shiftsPerPersonPerDay` where scheduling rules apply                                                                   | Manage Rosters + INT-R3      | **Upcoming (R8)**   |
+| **INT-R4** | Enforce Manage Roster `shiftsPerPersonPerDay` where scheduling rules apply                                                                   | Manage Rosters + INT-R3      | **Done (R8)**       |
 | **INT-R5** | Department / Unit filters and snapshots from masters                                                                                         | Departments (P1), Units (P2) | Blocked             |
 | **INT-R6** | Manage Rosters summary: assigned staff count (match `employment.roster` → code)                                                              | INT-S3                       | **Done (R9)**       |
 | **INT-R7** | Manage Rosters summary: active standing assignment count on `manageRosterId` (not global ShiftType master)                                   | Manage Rosters FK            | **Done (R9)**       |
@@ -1209,8 +1209,10 @@ Track candidates here until each module gets its own detailed section.
 1. ~~**INT-S3 / R6** — Staff Employment stores `ManageRoster.code` (CS4).~~ **Done**
 2. ~~**INT-R3 / R7** — Roster & Shifts filter loaders use Manage Roster codes (dual-read legacy).~~ **Done**
 3. ~~**INT-R6 / R9** + **INT-R10 / R10** — summary counts + inspect dialogs.~~ **Done**
-4. **INT-H*** — post-review hardening (below) before treating server rules as production-hard
-5. **INT-R4 / R8** — Enforce shifts-per-person-per-day on allocate / fill / publish (full calendar day)
+4. ~~**INT-H1–H7** — post-review hardening (below).~~ **Done**
+5. ~~**INT-R4 / R8** — Enforce shifts-per-person-per-day on allocate / fill / publish.~~ **Done**
+6. ~~**INT-L2** — Leave soft-warn + Continue on allocate / fill / publish.~~ **Done**
+7. **INT-H8–H9** — concurrency / staff delete guards
 
 Do **not** merge sidebar groups. Do **not** change `ShiftRoster` period identity (`SR-n`). Details for Roster implementers: `ROSTER_SHIFTS_MANAGER_GUIDE.md` §1.1. Staff Employment: `STAFF_MANAGER_GUIDE.md` §7.
 
@@ -1227,7 +1229,8 @@ UI behaviour for Employment / Change Staff / Manage Rosters / Shift Assignment i
 | **INT-H5** | Reject inactive shift types on Shift Assignment create/update | Shift Assignment | Should | **Done** |
 | **INT-H6** | Case-insensitive roster-code matching for membership / counts / scope pickers | Staff + Roster + Manage Rosters | Should | **Done** |
 | **INT-H7** | Overlap ignores `inactive` standing rows; `active` + `pending` still block | Shift Assignment | Should | **Done** |
-| **INT-R4** | Enforce `shiftsPerPersonPerDay` on allocate / fill / publish (full calendar day); not on standing-assignment create | Roster calendars (R8) | Later | Upcoming |
+| **INT-R4** | Enforce `shiftsPerPersonPerDay` on allocate / fill / publish (full calendar day); not on standing-assignment create | Roster calendars (R8) | Later | **Done** |
+| **INT-L2** | Leave soft-warn + Continue on allocate / fill / publish when staff has leave that calendar day; not on standing Shift Assignment | Roster calendars + Leave | Later | **Done** |
 | **INT-H8** | Overlap / in-use check-then-write races (unique constraint or tighter transactional pattern if Mongo allows) | Shift Assignment / Manage Rosters | Later | TODO |
 | **INT-H9** | Staff delete guards when standing assignments / allocations exist | Staff | Later | TODO |
 
@@ -1240,7 +1243,8 @@ UI behaviour for Employment / Change Staff / Manage Rosters / Shift Assignment i
 - [x] **INT-H5** — Inactive shift type rejected on assignment write
 - [x] **INT-H6** — Case-insensitive roster code lookups
 - [x] **INT-H7** — Overlap ignores `inactive`; `active`/`pending` still block
-- [ ] **INT-R4 / R8** — Day-limit on allocate / publish
+- [x] **INT-R4 / R8** — Day-limit on allocate / publish
+- [x] **INT-L2** — Leave soft-warn + Continue on allocate / fill / publish (not standing assignment)
 - [ ] **INT-H8** — Concurrent overlap / in-use races
 - [ ] **INT-H9** — Staff delete guards
 
@@ -1253,6 +1257,7 @@ UI behaviour for Employment / Change Staff / Manage Rosters / Shift Assignment i
 | ID         | Work                                                                    | Depends on                | Status   |
 | ---------- | ----------------------------------------------------------------------- | ------------------------- | -------- |
 | **INT-L1** | Leave day counting skips `HolidayCalendar` dates where product requires | Holiday Calendar          | Deferred |
+| **INT-L2** | Roster calendar allocate / fill / publish: if staff has approved or pending leave on that **calendar day** → **soft warn + Continue** (not hard block). Do **not** apply to standing Shift Assignment create. | Roster & Shifts + Leave | **Done** |
 | **INT-P1** | Payroll / PH allowance consumes holiday + salary masters                | Salary Cycle / Structures | Future   |
 
 
@@ -1784,4 +1789,4 @@ Server re-checks hard blocks on apply; soft warns require `acknowledgedWarnings:
 
 ---
 
-*Last updated: Nov 2026 — INT-H1–H7 done; remaining INT-R4 / INT-H8–H9 in §32.*
+*Last updated: Nov 2026 — INT-H1–H7 / INT-R4 / INT-L2 done; remaining INT-H8–H9 in §32.*
