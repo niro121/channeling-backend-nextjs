@@ -991,6 +991,8 @@ export type NightShiftPayload = {
   mealAllowance?: number | null;
   sendToPayroll?: boolean;
   remarks?: string | null;
+  /** INT-L2 / weekly-off — Continue after soft-warn. */
+  acknowledgedWarnings?: boolean;
 };
 
 export type NightShiftFilterOptions = {
@@ -1008,9 +1010,42 @@ export type NightShiftTypeFormOption = RosterFilterOption & {
   mealAllowance: string;
 };
 
+export type NightShiftStaffOption = RosterFilterOption & {
+  staffCode: string;
+  institutionId: string;
+  institutionName: string;
+  workingDepartmentName: string;
+  unit: string;
+  roster: string;
+};
+
 export type NightShiftFormOptions = {
-  staff: RosterFilterOption[];
+  staff: NightShiftStaffOption[];
   shiftTypes: NightShiftTypeFormOption[];
+};
+
+/** Proactive conflict strip for Add/Edit night shift sheet. */
+export type NightShiftDayConflict = {
+  id: string;
+  shiftTypeId: string;
+  shiftLabel: string;
+  startTime: string;
+  endTime: string;
+  status: string;
+  isNightShift: boolean;
+};
+
+export type NightShiftConflictPreview = {
+  allocations: NightShiftDayConflict[];
+  sameShiftTypeExists: boolean;
+  dayLimit: number;
+  existingCount: number;
+  dayLimitReached: boolean;
+  consecutiveNightsPreview: number;
+  exceedsConsecutivePolicy: boolean;
+  blocksSave: boolean;
+  blockReason: string | null;
+  infoMessage: string | null;
 };
 
 export type NightShiftHistoryEntry = {

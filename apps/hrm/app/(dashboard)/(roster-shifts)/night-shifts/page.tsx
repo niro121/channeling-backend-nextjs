@@ -9,7 +9,11 @@ import {
   getNightShiftsAction,
   getNightShiftsExportAction
 } from '@/app/actions/roster-actions/night-shift.actions';
-import type { NightShiftSummary } from '@/types/roster';
+import { formatNightHours, formatNightMoney } from '@/lib/utils/night-shift';
+import {
+  NIGHT_SHIFT_STATUS_OPTIONS,
+  type NightShiftSummary
+} from '@/types/roster';
 import NightShiftsWorkspace from './night-shifts-workspace';
 import type { NightFilterValues } from './section-night-filters';
 
@@ -101,14 +105,43 @@ export default async function NightShiftsPage({ searchParams }: SearchParams) {
 
   const handleExport = async () => {
     'use server';
+
     const exportResponse = await getNightShiftsExportAction(listParams);
     if (!exportResponse.success || !exportResponse.data?.length) {
       return {
         success: false,
-        message: exportResponse.message ?? 'No night shifts to export'
+        message: exportResponse.success
+          ? 'No night shifts found'
+          : (exportResponse.message ?? 'Failed to export night shifts')
       };
     }
-    return { success: true, data: exportResponse.data };
+
+    const statusLabels = Object.fromEntries(
+      NIGHT_SHIFT_STATUS_OPTIONS.map((option) => [option.id, option.name])
+    );
+
+    return {
+      success: true,
+      data: exportResponse.data.map((row) => ({
+        staffCode: row.staffCode,
+        staffName: row.staffName,
+        department: row.department,
+        unit: row.unit,
+        shiftDate: row.shiftDate ? row.shiftDate.slice(0, 10) : '',
+        nightShift: row.nightShift,
+        nightHours: formatNightHours(row.nightHours),
+        nightOt: formatNightHours(row.nightOt),
+        nightAllowance: formatNightMoney(row.nightAllowance),
+        mealAllowance: formatNightMoney(row.mealAllowance),
+        consecutiveNights: row.consecutiveNights,
+        payrollReady: row.payrollReady ? 'Yes' : 'No',
+        status: statusLabels[row.status] ?? row.status,
+        updatedBy: row.updatedUser?.name ?? '',
+        updatedAt: row.updatedAt,
+        createdBy: row.createdUser?.name ?? '',
+        createdAt: row.createdAt
+      }))
+    };
   };
 
   return (
