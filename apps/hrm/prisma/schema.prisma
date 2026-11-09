@@ -506,7 +506,8 @@ model StaffShiftAssignment {
   /// INT-H9 belt-and-suspenders: Prisma Client emulates Restrict (Mongo has no FK).
   /// Service-layer assertStaffDeletable remains the product-facing guard.
   staff        Staff         @relation(fields: [staffId], references: [id], onDelete: Restrict)
-  shiftType    ShiftType     @relation(fields: [shiftTypeId], references: [id])
+  /// Shift Types delete guard: paired with assertShiftTypeDeletable (service UX).
+  shiftType    ShiftType     @relation(fields: [shiftTypeId], references: [id], onDelete: Restrict)
   manageRoster ManageRoster? @relation(fields: [manageRosterId], references: [id])
   rosterAllocations RosterAllocation[]
 
@@ -609,7 +610,8 @@ model RosterAllocation {
   shiftRoster ShiftRoster       @relation(fields: [shiftRosterId], references: [id])
   /// INT-H9 belt-and-suspenders: Prisma Client emulates Restrict (Mongo has no FK).
   staff       Staff             @relation(fields: [staffId], references: [id], onDelete: Restrict)
-  shiftType   ShiftType         @relation(fields: [shiftTypeId], references: [id])
+  /// Shift Types delete guard: paired with assertShiftTypeDeletable (service UX).
+  shiftType   ShiftType         @relation(fields: [shiftTypeId], references: [id], onDelete: Restrict)
   holiday     HolidayCalendar?  @relation(fields: [holidayId], references: [id])
   dutyLocationDepartment Department? @relation(fields: [dutyLocationDepartmentId], references: [id])
   dutyZone    Zone?             @relation(fields: [dutyZoneId], references: [id])
@@ -663,8 +665,9 @@ model RosterAmendment {
   status               String    @default("pending_approval") // draft | pending_approval | approved | rejected
 
   staff              Staff      @relation(fields: [staffId], references: [id])
-  originalShiftType  ShiftType  @relation("AmendmentOriginalShift", fields: [originalShiftTypeId], references: [id])
-  amendedShiftType   ShiftType? @relation("AmendmentAmendedShift", fields: [amendedShiftTypeId], references: [id])
+  /// Shift Types delete guard: paired with assertShiftTypeDeletable (service UX).
+  originalShiftType  ShiftType  @relation("AmendmentOriginalShift", fields: [originalShiftTypeId], references: [id], onDelete: Restrict)
+  amendedShiftType   ShiftType? @relation("AmendmentAmendedShift", fields: [amendedShiftTypeId], references: [id], onDelete: Restrict)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

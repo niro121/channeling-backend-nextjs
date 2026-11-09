@@ -1751,7 +1751,7 @@ Snapshot of what is still open vs largely done across the eight screens. Core al
 
 | Remaining | Notes |
 |-----------|--------|
-| Optional polish only | CRUD, duplicate, export, Bulk Activate largely done — no open must D-slice |
+| Optional polish only | CRUD, duplicate, export, Bulk Activate, in-use delete guard — **done**. Schema `onDelete: Restrict` on assignment / allocation / amendment → ShiftType FKs (paired with `assertShiftTypeDeletable`) |
 
 ### 11.3 Shift Assignment — `/shift-assignment`
 

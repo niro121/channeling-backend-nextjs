@@ -586,6 +586,10 @@ export async function updateShiftType(
   }
 }
 
+/**
+ * Product-facing delete guard. Paired with schema `onDelete: Restrict` on
+ * assignment / allocation / amendment → ShiftType FKs (Prisma Client emulation on Mongo).
+ */
 async function assertShiftTypeDeletable(id: string): Promise<string | null> {
   const [assignmentCount, allocationCount, amendmentCount] = await Promise.all([
     prisma.staffShiftAssignment.count({ where: { shiftTypeId: id } }),
