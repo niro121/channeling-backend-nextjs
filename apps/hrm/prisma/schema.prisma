@@ -503,7 +503,9 @@ model StaffShiftAssignment {
   autoAssign         Boolean   @default(true)
   status             String    @default("active") // active | pending | inactive
 
-  staff        Staff         @relation(fields: [staffId], references: [id])
+  /// INT-H9 belt-and-suspenders: Prisma Client emulates Restrict (Mongo has no FK).
+  /// Service-layer assertStaffDeletable remains the product-facing guard.
+  staff        Staff         @relation(fields: [staffId], references: [id], onDelete: Restrict)
   shiftType    ShiftType     @relation(fields: [shiftTypeId], references: [id])
   manageRoster ManageRoster? @relation(fields: [manageRosterId], references: [id])
   rosterAllocations RosterAllocation[]
@@ -605,7 +607,8 @@ model RosterAllocation {
   sendToPayroll     Boolean  @default(false)
 
   shiftRoster ShiftRoster       @relation(fields: [shiftRosterId], references: [id])
-  staff       Staff             @relation(fields: [staffId], references: [id])
+  /// INT-H9 belt-and-suspenders: Prisma Client emulates Restrict (Mongo has no FK).
+  staff       Staff             @relation(fields: [staffId], references: [id], onDelete: Restrict)
   shiftType   ShiftType         @relation(fields: [shiftTypeId], references: [id])
   holiday     HolidayCalendar?  @relation(fields: [holidayId], references: [id])
   dutyLocationDepartment Department? @relation(fields: [dutyLocationDepartmentId], references: [id])

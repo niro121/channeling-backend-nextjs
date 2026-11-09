@@ -13,7 +13,7 @@ Leave / Overtime are the process references — see `LEAVE_MANAGER_GUIDE.md` and
 **D9:** Night Shifts is live on `/night-shifts` (derived from `RosterAllocation` where `ShiftType.isNightShift`; consecutive nights computed; Add refuses existing staff+date).  
 **D10:** Overnight Shifts is live on `/overnight-shifts` (derived from `RosterAllocation` where `ShiftType.isOvernight`; day-split hours stored; Recalculate Splits rewrites fields; Add refuses existing staff+date).  
 **Build path:** UI first (done), then **Types/Zod → Service → Actions → wire UI**. Vertical slices, one collection or read/write path at a time.  
-Pages must not call Prisma. No business rules in components. Operational screens complete; remaining **INT-H8 / INT-H9**.
+Pages must not call Prisma. No business rules in components. Operational screens largely complete; remaining work is module-wise in **§11** (**INT-H8 / INT-H9** done — see §10).
 
 **Locked product decisions (Roster & Shifts group):**
 - Sidebar group: **Roster & Shifts**
@@ -122,7 +122,7 @@ Until §34 Option A/B ships, **no Roster & Shifts refactor** is needed for Manag
 
 **Simple explanation:** Manage Rosters (HR Admin) is **not** a shift template. It defines a **roster group** (team/ward): department, business code (e.g. `CHN`), and how many shifts per person per day. **Shift Types** here are the actual shift templates (Morning, Night, etc.). **Shift Assignment** links staff ↔ shift type as standing rules. **Roster & Shifts** calendars then allocate those shifts on dates. In short: group rules in HR Admin → membership on Staff → standing rules in Shift Assignment → day duties in calendars.
 
-Roster & Shifts **operational screens are complete**. Remaining work is later **INT-H8–H9** — do not reopen grid/register structure.
+Roster & Shifts **operational screens are complete**. **INT-H8–H9** done — remaining work is module-wise in **§11** (Shift Roster polish / D11 verify). Do not reopen grid/register structure.
 
 **Connection (required):**
 
@@ -1715,7 +1715,100 @@ Canonical table: `HR_ADMINISTRATION_GUIDE.md` §32 (**INT-H***). Roster & Shifts
 - [x] **INT-R4 / R8** — enforce shiftsPerPersonPerDay on allocate / fill / publish (full calendar day)
 - [x] **INT-L2** — allocate / fill / publish: soft warn + Continue when staff has leave on that calendar day (not on standing Shift Assignment)
 - [x] **Weekly-off soft warn** — allocate / fill / publish / Duty Swap / Replace when covering standing `weeklyOffDay` matches Colombo weekday
-- [ ] **INT-H8** (Later) — overlap TOCTOU / unique compound protection if concurrent creates become an issue
-- [ ] **INT-H9** (Later) — staff delete guards for standing assignments / allocations
+- [x] **INT-H8** — overlap re-check immediately before create/update write (narrow TOCTOU; Mongo standalone has no reliable interactive txn for range-unique)
+- [x] **INT-H9** — `deleteStaff` / `deleteStaffs` refuse while standing assignments or roster allocations exist; schema `onDelete: Restrict` on those Staff FKs (Prisma Client emulation on Mongo)
 
-*Last updated: Nov 2026 — INT-H2 / H5–H7 / INT-R4 / INT-L2 / weekly-off soft warn done; later H8–H9 in §10 / HR Admin §32.*
+---
+
+## 11. Remaining completion — module-wise (Roster & Shifts group)
+
+Snapshot of what is still open vs largely done across the eight screens. Core allocate / Duty / publish path is operational; heaviest leftovers are **Shift Roster** (Fixed Roster / drag / print-export / monthly grid) and **Public Holiday Shifts** (**D11** verify). **INT-H8 / INT-H9** are done.
+
+### Already done (do not re-open as “remaining”)
+
+- **D1–D10** operational paths (schema/types, Shift Types, Assignment, Shift Roster publish/fill/copy, Duty, Amendments, Night, Overnight)
+- Duty **List / Days / Weeks / Months** boards + drill-down dialog
+- **INT-R3 / R7** Manage Rosters filter/codes; **INT-R4 / R8** shifts-per-person-per-day
+- **INT-L2** leave soft warn + **weekly-off** soft warn (allocate / fill / publish / Duty Swap / Replace)
+- Multi-shift same day: unique `staffId + date + shiftTypeId` + time-overlap hard block
+- Holiday Calendar master (HR Admin); PH Shifts consumes it
+- **INT-H8 / INT-H9** — assignment overlap re-check before write; staff delete guards for assignments + allocations
+
+> **Doc drift:** older domain lines may still say “one shift per staff × date”; product is now **staff × date × shiftType** + overlap. Prefer this section + schema unique when they disagree.
+
+### 11.1 Shift Roster — `/shift-roster`
+
+| Remaining | Notes |
+|-----------|--------|
+| Create Fixed Roster | Still toast-only; separate templates collection when product specifies |
+| Drag-and-drop persist | Visual/toast only; sheet allocate is the live path (same upsert as D5 when ready) |
+| Monthly grid view | Weekly grid live; monthly still toast / not a full grid |
+| Print blank / filled; Export Excel / PDF | Still toast on grid / filter actions |
+| Live conflict-rich summary cards | Counts may exist; richer conflict summary deferred |
+| Some row delete paths | Confirm grid/list delete is fully wired vs toast |
+
+### 11.2 Shift Types — `/shift-types`
+
+| Remaining | Notes |
+|-----------|--------|
+| Optional polish only | CRUD, duplicate, export, Bulk Activate largely done — no open must D-slice |
+
+### 11.3 Shift Assignment — `/shift-assignment`
+
+| Remaining | Notes |
+|-----------|--------|
+| Optional polish only | Roster-first, `manageRosterId`, INT-H2/H5–H8, bulk assign — **done**. Staff delete guards (**INT-H9**) live in Staff service |
+
+### 11.4 Duty Roster — `/duty-roster`
+
+| Remaining | Notes |
+|-----------|--------|
+| Richer live conflicts | Optional beyond current summary cards |
+| Otherwise | Standing/ad-hoc, place FKs, swap/replace, attendance, Day/Week/Month views, leave + weekly-off soft warn, list export — **done**. Staff delete vs allocations covered by **INT-H9** |
+
+### 11.5 Roster Amendments — `/roster-amendments`
+
+| Remaining | Notes |
+|-----------|--------|
+| Optional polish only | CRUD + Approve applies / Reject leaves cell; export present — no open must D-slice |
+
+### 11.6 Night Shifts — `/night-shifts`
+
+| Remaining | Notes |
+|-----------|--------|
+| Optional polish only | Live register from night-flagged allocations; consecutive-nights badge; export — **done** |
+
+### 11.7 Overnight Shifts — `/overnight-shifts`
+
+| Remaining | Notes |
+|-----------|--------|
+| Optional polish only | Live register; day-split store; Recalculate Splits; export — **done** |
+
+### 11.8 Public Holiday Shifts — `/public-holiday-shifts`
+
+| Remaining | Notes |
+|-----------|--------|
+| **D11 close-out** | Guide “Done when” still open even though much UI/service exists — verify and tick |
+| Holiday register | Lists live cells on holiday dates (`holidayId` / calendar join) |
+| Bulk Assign | Refuses staff who already have a cell that day (align with multi-shift uniqueness rules) |
+| Lieu / Send to Payroll | Flags only — must **not** call Leave Entitlement or payroll services |
+
+### 11.9 Shared across the group
+
+| Item | Touches |
+|------|---------|
+| **INT-H8 / INT-H9** | **Done** — see §10 |
+| Dept / Unit / Designation / Grade master filters | When HR Admin masters land (`HR_ADMINISTRATION_GUIDE.md` §31–32) |
+| Staff `employment.roster` = Manage Roster **code** (INT-S3) | Staff module; Roster already consumes codes |
+| Guide cleanup | Uniqueness wording; stale Phase 0 toast notes; D11 checkboxes after verify |
+
+### 11.10 Outside this group (listed here so they are not forgotten)
+
+| Item | Owner |
+|------|--------|
+| Overtime **Process Staff Shift** → roster **read** | Overtime Manager (still sample/toast) |
+| Attendance **Confirm to Duty Roster** (never auto from punches) | Attendance / `STAFF_ATTENDANCE_ARCHITECTURE.md` |
+| HR Admin **Manage Shifts** | **Not required** — keep `/shift-types` (`HR_ADMINISTRATION_GUIDE.md` §34) |
+| Multi-step approval | **Not** in v1 |
+
+*Last updated: Nov 2026 — §11 module-wise remaining snapshot; INT-H2 / H5–H9 / INT-R4 / INT-L2 / weekly-off soft warn done.*

@@ -741,16 +741,6 @@ async function createAssignmentRecord(
     };
   }
 
-  const overlap = await assertNoOverlap(
-    data.staffId,
-    data.shiftTypeId,
-    data.effectiveFrom,
-    data.effectiveTo
-  );
-  if (overlap) {
-    return { success: false, error: { message: overlap } };
-  }
-
   const [staffSnapshot, shiftType, manageRoster] = await Promise.all([
     getStaffSnapshot(data.staffId),
     prisma.shiftType.findUnique({
@@ -814,6 +804,23 @@ async function createAssignmentRecord(
     };
   }
 
+  const nextStatus = data.status ?? 'active';
+
+  // INT-H8 — re-check overlap immediately before write (narrow TOCTOU window).
+  // Mongo standalone cannot rely on interactive transactions for this race.
+  // Inactive rows are ignored by overlap rules (INT-H7).
+  if (nextStatus !== 'inactive') {
+    const overlap = await assertNoOverlap(
+      data.staffId,
+      data.shiftTypeId,
+      data.effectiveFrom,
+      data.effectiveTo
+    );
+    if (overlap) {
+      return { success: false, error: { message: overlap } };
+    }
+  }
+
   const auditUser = toAuditUser(user);
   const record = await prisma.staffShiftAssignment.create({
     data: {
@@ -831,7 +838,7 @@ async function createAssignmentRecord(
       effectiveTo: data.effectiveTo ?? null,
       weeklyOffDay: data.weeklyOffDay ?? 'sunday',
       autoAssign: data.autoAssign ?? true,
-      status: data.status ?? 'active',
+      status: nextStatus,
       ...(auditUser?.id && {
         createdBy: auditUser.id,
         updatedBy: auditUser.id
@@ -990,17 +997,6 @@ export async function updateShiftAssignment(
       };
     }
 
-    const overlap = await assertNoOverlap(
-      staffId,
-      shiftTypeId,
-      effectiveFrom,
-      effectiveTo,
-      id
-    );
-    if (overlap) {
-      return { success: false, error: { message: overlap } };
-    }
-
     let snapshot = {
       staffCode: existing.staffCode,
       staffName: existing.staffName,
@@ -1092,6 +1088,23 @@ export async function updateShiftAssignment(
           issues: membership.issues
         }
       };
+    }
+
+    const nextStatus = data.status ?? existing.status;
+
+    // INT-H8 — re-check overlap immediately before write (narrow TOCTOU window).
+    // Inactive rows are ignored by overlap rules (INT-H7).
+    if (nextStatus !== 'inactive') {
+      const overlap = await assertNoOverlap(
+        staffId,
+        shiftTypeId,
+        effectiveFrom,
+        effectiveTo,
+        id
+      );
+      if (overlap) {
+        return { success: false, error: { message: overlap } };
+      }
     }
 
     const auditUser = toAuditUser(user);
