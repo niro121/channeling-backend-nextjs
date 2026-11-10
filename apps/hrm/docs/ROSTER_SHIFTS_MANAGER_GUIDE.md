@@ -37,8 +37,9 @@ Pages must not call Prisma. No business rules in components. Operational screens
 - Overnight Shifts: **`CommonDataTable`**; header Add + Recalculate Splits (toast); table-only Print/PDF/Excel
 - Overnight Shifts: Auto Split at midnight; attendance allocation Start/End date; Status includes Amended
 - Public Holiday Shifts: **`CommonDataTable`**; header Add + Bulk Assign Holiday Duty (≥1 selected); table-only Print/PDF/Excel
-- Public Holiday Shifts: Phase 0 used **sample** holidays; v1 persist uses Roster `HolidayCalendar` stub. Holiday → Type + Duty Date; Shift → Worked Hours; Staff → Duty Location
-- Public Holiday Shifts: Pay Rate badges 1.50x / 2.00x / 2.50x; Lieu Leave Yes/No; Send to Payroll on form only
+- Public Holiday Shifts: Holiday → Type + Duty Date; Shift → Worked Hours; Staff Combobox; duty place = working-dept switch + Duty Department / Zone / Unit–Room (Duty-parity, own FKs)
+- Public Holiday Shifts: conflict strip (same shift type / day limit hard-block; other duties info); leave soft-warn Continue via `acknowledgedWarnings`
+- Public Holiday Shifts: Pay Rate badges 1.50x / 2.00x / 2.50x; Lieu Leave Yes/No; Send to Payroll on form only; filter Status uses Selector
 - Public Holiday Shifts status: Draft / Pending Approval / Approved / Rejected / Amended; new defaults to Pending Approval
 - Shift Roster sample week: **current calendar week** (Sun–Sat)
 - Shift Roster Hide / Visible: local toggle for Department / Unit / Designation
@@ -122,7 +123,7 @@ Until §34 Option A/B ships, **no Roster & Shifts refactor** is needed for Manag
 
 **Simple explanation:** Manage Rosters (HR Admin) is **not** a shift template. It defines a **roster group** (team/ward): department, business code (e.g. `CHN`), and how many shifts per person per day. **Shift Types** here are the actual shift templates (Morning, Night, etc.). **Shift Assignment** links staff ↔ shift type as standing rules. **Roster & Shifts** calendars then allocate those shifts on dates. In short: group rules in HR Admin → membership on Staff → standing rules in Shift Assignment → day duties in calendars.
 
-Roster & Shifts **operational screens are complete**. **INT-H8–H9** done — remaining work is module-wise in **§11** (Shift Roster polish / D11 verify). Do not reopen grid/register structure.
+Roster & Shifts **operational screens are complete**. **INT-H8–H9** and **D11 Public Holiday** done — remaining work is module-wise in **§11** (mainly Shift Roster polish). Do not reopen grid/register structure.
 
 **Connection (required):**
 
@@ -886,11 +887,15 @@ Field behaviour (locked):
 - Public Holiday, Staff (not Bulk), Shift, Pay Rate required.
 - Layout: Holiday (full) → Holiday Type | Duty Date → Staff | Shift → remaining fields.
 - Holiday selection auto-fills **Holiday Type** and **Duty Date** (both read-only cards from Holiday Calendar). Server derives allocation date from the holiday; client `dutyDate` is ignored.
-- Shift auto-fills **Worked Hours** (editable). Staff shows **Working Location** (institution, read-only) and auto-fills **Duty Location** from working department (Department master options filtered by that institution; editable). Persist `dutyLocationDepartmentId` FK + name snapshot in `dutyLocation`.
+- Shift auto-fills **Worked Hours** (editable). Staff is a **Combobox**. Working Location (institution) is read-only.
+- **Duty place (Duty-parity):** switch **Use staff working department** (default on). Off → **Duty Department** Combobox scoped to staff institution. Optional **Zone** / **Unit–Room** Comboboxes. Persist `dutyLocationDepartmentId` (+ name in `dutyLocation`), `dutyZoneId`, `dutyRoomId`.
+- **Conflict strip:** live preview on staff + holiday date + shift — hard-block same shift type / INT-R4 day limit; info when other duties exist that day. Leave soft warn + Continue via `acknowledgedWarnings`.
+- **Bulk Assign:** requires ≥1 selected register rows; unique `staffIds` from selection; one create per staff via `bulkCreatePublicHolidayShifts`. Soft leave/weekly-off preflight + Continue; hard skip same shift type / day limit; working-dept switch applies per staff (or one shared place when off). Toast created + skipped counts.
+- Filter **Approval Status** uses **Selector** (constant list).
 - Pay Rate: **1.50x / 2.00x / 2.50x**. Grant Lieu Leave maps to Lieu Leave Yes/No. Send to Payroll is **form only**.
 - Status: Draft / Pending Approval / Approved / Rejected / **Amended**. New defaults to Pending Approval.
 
-Sticky sheet header. Phase 0 toast save.
+Sticky sheet header. Save calls create/update/bulk actions.
 
 ### 2H.3 Register
 
@@ -1624,9 +1629,9 @@ Auto Assign that **creates week cells** waits for D5.
 
 | Done when |
 |-----------|
-| [ ] Holiday register lists live cells on stub holiday dates |
-| [ ] Bulk refuses rows that already have a cell that day |
-| [ ] Lieu / payroll do not call Leave or payroll services |
+| [x] Holiday register lists live cells on holiday dates (`holidayId` / calendar join) |
+| [x] Bulk Assign creates per selected staff; skips same shift type / day limit; leave/weekly-off soft warn + Continue |
+| [x] Lieu / payroll do not call Leave or payroll services (flags only) |
 
 ---
 
@@ -1727,15 +1732,16 @@ Canonical table: `HR_ADMINISTRATION_GUIDE.md` §32 (**INT-H***). Roster & Shifts
 
 ## 11. Remaining completion — module-wise (Roster & Shifts group)
 
-Snapshot of what is still open vs largely done across the eight screens. **Shift Types**, **Shift Assignment**, and **Duty Roster** are complete. Heaviest leftovers are **Shift Roster** (Fixed Roster / drag / print-export / monthly grid) and **Public Holiday Shifts** (**D11** verify). **INT-H8 / INT-H9** are done.
+Snapshot of what is still open vs largely done across the eight screens. **Shift Types**, **Shift Assignment**, **Duty Roster**, **Overnight**, and **Public Holiday (D11)** are complete in Roster & Shifts. Heaviest leftovers are **Shift Roster** (Fixed Roster / drag / print-export / monthly grid). **INT-H8 / INT-H9** are done.
 
 ### Already done (do not re-open as “remaining”)
 
-- **D1–D10** operational paths (schema/types, Shift Types, Assignment, Shift Roster publish/fill/copy, Duty, Amendments, Night, Overnight)
+- **D1–D11** operational paths (schema/types, Shift Types, Assignment, Shift Roster publish/fill/copy, Duty, Amendments, Night, Overnight, Public Holiday)
 - **Duty Roster complete** — List / Days / Weeks / Months + assign / swap / replace / attendance / soft warns / export
 - **Shift Types** + **Shift Assignment** complete (incl. delete guards + schema `onDelete: Restrict` where paired)
+- **Public Holiday Shifts complete** — register, filters, Add/Edit/Bulk, duty place, conflict strip, leave/weekly-off soft warn, published lock, export
 - **INT-R3 / R7** Manage Rosters filter/codes; **INT-R4 / R8** shifts-per-person-per-day
-- **INT-L2** leave soft warn + **weekly-off** soft warn (allocate / fill / publish / Duty Swap / Replace)
+- **INT-L2** leave soft warn + **weekly-off** soft warn (allocate / fill / publish / Duty Swap / Replace / Night / Overnight / PH)
 - Multi-shift same day: unique `staffId + date + shiftTypeId` + time-overlap hard block
 - Holiday Calendar master (HR Admin); PH Shifts consumes it
 - **INT-H8 / INT-H9** — assignment overlap re-check before write; staff delete guards for assignments + allocations
@@ -1850,23 +1856,19 @@ Snapshot of what is still open vs largely done across the eight screens. **Shift
 | Richer Conflicts summary card | Optional polish (current count is thin) — not required to close D10 |
 | Dept / Unit master filter options | Shared HR Admin masters backlog (§11.9) |
 
-### 11.8 Public Holiday Shifts — `/public-holiday-shifts`
+### 11.8 Public Holiday Shifts — `/public-holiday-shifts` ✅
 
-| Remaining | Notes |
-|-----------|--------|
-| **D11 close-out** | Guide “Done when” still open even though much UI/service exists — verify and tick |
-| Holiday register | Lists live cells on holiday dates (`holidayId` / calendar join) |
-| Bulk Assign | Refuses staff who already have a cell that day (align with multi-shift uniqueness rules) |
-| Lieu / Send to Payroll | Flags only — must **not** call Leave Entitlement or payroll services |
+| Status | Notes |
+|--------|--------|
+| **Complete** | Live register on holiday dates; Status Selector; Staff Combobox; Duty-parity place (working-dept switch + Zone / Unit–Room); conflict strip (same type / INT-R4); leave/weekly-off soft warn; Bulk Assign per selected staff (skip same type / day limit); published lock; export; lieu / send-to-payroll **flags only** |
 
-**Related features to add**
+**Nothing left inside Roster & Shifts for this screen.** Remaining items are owned elsewhere:
 
 | Feature | Owner / notes |
 |---------|----------------|
-| Finish D11 verify + tick “Done when” checklist | This module |
 | `grantLieuLeave` → Leave Entitlement write | Leave Manager (**not** v1 — flag only) |
 | `sendToPayroll` → payroll engine | Payroll (**not** v1 — flag only) |
-| Holiday Calendar master enhancements | HR Admin `/holiday-calendar` (PH Shifts is read consumer) |
+| Holiday Calendar H7/H8 (leave day counting / year import) | HR Admin `/holiday-calendar` (PH Shifts is read consumer) |
 
 ### 11.9 Shared across the group
 
@@ -1875,7 +1877,7 @@ Snapshot of what is still open vs largely done across the eight screens. **Shift
 | **INT-H8 / INT-H9** | **Done** — see §10 |
 | Dept / Unit / Designation / Grade master filters | When HR Admin masters land (`HR_ADMINISTRATION_GUIDE.md` §31–32) — apply on Shift Roster / Duty / Assignment filters |
 | Staff `employment.roster` = Manage Roster **code** (INT-S3) | Staff module; Roster already consumes codes |
-| Guide cleanup | Uniqueness wording (staff×date×shiftType + overlap); stale Phase 0 toast notes; D11 checkboxes after verify |
+| Guide cleanup | Uniqueness wording (staff×date×shiftType + overlap); stale Phase 0 toast notes |
 
 ### 11.10 Outside this group (index — details live under the module above)
 
@@ -1886,4 +1888,4 @@ Snapshot of what is still open vs largely done across the eight screens. **Shift
 | HR Admin **Manage Shifts** | §11.2 Shift Types (**not required**) |
 | Multi-step approval | §11.5 Roster Amendments (**not** in v1) |
 
-*Last updated: Nov 2026 — ✅ Overnight closed in Roster & Shifts (§11.7); remaining Overnight items are Payroll / Attendance / optional polish. Shift Roster + D11 PH still open.*
+*Last updated: Nov 2026 — ✅ Overnight (§11.7) and ✅ Public Holiday Shifts (§11.8 / D11) closed in Roster & Shifts. Next open module: Shift Roster polish (§11.1).*

@@ -1276,6 +1276,8 @@ export type PublicHolidayShiftRecord = RosterAuditFields & {
   holidayAllowance: number;
   dutyLocation: string;
   dutyLocationDepartmentId: string;
+  dutyZoneId: string;
+  dutyRoomId: string;
   lieuLeave: boolean;
   sendToPayroll: boolean;
   status: PublicHolidayShiftStatus;
@@ -1315,12 +1317,33 @@ export type PublicHolidayShiftPayload = {
   holidayAllowance?: number | null;
   /** Department ObjectId — server snapshots name into dutyLocation. */
   dutyLocationDepartmentId?: string | null;
+  dutyZoneId?: string | null;
+  dutyRoomId?: string | null;
   grantLieuLeave: boolean;
   sendToPayroll: boolean;
   status: string;
   remarks?: string | null;
   /** INT-L2 — Continue after leave soft-warn. */
   acknowledgedWarnings?: boolean;
+};
+
+/** Bulk Assign Holiday Duty — one shared form applied per selected staff. */
+export type PublicHolidayBulkShiftPayload = Omit<
+  PublicHolidayShiftPayload,
+  'staffId'
+> & {
+  staffIds: string[];
+  /**
+   * When true (default), each staff keeps their working department
+   * (`dutyLocationDepartmentId` ignored). When false, shared place FKs apply.
+   */
+  useWorkingDepartment?: boolean;
+};
+
+export type PublicHolidayBulkCreateResult = {
+  count: number;
+  ids: string[];
+  skipped: Array<{ staffId: string; reason: string }>;
 };
 
 export type PublicHolidayShiftFilterOptions = {
@@ -1346,8 +1369,31 @@ export type PublicHolidayShiftFormOptions = {
   })[];
   /** Published departments; filter client-side by staff institutionId. */
   departments: (RosterFilterOption & { institutionId: string })[];
+  zones: DutyRosterZoneOption[];
+  rooms: DutyRosterRoomOption[];
   payRates: RosterFilterOption[];
   statuses: RosterFilterOption[];
+};
+
+/** Proactive conflict strip for Add/Edit holiday shift sheet. */
+export type PublicHolidayShiftDayConflict = {
+  id: string;
+  shiftTypeId: string;
+  shiftLabel: string;
+  startTime: string;
+  endTime: string;
+  status: string;
+};
+
+export type PublicHolidayShiftConflictPreview = {
+  allocations: PublicHolidayShiftDayConflict[];
+  sameShiftTypeExists: boolean;
+  dayLimit: number;
+  existingCount: number;
+  dayLimitReached: boolean;
+  blocksSave: boolean;
+  blockReason: string | null;
+  infoMessage: string | null;
 };
 
 export type PublicHolidayShiftHistoryEntry = {
