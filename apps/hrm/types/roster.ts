@@ -1124,8 +1124,9 @@ export type OvernightShiftPayload = {
   shiftTypeId: string;
   startDate: Date | string;
   endDate: Date | string;
-  startTime: string;
-  endTime: string;
+  /** Ignored on save — server uses ShiftType.startTime / endTime. */
+  startTime?: string | null;
+  endTime?: string | null;
   day1Hours?: number | null;
   day2Hours?: number | null;
   totalHours?: number | null;
@@ -1135,6 +1136,30 @@ export type OvernightShiftPayload = {
   autoSplit?: boolean;
   sendToPayroll?: boolean;
   remarks?: string | null;
+  /** INT-L2 / weekly-off — Continue after soft-warn. */
+  acknowledgedWarnings?: boolean;
+};
+
+/** Proactive conflict strip for Add/Edit overnight shift sheet. */
+export type OvernightShiftDayConflict = {
+  id: string;
+  shiftTypeId: string;
+  shiftLabel: string;
+  startTime: string;
+  endTime: string;
+  status: string;
+  isOvernight: boolean;
+};
+
+export type OvernightShiftConflictPreview = {
+  allocations: OvernightShiftDayConflict[];
+  sameShiftTypeExists: boolean;
+  dayLimit: number;
+  existingCount: number;
+  dayLimitReached: boolean;
+  blocksSave: boolean;
+  blockReason: string | null;
+  infoMessage: string | null;
 };
 
 export type OvernightShiftFilterOptions = {
@@ -1151,8 +1176,17 @@ export type OvernightShiftTypeFormOption = RosterFilterOption & {
   allowance: string;
 };
 
+export type OvernightShiftStaffOption = RosterFilterOption & {
+  staffCode: string;
+  institutionId: string;
+  institutionName: string;
+  workingDepartmentName: string;
+  unit: string;
+  roster: string;
+};
+
 export type OvernightShiftFormOptions = {
-  staff: RosterFilterOption[];
+  staff: OvernightShiftStaffOption[];
   shiftTypes: OvernightShiftTypeFormOption[];
 };
 

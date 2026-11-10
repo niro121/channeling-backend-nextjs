@@ -2,12 +2,14 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Form, Formik, type FormikProps } from 'formik';
+import { Form, Formik, type FormikHelpers, type FormikProps } from 'formik';
 import * as Yup from 'yup';
-import { parseISO } from 'date-fns';
+import { addDays, parseISO } from 'date-fns';
 import { X } from 'lucide-react';
 import {
   Button,
+  Combobox,
+  CustomAlertDialog,
   CustomDatePickerField,
   CustomFormField,
   CustomSelectField,
@@ -22,17 +24,28 @@ import {
   useToast
 } from '@archmage/ui';
 import { formatAuditDateTime } from '@/lib/utils/date';
-import { combineDateAndTime, splitHoursAtMidnight, formatOvernightHours, formatOvernightMoney } from '@/lib/utils/overnight-shift';
-import { overnightRecordToFormValues, overnightFormValuesToPayload } from '@/lib/mappers/overnight-shift-form.mapper';
+import { buttonStyles } from '@/lib/utils/common-styles';
+import { DutyPlaceEditNote } from '@/components/roster/duty-place-edit-note';
+import {
+  splitHoursAtMidnight,
+  formatOvernightHours
+} from '@/lib/utils/overnight-shift';
+import {
+  overnightRecordToFormValues,
+  overnightFormValuesToPayload
+} from '@/lib/mappers/overnight-shift-form.mapper';
 import {
   createOvernightShiftAction,
+  getOvernightShiftConflictPreviewAction,
   updateOvernightShiftAction
 } from '@/app/actions/roster-actions/overnight-shift.actions';
 import {
   OVERNIGHT_ALLOCATION_OPTIONS,
   OVERNIGHT_SHIFT_STATUS_OPTIONS,
+  type OvernightShiftConflictPreview,
   type OvernightShiftFormOptions,
-  type OvernightShiftRecord
+  type OvernightShiftRecord,
+  type OvernightShiftStaffOption
 } from '@/types/roster';
 import type { OvernightFormSheetMode } from './overnight-shifts-ui-context';
 
@@ -78,9 +91,9 @@ function emptyValues(): OvernightFormValues {
     startTime: '19:00',
     endDate: null,
     endTime: '07:00',
-    day1Hours: '5.00',
-    day2Hours: '7.00',
-    totalHours: '12.00',
+    day1Hours: '0.00',
+    day2Hours: '0.00',
+    totalHours: '0.00',
     overnightOt: '0.00',
     allowance: '3200.00',
     status: 'pending_approval',
@@ -93,14 +106,17 @@ function emptyValues(): OvernightFormValues {
 function AutoShiftTypeDefaults({
   shiftTypeId,
   formOptions,
-  setFieldValue
+  setFieldValue,
+  locked
 }: {
   shiftTypeId: string;
   formOptions: OvernightShiftFormOptions;
   setFieldValue: FormikProps<OvernightFormValues>['setFieldValue'];
+  locked: boolean;
 }) {
   const previousTypeId = useRef(shiftTypeId);
   useEffect(() => {
+    if (locked) return;
     if (previousTypeId.current === shiftTypeId) return;
     previousTypeId.current = shiftTypeId;
     const found = formOptions.shiftTypes.find((s) => s.id === shiftTypeId);
@@ -108,7 +124,79 @@ function AutoShiftTypeDefaults({
     void setFieldValue('startTime', found.startTime);
     void setFieldValue('endTime', found.endTime);
     void setFieldValue('allowance', found.allowance);
-  }, [setFieldValue, shiftTypeId, formOptions.shiftTypes]);
+  }, [locked, setFieldValue, shiftTypeId, formOptions.shiftTypes]);
+  return null;
+}
+
+function OvernightContextCard({
+  staff
+}: {
+  staff: OvernightShiftStaffOption | undefined;
+}) {
+  if (!staff) return null;
+
+  return (
+    <div className="space-y-2 rounded-lg border border-border bg-muted/40 px-3 py-3 text-sm">
+      <p className="font-semibold text-foreground">Overnight duty context</p>
+      <div className="grid grid-cols-1 gap-1.5 text-muted-foreground sm:grid-cols-2">
+        <p>
+          Staff: <span className="text-foreground">{staff.name}</span>
+        </p>
+        <p>
+          Institution:{' '}
+          <span className="text-foreground">
+            {staff.institutionName || '—'}
+          </span>
+        </p>
+        <p>
+          Working dept:{' '}
+          <span className="text-foreground">
+            {staff.workingDepartmentName || '—'}
+          </span>
+        </p>
+        <p>
+          Unit: <span className="text-foreground">{staff.unit || '—'}</span>
+        </p>
+        <p className="sm:col-span-2">
+          Roster:{' '}
+          <span className="text-foreground">{staff.roster || '—'}</span>
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function ConflictStrip({
+  preview
+}: {
+  preview: OvernightShiftConflictPreview | null;
+}) {
+  if (!preview) return null;
+  if (
+    !preview.blocksSave &&
+    !preview.infoMessage &&
+    preview.allocations.length === 0
+  ) {
+    return null;
+  }
+
+  if (preview.blocksSave) {
+    return (
+      <div className="rounded-lg border border-destructive/40 bg-destructive/5 px-3 py-2.5 text-sm text-destructive">
+        {preview.blockReason ??
+          'Cannot save this overnight shift for the selected staff and start date.'}
+      </div>
+    );
+  }
+
+  if (preview.infoMessage) {
+    return (
+      <div className="rounded-lg border border-amber-300/60 bg-amber-50 px-3 py-2.5 text-sm text-amber-900 dark:border-amber-500/40 dark:bg-amber-950/30 dark:text-amber-100">
+        {preview.infoMessage}
+      </div>
+    );
+  }
+
   return null;
 }
 
@@ -128,9 +216,20 @@ function AutoSplitHours({
   setFieldValue: FormikProps<OvernightFormValues>['setFieldValue'];
 }) {
   useEffect(() => {
-    if (!autoSplit || !startDate || !endDate) return;
+    if (!autoSplit) return;
+    if (!startDate || !endDate) {
+      void setFieldValue('day1Hours', '0.00');
+      void setFieldValue('day2Hours', '0.00');
+      void setFieldValue('totalHours', '0.00');
+      return;
+    }
     const split = splitHoursAtMidnight(startDate, startTime, endDate, endTime);
-    if (!split) return;
+    if (!split) {
+      void setFieldValue('day1Hours', '0.00');
+      void setFieldValue('day2Hours', '0.00');
+      void setFieldValue('totalHours', '0.00');
+      return;
+    }
     void setFieldValue('day1Hours', formatOvernightHours(split.day1));
     void setFieldValue('day2Hours', formatOvernightHours(split.day2));
     void setFieldValue('totalHours', formatOvernightHours(split.total));
@@ -148,7 +247,22 @@ export default function SheetOvernightForm({
   const { toast } = useToast();
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [confirmDescription, setConfirmDescription] = useState('');
+  const [conflictPreview, setConflictPreview] =
+    useState<OvernightShiftConflictPreview | null>(null);
+  const pendingSubmitRef = useRef<{
+    values: OvernightFormValues;
+    helpers: FormikHelpers<OvernightFormValues>;
+  } | null>(null);
+  const pendingAckRef = useRef(false);
   const isEdit = mode === 'edit';
+  const identityLocked = isEdit;
+
+  const shiftTypeOptions = useMemo(
+    () => formOptions.shiftTypes.map(({ id, name }) => ({ id, name })),
+    [formOptions.shiftTypes]
+  );
 
   const statusLabel = useMemo(() => {
     if (!record) return '';
@@ -183,24 +297,71 @@ export default function SheetOvernightForm({
     return emptyValues();
   }, [isEdit, record]);
 
-  const handleSubmit = async (values: OvernightFormValues) => {
+  useEffect(() => {
+    if (!open) {
+      setConflictPreview(null);
+      pendingSubmitRef.current = null;
+      pendingAckRef.current = false;
+      setConfirmOpen(false);
+    }
+  }, [open]);
+
+  const persistOvernightShift = async (
+    values: OvernightFormValues,
+    helpers: FormikHelpers<OvernightFormValues>
+  ) => {
     setLoading(true);
     try {
-      const payload = overnightFormValuesToPayload(values);
-      const result = isEdit && record
-        ? await updateOvernightShiftAction(record.id, payload)
-        : await createOvernightShiftAction(payload);
+      const payload = overnightFormValuesToPayload(values, {
+        acknowledgedWarnings: pendingAckRef.current
+      });
+      const result =
+        isEdit && record
+          ? await updateOvernightShiftAction(record.id, payload)
+          : await createOvernightShiftAction(payload);
 
       if (result.isError) {
+        const errorMap = result.errors as Record<
+          string,
+          string | string[] | boolean | undefined
+        >;
+
+        if (errorMap.requiresAck) {
+          const softWarnings = Array.isArray(errorMap.softWarnings)
+            ? errorMap.softWarnings.filter(
+                (item): item is string => typeof item === 'string'
+              )
+            : [];
+          pendingSubmitRef.current = { values, helpers };
+          setConfirmDescription(
+            softWarnings.join(' ') ||
+              (typeof errorMap.message === 'string'
+                ? errorMap.message
+                : 'This staff member has leave or weekly off on that date. Continue anyway?')
+          );
+          setConfirmOpen(true);
+          return;
+        }
+
         toast({
           variant: 'destructive',
           title: isEdit ? 'Update failed' : 'Save failed',
-          description: result.errors?.message ?? 'Could not save overnight shift'
+          description:
+            (typeof errorMap.message === 'string'
+              ? errorMap.message
+              : undefined) ?? 'Could not save overnight shift'
         });
         return;
       }
 
-      toast({ title: isEdit ? 'Overnight shift updated' : 'Overnight shift created' });
+      toast({
+        variant: 'success',
+        title: 'Success',
+        description: isEdit
+          ? 'Overnight shift updated.'
+          : 'Overnight shift saved.'
+      });
+      pendingAckRef.current = false;
       router.refresh();
       onOpenChange(false);
     } catch {
@@ -215,59 +376,111 @@ export default function SheetOvernightForm({
   };
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent
-        side="right"
-        className="flex h-full w-full flex-col gap-0 overflow-hidden p-0 sm:max-w-xl"
-      >
-        <SheetHeader className="shrink-0 space-y-1 border-b border-border bg-background px-6 py-4 pr-14 text-left">
-          <SheetTitle>
-            {isEdit ? 'Edit Overnight Shift' : 'Add Overnight Shift'}
-          </SheetTitle>
-          <SheetDescription>
-            {isEdit
-              ? 'Update the record. All changes are captured in the audit trail.'
-              : 'Record a shift that crosses midnight.'}
-          </SheetDescription>
-        </SheetHeader>
-
-        <Formik
-          initialValues={initialValues}
-          enableReinitialize
-          validationSchema={validationSchema}
-          onSubmit={handleSubmit}
+    <>
+      <Sheet open={open} onOpenChange={onOpenChange}>
+        <SheetContent
+          side="right"
+          className="flex h-full w-full flex-col gap-0 overflow-hidden p-0 sm:max-w-xl"
         >
-          {(formik) => {
-            const hoursDisabled = formik.values.autoSplit;
+          <SheetHeader className="shrink-0 space-y-1 border-b border-border bg-background px-6 py-4 pr-14 text-left">
+            <SheetTitle>
+              {isEdit ? 'Edit Overnight Shift' : 'Add Overnight Shift'}
+            </SheetTitle>
+            <SheetDescription>
+              {isEdit
+                ? 'Update overnight hours, split and payroll flag. Staff and shift type stay locked on edit.'
+                : 'Record a shift that crosses midnight. Only overnight-flagged shift types are listed.'}
+            </SheetDescription>
+          </SheetHeader>
 
-            return (
-              <Form className="flex min-h-0 flex-1 flex-col">
-                <AutoShiftTypeDefaults
-                  shiftTypeId={formik.values.shiftTypeId}
-                  formOptions={formOptions}
-                  setFieldValue={formik.setFieldValue}
-                />
-                <AutoSplitHours
-                  autoSplit={formik.values.autoSplit}
-                  startDate={formik.values.startDate}
-                  startTime={formik.values.startTime}
-                  endDate={formik.values.endDate}
-                  endTime={formik.values.endTime}
-                  setFieldValue={formik.setFieldValue}
-                />
+          <Formik
+            initialValues={initialValues}
+            enableReinitialize
+            validationSchema={validationSchema}
+            onSubmit={(values, helpers) =>
+              persistOvernightShift(values, helpers)
+            }
+          >
+            {(formik) => {
+              const hoursDisabled = formik.values.autoSplit;
+              const selectedStaff = formOptions.staff.find(
+                (staff) => staff.id === formik.values.staffId
+              );
 
-                <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-6 py-4">
-                  <CustomSelectField
-                    id="staffId"
-                    placeholder="Staff Member"
-                    value={formik.values.staffId}
-                    onChange={(value) =>
-                      formik.setFieldValue('staffId', value)
-                    }
-                    required
-                    options={formOptions.staff}
-                    styleClasses={fieldStyleClasses}
+              return (
+                <Form className="flex min-h-0 flex-1 flex-col">
+                  <AutoShiftTypeDefaults
+                    shiftTypeId={formik.values.shiftTypeId}
+                    formOptions={formOptions}
+                    setFieldValue={formik.setFieldValue}
+                    locked={identityLocked}
                   />
+                  <AutoSplitHours
+                    autoSplit={formik.values.autoSplit}
+                    startDate={formik.values.startDate}
+                    startTime={formik.values.startTime}
+                    endDate={formik.values.endDate}
+                    endTime={formik.values.endTime}
+                    setFieldValue={formik.setFieldValue}
+                  />
+                  <ConflictPreviewEffect
+                    open={open}
+                    staffId={formik.values.staffId}
+                    startDate={formik.values.startDate}
+                    shiftTypeId={formik.values.shiftTypeId}
+                    excludeAllocationId={isEdit ? record?.id : null}
+                    onPreview={setConflictPreview}
+                  />
+
+                  <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-6 py-4">
+                    <div className={fieldStyleClasses.parentDiv}>
+                      <Label className={fieldStyleClasses.labelClassName}>
+                        Staff Member *
+                      </Label>
+                    <div className={fieldStyleClasses.inputClassName}>
+                      <Combobox
+                        label="Staff Member"
+                        options={formOptions.staff}
+                        value={formik.values.staffId}
+                        defaultValue=""
+                        clearable={!identityLocked}
+                        disabled={identityLocked}
+                        triggerClassName="w-full max-w-none font-normal!"
+                        popoverClassName="w-[var(--radix-popover-trigger-width)] min-w-60"
+                        onChange={(value) => {
+                          void formik.setFieldValue('staffId', value);
+                        }}
+                      />
+                    </div>
+                    {formik.touched.staffId && formik.errors.staffId ? (
+                      <p className="text-xs text-destructive">
+                        {formik.errors.staffId}
+                      </p>
+                    ) : null}
+                  </div>
+
+                  <OvernightContextCard staff={selectedStaff} />
+                  <ConflictStrip preview={conflictPreview} />
+                  {isEdit && record ? (
+                    <DutyPlaceEditNote
+                      allocationId={record.id}
+                      dutyDate={record.startDate}
+                      staffId={record.staffId}
+                    />
+                  ) : null}
+
+                  <div className="overflow-hidden rounded-lg border border-border bg-muted/30">
+                    <div className="flex items-center justify-between gap-4 px-4 py-3">
+                      <div className="min-w-0 space-y-0.5">
+                        <p className="text-sm font-semibold text-foreground">
+                          Overnight Shift
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          Shift crosses midnight into the next calendar day
+                        </p>
+                      </div>
+                    </div>
+                  </div>
 
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <CustomSelectField
@@ -278,7 +491,8 @@ export default function SheetOvernightForm({
                         formik.setFieldValue('shiftTypeId', value)
                       }
                       required
-                      options={formOptions.shiftTypes}
+                      options={shiftTypeOptions}
+                      disabled={identityLocked}
                       styleClasses={fieldStyleClasses}
                     />
                     <CustomSelectField
@@ -292,13 +506,22 @@ export default function SheetOvernightForm({
                       options={OVERNIGHT_ALLOCATION_OPTIONS}
                       styleClasses={fieldStyleClasses}
                     />
-                    <CustomDatePickerField
+                      <CustomDatePickerField
                       id="startDate"
                       placeholder="Shift Start Date"
                       value={formik.values.startDate}
-                      onChange={(value) =>
-                        formik.setFieldValue('startDate', value ?? null)
-                      }
+                      onChange={(value) => {
+                        const nextStart = value ?? null;
+                        void formik.setFieldValue('startDate', nextStart);
+                        if (nextStart) {
+                          void formik.setFieldValue(
+                            'endDate',
+                            addDays(nextStart, 1)
+                          );
+                        } else {
+                          void formik.setFieldValue('endDate', null);
+                        }
+                      }}
                       onBlur={formik.handleBlur}
                       required
                       styleClasses={fieldStyleClasses}
@@ -311,6 +534,7 @@ export default function SheetOvernightForm({
                       onChange={formik.handleChange}
                       onBlur={formik.handleBlur}
                       required
+                      disabled
                       styleClasses={fieldStyleClasses}
                     />
                     <CustomDatePickerField
@@ -332,6 +556,7 @@ export default function SheetOvernightForm({
                       onChange={formik.handleChange}
                       onBlur={formik.handleBlur}
                       required
+                      disabled
                       styleClasses={fieldStyleClasses}
                     />
                     <CustomFormField
@@ -491,13 +716,18 @@ export default function SheetOvernightForm({
                     variant="outline"
                     disabled={loading}
                     size="sm"
-                    className="w-full sm:w-24 gap-1 border-red-500 text-red-500 transition-colors ease-in-out duration-100 hover:bg-red-500 hover:text-white"
+                    className={buttonStyles.cancel.normal}
                     onClick={() => onOpenChange(false)}
                   >
                     <X className="h-3.5 w-3.5" />
                     Cancel
                   </Button>
-                  <Button type="submit" size="sm" disabled={loading}>
+                  <Button
+                    type="submit"
+                    size="sm"
+                    disabled={loading || Boolean(conflictPreview?.blocksSave)}
+                    className={buttonStyles.save}
+                  >
                     {isEdit ? 'Save Changes' : 'Save Overnight Shift'}
                   </Button>
                 </SheetFooter>
@@ -506,6 +736,87 @@ export default function SheetOvernightForm({
           }}
         </Formik>
       </SheetContent>
-    </Sheet>
+      </Sheet>
+
+      <CustomAlertDialog
+        open={confirmOpen}
+        title="Confirm roster warning"
+        description={confirmDescription}
+        loading={loading}
+        handleVisibilityChange={(nextOpen) => {
+          if (!nextOpen) {
+            pendingSubmitRef.current = null;
+            pendingAckRef.current = false;
+          }
+          setConfirmOpen(nextOpen);
+        }}
+        handleContinue={async () => {
+          const pending = pendingSubmitRef.current;
+          if (!pending) {
+            setConfirmOpen(false);
+            return;
+          }
+          pendingAckRef.current = true;
+          setConfirmOpen(false);
+          await persistOvernightShift(pending.values, pending.helpers);
+          pendingSubmitRef.current = null;
+        }}
+      />
+    </>
   );
+}
+
+function ConflictPreviewEffect({
+  open,
+  staffId,
+  startDate,
+  shiftTypeId,
+  excludeAllocationId,
+  onPreview
+}: {
+  open: boolean;
+  staffId: string;
+  startDate: Date | null;
+  shiftTypeId: string;
+  excludeAllocationId?: string | null;
+  onPreview: (preview: OvernightShiftConflictPreview | null) => void;
+}) {
+  useEffect(() => {
+    if (!open || !staffId || !startDate) {
+      onPreview(null);
+      return;
+    }
+
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      void (async () => {
+        const response = await getOvernightShiftConflictPreviewAction({
+          staffId,
+          startDate,
+          shiftTypeId,
+          excludeAllocationId
+        });
+        if (cancelled) return;
+        if (response.isError || !response.data) {
+          onPreview(null);
+          return;
+        }
+        onPreview(response.data);
+      })();
+    }, 250);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [
+    excludeAllocationId,
+    onPreview,
+    open,
+    shiftTypeId,
+    staffId,
+    startDate
+  ]);
+
+  return null;
 }

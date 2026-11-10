@@ -32,6 +32,8 @@ type SearchParams = {
     dutyDate?: string;
     staffId?: string;
     search?: string;
+    /** When set, Duty Roster opens Edit for this allocation if present in the list. */
+    allocationId?: string;
   }>;
 };
 
@@ -176,6 +178,7 @@ export default async function DutyRosterPage({ searchParams }: SearchParams) {
       summary={summary}
       filterOptions={filterOptions}
       formOptions={formOptions}
+      openAllocationId={params?.allocationId?.trim() || undefined}
       onExport={handleExport}
     />
   );

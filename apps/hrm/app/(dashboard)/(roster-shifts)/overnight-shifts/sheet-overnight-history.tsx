@@ -11,6 +11,7 @@ import {
   SheetTitle
 } from '@archmage/ui';
 import { formatAuditDateTime } from '@/lib/utils/date';
+import { buttonStyles } from '@/lib/utils/common-styles';
 import { getOvernightShiftHistoryAction } from '@/app/actions/roster-actions/overnight-shift.actions';
 import type { OvernightShiftHistoryEntry, OvernightShiftRecord } from '@/types/roster';
 
@@ -92,7 +93,8 @@ export default function SheetOvernightHistory({
           <Button
             type="button"
             variant="outline"
-            className="w-full sm:w-24 gap-1 border-red-500 text-red-500 transition-colors ease-in-out duration-100 hover:bg-red-500 hover:text-white"
+            size="sm"
+            className={buttonStyles.cancel.normal}
             onClick={() => onOpenChange(false)}
           >
             Cancel

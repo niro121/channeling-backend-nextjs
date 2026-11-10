@@ -11,7 +11,7 @@ Leave / Overtime are the process references — see `LEAVE_MANAGER_GUIDE.md` and
 **D7:** Duty Roster **complete** on `/duty-roster` (same `RosterAllocation` store; standing / ad-hoc assign, place FKs, swap / replace / attendance; List/Days/Weeks/Months; leave + weekly-off soft warn; published dates locked).  
 **D8:** Roster Amendments is live on `/roster-amendments` (CRUD; Approve applies to published cells; Reject leaves roster unchanged).  
 **D9:** Night Shifts is live on `/night-shifts` (derived from `RosterAllocation` where `ShiftType.isNightShift`; consecutive nights computed; Add refuses existing staff+date).  
-**D10:** Overnight Shifts is live on `/overnight-shifts` (derived from `RosterAllocation` where `ShiftType.isOvernight`; day-split hours stored; Recalculate Splits rewrites fields; Add refuses existing staff+date).  
+**D10:** Overnight Shifts is live on `/overnight-shifts` (derived from `RosterAllocation` where `ShiftType.isOvernight`; day-split hours stored; Recalculate Splits rewrites fields; Add refuses same staff+date+shiftType; conflict strip + leave/weekly-off soft warn like Night).  
 **Build path:** UI first (done), then **Types/Zod → Service → Actions → wire UI**. Vertical slices, one collection or read/write path at a time.  
 Pages must not call Prisma. No business rules in components. Operational screens largely complete; remaining work is module-wise in **§11** (**INT-H8 / INT-H9** done — see §10).
 
@@ -590,6 +590,7 @@ Field behaviour (locked):
 - **Order:** Staff → Duty date (defaults to register filter / today) → Assigned shift (standing) or Shift Type (ad-hoc) → read-only context card → place → supervisor.
 - **Start / End** auto from Shift Type / assignment (disabled).
 - **Duty department***: switch **Use staff working department** (default on). Off → department combobox scoped to staff institution. Persists `dutyLocationDepartmentId` (+ name snapshot).
+- **Deep-link:** `/duty-roster?dutyDate=&staffId=&allocationId=` (from Night / Overnight edit notes) filters the list and auto-opens Edit when the allocation is present.
 - **Zone** / **Unit–Room** optional (`dutyZoneId` / `dutyRoomId`).
 - **Supervisor** staff combobox (excludes duty staff).
 - Persist `allocationSource` (`standing` \| `adhoc`) + optional `staffShiftAssignmentId`.
@@ -739,6 +740,7 @@ Field behaviour (locked):
 - **Start / End** auto from Night Shift Type (disabled). Hours / OT / allowances editable; consecutive nights **read-only** (computed in service).
 - **Send to Payroll** toggle maps to the Payroll Ready Yes/No badge.
 - Status: **Draft / Published / Amended** (from allocation; not a separate approval dropdown).
+- **Edit only:** note card links to the same cell on Duty Roster (`?dutyDate&staffId&allocationId`) to change **duty place / department** — Night does not own a department picker.
 
 Sticky sheet header. Save calls create/update actions.
 
@@ -806,11 +808,13 @@ Backend: `services/roster-services/overnight-shift.service.ts`, `app/actions/ros
 
 Field behaviour (locked):
 
-- Start/End date and time **required and editable**. Shift type prefills times and allowance.
+- Start/End **dates** required and editable. Start/End **times** auto from Overnight Shift Type (**disabled** in UI; **server always uses ShiftType times**). Shift type also prefills allowance.
 - **Auto Split Hours at Midnight** on: Day 1 / Day 2 / Total auto and disabled. Off: those three editable. OT and Allowance stay editable.
 - Attendance allocation: **Shift Start Date** / **Shift End Date** / **Split Across Both Days** (default start).
 - **Send to Payroll** maps to Payroll Ready.
 - Status: **Draft / Pending Approval / Published / Amended** (from allocation; read-only in edit).
+- **Edit only:** note card links to the same cell on Duty Roster (`?dutyDate&staffId&allocationId`) to change **duty place / department** — Overnight does not own a department picker.
+- **Conflict strip (like Night):** live preview on staff + start date + shift type — hard-block same shift type / INT-R4 day limit; info when other duties exist that day (notes overnight spans Day 2). Save disabled while blocked. Leave / weekly-off soft warn + Continue via `acknowledgedWarnings` (same draft path as Night).
 
 Sticky sheet header. Save calls create/update actions.
 
@@ -1592,7 +1596,7 @@ Auto Assign that **creates week cells** waits for D5.
 |------|
 | Persist stored Day 1 / Day 2 / Total + allocation date |
 | Recalculate Splits writes those fields from start/end |
-| Add only if staff+date empty |
+| Add refuses same staff + date + **shiftType** (multi-shift day OK up to INT-R4; time overlap blocked on draft) |
 
 | Done when |
 |-----------|
@@ -1602,7 +1606,8 @@ Auto Assign that **creates week cells** waits for D5.
 | [x] Table Print/PDF/Excel export from server |
 | [x] Auto Split computes Day 1 / Day 2 / Total from start/end times |
 | [x] `sendToPayroll` flag persisted on allocation |
-| [x] Add refuses existing staff+date |
+| [x] Add refuses same staff+date+shiftType; conflict strip + leave/weekly-off soft warn |
+| [x] Edit note links to Duty Roster for duty place / department |
 
 ---
 
@@ -1834,14 +1839,16 @@ Snapshot of what is still open vs largely done across the eight screens. **Shift
 
 | Status | Notes |
 |--------|--------|
-| **Complete** | Live register; day-split store; Recalculate Splits; export |
+| **Complete** | Live register; day-split store; Recalculate Splits; export; ShiftType times enforced; dept/unit name resolve; Edit → Duty place deep-link; conflict strip (same type / INT-R4) + leave/weekly-off soft warn; Add refuses same staff+date+**shiftType** |
 
-**Related features to add**
+**Nothing left inside Roster & Shifts for this screen.** Remaining items are owned elsewhere:
 
 | Feature | Owner / notes |
 |---------|----------------|
 | `sendToPayroll` → real payroll post | Payroll (flag only in v1) |
 | Attendance allocation date sync from Daily Attendance confirm | Attendance (same confirm wave as Duty) |
+| Richer Conflicts summary card | Optional polish (current count is thin) — not required to close D10 |
+| Dept / Unit master filter options | Shared HR Admin masters backlog (§11.9) |
 
 ### 11.8 Public Holiday Shifts — `/public-holiday-shifts`
 
@@ -1868,15 +1875,15 @@ Snapshot of what is still open vs largely done across the eight screens. **Shift
 | **INT-H8 / INT-H9** | **Done** — see §10 |
 | Dept / Unit / Designation / Grade master filters | When HR Admin masters land (`HR_ADMINISTRATION_GUIDE.md` §31–32) — apply on Shift Roster / Duty / Assignment filters |
 | Staff `employment.roster` = Manage Roster **code** (INT-S3) | Staff module; Roster already consumes codes |
-| Guide cleanup | Uniqueness wording; stale Phase 0 toast notes; D11 checkboxes after verify |
+| Guide cleanup | Uniqueness wording (staff×date×shiftType + overlap); stale Phase 0 toast notes; D11 checkboxes after verify |
 
 ### 11.10 Outside this group (index — details live under the module above)
 
 | Item | Tracked under |
 |------|----------------|
 | Overtime **Process Staff Shift** → roster **read** | §11.1 Shift Roster |
-| Attendance **Confirm to Duty Roster** | §11.4 Duty Roster |
+| Attendance **Confirm to Duty Roster** (+ Overnight allocation date sync) | §11.4 Duty Roster / §11.7 Overnight |
 | HR Admin **Manage Shifts** | §11.2 Shift Types (**not required**) |
 | Multi-step approval | §11.5 Roster Amendments (**not** in v1) |
 
-*Last updated: Nov 2026 — ✅ Shift Types / Shift Assignment / Duty / Amendments / Night / Overnight; Shift Roster + D11 PH still open; related follow-ons listed per module.*
+*Last updated: Nov 2026 — ✅ Overnight closed in Roster & Shifts (§11.7); remaining Overnight items are Payroll / Attendance / optional polish. Shift Roster + D11 PH still open.*

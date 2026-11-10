@@ -24,6 +24,7 @@ import {
 } from '@archmage/ui';
 import { formatAuditDateTime } from '@/lib/utils/date';
 import { buttonStyles } from '@/lib/utils/common-styles';
+import { DutyPlaceEditNote } from '@/components/roster/duty-place-edit-note';
 import {
   nightShiftFormValuesToPayload,
   nightShiftRecordToFormValues
@@ -402,6 +403,13 @@ export default function SheetNightShiftForm({
                     </div>
 
                     <NightContextCard staff={selectedStaff} />
+                    {isEdit && record ? (
+                      <DutyPlaceEditNote
+                        allocationId={record.id}
+                        dutyDate={record.shiftDate}
+                        staffId={record.staffId}
+                      />
+                    ) : null}
                     <ConflictStrip preview={conflictPreview} />
 
                     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
