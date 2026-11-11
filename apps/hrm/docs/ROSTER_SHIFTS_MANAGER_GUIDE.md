@@ -664,16 +664,22 @@ Key files under `app/(dashboard)/(roster-shifts)/roster-amendments/`:
 | Edit Amendment | Row pencil | Prefill sample; hidden on Approved / Rejected |
 | Change History | Row clock | Timeline like Shift Types; Cancel only |
 
-Field behaviour (locked):
+Field behaviour (locked — **type-driven form**):
 
-- **Amendment No** auto sample `AMD-2026-n` (disabled). Later `generateRecordCode` with year + padding.
-- **Original Shift** auto from staff (disabled).
-- **Amended Shift** required except Duty Cancellation (disabled, show —).
+- **Amendment No** auto `RA-n` / display auto-assigned (disabled).
+- **Original Shift** auto from published cell lookup (disabled). Extra Duty may have no cell.
+- Type shows a short hint strip; visible fields change with type:
+  - **Shift Change** → **Published Duty** Combobox (`originalShiftTypeId`) + Amended Shift; summary card; conflict strip (same type / INT-R4)
+  - **Shift Swap** → **Published Duty** for primary + **Swap With Duty** Combobox (other published/amended duties that day; stores partner `staffId` + partner shift in `amendedShiftTypeId`); dual cards
+  - **Staff Replacement** → **Published Duty** + Replacement Staff Combobox (**free that day only**; same shift kept); dual cards
+  - **Duty Cancellation** → **Shift to Cancel** Combobox (`originalShiftTypeId`); summary card; Approve deletes that specific cell
+  - **Location Change** → **Published Duty** + Duty Department / optional Zone / Unit–Room; Approve writes FKs + name snapshot
+  - **Extra Duty** → Amended Shift; published cell optional; conflict strip (same type / INT-R4)
+- **INT-L2** leave + weekly-off soft warn + Continue (`acknowledgedWarnings`) on create/update **and header Approve**; Swap checks both staff; Replacement checks incoming partner too.
 - **Requested By** select.
 - Status: **Draft / Pending Approval / Approved / Rejected**. New defaults to Pending Approval.
-- One form for all types in Phase 0 (no swap-with / location extras yet).
 
-Sticky sheet header. Phase 0 toast save.
+Sticky sheet header. Save calls create/update actions.
 
 ### 2E.3 Register
 
@@ -1818,7 +1824,7 @@ Snapshot of what is still open vs largely done across the eight screens. **Shift
 
 | Status | Notes |
 |--------|--------|
-| **Complete** | CRUD + Approve applies to published cell / Reject leaves cell; export present — no open must D-slice |
+| **Complete** | CRUD + Approve applies to published cell / Reject leaves cell; type-driven form; multi-duty published-cell picker; swap partner duty via `amendedShiftTypeId`; Duty place FKs; dual cards; leave+weekly-off soft warn on create/update **and batch Approve**; Extra Duty / Shift Change conflict strip; export |
 
 **Related features to add**
 
@@ -1826,7 +1832,7 @@ Snapshot of what is still open vs largely done across the eight screens. **Shift
 |---------|----------------|
 | Multi-step approval workflow | **Not** in v1 |
 | Notify affected staff / supervisors on Approve | Optional (product) |
-| Amendment types with swap-with / location extras | Optional form extensions |
+| Multi-site place constraints beyond institution-scoped dept list | Optional polish |
 
 ### 11.6 Night Shifts — `/night-shifts` ✅
 

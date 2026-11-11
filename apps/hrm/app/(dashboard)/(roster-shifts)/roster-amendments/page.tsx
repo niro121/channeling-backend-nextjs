@@ -8,7 +8,7 @@ import {
   getRosterAmendmentFormOptionsAction,
   getRosterAmendmentSummaryAction,
   getRosterAmendmentsAction,
-  getRosterAmendmentsExportAction
+  getRosterAmendmentsExport
 } from '@/app/actions/roster-actions/roster-amendment.actions';
 import type { RosterAmendmentSummary } from '@/types/roster';
 import RosterAmendmentsWorkspace from './roster-amendments-workspace';
@@ -109,7 +109,10 @@ export default async function RosterAmendmentsPage({ searchParams }: SearchParam
         shiftTypes: [],
         amendmentTypes: [],
         statuses: [],
-        requesters: []
+        requesters: [],
+        departments: [],
+        zones: [],
+        rooms: []
       }
     : (formOptionsRes.data ?? {
         staff: [],
@@ -117,19 +120,25 @@ export default async function RosterAmendmentsPage({ searchParams }: SearchParam
         shiftTypes: [],
         amendmentTypes: [],
         statuses: [],
-        requesters: []
+        requesters: [],
+        departments: [],
+        zones: [],
+        rooms: []
       });
 
   const handleExport = async () => {
     'use server';
 
-    const exportResponse = await getRosterAmendmentsExportAction(listParams);
+    const exportResponse = await getRosterAmendmentsExport(listParams);
     if (!exportResponse.success || !exportResponse.data?.length) {
       return {
         success: false,
-        message: exportResponse.message ?? 'No amendments to export'
+        message: exportResponse.success
+          ? 'No amendments found'
+          : (exportResponse.message ?? 'Failed to export amendments')
       };
     }
+
     return {
       success: true,
       data: exportResponse.data

@@ -655,7 +655,11 @@ model RosterAmendment {
   amendedShiftLabel    String    @default("")
   swapStaffId          String?   @db.ObjectId
   swapStaffName        String    @default("")
+  /// Display snapshot; FKs below are source of truth for location_change.
   dutyLocation         String    @default("")
+  dutyLocationDepartmentId String? @db.ObjectId
+  dutyZoneId           String?   @db.ObjectId
+  dutyRoomId           String?   @db.ObjectId
   reason               String    @default("")
   remarks              String    @default("")
   requestedById        String?   @db.ObjectId
@@ -668,6 +672,9 @@ model RosterAmendment {
   /// Shift Types delete guard: paired with assertShiftTypeDeletable (service UX).
   originalShiftType  ShiftType  @relation("AmendmentOriginalShift", fields: [originalShiftTypeId], references: [id], onDelete: Restrict)
   amendedShiftType   ShiftType? @relation("AmendmentAmendedShift", fields: [amendedShiftTypeId], references: [id], onDelete: Restrict)
+  dutyLocationDepartment Department? @relation(fields: [dutyLocationDepartmentId], references: [id])
+  dutyZone           Zone?      @relation(fields: [dutyZoneId], references: [id])
+  dutyRoom           Room?      @relation(fields: [dutyRoomId], references: [id])
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -679,6 +686,9 @@ model RosterAmendment {
   @@index([status])
   @@index([amendmentType])
   @@index([createdAt(sort: Desc)])
+  @@index([dutyLocationDepartmentId])
+  @@index([dutyZoneId])
+  @@index([dutyRoomId])
 }
 
 /* ---------------------------------
@@ -1214,6 +1224,7 @@ model Department {
   jobPosts        JobPost[]
   manageRosters   ManageRoster[]
   rosterAllocations RosterAllocation[]
+  rosterAmendments RosterAmendment[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1239,6 +1250,7 @@ model Zone {
   migrateSourceId String? // Channeling Zone.id
 
   rosterAllocations RosterAllocation[]
+  rosterAmendments RosterAmendment[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1268,6 +1280,7 @@ model Room {
   migrateSourceId String? // Channeling Room.id
 
   rosterAllocations RosterAllocation[]
+  rosterAmendments RosterAmendment[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

@@ -825,6 +825,9 @@ export type RosterAmendmentRecord = RosterAuditFields & {
   swapStaffId: string | null;
   swapStaffName: string;
   dutyLocation: string;
+  dutyLocationDepartmentId: string;
+  dutyZoneId: string;
+  dutyRoomId: string;
   reason: string;
   remarks: string;
   requestedById: string | null;
@@ -841,11 +844,17 @@ export type RosterAmendmentPayload = {
   amendedShiftTypeId?: string | null;
   amendmentType: RosterAmendmentType | string;
   swapStaffId?: string | null;
+  /** Snapshot name; server may overwrite from department resolve. */
   dutyLocation?: string | null;
+  dutyLocationDepartmentId?: string | null;
+  dutyZoneId?: string | null;
+  dutyRoomId?: string | null;
   reason?: string | null;
   remarks?: string | null;
   requestedById?: string | null;
   status?: RosterAmendmentStatus | string;
+  /** INT-L2 / weekly-off soft warn Continue. */
+  acknowledgedWarnings?: boolean;
 };
 
 export type GetRosterAmendmentsParams = {
@@ -880,17 +889,29 @@ export type RosterAmendmentFilterOptions = {
 export type RosterAmendmentStaffOption = RosterFilterOption & {
   staffCode: string;
   department: string;
+  institutionId: string;
   originalShiftTypeId: string;
   originalShiftLabel: string;
 };
 
+export type RosterAmendmentReplacementStaffOption = RosterFilterOption & {
+  staffCode: string;
+  institutionId: string;
+  institutionName: string;
+  workingDepartmentName: string;
+  roster: string;
+};
+
 export type RosterAmendmentFormOptions = {
   staff: RosterAmendmentStaffOption[];
-  replacementStaff: RosterFilterOption[];
+  replacementStaff: RosterAmendmentReplacementStaffOption[];
   shiftTypes: RosterFilterOption[];
   amendmentTypes: RosterFilterOption[];
   statuses: RosterFilterOption[];
   requesters: RosterFilterOption[];
+  departments: DutyRosterDepartmentOption[];
+  zones: DutyRosterZoneOption[];
+  rooms: DutyRosterRoomOption[];
 };
 
 export type RosterAmendmentHistoryEntry = {
@@ -901,13 +922,51 @@ export type RosterAmendmentHistoryEntry = {
   at: string;
 };
 
-export type RosterAmendmentAllocationLookup = {
+export type RosterAmendmentPublishedDuty = {
   allocationId: string;
+  staffId: string;
+  staffCode: string;
+  staffName: string;
+  dutyDate: string;
   originalShiftTypeId: string;
   originalShiftLabel: string;
+  startTime: string;
+  endTime: string;
   department: string;
+  unit: string;
+  roster: string;
+  dutyLocation: string;
+  dutyLocationDepartmentId: string;
+  dutyLocationDepartmentName: string;
+  dutyZoneId: string;
+  dutyZoneName: string;
+  dutyRoomId: string;
+  dutyRoomName: string;
+  supervisorName: string;
   status: RosterAllocationStatus | string;
-} | null;
+};
+
+export type RosterAmendmentAllocationLookup = RosterAmendmentPublishedDuty | null;
+
+export type RosterAmendmentDayConflict = {
+  id: string;
+  shiftTypeId: string;
+  shiftLabel: string;
+  startTime: string;
+  endTime: string;
+  status: string;
+};
+
+export type RosterAmendmentConflictPreview = {
+  allocations: RosterAmendmentDayConflict[];
+  sameShiftTypeExists: boolean;
+  dayLimit: number;
+  existingCount: number;
+  dayLimitReached: boolean;
+  blocksSave: boolean;
+  blockReason: string | null;
+  infoMessage: string | null;
+};
 
 export function isRosterAmendmentLocked(
   status: RosterAmendmentStatus | string
