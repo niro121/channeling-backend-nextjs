@@ -121,34 +121,46 @@ function SectionRosterFiltersInner({
         >
           {({ values, setValue }) => (
             <div className="flex w-full flex-wrap items-end gap-3">
-              <Combobox
-                label="Department"
-                options={departmentOptions}
-                value={values.department ?? ''}
-                defaultValue=""
-                onChange={(value) => setValue('department', value)}
-                clearable
-                triggerClassName="self-end"
-              />
-              <Combobox
-                label="Unit"
-                options={unitOptions}
-                value={values.unit ?? ''}
-                defaultValue=""
-                onChange={(value) => setValue('unit', value)}
-                clearable
-                triggerClassName="self-end"
-              />
-              <Combobox
-                label="Roster"
-                options={rosterOptions}
-                value={values.roster ?? ''}
-                defaultValue=""
-                onChange={(value) => setValue('roster', value)}
-                clearable
-                triggerClassName="self-end"
-              />
-              <div className="flex flex-col gap-1">
+              <div className="space-y-2">
+                <Label className="text-xs uppercase text-muted-foreground">
+                  Select Department
+                </Label>
+                <Combobox
+                  label="Department"
+                  options={departmentOptions}
+                  value={values.department ?? ''}
+                  defaultValue=""
+                  onChange={(value) => setValue('department', value)}
+                  clearable
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs uppercase text-muted-foreground">
+                  Select Unit
+                </Label>
+                <Combobox
+                  label="Unit"
+                  options={unitOptions}
+                  value={values.unit ?? ''}
+                  defaultValue=""
+                  onChange={(value) => setValue('unit', value)}
+                  clearable
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs uppercase text-muted-foreground">
+                  Select Roster
+                </Label>
+                <Combobox
+                  label="Roster"
+                  options={rosterOptions}
+                  value={values.roster ?? ''}
+                  defaultValue=""
+                  onChange={(value) => setValue('roster', value)}
+                  clearable
+                />
+              </div>
+              <div className="flex flex-col">
                 <Label className="text-xs uppercase text-muted-foreground">
                   Date Range
                 </Label>

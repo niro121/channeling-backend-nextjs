@@ -8,10 +8,12 @@ import { parseISO } from 'date-fns';
 import { X } from 'lucide-react';
 import {
   Button,
+  Combobox,
   CustomAlertDialog,
   CustomDatePickerField,
   CustomFormField,
   CustomSelectField,
+  Label,
   Sheet,
   SheetContent,
   SheetDescription,
@@ -197,6 +199,11 @@ export default function SheetRosterAllocationForm({
   } | null>(null);
   const mode = target.mode;
 
+  const staffComboboxOptions = useMemo(
+    () => staffOptions.map(({ id, name }) => ({ id, name })),
+    [staffOptions]
+  );
+
   const shiftTypeOptions = useMemo(
     () => shiftTypes.map((st) => ({ id: st.id, name: st.name })),
     [shiftTypes]
@@ -355,26 +362,55 @@ export default function SheetRosterAllocationForm({
 
               <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-6 py-4">
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  <CustomSelectField
-                    id="staffId"
-                    placeholder="Staff Member"
-                    value={formik.values.staffId}
-                    onChange={(value) => formik.setFieldValue('staffId', value)}
-                    required
-                    options={staffOptions}
-                    styleClasses={fieldStyleClasses}
-                  />
-                  <CustomSelectField
-                    id="shiftTypeId"
-                    placeholder="Shift Type"
-                    value={formik.values.shiftTypeId}
-                    onChange={(value) =>
-                      formik.setFieldValue('shiftTypeId', value)
-                    }
-                    required
-                    options={shiftTypeOptions}
-                    styleClasses={fieldStyleClasses}
-                  />
+                  <div className={fieldStyleClasses.parentDiv}>
+                    <Label className={fieldStyleClasses.labelClassName}>
+                      Staff Member *
+                    </Label>
+                    <div className={fieldStyleClasses.inputClassName}>
+                      <Combobox
+                        label="Staff Member"
+                        options={staffComboboxOptions}
+                        value={formik.values.staffId}
+                        defaultValue=""
+                        clearable={mode !== 'edit'}
+                        disabled={mode === 'edit'}
+                        triggerClassName="w-full max-w-none font-normal!"
+                        popoverClassName="w-[var(--radix-popover-trigger-width)] min-w-60"
+                        onChange={(value) => {
+                          void formik.setFieldValue('staffId', value);
+                        }}
+                      />
+                    </div>
+                    {formik.touched.staffId && formik.errors.staffId ? (
+                      <p className="text-xs text-destructive">
+                        {formik.errors.staffId}
+                      </p>
+                    ) : null}
+                  </div>
+                  <div className={fieldStyleClasses.parentDiv}>
+                    <Label className={fieldStyleClasses.labelClassName}>
+                      Shift Type *
+                    </Label>
+                    <div className={fieldStyleClasses.inputClassName}>
+                      <Combobox
+                        label="Shift Type"
+                        options={shiftTypeOptions}
+                        value={formik.values.shiftTypeId}
+                        defaultValue=""
+                        clearable
+                        triggerClassName="w-full max-w-none font-normal!"
+                        popoverClassName="w-[var(--radix-popover-trigger-width)] min-w-60"
+                        onChange={(value) => {
+                          void formik.setFieldValue('shiftTypeId', value);
+                        }}
+                      />
+                    </div>
+                    {formik.touched.shiftTypeId && formik.errors.shiftTypeId ? (
+                      <p className="text-xs text-destructive">
+                        {formik.errors.shiftTypeId}
+                      </p>
+                    ) : null}
+                  </div>
                   <CustomFormField
                     id="department"
                     type="text"

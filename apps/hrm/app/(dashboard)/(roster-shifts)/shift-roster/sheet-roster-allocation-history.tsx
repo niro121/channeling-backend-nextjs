@@ -1,5 +1,6 @@
 'use client';
 
+import { X } from 'lucide-react';
 import {
   Button,
   Sheet,
@@ -9,6 +10,7 @@ import {
   SheetHeader,
   SheetTitle
 } from '@archmage/ui';
+import { buttonStyles } from '@/lib/utils/common-styles';
 import type { RosterStaffRow } from '@/types/roster';
 
 type SheetRosterAllocationHistoryProps = {
@@ -48,9 +50,10 @@ export default function SheetRosterAllocationHistory({
             type="button"
             size="sm"
             variant="outline"
-            className="w-full sm:w-24 gap-1 border-red-500 text-red-500 transition-colors ease-in-out duration-100 hover:bg-red-500 hover:text-white"
+            className={buttonStyles.cancel.normal}
             onClick={() => onOpenChange(false)}
           >
+            <X className="h-3.5 w-3.5" />
             Cancel
           </Button>
         </SheetFooter>

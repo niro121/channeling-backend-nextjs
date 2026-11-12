@@ -6,6 +6,7 @@ import { Button, CustomAlertDialog, useToast } from '@archmage/ui';
 import { usePermissions } from '@/components/hooks/use-permissions';
 import type { RosterStaffRow } from '@/types/roster';
 import { useShiftRosterUi } from './shift-roster-ui-context';
+import { buttonStyles } from '@/lib/utils/common-styles';
 
 type RosterRecordActionsProps = {
   record: RosterStaffRow;
@@ -92,7 +93,7 @@ export default function RosterRecordActions({
           setLoading(false);
           setOpen(false);
         }}
-        className={{ actionButton: 'bg-destructive text-destructive-foreground hover:bg-destructive/90 hover:text-destructive-foreground/90' }}
+        className={{ actionButton: buttonStyles.delete.danger }}
       />
     </>
   );
