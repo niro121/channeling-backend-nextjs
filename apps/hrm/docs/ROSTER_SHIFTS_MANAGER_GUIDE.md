@@ -1758,23 +1758,53 @@ Snapshot of what is still open vs largely done across the eight screens. **Shift
 
 ### 11.1 Shift Roster — `/shift-roster`
 
-| Remaining | Notes |
+Operational Load / allocate draft / publish / fill / copy are live. Remaining work is polish + Duty-parity on Allocate Shift + deferred generators. Execute in phases below (do not reorder without product reason).
+
+**Locked decisions (Nov 2026)**
+
+| # | Decision |
+|---|----------|
+| 1 | Allocate Shift does **not** include Attendance (Duty owns daily attendance) |
+| 2 | Rotation expansion (E1 Fixed-like / E2 catalog cycle / E3 multi-row) — **ask product when Phase E starts** |
+| 3 | Bulk generate entry point (Assignment **Auto Assign All** vs Shift Roster **Fill** vs both) — **ask product when that step starts** |
+| 4 | Drag-and-drop persist = **draft-only** |
+| 5 | **Create Fixed Roster** deferred until template schema / mock exists |
+| 6 | Start implementation with **Phase A** (Duty-parity Allocate) |
+
+**Implementation order**
+
+| Phase | Work | Notes |
+|-------|------|--------|
+| **A** | Allocate Shift ↔ Duty parity | **Done** — standing/ad-hoc; duty place FKs; Leave + OT; published lock; reuse Duty form options; no Swap/Replace/Attendance (soft-warn Continue on save; dedicated conflict strip optional polish) |
+| **B** | Grid row completeness | Wire **Delete** allocation; live **Change History** sheet |
+| **C** | Output & views | Print blank/filled; Export Excel/PDF; full **monthly** grid |
+| **D** | Advanced planning | Drag persist (draft-only); richer conflict summary cards; Fixed Roster **last** (needs schema) |
+| **E** | Auto Assign / rotation | Separate from A. Fill / Auto Assign All generates draft cells from standing rules (`autoAssign=true`). Product picks E1/E2/E3 + entry point before build |
+| **F** | Shared / external | HR master filter options; OT Process Staff Shift read; guide cleanup |
+
+**Still toast / placeholder until their phase**
+
+| Remaining | Phase |
 |-----------|--------|
-| Create Fixed Roster | Still toast-only; separate templates collection when product specifies |
-| Drag-and-drop persist | Visual/toast only; sheet allocate is the live path (same upsert as D5 when ready) |
-| Monthly grid view | Weekly grid live; monthly still toast / not a full grid |
-| Print blank / filled; Export Excel / PDF | Still toast on grid / filter actions |
-| Live conflict-rich summary cards | Counts may exist; richer conflict summary deferred |
-| Some row delete paths | Confirm grid/list delete is fully wired vs toast |
+| Delete allocation (row) | B |
+| Change History sheet | B |
+| Print blank / filled; Export Excel / PDF | C |
+| Monthly grid view | C |
+| Drag-and-drop persist | D |
+| Create Fixed Roster | D (deferred) |
+| Live conflict-rich summary cards | D |
+| Auto Assign All / rotation cell generation | E |
 
 **Related features to add**
 
 | Feature | Owner / notes |
 |---------|----------------|
+| Duty-parity Allocate Shift (Phase A) | This module — same `RosterAllocation` store as Duty assign/edit |
 | Fixed Roster templates collection + Create Fixed Roster wire-up | This module (when product specifies schema) |
-| Drag-and-drop allocate persist (same upsert as sheet allocate) | This module |
+| Drag-and-drop allocate persist (draft-only; same upsert as sheet allocate) | This module |
 | Full monthly planning grid | This module |
 | Real Print blank / filled + Export Excel / PDF from live grid | This module |
+| Auto Assign / Fill from standing rotation (`autoAssign`) | This module + Shift Assignment (Phase E — product rules first) |
 | Overtime **Process Staff Shift** reads published roster cells | Overtime Manager (consumes this store) |
 | Dept / Unit / Designation / Grade filter options from HR masters | HR Admin masters → this screen’s filters |
 
@@ -1894,4 +1924,4 @@ Snapshot of what is still open vs largely done across the eight screens. **Shift
 | HR Admin **Manage Shifts** | §11.2 Shift Types (**not required**) |
 | Multi-step approval | §11.5 Roster Amendments (**not** in v1) |
 
-*Last updated: Nov 2026 — ✅ Overnight (§11.7) and ✅ Public Holiday Shifts (§11.8 / D11) closed in Roster & Shifts. Next open module: Shift Roster polish (§11.1).*
+*Last updated: Nov 2026 — ✅ Overnight (§11.7) and ✅ Public Holiday Shifts (§11.8 / D11) closed. Shift Roster (§11.1) open with phased plan A→F (Duty-parity Allocate first); Auto Assign / rotation deferred to Phase E with product gates.*
