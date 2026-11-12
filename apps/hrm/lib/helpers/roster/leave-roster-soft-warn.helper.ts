@@ -172,6 +172,45 @@ export async function assertLeaveSoftWarn(input: {
   };
 }
 
+/**
+ * Live UI preview for INT-L2 — same rules as save soft-warn, but never
+ * acknowledges. Used by Allocate / Duty / Night / Overnight / PH / Amendments.
+ */
+export async function getRosterLeavePreview(input: {
+  staffId: string;
+  date: Date;
+  startTime?: string | null;
+  endTime?: string | null;
+  staffLabel?: string;
+}): Promise<{
+  hasLeave: boolean;
+  message: string;
+  details: string[];
+}> {
+  if (!input.staffId?.trim()) {
+    return { hasLeave: false, message: '', details: [] };
+  }
+
+  const result = await assertLeaveSoftWarn({
+    staffId: input.staffId,
+    date: input.date,
+    startTime: input.startTime,
+    endTime: input.endTime,
+    staffLabel: input.staffLabel,
+    acknowledgedWarnings: false
+  });
+
+  if (result.ok || result.hits.length === 0) {
+    return { hasLeave: false, message: '', details: [] };
+  }
+
+  return {
+    hasLeave: true,
+    message: result.message,
+    details: result.hits.map(formatLeaveHit)
+  };
+}
+
 /** Batch INT-L2 check for publish / fill: unique staff×day leave hits. */
 export async function assertLeaveSoftWarnForAllocations(input: {
   rows: Array<{

@@ -22,6 +22,7 @@ import {
   useToast
 } from '@archmage/ui';
 import { formatAuditDateTime } from '@/lib/utils/date';
+import { RosterLeaveHint } from '@/components/roster/leave-application-hint';
 import {
   holidayRecordToFormValues,
   holidayFormValuesToBulkPayload,
@@ -614,7 +615,15 @@ export default function SheetHolidayForm({
                     </div>
 
                     {showStaff ? (
-                      <ConflictStrip preview={conflictPreview} />
+                      <>
+                        <ConflictStrip preview={conflictPreview} />
+                        <RosterLeaveHint
+                          open={open}
+                          staffId={formik.values.staffId}
+                          date={formik.values.dutyDate}
+                          staffLabel={selectedStaff?.name}
+                        />
+                      </>
                     ) : null}
 
                     <div className="flex items-center justify-between gap-3 rounded-lg border border-border px-3 py-2.5">

@@ -30,6 +30,7 @@ import {
   dutyRosterRowToFormValues,
   emptyDutyFormValues
 } from '@/lib/mappers/duty-roster-form.mapper';
+import { RosterLeaveHint } from '@/components/roster/leave-application-hint';
 import {
   getStaffStandingAssignmentsForDutyAction,
   replaceDutyStaffAction,
@@ -1027,6 +1028,57 @@ export default function SheetDutyForm({
                         standing={selectedStanding}
                         adhocShiftLabel={adhocShift?.name ?? ''}
                         useStanding={formik.values.useStandingAssignment}
+                      />
+                    ) : null}
+
+                    {mode === 'assign' || mode === 'edit' ? (
+                      <RosterLeaveHint
+                        open={open}
+                        staffId={formik.values.staffId}
+                        date={formik.values.dutyDate}
+                        startTime={formik.values.startTime}
+                        endTime={formik.values.endTime}
+                        staffLabel={selectedStaff?.name}
+                      />
+                    ) : null}
+
+                    {mode === 'swap' ? (
+                      <>
+                        <RosterLeaveHint
+                          open={open}
+                          staffId={formik.values.staffId}
+                          date={formik.values.dutyDate}
+                          startTime={formik.values.startTime}
+                          endTime={formik.values.endTime}
+                          staffLabel={selectedStaff?.name}
+                        />
+                        <RosterLeaveHint
+                          open={open}
+                          staffId={formik.values.otherStaffId}
+                          date={formik.values.dutyDate}
+                          startTime={formik.values.startTime}
+                          endTime={formik.values.endTime}
+                          staffLabel={
+                            formOptions.staff.find(
+                              (s) => s.id === formik.values.otherStaffId
+                            )?.name
+                          }
+                        />
+                      </>
+                    ) : null}
+
+                    {mode === 'replace' ? (
+                      <RosterLeaveHint
+                        open={open}
+                        staffId={formik.values.otherStaffId}
+                        date={formik.values.dutyDate}
+                        startTime={formik.values.startTime}
+                        endTime={formik.values.endTime}
+                        staffLabel={
+                          formOptions.staff.find(
+                            (s) => s.id === formik.values.otherStaffId
+                          )?.name
+                        }
                       />
                     ) : null}
 

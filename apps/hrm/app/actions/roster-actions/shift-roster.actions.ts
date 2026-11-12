@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { logActivityNonBlocking } from '@/lib/activity-log';
 import { getAuditUser } from '@/lib/audit-user';
 import { requirePermission } from '@/lib/server-permissions';
+import { getRosterLeavePreview } from '@/lib/helpers/roster/leave-roster-soft-warn.helper';
 import {
   copyPreviousMonthRoster,
   copyPreviousWeekRoster,
@@ -15,8 +16,10 @@ import {
   toggleRosterAllocationLeave
 } from '@/services/roster-services/shift-roster.service';
 import type {
+  GetRosterLeavePreviewInput,
   LoadRosterParams,
   LoadRosterResult,
+  RosterLeavePreview,
   SaveRosterAllocationDraftPayload,
   ToggleRosterAllocationLeavePayload
 } from '@/types/roster';
@@ -337,6 +340,52 @@ export async function fillOldRosterDraftAction(data: RosterWorkflowPayload) {
       isError: true,
       data: null,
       errors: { message: error.message ?? 'Failed to fill old roster draft' }
+    };
+  }
+}
+
+/** Live INT-L2 leave hint for duty-writing sheets (Allocate / Duty / Night / …). */
+export async function getRosterLeavePreviewAction(
+  input: GetRosterLeavePreviewInput
+): Promise<{
+  isError: boolean;
+  data: RosterLeavePreview | null;
+  errors: Record<string, string | undefined>;
+}> {
+  try {
+    await requirePermission('shift-roster', 'view');
+    if (!input.staffId?.trim() || !input.date) {
+      return {
+        isError: false,
+        data: { hasLeave: false, message: '', details: [] },
+        errors: {}
+      };
+    }
+    const date =
+      typeof input.date === 'string' ? new Date(input.date) : input.date;
+    if (Number.isNaN(date.getTime())) {
+      return {
+        isError: false,
+        data: { hasLeave: false, message: '', details: [] },
+        errors: {}
+      };
+    }
+    const data = await getRosterLeavePreview({
+      staffId: input.staffId,
+      date,
+      startTime: input.startTime,
+      endTime: input.endTime,
+      staffLabel: input.staffLabel
+    });
+    return { isError: false, data, errors: {} };
+  } catch (error: any) {
+    console.error('getRosterLeavePreviewAction error:', error);
+    return {
+      isError: true,
+      data: null,
+      errors: {
+        message: error.message ?? 'Failed to preview leave overlap'
+      }
     };
   }
 }

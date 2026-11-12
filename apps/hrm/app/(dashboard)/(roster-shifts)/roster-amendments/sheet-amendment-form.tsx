@@ -24,6 +24,7 @@ import {
 } from '@archmage/ui';
 import { formatAuditDateTime } from '@/lib/utils/date';
 import { buttonStyles } from '@/lib/utils/common-styles';
+import { RosterLeaveHint } from '@/components/roster/leave-application-hint';
 import {
   amendmentFormValuesToPayload,
   amendmentRecordToFormValues
@@ -1668,6 +1669,39 @@ export default function SheetAmendmentForm({
 
                     {meta.needsConflictStrip ? (
                       <ConflictStrip preview={conflictPreview} />
+                    ) : null}
+
+                    <RosterLeaveHint
+                      open={open}
+                      staffId={formik.values.staffId}
+                      date={formik.values.rosterDate}
+                      startTime={primaryLookup?.startTime}
+                      endTime={primaryLookup?.endTime}
+                      staffLabel={
+                        formOptions.staff.find(
+                          (s) => s.id === formik.values.staffId
+                        )?.name
+                      }
+                    />
+                    {meta.isShiftSwap ? (
+                      <RosterLeaveHint
+                        open={open}
+                        staffId={formik.values.replacementStaffId}
+                        date={formik.values.rosterDate}
+                        startTime={selectedPartner?.startTime}
+                        endTime={selectedPartner?.endTime}
+                        staffLabel={selectedPartner?.staffName}
+                      />
+                    ) : null}
+                    {meta.isStaffReplacement ? (
+                      <RosterLeaveHint
+                        open={open}
+                        staffId={formik.values.replacementStaffId}
+                        date={formik.values.rosterDate}
+                        startTime={primaryLookup?.startTime}
+                        endTime={primaryLookup?.endTime}
+                        staffLabel={selectedReplacement?.name}
+                      />
                     ) : null}
 
                     <CustomFormField

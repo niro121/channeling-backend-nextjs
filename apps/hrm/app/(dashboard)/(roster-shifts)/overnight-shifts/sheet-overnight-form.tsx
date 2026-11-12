@@ -26,6 +26,7 @@ import {
 import { formatAuditDateTime } from '@/lib/utils/date';
 import { buttonStyles } from '@/lib/utils/common-styles';
 import { DutyPlaceEditNote } from '@/components/roster/duty-place-edit-note';
+import { RosterLeaveHint } from '@/components/roster/leave-application-hint';
 import {
   splitHoursAtMidnight,
   formatOvernightHours
@@ -461,6 +462,14 @@ export default function SheetOvernightForm({
 
                   <OvernightContextCard staff={selectedStaff} />
                   <ConflictStrip preview={conflictPreview} />
+                  <RosterLeaveHint
+                    open={open}
+                    staffId={formik.values.staffId}
+                    date={formik.values.startDate}
+                    startTime={formik.values.startTime}
+                    endTime={formik.values.endTime}
+                    staffLabel={selectedStaff?.name}
+                  />
                   {isEdit && record ? (
                     <DutyPlaceEditNote
                       allocationId={record.id}

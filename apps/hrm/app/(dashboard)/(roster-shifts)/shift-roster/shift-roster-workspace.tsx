@@ -8,9 +8,9 @@ import {
   copyPreviousWeekRosterAction
 } from '@/app/actions/roster-actions/shift-roster.actions';
 import type {
+  DutyRosterFormOptions,
   LoadRosterParams,
-  LoadRosterResult,
-  RosterStaffRow
+  LoadRosterResult
 } from '@/types/roster';
 import SectionRosterFilters, {
   type RosterFilterValues
@@ -28,6 +28,7 @@ import {
 type ShiftRosterWorkspaceProps = {
   data: LoadRosterResult;
   initialFilters: LoadRosterParams;
+  formOptions: DutyRosterFormOptions;
 };
 
 function emptyFilters(
@@ -47,29 +48,10 @@ function emptyFilters(
   };
 }
 
-function staffOptionsFromRows(
-  rows: RosterStaffRow[]
-): Array<{
-  id: string;
-  name: string;
-  staffCode: string;
-  department: string;
-  unit: string;
-  designation: string;
-}> {
-  return rows.map((row) => ({
-    id: row.staffId,
-    name: `${row.staffName} (${row.staffCode})`,
-    staffCode: row.staffCode,
-    department: row.department,
-    unit: row.unit,
-    designation: row.designation
-  }));
-}
-
 function ShiftRosterWorkspaceInner({
   data,
-  initialFilters
+  initialFilters,
+  formOptions
 }: ShiftRosterWorkspaceProps) {
   const { toast } = useToast();
   const router = useRouter();
@@ -82,7 +64,6 @@ function ShiftRosterWorkspaceInner({
   const [staffMetaVisible, setStaffMetaVisible] = useState(true);
 
   const filters = emptyFilters(data, initialFilters);
-  const staffOptions = staffOptionsFromRows(data.rows);
 
   const runCopy = async (
     action: typeof copyPreviousWeekRosterAction,
@@ -164,8 +145,7 @@ function ShiftRosterWorkspaceInner({
         <SheetRosterAllocationForm
           open
           target={formTarget}
-          staffOptions={staffOptions}
-          shiftTypes={data.shiftTypes}
+          formOptions={formOptions}
           periodFromDate={filters.fromDate}
           periodToDate={filters.toDate}
           rosterValue={filters.rosterId}

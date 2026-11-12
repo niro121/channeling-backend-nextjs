@@ -1775,7 +1775,8 @@ Operational Load / allocate draft / publish / fill / copy are live. Remaining wo
 
 | Phase | Work | Notes |
 |-------|------|--------|
-| **A** | Allocate Shift ↔ Duty parity | **Done** — standing/ad-hoc; duty place FKs; Leave + OT; published lock; reuse Duty form options; no Swap/Replace/Attendance (soft-warn Continue on save; dedicated conflict strip optional polish) |
+| **A** | Allocate Shift ↔ Duty parity | **Done** — standing/ad-hoc; duty place FKs; Leave + OT; published lock; reuse Duty form options; no Swap/Replace/Attendance |
+| **A+** | Live INT-L2 leave hint | **Done** — shared `getRosterLeavePreview` + amber strip on Allocate (under Leave + highlight / Set Yes), Duty (assign/edit/swap/replace), Night, Overnight, PH, Amendments. Skip Shift Types / Assignment. Save Continue dialog unchanged |
 | **B** | Grid row completeness | Wire **Delete** allocation; live **Change History** sheet |
 | **C** | Output & views | Print blank/filled; Export Excel/PDF; full **monthly** grid |
 | **D** | Advanced planning | Drag persist (draft-only); richer conflict summary cards; Fixed Roster **last** (needs schema) |
@@ -1924,4 +1925,4 @@ Operational Load / allocate draft / publish / fill / copy are live. Remaining wo
 | HR Admin **Manage Shifts** | §11.2 Shift Types (**not required**) |
 | Multi-step approval | §11.5 Roster Amendments (**not** in v1) |
 
-*Last updated: Nov 2026 — ✅ Overnight (§11.7) and ✅ Public Holiday Shifts (§11.8 / D11) closed. Shift Roster (§11.1) open with phased plan A→F (Duty-parity Allocate first); Auto Assign / rotation deferred to Phase E with product gates.*
+*Last updated: Nov 2026 — Shift Roster Phase A (Duty-parity Allocate) + A+ live INT-L2 leave hints across duty-writing sheets. Next: Phase B (Delete + History). Auto Assign / rotation deferred to Phase E.*

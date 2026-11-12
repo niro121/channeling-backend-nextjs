@@ -5,8 +5,13 @@ import { checkRouteAccess } from '@/lib/server-permissions';
 import { CommonManagerHeader } from '@/components/common/common-manager-header';
 import { authOptions } from '@/lib/auth';
 import { logActivityNonBlocking } from '@/lib/activity-log';
+import { getDutyRosterFormOptionsAction } from '@/app/actions/roster-actions/duty-roster.actions';
 import { loadRosterAction } from '@/app/actions/roster-actions/shift-roster.actions';
-import type { LoadRosterParams, LoadRosterResult } from '@/types/roster';
+import type {
+  DutyRosterFormOptions,
+  LoadRosterParams,
+  LoadRosterResult
+} from '@/types/roster';
 import { ShiftRosterHeaderActions } from './header-actions';
 import ShiftRosterWorkspace from './shift-roster-workspace';
 
@@ -50,6 +55,15 @@ const EMPTY_RESULT: LoadRosterResult = {
   periodAudit: null
 };
 
+const EMPTY_FORM_OPTIONS: DutyRosterFormOptions = {
+  staff: [],
+  shiftTypes: [],
+  supervisors: [],
+  departments: [],
+  zones: [],
+  rooms: []
+};
+
 export default async function ShiftRosterPage({ searchParams }: SearchParams) {
   const canView = await checkRouteAccess('/shift-roster');
   if (!canView) {
@@ -80,8 +94,14 @@ export default async function ShiftRosterPage({ searchParams }: SearchParams) {
     limit: params?.limit
   };
 
-  const result = await loadRosterAction(loadParams);
+  const [result, formOptionsRes] = await Promise.all([
+    loadRosterAction(loadParams),
+    getDutyRosterFormOptionsAction()
+  ]);
   const data = result.isError ? EMPTY_RESULT : (result.data ?? EMPTY_RESULT);
+  const formOptions = formOptionsRes.isError
+    ? EMPTY_FORM_OPTIONS
+    : (formOptionsRes.data ?? EMPTY_FORM_OPTIONS);
 
   return (
     <div className="space-y-6">
@@ -91,7 +111,11 @@ export default async function ShiftRosterPage({ searchParams }: SearchParams) {
         actions={<ShiftRosterHeaderActions initialFilters={loadParams} />}
       />
 
-      <ShiftRosterWorkspace data={data} initialFilters={loadParams} />
+      <ShiftRosterWorkspace
+        data={data}
+        initialFilters={loadParams}
+        formOptions={formOptions}
+      />
     </div>
   );
 }

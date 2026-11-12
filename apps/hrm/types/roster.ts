@@ -491,6 +491,13 @@ export type ShiftCell = {
   otHours: number;
   status: RosterAllocationStatus | string;
   comments?: string;
+  /** Duty-parity fields for Allocate/Edit hydrate (same RosterAllocation store). */
+  allocationSource?: 'standing' | 'adhoc' | string;
+  staffShiftAssignmentId?: string | null;
+  dutyLocationDepartmentId?: string | null;
+  dutyZoneId?: string | null;
+  dutyRoomId?: string | null;
+  supervisorId?: string | null;
   createdAt?: string | null;
   updatedAt?: string | null;
   createdUser?: AuthUserSummary | null;
@@ -566,6 +573,21 @@ export type LoadRosterResult = {
 
 export const ROSTER_ALLOCATION_SOURCES = ['standing', 'adhoc'] as const;
 export type RosterAllocationSource = (typeof ROSTER_ALLOCATION_SOURCES)[number];
+
+/** Live INT-L2 leave hint for duty-writing sheets (not Shift Assignment). */
+export type RosterLeavePreview = {
+  hasLeave: boolean;
+  message: string;
+  details: string[];
+};
+
+export type GetRosterLeavePreviewInput = {
+  staffId: string;
+  date: Date | string;
+  startTime?: string | null;
+  endTime?: string | null;
+  staffLabel?: string;
+};
 
 export type SaveRosterAllocationDraftPayload = {
   allocationId?: string;
