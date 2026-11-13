@@ -8,19 +8,23 @@ import { getRosterLeavePreview } from '@/lib/helpers/roster/leave-roster-soft-wa
 import {
   copyPreviousMonthRoster,
   copyPreviousWeekRoster,
+  deleteShiftRosterStaffAllocations,
   fillNewRosterDraft,
   fillOldRosterDraft,
+  getShiftRosterStaffHistory,
   loadRoster,
   publishRoster,
   saveRosterAllocationDraft,
   toggleRosterAllocationLeave
 } from '@/services/roster-services/shift-roster.service';
 import type {
+  DeleteShiftRosterStaffAllocationsPayload,
   GetRosterLeavePreviewInput,
   LoadRosterParams,
   LoadRosterResult,
   RosterLeavePreview,
   SaveRosterAllocationDraftPayload,
+  ShiftRosterHistoryEntry,
   ToggleRosterAllocationLeavePayload
 } from '@/types/roster';
 
@@ -385,6 +389,104 @@ export async function getRosterLeavePreviewAction(
       data: null,
       errors: {
         message: error.message ?? 'Failed to preview leave overlap'
+      }
+    };
+  }
+}
+
+export async function deleteShiftRosterStaffAllocationsAction(
+  data: DeleteShiftRosterStaffAllocationsPayload & {
+    staffName?: string;
+    staffCode?: string;
+  }
+) {
+  await requirePermission('shift-roster', 'delete');
+  try {
+    const auditUser = await getAuditUser();
+    const result = await deleteShiftRosterStaffAllocations(data, auditUser);
+
+    if (!result.success) {
+      return {
+        isError: true,
+        data: {},
+        errors: {
+          message:
+            result.error?.message ??
+            'Something went wrong. Please try again later'
+        }
+      };
+    }
+
+    if (auditUser?.id) {
+      for (const entityId of result.data?.deletedIds ?? []) {
+        logActivityNonBlocking({
+          userId: auditUser.id,
+          action: 'shift.rosterAllocation.deleted',
+          entityType: 'RosterAllocation',
+          entityId,
+          importance: 'high',
+          metadata: {
+            staffId: data.staffId,
+            staffName: data.staffName,
+            staffCode: data.staffCode,
+            fromDate: data.fromDate,
+            toDate: data.toDate
+          }
+        });
+      }
+    }
+
+    revalidatePath('/shift-roster');
+    revalidatePath('/duty-roster');
+    return {
+      isError: false,
+      data: {
+        deleted: true,
+        deletedCount: result.data?.deletedCount ?? 0,
+        skippedLockedCount: result.data?.skippedLockedCount ?? 0,
+        message: result.message
+      },
+      errors: {}
+    };
+  } catch (error: any) {
+    console.error('deleteShiftRosterStaffAllocationsAction error:', error);
+    return {
+      isError: true,
+      data: null,
+      errors: {
+        message: error.message ?? 'Something went wrong. Please try again later'
+      }
+    };
+  }
+}
+
+export async function getShiftRosterStaffHistoryAction(
+  allocationIds: string[]
+): Promise<{
+  isError: boolean;
+  data: ShiftRosterHistoryEntry[] | null;
+  errors: Record<string, string | undefined>;
+}> {
+  try {
+    await requirePermission('shift-roster', 'view');
+    const result = await getShiftRosterStaffHistory(allocationIds);
+    if (!result.success) {
+      throw new Error(
+        result.error?.message ?? 'Unable to fetch shift roster history.'
+      );
+    }
+    return {
+      isError: false,
+      data: result.data ?? [],
+      errors: {}
+    };
+  } catch (error: any) {
+    console.error('getShiftRosterStaffHistoryAction error:', error);
+    return {
+      isError: true,
+      data: null,
+      errors: {
+        message: error.message ?? 'Unable to fetch shift roster history.'
       }
     };
   }

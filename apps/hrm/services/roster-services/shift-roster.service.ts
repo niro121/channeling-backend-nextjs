@@ -34,8 +34,10 @@ import {
 } from '@/lib/helpers/roster/shift-time-overlap.helper';
 import { generateRecordCode } from '@/lib/conventions/record-code-generator';
 import type {
+  DeleteShiftRosterStaffAllocationsPayload,
   LoadRosterParams,
   LoadRosterResult,
+  ShiftRosterHistoryEntry,
   ShiftRosterPeriodAudit,
   RosterAllocationStatus,
   RosterFilterOption,
@@ -1702,6 +1704,181 @@ export async function fillOldRosterDraft(
     return {
       success: false,
       error: { message: error.message || 'Failed to fill from old roster' }
+    };
+  }
+}
+
+const PUBLISHED_LOCK_MESSAGE =
+  'This date is already published. Use a roster amendment before changing it.';
+
+const deleteStaffWeekSchema = z.object({
+  staffId: z.string().min(1, 'Staff is required'),
+  fromDate: z.string().min(1, 'From date is required'),
+  toDate: z.string().min(1, 'To date is required')
+});
+
+/**
+ * Delete draft allocations for one staff within the loaded week/range.
+ * Published / amended cells are skipped (Amendments path).
+ */
+export async function deleteShiftRosterStaffAllocations(
+  input: DeleteShiftRosterStaffAllocationsPayload,
+  user?: AuditUser
+): Promise<{
+  success: boolean;
+  data?: {
+    deletedIds: string[];
+    deletedCount: number;
+    skippedLockedCount: number;
+  };
+  message?: string;
+  error?: { message?: string };
+}> {
+  try {
+    const parsed = deleteStaffWeekSchema.safeParse(input);
+    if (!parsed.success) {
+      return { success: false, error: { message: 'Invalid delete payload' } };
+    }
+
+    const fromUtc = startOfDay(parsed.data.fromDate);
+    const toUtc = startOfDay(parsed.data.toDate);
+    const allocations = await prisma.rosterAllocation.findMany({
+      where: {
+        staffId: parsed.data.staffId,
+        date: { gte: fromUtc, lte: toUtc }
+      },
+      select: { id: true, status: true }
+    });
+
+    if (allocations.length === 0) {
+      return {
+        success: false,
+        error: {
+          message:
+            'No allocations found for this staff in the selected range.'
+        }
+      };
+    }
+
+    const draftIds = allocations
+      .filter((row) => row.status === 'draft')
+      .map((row) => row.id);
+    const skippedLockedCount = allocations.length - draftIds.length;
+
+    if (draftIds.length === 0) {
+      return {
+        success: false,
+        error: { message: PUBLISHED_LOCK_MESSAGE }
+      };
+    }
+
+    void user;
+    await prisma.rosterAllocation.deleteMany({
+      where: { id: { in: draftIds } }
+    });
+
+    return {
+      success: true,
+      data: {
+        deletedIds: draftIds,
+        deletedCount: draftIds.length,
+        skippedLockedCount
+      },
+      message:
+        skippedLockedCount > 0
+          ? `Deleted ${draftIds.length} draft allocation(s). ${skippedLockedCount} published/amended cell(s) were left unchanged.`
+          : `Deleted ${draftIds.length} draft allocation(s).`
+    };
+  } catch (error: any) {
+    console.error('deleteShiftRosterStaffAllocations error:', error);
+    return {
+      success: false,
+      error: {
+        message: error.message || 'Failed to delete roster allocations'
+      }
+    };
+  }
+}
+
+const SHIFT_ROSTER_HISTORY_TITLES: Record<string, string> = {
+  'shift.rosterAllocation.created': 'Allocation created',
+  'shift.rosterAllocation.updated': 'Allocation updated',
+  'shift.rosterAllocation.leaveToggled': 'Leave flag toggled',
+  'shift.rosterAllocation.deleted': 'Allocation deleted',
+  'duty.roster.assigned': 'Duty assigned',
+  'duty.roster.updated': 'Duty updated',
+  'duty.roster.swapped': 'Duty shifts swapped',
+  'duty.roster.replaced': 'Duty staff replaced',
+  'duty.roster.attendanceUpdated': 'Attendance updated',
+  'duty.roster.deleted': 'Duty allocation deleted',
+  'night.shift.created': 'Night shift created',
+  'night.shift.updated': 'Night shift updated',
+  'overnight.shift.created': 'Overnight shift created',
+  'overnight.shift.updated': 'Overnight shift updated',
+  'publicHoliday.shift.created': 'Holiday duty created',
+  'publicHoliday.shift.updated': 'Holiday duty updated'
+};
+
+/** Activity-log timeline for all allocation cells on a Shift Roster staff row. */
+export async function getShiftRosterStaffHistory(
+  allocationIds: string[]
+): Promise<{
+  success: boolean;
+  data?: ShiftRosterHistoryEntry[];
+  message?: string;
+  error?: { message?: string };
+}> {
+  try {
+    const ids = [...new Set(allocationIds.map((id) => id.trim()).filter(Boolean))];
+    if (ids.length === 0) {
+      return { success: true, data: [], message: 'No allocations' };
+    }
+
+    const logs = await prisma.activityLog.findMany({
+      where: {
+        entityType: 'RosterAllocation',
+        entityId: { in: ids }
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 100
+    });
+
+    const withUsers = await resolveAuthUsers(
+      logs.map((log) => ({
+        ...log,
+        createdBy: log.userId,
+        updatedBy: null
+      }))
+    );
+
+    return {
+      success: true,
+      data: withUsers.map((log) => {
+        const metadata = (log.metadata ?? {}) as {
+          staffName?: string;
+          staffCode?: string;
+          rosterDate?: string;
+        };
+        const label = metadata.staffName || 'Roster allocation';
+        const code = metadata.staffCode ? ` (${metadata.staffCode})` : '';
+        const date = metadata.rosterDate ? ` · ${metadata.rosterDate}` : '';
+        return {
+          id: log.id,
+          title: SHIFT_ROSTER_HISTORY_TITLES[log.action] ?? 'Roster change',
+          detail: `${label}${code}${date}.`,
+          userLabel: log.createdUser?.name ?? '—',
+          at: log.createdAt.toISOString()
+        };
+      }),
+      message: 'Shift roster history fetched'
+    };
+  } catch (error: any) {
+    console.error('getShiftRosterStaffHistory error:', error);
+    return {
+      success: false,
+      error: {
+        message: error.message || 'Failed to fetch shift roster history'
+      }
     };
   }
 }

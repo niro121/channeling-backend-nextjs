@@ -559,6 +559,21 @@ export type ShiftRosterPeriodAudit = {
   publishedLabel: string | null;
 };
 
+/** Activity-log timeline for Shift Roster Change History (staff × week cells). */
+export type ShiftRosterHistoryEntry = {
+  id: string;
+  title: string;
+  detail: string;
+  userLabel: string;
+  at: string;
+};
+
+export type DeleteShiftRosterStaffAllocationsPayload = {
+  staffId: string;
+  fromDate: string;
+  toDate: string;
+};
+
 export type LoadRosterResult = {
   rows: RosterStaffRow[];
   totalRecords: number;

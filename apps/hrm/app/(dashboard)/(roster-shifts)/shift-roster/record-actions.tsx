@@ -1,9 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Clock3, Pencil, Trash2 } from 'lucide-react';
 import { Button, CustomAlertDialog, useToast } from '@archmage/ui';
 import { usePermissions } from '@/components/hooks/use-permissions';
+import { deleteShiftRosterStaffAllocationsAction } from '@/app/actions/roster-actions/shift-roster.actions';
 import type { RosterStaffRow } from '@/types/roster';
 import { useShiftRosterUi } from './shift-roster-ui-context';
 import { buttonStyles } from '@/lib/utils/common-styles';
@@ -13,13 +15,12 @@ type RosterRecordActionsProps = {
   dayIsos: string[];
 };
 
-const LATER = 'Will be wired in a later phase.';
-
 export default function RosterRecordActions({
   record,
   dayIsos
 }: RosterRecordActionsProps) {
   const { toast } = useToast();
+  const router = useRouter();
   const { has } = usePermissions();
   const { openEdit, openHistory } = useShiftRosterUi();
   const [open, setOpen] = useState(false);
@@ -27,6 +28,18 @@ export default function RosterRecordActions({
 
   const canEdit = has('shift-roster', 'edit');
   const canDelete = has('shift-roster', 'delete');
+
+  const cells = useMemo(
+    () => dayIsos.flatMap((d) => record.shifts[d] ?? []),
+    [dayIsos, record.shifts]
+  );
+  const draftCount = cells.filter((cell) => cell.status === 'draft').length;
+  const lockedCount = cells.length - draftCount;
+  const hasAllocations = cells.length > 0;
+  const onlyLocked = hasAllocations && draftCount === 0;
+
+  const fromDate = dayIsos[0] ?? '';
+  const toDate = dayIsos[dayIsos.length - 1] ?? '';
 
   const handleEdit = () => {
     const dateIso = dayIsos.find((d) => (record.shifts[d] ?? []).length > 0);
@@ -41,6 +54,14 @@ export default function RosterRecordActions({
     if (!shift) return;
     openEdit({ row: record, dateIso, shift });
   };
+
+  const deleteDescription = !hasAllocations
+    ? `No allocations found for ${record.staffName} (${record.staffCode}) in this range.`
+    : onlyLocked
+      ? `Published/amended cells for ${record.staffName} (${record.staffCode}) cannot be removed here. Use a roster amendment.`
+      : lockedCount > 0
+        ? `This will remove ${draftCount} draft allocation(s) for ${record.staffName} (${record.staffCode}). ${lockedCount} published/amended cell(s) will be left unchanged.`
+        : `This will remove ${draftCount} draft allocation(s) for ${record.staffName} (${record.staffCode}) in this range.`;
 
   return (
     <>
@@ -62,7 +83,7 @@ export default function RosterRecordActions({
             type="button"
             size="icon"
             variant="ghost"
-            className="h-8 w-8 rounded-full border border-border text-destructive hover:text-destructive"
+            className="h-8 w-8 rounded-full border border-border text-destructive hover:bg-destructive/10 hover:text-destructive"
             aria-label={`Delete roster for ${record.staffName}`}
             onClick={() => setOpen(true)}
           >
@@ -86,12 +107,51 @@ export default function RosterRecordActions({
         handleVisibilityChange={setOpen}
         loading={loading}
         title="Delete allocation?"
-        description={`This will remove roster allocations for ${record.staffName} (${record.staffCode}). Saving is wired in a later phase.`}
-        handleContinue={() => {
+        description={deleteDescription}
+        handleContinue={async () => {
+          if (!hasAllocations || onlyLocked || !fromDate || !toDate) {
+            setOpen(false);
+            if (onlyLocked) {
+              toast({
+                variant: 'destructive',
+                title: 'Locked',
+                description:
+                  'Published and amended cells can only be changed via Roster Amendments.'
+              });
+            }
+            return;
+          }
+
           setLoading(true);
-          toast({ title: 'Delete allocation', description: LATER });
+          const result = await deleteShiftRosterStaffAllocationsAction({
+            staffId: record.staffId,
+            fromDate,
+            toDate,
+            staffName: record.staffName,
+            staffCode: record.staffCode
+          });
           setLoading(false);
+
+          if (result.isError) {
+            toast({
+              variant: 'destructive',
+              title: 'Error',
+              description:
+                (result.errors as { message?: string })?.message ??
+                'Roster allocations could not be deleted.'
+            });
+            return;
+          }
+
+          toast({
+            variant: 'success',
+            title: 'Success',
+            description:
+              (result.data as { message?: string } | null)?.message ??
+              'Draft allocations deleted.'
+          });
           setOpen(false);
+          router.refresh();
         }}
         className={{ actionButton: buttonStyles.delete.danger }}
       />

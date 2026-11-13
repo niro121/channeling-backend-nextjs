@@ -1777,7 +1777,7 @@ Operational Load / allocate draft / publish / fill / copy are live. Remaining wo
 |-------|------|--------|
 | **A** | Allocate Shift ↔ Duty parity | **Done** — standing/ad-hoc; duty place FKs; Leave + OT; published lock; reuse Duty form options; no Swap/Replace/Attendance |
 | **A+** | Live INT-L2 leave hint | **Done** — shared `getRosterLeavePreview` + amber strip on Allocate (under Leave + highlight / Set Yes), Duty (assign/edit/swap/replace), Night, Overnight, PH, Amendments. Skip Shift Types / Assignment. Save Continue dialog unchanged |
-| **B** | Grid row completeness | Wire **Delete** allocation; live **Change History** sheet |
+| **B** | Grid row completeness | **Done** — row Delete removes **draft** cells for staff in loaded range (published/amended skipped → Amendments); Change History loads activity timeline for row allocation IDs |
 | **C** | Output & views | Print blank/filled; Export Excel/PDF; full **monthly** grid |
 | **D** | Advanced planning | Drag persist (draft-only); richer conflict summary cards; Fixed Roster **last** (needs schema) |
 | **E** | Auto Assign / rotation | Separate from A. Fill / Auto Assign All generates draft cells from standing rules (`autoAssign=true`). Product picks E1/E2/E3 + entry point before build |
@@ -1787,8 +1787,8 @@ Operational Load / allocate draft / publish / fill / copy are live. Remaining wo
 
 | Remaining | Phase |
 |-----------|--------|
-| Delete allocation (row) | B |
-| Change History sheet | B |
+| Delete allocation (row) | B — **done** (drafts only) |
+| Change History sheet | B — **done** |
 | Print blank / filled; Export Excel / PDF | C |
 | Monthly grid view | C |
 | Drag-and-drop persist | D |
@@ -1925,4 +1925,4 @@ Operational Load / allocate draft / publish / fill / copy are live. Remaining wo
 | HR Admin **Manage Shifts** | §11.2 Shift Types (**not required**) |
 | Multi-step approval | §11.5 Roster Amendments (**not** in v1) |
 
-*Last updated: Nov 2026 — Shift Roster Phase A (Duty-parity Allocate) + A+ live INT-L2 leave hints across duty-writing sheets. Next: Phase B (Delete + History). Auto Assign / rotation deferred to Phase E.*
+*Last updated: Nov 2026 — Shift Roster Phase A / A+ / **B** done (Duty-parity Allocate, live leave hints, Delete drafts + Change History). Next: Phase C (Print / Export / Monthly). Auto Assign / rotation deferred to Phase E.*

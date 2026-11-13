@@ -158,6 +158,7 @@ function ShiftRosterWorkspaceInner({
       <SheetRosterAllocationHistory
         open={!!historyRow}
         record={historyRow}
+        dayIsos={data.dayIsos}
         onOpenChange={(next) => {
           if (!next) closeHistorySheet();
         }}
