@@ -7,8 +7,7 @@ import {
   Combobox,
   DateRangePicker,
   Input,
-  Label,
-  useToast
+  Label
 } from '@archmage/ui';
 import { FilterWrapper } from '@/app/(dashboard)/filter-wrapper';
 import type { RosterFilterOption } from '@/types/roster';
@@ -41,12 +40,12 @@ type SectionRosterFiltersProps = {
     fromDate: string;
     toDate: string;
   }) => void;
+  onPrintBlank: () => void | Promise<void>;
+  onPrintFilled: () => void | Promise<void>;
   onHideStaffMeta: () => void;
   onShowStaffMeta: () => void;
   staffMetaVisible: boolean;
 };
-
-const LATER = 'Will be wired in a later phase.';
 
 function SectionRosterFiltersInner({
   initial = {},
@@ -55,11 +54,12 @@ function SectionRosterFiltersInner({
   rosterOptions,
   onCopyPreviousWeek,
   onCopyPreviousMonth,
+  onPrintBlank,
+  onPrintFilled,
   onHideStaffMeta,
   onShowStaffMeta,
   staffMetaVisible
 }: SectionRosterFiltersProps) {
-  const { toast } = useToast();
   const [draftDates, setDraftDates] = useState({
     fromDate: initial.fromDate ?? '',
     toDate: initial.toDate ?? ''
@@ -69,6 +69,7 @@ function SectionRosterFiltersInner({
     unit: initial.unitId ?? '',
     roster: initial.rosterId ?? ''
   });
+  const [printing, setPrinting] = useState<'blank' | 'filled' | null>(null);
 
   const initialValues = {
     department: initial.departmentId ?? '',
@@ -79,10 +80,6 @@ function SectionRosterFiltersInner({
     search: initial.staffSearch ?? ''
   };
 
-  const notify = (title: string) => {
-    toast({ title, description: LATER });
-  };
-
   const workflowPayload = () => ({
     department: draftMeta.department || undefined,
     unit: draftMeta.unit || undefined,
@@ -90,6 +87,15 @@ function SectionRosterFiltersInner({
     fromDate: draftDates.fromDate,
     toDate: draftDates.toDate
   });
+
+  const runPrint = async (mode: 'blank' | 'filled') => {
+    setPrinting(mode);
+    try {
+      await (mode === 'blank' ? onPrintBlank() : onPrintFilled());
+    } finally {
+      setPrinting(null);
+    }
+  };
 
   return (
     <div className="rounded-lg border border-border bg-card p-4 shadow-sm">
@@ -241,20 +247,22 @@ function SectionRosterFiltersInner({
             size="sm"
             variant="outline"
             className="h-9 gap-1.5"
-            onClick={() => notify('Print Blank Roster')}
+            disabled={printing !== null}
+            onClick={() => void runPrint('blank')}
           >
             <Printer className="h-3.5 w-3.5" />
-            Print Blank Roster
+            {printing === 'blank' ? 'Printing…' : 'Print Blank Roster'}
           </Button>
           <Button
             type="button"
             size="sm"
             variant="outline"
             className="h-9 gap-1.5"
-            onClick={() => notify('Print Filled Roster')}
+            disabled={printing !== null}
+            onClick={() => void runPrint('filled')}
           >
             <Printer className="h-3.5 w-3.5" />
-            Print Filled Roster
+            {printing === 'filled' ? 'Printing…' : 'Print Filled Roster'}
           </Button>
         </div>
       </div>

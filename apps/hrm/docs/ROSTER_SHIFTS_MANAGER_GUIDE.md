@@ -1778,7 +1778,7 @@ Operational Load / allocate draft / publish / fill / copy are live. Remaining wo
 | **A** | Allocate Shift ↔ Duty parity | **Done** — standing/ad-hoc; duty place FKs; Leave + OT; published lock; reuse Duty form options; no Swap/Replace/Attendance |
 | **A+** | Live INT-L2 leave hint | **Done** — shared `getRosterLeavePreview` + amber strip on Allocate (under Leave + highlight / Set Yes), Duty (assign/edit/swap/replace), Night, Overnight, PH, Amendments. Skip Shift Types / Assignment. Save Continue dialog unchanged |
 | **B** | Grid row completeness | **Done** — row Delete removes **draft** cells for staff in loaded range (published/amended skipped → Amendments); Change History loads activity timeline for row allocation IDs |
-| **C** | Output & views | Print blank/filled; Export Excel/PDF; full **monthly** grid |
+| **C** | Output & views | **Done** — Print blank/filled via `getShiftRosterExportAction` + `buildShiftRosterExport` + `printPdfUtil`; grid Print / Excel / PDF; export scope dialog (first 100 / 500 / all matching filters); Monthly View sets URL `fromDate`/`toDate` to calendar month then reloads grid |
 | **D** | Advanced planning | Drag persist (draft-only); richer conflict summary cards; Fixed Roster **last** (needs schema) |
 | **E** | Auto Assign / rotation | Separate from A. Fill / Auto Assign All generates draft cells from standing rules (`autoAssign=true`). Product picks E1/E2/E3 + entry point before build |
 | **F** | Shared / external | HR master filter options; OT Process Staff Shift read; guide cleanup |
@@ -1789,8 +1789,8 @@ Operational Load / allocate draft / publish / fill / copy are live. Remaining wo
 |-----------|--------|
 | Delete allocation (row) | B — **done** (drafts only) |
 | Change History sheet | B — **done** |
-| Print blank / filled; Export Excel / PDF | C |
-| Monthly grid view | C |
+| Print blank / filled; Export Excel / PDF | C — **done** |
+| Monthly grid view | C — **done** (URL month range + reload) |
 | Drag-and-drop persist | D |
 | Create Fixed Roster | D (deferred) |
 | Live conflict-rich summary cards | D |
@@ -1803,8 +1803,8 @@ Operational Load / allocate draft / publish / fill / copy are live. Remaining wo
 | Duty-parity Allocate Shift (Phase A) | This module — same `RosterAllocation` store as Duty assign/edit |
 | Fixed Roster templates collection + Create Fixed Roster wire-up | This module (when product specifies schema) |
 | Drag-and-drop allocate persist (draft-only; same upsert as sheet allocate) | This module |
-| Full monthly planning grid | This module |
-| Real Print blank / filled + Export Excel / PDF from live grid | This module |
+| Full monthly planning grid | **Done** (Phase C) |
+| Real Print blank / filled + Export Excel / PDF from live grid | **Done** (Phase C) |
 | Auto Assign / Fill from standing rotation (`autoAssign`) | This module + Shift Assignment (Phase E — product rules first) |
 | Overtime **Process Staff Shift** reads published roster cells | Overtime Manager (consumes this store) |
 | Dept / Unit / Designation / Grade filter options from HR masters | HR Admin masters → this screen’s filters |
@@ -1925,4 +1925,4 @@ Operational Load / allocate draft / publish / fill / copy are live. Remaining wo
 | HR Admin **Manage Shifts** | §11.2 Shift Types (**not required**) |
 | Multi-step approval | §11.5 Roster Amendments (**not** in v1) |
 
-*Last updated: Nov 2026 — Shift Roster Phase A / A+ / **B** done (Duty-parity Allocate, live leave hints, Delete drafts + Change History). Next: Phase C (Print / Export / Monthly). Auto Assign / rotation deferred to Phase E.*
+*Last updated: Nov 2026 — Shift Roster Phase A / A+ / B / **C** done (Allocate, leave hints, Delete + History, Print/Export/Monthly). Next: Phase D (drag draft-only, conflict cards; Fixed Roster deferred). Auto Assign / rotation deferred to Phase E.*

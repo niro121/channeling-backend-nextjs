@@ -540,6 +540,9 @@ export type ShiftTypeChip = {
   durationHours: number;
 };
 
+/** Print / Excel / PDF row cap chosen in the export scope dialog. */
+export type ShiftRosterExportScope = '100' | '500' | 'all';
+
 export type LoadRosterParams = {
   department?: string;
   unit?: string;
@@ -549,6 +552,8 @@ export type LoadRosterParams = {
   search?: string;
   page?: string;
   limit?: string;
+  /** When set, bypasses the grid page-size cap (100) for export. */
+  exportScope?: ShiftRosterExportScope;
 };
 
 export type ShiftRosterPeriodAudit = {

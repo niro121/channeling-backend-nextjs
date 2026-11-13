@@ -28,6 +28,13 @@ import { toggleRosterAllocationLeaveAction } from '@/app/actions/roster-actions/
 import { cn } from '@/lib/utils';
 import { formatAuditDateTime } from '@/lib/utils/date';
 import {
+  downloadExcelUtil,
+  downloadPdfUtil,
+  formatExportFileName,
+  printPdfUtil
+} from '@/lib/utils/export-wrapper-utils';
+import { buildShiftRosterExport } from '@/lib/utils/shift-roster-export';
+import {
   Table,
   TableBody,
   TableCell,
@@ -55,6 +62,16 @@ type SectionRosterGridProps = {
   conflicts: number;
   shiftTypes: ShiftTypeChip[];
   periodAudit: ShiftRosterPeriodAudit | null;
+  viewMode: 'weekly' | 'monthly';
+  onViewModeChange: (mode: 'weekly' | 'monthly') => void;
+  onExportRoster: () => Promise<{
+    success: boolean;
+    cancelled?: boolean;
+    message?: string;
+    rows: RosterStaffRow[];
+    dayIsos: string[];
+    weekLabel: string;
+  }>;
 };
 
 type RowStatus = RosterStaffRow['status'];
@@ -94,7 +111,6 @@ const STATUS_LABELS: Record<RowStatus, string> = {
   none: '—'
 };
 
-const LATER = 'Will be wired in a later phase.';
 const CELL_SEP = 'border-r border-border';
 const EMPTY_CELL_NOTICE =
   'group flex min-h-14 w-full items-center justify-between rounded-md border border-dashed border-primary/20 bg-primary/5 px-2 py-2 text-left text-xs font-medium text-primary/80 transition-all hover:border-primary/40 hover:bg-primary/10 hover:text-primary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/40';
@@ -166,15 +182,20 @@ export default function SectionRosterGrid({
   staffMetaVisible,
   conflicts,
   shiftTypes,
-  periodAudit
+  periodAudit,
+  viewMode,
+  onViewModeChange,
+  onExportRoster
 }: SectionRosterGridProps) {
   const { toast } = useToast();
   const { has } = usePermissions();
   const { openAdd, openEdit } = useShiftRosterUi();
   const canEdit = has('shift-roster', 'edit');
-  const [viewMode, setViewMode] = useState<'weekly' | 'monthly'>('weekly');
   const [pageSize, setPageSize] = useState(10);
   const [pageIndex, setPageIndex] = useState(0);
+  const [exporting, setExporting] = useState<'print' | 'excel' | 'pdf' | null>(
+    null
+  );
   const [leaveOverrides, setLeaveOverrides] = useState<Record<string, boolean>>(
     {}
   );
@@ -251,8 +272,73 @@ export default function SectionRosterGrid({
     processedRows.length
   );
 
-  const notify = (title: string) => {
-    toast({ title, description: LATER });
+  const runGridExport = async (kind: 'print' | 'excel' | 'pdf') => {
+    setExporting(kind);
+    try {
+      const result = await onExportRoster();
+      if (result.cancelled) return;
+      if (!result.success || !result.rows.length) {
+        toast({
+          variant: 'destructive',
+          title: 'No data',
+          description: result.message ?? 'Load a roster before exporting.'
+        });
+        return;
+      }
+      const built = buildShiftRosterExport({
+        rows: result.rows,
+        dayIsos: result.dayIsos,
+        mode: 'filled',
+        includeStaffMeta: staffMetaVisible
+      });
+      const title = result.weekLabel || weekLabel || 'Shift Roster';
+      const fileBase = formatExportFileName('shift-roster');
+      if (kind === 'print') {
+        printPdfUtil({
+          title,
+          data: built.data,
+          columns: built.columns,
+          keys: built.keys
+        });
+        return;
+      }
+      if (kind === 'excel') {
+        await downloadExcelUtil({
+          title,
+          data: built.data,
+          columns: built.columns,
+          keys: built.keys,
+          fileName: `${fileBase}.xlsx`
+        });
+        toast({
+          variant: 'success',
+          title: 'Exported',
+          description: 'Excel file downloaded.'
+        });
+        return;
+      }
+      downloadPdfUtil({
+        title,
+        data: built.data,
+        columns: built.columns,
+        keys: built.keys,
+        fileName: `${fileBase}.pdf`
+      });
+      toast({
+        variant: 'success',
+        title: 'Exported',
+        description: 'PDF file downloaded.'
+      });
+    } catch (error: unknown) {
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description:
+          error instanceof Error ? error.message : 'Export failed.'
+      });
+    } finally {
+      setExporting(null);
+    }
   };
 
   const toggleLeave = async (
@@ -332,7 +418,7 @@ export default function SectionRosterGrid({
             size="sm"
             variant={viewMode === 'weekly' ? 'default' : 'outline'}
             className="h-9"
-            onClick={() => setViewMode('weekly')}
+            onClick={() => onViewModeChange('weekly')}
           >
             Weekly View
           </Button>
@@ -341,10 +427,7 @@ export default function SectionRosterGrid({
             size="sm"
             variant={viewMode === 'monthly' ? 'default' : 'outline'}
             className="h-9"
-            onClick={() => {
-              setViewMode('monthly');
-              notify('Monthly View');
-            }}
+            onClick={() => onViewModeChange('monthly')}
           >
             Monthly View
           </Button>
@@ -364,30 +447,33 @@ export default function SectionRosterGrid({
             size="sm"
             variant="outline"
             className="h-9 gap-1.5"
-            onClick={() => notify('Print')}
+            disabled={exporting !== null}
+            onClick={() => void runGridExport('print')}
           >
             <Printer className="h-3.5 w-3.5" />
-            Print
+            {exporting === 'print' ? 'Printing…' : 'Print'}
           </Button>
           <Button
             type="button"
             size="sm"
             variant="outline"
             className="h-9 gap-1.5"
-            onClick={() => notify('Export Excel')}
+            disabled={exporting !== null}
+            onClick={() => void runGridExport('excel')}
           >
             <FileSpreadsheet className="h-3.5 w-3.5" />
-            Export Excel
+            {exporting === 'excel' ? 'Exporting…' : 'Export Excel'}
           </Button>
           <Button
             type="button"
             size="sm"
             variant="outline"
             className="h-9 gap-1.5"
-            onClick={() => notify('Export PDF')}
+            disabled={exporting !== null}
+            onClick={() => void runGridExport('pdf')}
           >
             <FileText className="h-3.5 w-3.5" />
-            Export PDF
+            {exporting === 'pdf' ? 'Exporting…' : 'Export PDF'}
           </Button>
         </div>
       </CardHeader>

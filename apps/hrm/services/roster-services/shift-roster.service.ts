@@ -297,11 +297,20 @@ export async function loadRoster(
     const defaults = currentWeekRange();
     const fromDate = params.fromDate || defaults.fromDate;
     const toDate = params.toDate || defaults.toDate;
-    const pageSize = Math.min(
-      Number.parseInt(params.limit || '20', 10) || 20,
-      100
-    );
+    const exportScope = params.exportScope;
     const pageNum = Math.max(Number.parseInt(params.page || '1', 10), 1);
+    // Grid lists stay capped at 100; export may request 100 / 500 / all.
+    let pageSize: number;
+    if (exportScope === 'all') {
+      pageSize = Number.POSITIVE_INFINITY;
+    } else if (exportScope === '100' || exportScope === '500') {
+      pageSize = Number.parseInt(exportScope, 10);
+    } else {
+      pageSize = Math.min(
+        Number.parseInt(params.limit || '20', 10) || 20,
+        100
+      );
+    }
     const skip = (pageNum - 1) * pageSize;
 
     const fromUtc = startOfDay(fromDate);

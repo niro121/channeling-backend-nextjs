@@ -24,6 +24,7 @@ import type {
   LoadRosterResult,
   RosterLeavePreview,
   SaveRosterAllocationDraftPayload,
+  ShiftRosterExportScope,
   ShiftRosterHistoryEntry,
   ToggleRosterAllocationLeavePayload
 } from '@/types/roster';
@@ -85,6 +86,57 @@ export async function loadRosterAction(params: LoadRosterParams): Promise<{
       errors: {
         message: error.message ?? 'Failed to load roster. Please try again.'
       }
+    };
+  }
+}
+
+/** Full (or capped) roster load for Print / Excel / PDF — not paged like the grid. */
+export async function getShiftRosterExportAction(
+  params: LoadRosterParams & { exportScope?: ShiftRosterExportScope }
+): Promise<{
+  success: boolean;
+  message?: string;
+  data: LoadRosterResult | null;
+  totalRecords?: number;
+  exportScope?: ShiftRosterExportScope;
+  limited?: boolean;
+}> {
+  try {
+    await requirePermission('shift-roster', 'view');
+    const exportScope = params.exportScope ?? '500';
+    const result = await loadRoster({
+      ...params,
+      page: '1',
+      exportScope
+    });
+
+    if (!result.success || !result.data) {
+      return {
+        success: false,
+        message: result.error?.message ?? 'Failed to load roster for export',
+        data: null
+      };
+    }
+
+    const totalRecords = result.data.totalRecords;
+    const limited = totalRecords > result.data.rows.length;
+
+    return {
+      success: true,
+      data: result.data,
+      totalRecords,
+      exportScope,
+      limited,
+      message: limited
+        ? `Export includes the first ${result.data.rows.length} of ${totalRecords} staff.`
+        : undefined
+    };
+  } catch (error: any) {
+    console.error('getShiftRosterExportAction error:', error);
+    return {
+      success: false,
+      message: error.message ?? 'Failed to load roster for export',
+      data: null
     };
   }
 }
