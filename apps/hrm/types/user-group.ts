@@ -51,6 +51,7 @@ export const RESOURCES: HrmPermissionResource[] = [
   },
   { id: 'payroll', name: 'Payroll', group: 'Payroll' },
   { id: 'recruitment', name: 'Recruitment', group: 'Recruitment' },
+  { id: 'reports', name: 'Reports', group: 'Reports' },
   { id: 'users', name: 'Users & User Groups', group: 'Administration' },
   { id: 'staff', name: 'Staff', group: 'Administration' },
   {
