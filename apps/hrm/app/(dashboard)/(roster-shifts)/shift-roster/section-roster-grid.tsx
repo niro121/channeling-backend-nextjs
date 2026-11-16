@@ -137,6 +137,8 @@ const STATUS_LABELS: Record<RowStatus, string> = {
 const CELL_SEP = 'border-r border-border';
 const EMPTY_CELL_NOTICE =
   'group flex min-h-14 w-full items-center justify-between rounded-md border border-dashed border-primary/20 bg-primary/5 px-2 py-2 text-left text-xs font-medium text-primary/80 transition-all hover:border-primary/40 hover:bg-primary/10 hover:text-primary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/40';
+const EMPTY_CELL_APPROVED_LEAVE =
+  'group flex min-h-14 w-full items-center justify-between rounded-md border border-dashed border-amber-300 bg-amber-50 px-2 py-2 text-left text-xs font-medium text-amber-950 transition-all hover:border-amber-400 hover:bg-amber-100/80 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-amber-400/50';
 
 function dayHeader(dayIso: string): string {
   return format(parseISO(dayIso), 'EEE dd MMM').toUpperCase();
@@ -882,6 +884,8 @@ export default function SectionRosterGrid({
                           const dayShifts = row.shifts[dayIso] ?? [];
                           const cellKey = `${row.staffId}:${dayIso}`;
                           const isDropTarget = dragOverKey === cellKey;
+                          const dayHasApprovedLeave =
+                            row.approvedLeaveByDay?.[dayIso] === true;
                           if (!dayShifts.length) {
                             return (
                               <TableCell
@@ -907,15 +911,31 @@ export default function SectionRosterGrid({
                                 {canEdit ? (
                                   <button
                                     type="button"
-                                    className={EMPTY_CELL_NOTICE}
+                                    className={
+                                      dayHasApprovedLeave
+                                        ? EMPTY_CELL_APPROVED_LEAVE
+                                        : EMPTY_CELL_NOTICE
+                                    }
                                     onClick={() =>
                                       openAdd({ row, dateIso: dayIso })
                                     }
-                                    aria-label={`Allocate shift for ${row.staffName} on ${dayIso}`}
+                                    aria-label={
+                                      dayHasApprovedLeave
+                                        ? `Allocate shift for ${row.staffName} on ${dayIso} (approved leave)`
+                                        : `Allocate shift for ${row.staffName} on ${dayIso}`
+                                    }
                                   >
-                                    <span>Allocate shift</span>
+                                    <span>
+                                      {dayHasApprovedLeave
+                                        ? 'Approved leave'
+                                        : 'Allocate shift'}
+                                    </span>
                                     <Plus className="h-3.5 w-3.5 opacity-70 transition-transform group-hover:translate-x-0.5" />
                                   </button>
+                                ) : dayHasApprovedLeave ? (
+                                  <span className="rounded-md border border-dashed border-amber-300 bg-amber-50 px-2 py-1 text-[10px] font-medium text-amber-950">
+                                    Approved leave
+                                  </span>
                                 ) : (
                                   '—'
                                 )}

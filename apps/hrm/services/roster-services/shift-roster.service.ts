@@ -16,8 +16,10 @@ import { toAuditUser } from '@/lib/audit-user';
 import { resolveAuthUsers } from '@/lib/helpers/resolve-auth-users.helper';
 import { buildManageRosterFilterOptions } from '@/lib/helpers/roster/manage-roster-filter-options.helper';
 import {
+  approvedLeaveHitsCoverDuty,
   assertLeaveSoftWarn,
-  assertLeaveSoftWarnForAllocations
+  assertLeaveSoftWarnForAllocations,
+  loadApprovedLeaveHitsByStaffInRange
 } from '@/lib/helpers/roster/leave-roster-soft-warn.helper';
 import {
   assertWeeklyOffSoftWarn,
@@ -175,7 +177,9 @@ const workflowRangeSchema = z.object({
   roster: z.string().optional(),
   fromDate: z.string().min(1, 'From date is required'),
   toDate: z.string().min(1, 'To date is required'),
-  acknowledgedWarnings: z.boolean().optional()
+  acknowledgedWarnings: z.boolean().optional(),
+  /** Fill New — mark isLeave on cells overlapping approved leave. */
+  markLeaveOnApprovedLeave: z.boolean().optional()
 });
 
 function normalizeRangeInput(input: z.infer<typeof workflowRangeSchema>) {
@@ -451,6 +455,8 @@ export async function loadRoster(
           id: st.id,
           code: st.code,
           name: st.name,
+          startTime: st.startTime ?? '',
+          endTime: st.endTime ?? '',
           timeRange:
             st.startTime && st.endTime
               ? `${st.startTime}-${st.endTime}`
@@ -459,6 +465,13 @@ export async function loadRoster(
         }
       ])
     );
+
+    // Approved leave hits for amber chip hints (paged staff × loaded range).
+    const approvedLeaveByStaff = await loadApprovedLeaveHitsByStaffInRange({
+      staffIds,
+      fromDate: fromUtc,
+      toDate: toUtc
+    });
 
     // 4. Build grid rows
     const weekMeta = buildWeekMeta(fromDate, toDate);
@@ -483,6 +496,16 @@ export async function loadRoster(
       const shifts: Record<string, ShiftCell[]> = Object.fromEntries(
         weekMeta.dayIsos.map((d) => [d, [] as ShiftCell[]])
       );
+      const staffLeaveHits = approvedLeaveByStaff.get(staff.id) ?? [];
+      const approvedLeaveByDay: Record<string, boolean> = Object.fromEntries(
+        weekMeta.dayIsos.map((dayIso) => [
+          dayIso,
+          approvedLeaveHitsCoverDuty({
+            hits: staffLeaveHits,
+            date: parseISO(dayIso)
+          })
+        ])
+      );
       let rowTotalHours = 0;
       let rowOtHours = 0;
       let rowStatus: RosterStaffRow['status'] = 'none';
@@ -497,6 +520,12 @@ export async function loadRoster(
         if (shifts[dateKey] !== undefined) {
           const st = shiftTypeMap.get(alloc.shiftTypeId);
           const allocAudit = allocationById.get(alloc.id);
+          const hasApprovedLeave = approvedLeaveHitsCoverDuty({
+            hits: staffLeaveHits,
+            date: alloc.date,
+            startTime: st?.startTime,
+            endTime: st?.endTime
+          });
           const cell: ShiftCell = {
             allocationId: alloc.id,
             shiftTypeId: alloc.shiftTypeId,
@@ -504,6 +533,7 @@ export async function loadRoster(
             label: st?.name ?? 'Unknown',
             timeRange: st?.timeRange ?? '—',
             isLeave: alloc.isLeave,
+            hasApprovedLeave,
             hours: alloc.hours,
             otHours: alloc.otHours,
             status: alloc.status as RosterAllocationStatus,
@@ -582,6 +612,7 @@ export async function loadRoster(
         unit,
         designation,
         shifts,
+        approvedLeaveByDay,
         totalHours: rowTotalHours,
         otHours: rowOtHours,
         status: rowStatus
@@ -1337,9 +1368,19 @@ export async function fillNewRosterDraft(
   user?: AuditUser
 ): Promise<{
   success: boolean;
-  data?: { draftCount: number };
+  data?: {
+    draftCount: number;
+    created: number;
+    skippedOccupied: number;
+    skippedIneligible: number;
+    skippedHardFail: number;
+  };
   message?: string;
-  error?: { message?: string };
+  error?: {
+    message?: string;
+    softWarnings?: string[];
+    requiresAck?: boolean;
+  };
 }> {
   try {
     const parsed = workflowRangeSchema.safeParse(input);
@@ -1365,10 +1406,43 @@ export async function fillNewRosterDraft(
       created.add(id);
     }
 
+    // Phase E1 — also write draft cells from Fixed + autoAssign standing rules.
+    const { generateAutoAssignDraftCells } = await import(
+      '@/services/roster-services/auto-assign-roster.service'
+    );
+    const generated = await generateAutoAssignDraftCells(
+      {
+        fromDate: format(range.fromDate, 'yyyy-MM-dd'),
+        toDate: format(range.toDate, 'yyyy-MM-dd'),
+        department: parsed.data.department,
+        unit: parsed.data.unit,
+        roster: parsed.data.roster,
+        acknowledgedWarnings: parsed.data.acknowledgedWarnings,
+        markLeaveOnApprovedLeave: parsed.data.markLeaveOnApprovedLeave,
+        strategy: 'fixed'
+      },
+      user
+    );
+
+    if (!generated.success) {
+      return {
+        success: false,
+        error: generated.error ?? { message: 'Failed to auto-assign draft cells' }
+      };
+    }
+
     return {
       success: true,
-      data: { draftCount: created.size },
-      message: 'Draft roster prepared'
+      data: {
+        draftCount: created.size,
+        created: generated.data?.created ?? 0,
+        skippedOccupied: generated.data?.skippedOccupied ?? 0,
+        skippedIneligible: generated.data?.skippedIneligible ?? 0,
+        skippedHardFail: generated.data?.skippedHardFail ?? 0
+      },
+      message:
+        generated.message ??
+        `Draft roster prepared; created ${generated.data?.created ?? 0} cell(s).`
     };
   } catch (error: any) {
     console.error('fillNewRosterDraft error:', error);

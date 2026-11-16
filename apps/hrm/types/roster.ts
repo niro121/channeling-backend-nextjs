@@ -487,6 +487,11 @@ export type ShiftCell = {
   label: string;
   timeRange: string;
   isLeave: boolean;
+  /**
+   * Approved leave application overlaps this duty window (grid amber hint).
+   * Independent of `isLeave` (duty leave flag).
+   */
+  hasApprovedLeave?: boolean;
   hours: number;
   otHours: number;
   status: RosterAllocationStatus | string;
@@ -513,6 +518,11 @@ export type RosterStaffRow = {
   designation: string;
   /** Day ISO → zero or more allocated shifts (multi-shift / day allowed). */
   shifts: Record<string, ShiftCell[]>;
+  /**
+   * Day ISO → staff has approved leave covering that civil day
+   * (empty-cell amber hint when no allocation yet).
+   */
+  approvedLeaveByDay?: Record<string, boolean>;
   totalHours: number;
   otHours: number;
   status: 'published' | 'draft' | 'amended' | 'none';

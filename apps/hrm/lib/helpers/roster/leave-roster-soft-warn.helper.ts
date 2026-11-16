@@ -129,6 +129,107 @@ function filterHitsForDutyWindow(
 }
 
 /**
+ * True when staff has at least one **approved** leave overlapping the duty
+ * window (used by Fill / Auto Assign to optionally set `isLeave` on the cell).
+ */
+export async function hasApprovedLeaveOverlappingDuty(input: {
+  staffId: string;
+  date: Date;
+  startTime?: string | null;
+  endTime?: string | null;
+}): Promise<boolean> {
+  const dayHits = await findStaffLeaveOverlappingDay({
+    staffId: input.staffId,
+    date: input.date
+  });
+  const hits = filterHitsForDutyWindow(
+    dayHits,
+    input.startTime,
+    input.endTime
+  );
+  return hits.some((hit) => hit.status === 'approved');
+}
+
+/**
+ * Batch-load **approved** leave applications overlapping a roster range
+ * (one query for the paged staff set). Used by Shift Roster grid amber hints.
+ */
+export async function loadApprovedLeaveHitsByStaffInRange(input: {
+  staffIds: string[];
+  fromDate: Date;
+  toDate: Date;
+}): Promise<Map<string, LeaveSoftWarnHit[]>> {
+  const map = new Map<string, LeaveSoftWarnHit[]>();
+  if (!input.staffIds.length) return map;
+
+  const fromCivil = resolveDutyCivilDayUtc(input.fromDate);
+  const toCivil = resolveDutyCivilDayUtc(input.toDate);
+  const rangeStart = colomboDayStartInstant(fromCivil);
+  const rangeEndInclusive = new Date(
+    colomboDayEndInstant(toCivil).getTime() - 1
+  );
+
+  const rows = await prisma.leaveApplication.findMany({
+    where: {
+      staffId: { in: input.staffIds },
+      status: 'approved',
+      fromDate: { lte: rangeEndInclusive },
+      toDate: { gte: rangeStart }
+    },
+    select: {
+      id: true,
+      status: true,
+      staffId: true,
+      fromDate: true,
+      toDate: true,
+      days: true,
+      halfDaySession: true,
+      leaveType: { select: { name: true } }
+    },
+    orderBy: { fromDate: 'asc' }
+  });
+
+  for (const row of rows) {
+    const hit: LeaveSoftWarnHit = {
+      id: row.id,
+      status: row.status,
+      fromDate: row.fromDate,
+      toDate: row.toDate,
+      days: row.days,
+      halfDaySession: row.halfDaySession,
+      leaveTypeName: row.leaveType?.name?.trim() || 'Leave'
+    };
+    const list = map.get(row.staffId) ?? [];
+    list.push(hit);
+    map.set(row.staffId, list);
+  }
+
+  return map;
+}
+
+/** Whether preloaded approved leave hits cover this civil day (+ optional shift window). */
+export function approvedLeaveHitsCoverDuty(input: {
+  hits: LeaveSoftWarnHit[];
+  date: Date;
+  startTime?: string | null;
+  endTime?: string | null;
+}): boolean {
+  if (!input.hits.length) return false;
+  const civil = resolveDutyCivilDayUtc(input.date);
+  const dayStart = colomboDayStartInstant(civil);
+  const dayEndInclusive = new Date(colomboDayEndInstant(civil).getTime() - 1);
+
+  const dayHits = input.hits.filter(
+    (hit) => hit.fromDate <= dayEndInclusive && hit.toDate >= dayStart
+  );
+  return filterHitsForDutyWindow(
+    dayHits,
+    input.startTime,
+    input.endTime
+  ).some((hit) => hit.status === 'approved');
+}
+
+/**
  * INT-L2 — soft warn when allocating on a day the staff has leave that
  * overlaps the duty shift window (full-day leave, or half-day AM/PM).
  * Not a hard block: pass `acknowledgedWarnings: true` to continue.

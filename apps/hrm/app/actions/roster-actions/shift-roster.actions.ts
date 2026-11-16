@@ -5,6 +5,7 @@ import { logActivityNonBlocking } from '@/lib/activity-log';
 import { getAuditUser } from '@/lib/audit-user';
 import { requirePermission } from '@/lib/server-permissions';
 import { getRosterLeavePreview } from '@/lib/helpers/roster/leave-roster-soft-warn.helper';
+import { generateAutoAssignDraftCells } from '@/services/roster-services/auto-assign-roster.service';
 import {
   copyPreviousMonthRoster,
   copyPreviousWeekRoster,
@@ -36,6 +37,7 @@ type RosterWorkflowPayload = {
   fromDate: string;
   toDate: string;
   acknowledgedWarnings?: boolean;
+  markLeaveOnApprovedLeave?: boolean;
 };
 
 function softAckErrors(error?: {
@@ -253,7 +255,11 @@ export async function fillNewRosterDraftAction(data: RosterWorkflowPayload) {
     const auditUser = await getAuditUser();
     const result = await fillNewRosterDraft(data, auditUser);
     if (!result.success) {
-      throw new Error(result.error?.message ?? 'Failed to prepare draft roster');
+      return {
+        isError: true,
+        data: null,
+        errors: softAckErrors(result.error)
+      };
     }
 
     if (auditUser?.id) {
@@ -262,11 +268,16 @@ export async function fillNewRosterDraftAction(data: RosterWorkflowPayload) {
         action: 'shift.rosterDraft.created',
         entityType: 'ShiftRoster',
         importance: 'medium',
-        metadata: { draftCount: result.data?.draftCount ?? 0, ...data }
+        metadata: {
+          draftCount: result.data?.draftCount ?? 0,
+          created: result.data?.created ?? 0,
+          ...data
+        }
       });
     }
 
     revalidatePath('/shift-roster');
+    revalidatePath('/duty-roster');
     return { isError: false, data: result.data ?? null, errors: {} };
   } catch (error: any) {
     console.error('fillNewRosterDraftAction error:', error);
@@ -274,6 +285,67 @@ export async function fillNewRosterDraftAction(data: RosterWorkflowPayload) {
       isError: true,
       data: null,
       errors: { message: error.message ?? 'Failed to prepare draft roster' }
+    };
+  }
+}
+
+/** Shift Assignment → Auto Assign All (same E1 generator as Fill New). */
+export async function autoAssignRosterDraftAction(data: {
+  fromDate: string;
+  toDate: string;
+  department?: string;
+  unit?: string;
+  roster?: string;
+  assignmentIds?: string[];
+  acknowledgedWarnings?: boolean;
+  markLeaveOnApprovedLeave?: boolean;
+}) {
+  await requirePermission('shift-roster', 'add');
+  try {
+    const auditUser = await getAuditUser();
+    const result = await generateAutoAssignDraftCells(
+      {
+        ...data,
+        strategy: 'fixed'
+      },
+      auditUser
+    );
+
+    if (!result.success) {
+      return {
+        isError: true,
+        data: null,
+        errors: softAckErrors(result.error)
+      };
+    }
+
+    if (auditUser?.id) {
+      logActivityNonBlocking({
+        userId: auditUser.id,
+        action: 'shift.rosterAutoAssign.generated',
+        entityType: 'RosterAllocation',
+        importance: 'medium',
+        metadata: {
+          created: result.data?.created ?? 0,
+          fromDate: data.fromDate,
+          toDate: data.toDate,
+          assignmentCount: data.assignmentIds?.length ?? 0
+        }
+      });
+    }
+
+    revalidatePath('/shift-roster');
+    revalidatePath('/duty-roster');
+    revalidatePath('/shift-assignment');
+    return { isError: false, data: result.data ?? null, errors: {} };
+  } catch (error: any) {
+    console.error('autoAssignRosterDraftAction error:', error);
+    return {
+      isError: true,
+      data: null,
+      errors: {
+        message: error.message ?? 'Failed to auto-assign draft cells'
+      }
     };
   }
 }

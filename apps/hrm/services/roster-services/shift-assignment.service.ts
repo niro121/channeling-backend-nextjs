@@ -805,6 +805,10 @@ async function createAssignmentRecord(
   }
 
   const nextStatus = data.status ?? 'active';
+  const rotationPattern = data.rotationPattern ?? 'fixed';
+  // Phase E1 — Auto Assign only for Fixed rotation (coerce non-fixed to off).
+  const autoAssign =
+    rotationPattern === 'fixed' ? (data.autoAssign ?? true) : false;
 
   // INT-H8 — re-check overlap immediately before write (narrow TOCTOU window).
   // Mongo standalone cannot rely on interactive transactions for this race.
@@ -833,11 +837,11 @@ async function createAssignmentRecord(
       department: staffSnapshot.department,
       unit: staffSnapshot.unit,
       designation: staffSnapshot.designation,
-      rotationPattern: data.rotationPattern ?? 'fixed',
+      rotationPattern,
       effectiveFrom: data.effectiveFrom,
       effectiveTo: data.effectiveTo ?? null,
       weeklyOffDay: data.weeklyOffDay ?? 'sunday',
-      autoAssign: data.autoAssign ?? true,
+      autoAssign,
       status: nextStatus,
       ...(auditUser?.id && {
         createdBy: auditUser.id,
@@ -1091,6 +1095,18 @@ export async function updateShiftAssignment(
     }
 
     const nextStatus = data.status ?? existing.status;
+    const nextRotation =
+      data.rotationPattern !== undefined
+        ? data.rotationPattern
+        : existing.rotationPattern;
+    // Phase E1 — Auto Assign only for Fixed rotation.
+    let nextAutoAssign =
+      data.autoAssign !== undefined
+        ? data.autoAssign
+        : Boolean(existing.autoAssign);
+    if (nextRotation !== 'fixed') {
+      nextAutoAssign = false;
+    }
 
     // INT-H8 — re-check overlap immediately before write (narrow TOCTOU window).
     // Inactive rows are ignored by overlap rules (INT-H7).
@@ -1129,7 +1145,7 @@ export async function updateShiftAssignment(
         ...(data.weeklyOffDay !== undefined && {
           weeklyOffDay: data.weeklyOffDay
         }),
-        ...(data.autoAssign !== undefined && { autoAssign: data.autoAssign }),
+        autoAssign: nextAutoAssign,
         ...(data.status !== undefined && { status: data.status }),
         ...(auditUser?.id && { updatedBy: auditUser.id })
       },

@@ -12,6 +12,12 @@ const CHIP_STYLES: Record<string, string> = {
 };
 
 const DEFAULT_CHIP = 'border-border bg-muted/40 text-foreground';
+/**
+ * Amber when duty Leave is on, or when approved leave covers this duty
+ * (even if Leave checkbox is still off).
+ */
+const LEAVE_CHIP =
+  'border-dashed border-amber-300 bg-amber-50 text-amber-950';
 
 type ShiftChipProps = {
   shift: ShiftCell;
@@ -32,7 +38,10 @@ export function ShiftChip({
   onDragStart,
   onDragEnd
 }: ShiftChipProps) {
-  const chipStyle = CHIP_STYLES[shift.code] ?? DEFAULT_CHIP;
+  const chipStyle =
+    shift.isLeave || shift.hasApprovedLeave
+      ? LEAVE_CHIP
+      : (CHIP_STYLES[shift.code] ?? DEFAULT_CHIP);
 
   return (
     <div
