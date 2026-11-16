@@ -8,14 +8,15 @@ import { usePublicHolidayShiftsUi } from './public-holiday-shifts-ui-context';
 export function PublicHolidayShiftsHeaderActions() {
   const { toast } = useToast();
   const { has } = usePermissions();
-  const { openCreate, openBulk, selectedCount } = usePublicHolidayShiftsUi();
+  const { openCreate, openBulk, selectedCount, selectedStaffIds } =
+    usePublicHolidayShiftsUi();
   const canAdd = has('shift-roster', 'add');
   const canEdit = has('shift-roster', 'edit');
 
   if (!canAdd && !canEdit) return null;
 
   const handleBulk = () => {
-    if (selectedCount < 1) {
+    if (selectedCount < 1 || selectedStaffIds.length < 1) {
       toast({
         title: 'Select staff',
         description:
@@ -23,7 +24,7 @@ export function PublicHolidayShiftsHeaderActions() {
       });
       return;
     }
-    openBulk(selectedCount);
+    openBulk(selectedCount, selectedStaffIds);
   };
 
   return (

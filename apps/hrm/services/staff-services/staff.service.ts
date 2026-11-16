@@ -1179,6 +1179,43 @@ export async function updateStaffEmployment(
   }
 }
 
+/**
+ * INT-H9 — refuse staff delete while standing shift assignments or
+ * roster allocations still reference the staff member(s).
+ * Paired with schema `onDelete: Restrict` on those relations (Prisma Client
+ * emulation on Mongo — service message stays the product-facing guard).
+ */
+async function assertStaffDeletable(
+  staffIds: string[]
+): Promise<{ ok: true } | { ok: false; message: string }> {
+  const ids = [...new Set(staffIds.filter(Boolean))];
+  if (ids.length === 0) {
+    return { ok: false, message: 'No staff IDs provided' };
+  }
+
+  const [assignmentCount, allocationCount] = await Promise.all([
+    prisma.staffShiftAssignment.count({ where: { staffId: { in: ids } } }),
+    prisma.rosterAllocation.count({ where: { staffId: { in: ids } } })
+  ]);
+
+  if (assignmentCount === 0 && allocationCount === 0) {
+    return { ok: true };
+  }
+
+  const parts: string[] = [];
+  if (assignmentCount > 0) {
+    parts.push(`${assignmentCount} standing shift assignment(s)`);
+  }
+  if (allocationCount > 0) {
+    parts.push(`${allocationCount} roster allocation(s)`);
+  }
+
+  return {
+    ok: false,
+    message: `Cannot delete staff while ${parts.join(' and ')} exist. Remove or reassign them in Roster & Shifts first.`
+  };
+}
+
 // ** Delete Staff Service * //
 export async function deleteStaff(id: string): Promise<{
   success: boolean;
@@ -1187,6 +1224,11 @@ export async function deleteStaff(id: string): Promise<{
   error?: { message?: string };
 }> {
   try {
+    const guard = await assertStaffDeletable([id]);
+    if (!guard.ok) {
+      return { success: false, error: { message: guard.message } };
+    }
+
     await prisma.staff.delete({ where: { id } });
     return { success: true, message: 'Staff deleted successfully' };
   } catch (error: any) {
@@ -1208,6 +1250,11 @@ export async function deleteStaffs(ids: string[]): Promise<{
   try {
     if (!ids?.length) {
       return { success: false, error: { message: 'No staff IDs provided' } };
+    }
+
+    const guard = await assertStaffDeletable(ids);
+    if (!guard.ok) {
+      return { success: false, error: { message: guard.message } };
     }
 
     const result = await prisma.staff.deleteMany({ where: { id: { in: ids } } });

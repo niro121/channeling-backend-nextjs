@@ -5,8 +5,10 @@ import { logActivityNonBlocking } from '@/lib/activity-log';
 import { getAuditUser } from '@/lib/audit-user';
 import { requirePermission } from '@/lib/server-permissions';
 import {
+  bulkCreatePublicHolidayShifts,
   createPublicHolidayShift,
   deletePublicHolidayShift,
+  getPublicHolidayShiftConflictPreview,
   getPublicHolidayShiftFilterOptions,
   getPublicHolidayShiftFormOptions,
   getPublicHolidayShiftHistory,
@@ -17,6 +19,7 @@ import {
 } from '@/services/roster-services/public-holiday-shift.service';
 import type {
   GetPublicHolidayShiftsParams,
+  PublicHolidayBulkShiftPayload,
   PublicHolidayShiftPayload
 } from '@/types/roster';
 
@@ -151,6 +154,45 @@ export async function getPublicHolidayShiftFormOptionsAction() {
   }
 }
 
+export async function getPublicHolidayShiftConflictPreviewAction(input: {
+  staffId: string;
+  dutyDate: Date | string | null;
+  shiftTypeId?: string | null;
+  excludeAllocationId?: string | null;
+}) {
+  try {
+    await requirePermission('shift-roster', 'view');
+    if (!input.staffId?.trim() || !input.dutyDate) {
+      return { isError: false, data: null, errors: {} };
+    }
+    const result = await getPublicHolidayShiftConflictPreview({
+      staffId: input.staffId,
+      dutyDate: input.dutyDate,
+      shiftTypeId: input.shiftTypeId,
+      excludeAllocationId: input.excludeAllocationId
+    });
+    if (!result.success) {
+      return {
+        isError: true,
+        data: null,
+        errors: {
+          message: result.error?.message ?? 'Could not check conflicts'
+        }
+      };
+    }
+    return { isError: false, data: result.data ?? null, errors: {} };
+  } catch (error: any) {
+    console.error('getPublicHolidayShiftConflictPreviewAction error', error);
+    return {
+      isError: true,
+      data: null,
+      errors: {
+        message: error.message ?? 'Could not check conflicts'
+      }
+    };
+  }
+}
+
 export async function createPublicHolidayShiftAction(
   payload: PublicHolidayShiftPayload
 ) {
@@ -195,6 +237,61 @@ export async function createPublicHolidayShiftAction(
       isError: true,
       data: null,
       errors: { message: error.message ?? 'Could not save holiday shift' }
+    };
+  }
+}
+
+export async function bulkCreatePublicHolidayShiftsAction(
+  payload: PublicHolidayBulkShiftPayload
+) {
+  await requirePermission('shift-roster', 'add');
+  try {
+    const auditUser = await getAuditUser();
+    const result = await bulkCreatePublicHolidayShifts(payload, auditUser);
+    if (!result.success) {
+      return {
+        isError: true,
+        data: result.data ?? null,
+        errors: {
+          message:
+            result.error?.message ?? 'Could not bulk create holiday shifts',
+          ...(result.error?.issues ?? {}),
+          ...(result.error?.softWarnings
+            ? { softWarnings: result.error.softWarnings }
+            : {}),
+          ...(result.error?.requiresAck ? { requiresAck: true } : {})
+        }
+      };
+    }
+
+    if (auditUser?.id && result.data?.ids?.length) {
+      logActivityNonBlocking({
+        userId: auditUser.id,
+        action: 'shift.holiday.bulkCreated',
+        entityType: 'RosterAllocation',
+        importance: 'high',
+        metadata: {
+          count: result.data.count,
+          skipped: result.data.skipped.length
+        }
+      });
+    }
+
+    revalidateHolidayPaths();
+    return {
+      isError: false,
+      data: result.data,
+      errors: {},
+      message: result.message
+    };
+  } catch (error: any) {
+    console.error('bulkCreatePublicHolidayShiftsAction error:', error);
+    return {
+      isError: true,
+      data: null,
+      errors: {
+        message: error.message ?? 'Could not bulk create holiday shifts'
+      }
     };
   }
 }

@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { CustomAlertDialog, useToast } from '@archmage/ui';
 import { CommonManagerHeader } from '@/components/common/common-manager-header';
@@ -42,6 +42,8 @@ type DutyRosterWorkspaceProps = {
   summary: DutyRosterSummary;
   filterOptions: DutyRosterFilterOptions;
   formOptions: DutyRosterFormOptions;
+  /** Deep-link target from Night / Overnight (or other) edit notes. */
+  openAllocationId?: string;
   onExport: () => Promise<{
     success: boolean;
     message?: string;
@@ -58,6 +60,7 @@ function DutyRosterWorkspaceInner({
   summary,
   filterOptions,
   formOptions,
+  openAllocationId,
   onExport
 }: DutyRosterWorkspaceProps) {
   const { toast } = useToast();
@@ -76,7 +79,8 @@ function DutyRosterWorkspaceInner({
     requestReplaceConfirm,
     closeReplaceConfirm,
     closeFormSheet,
-    closeHistorySheet
+    closeHistorySheet,
+    openEdit
   } = useDutyRosterUi();
   const [swapLoading, setSwapLoading] = useState(false);
   const [replaceLoading, setReplaceLoading] = useState(false);
@@ -87,8 +91,39 @@ function DutyRosterWorkspaceInner({
   );
   const leavePendingSwapRef = useRef<SwapDutyPayload | null>(null);
   const leavePendingReplaceRef = useRef<ReplaceDutyPayload | null>(null);
+  const deepLinkHandledRef = useRef(false);
 
   const dutyDate = filters.dutyDate ?? new Date();
+
+  useEffect(() => {
+    if (!openAllocationId || deepLinkHandledRef.current) return;
+    deepLinkHandledRef.current = true;
+
+    const row = records.find((record) => record.id === openAllocationId);
+    if (row) {
+      openEdit(row);
+    } else {
+      toast({
+        title: 'Duty not on this list',
+        description:
+          'Check Duty Date and Staff filters, then open Edit from the register.'
+      });
+    }
+
+    if (!searchParams.has('allocationId')) return;
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete('allocationId');
+    const query = params.toString();
+    router.replace(query ? `${pathname}?${query}` : pathname);
+  }, [
+    openAllocationId,
+    openEdit,
+    pathname,
+    records,
+    router,
+    searchParams,
+    toast
+  ]);
 
   const pushViewMode = (nextView: DutyRosterViewMode) => {
     const params = new URLSearchParams(searchParams.toString());

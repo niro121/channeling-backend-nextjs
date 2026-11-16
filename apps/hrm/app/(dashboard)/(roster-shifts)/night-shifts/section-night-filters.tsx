@@ -85,67 +85,91 @@ function SectionNightFiltersInner({
       >
         {({ values, setValue }) => (
           <div className="grid w-full gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            <CustomDatePickerField
-              id="fromDate"
-              placeholder="From Date"
-              value={parseLocalDate(values.fromDate)}
-              onChange={(value) => setValue('fromDate', toLocalDateIso(value))}
-              onBlur={() => undefined}
-              required={false}
-              useFormikError={false}
-              styleClasses={{
-                parentDiv: 'grid grid-cols-1 gap-2 items-start',
-                labelClassName: 'text-xs uppercase text-muted-foreground',
-                inputClassName: 'w-full'
-              }}
-            />
-            <CustomDatePickerField
-              id="toDate"
-              placeholder="To Date"
-              value={parseLocalDate(values.toDate)}
-              onChange={(value) => setValue('toDate', toLocalDateIso(value))}
-              onBlur={() => undefined}
-              required={false}
-              useFormikError={false}
-              styleClasses={{
-                parentDiv: 'grid grid-cols-1 gap-2 items-start',
-                labelClassName: 'text-xs uppercase text-muted-foreground',
-                inputClassName: 'w-full'
-              }}
-            />
-            <Combobox
-              label="Department"
-              options={departmentOptions}
-              value={values.department ?? ''}
-              defaultValue=""
-              onChange={(value) => setValue('department', value)}
-              clearable
-              triggerClassName="self-end"
-            />
-            <Combobox
-              label="Unit"
-              options={unitOptions}
-              value={values.unit ?? ''}
-              defaultValue=""
-              onChange={(value) => setValue('unit', value)}
-              clearable
-              triggerClassName="self-end"
-            />
-            <Combobox
-              label="Shift Type"
-              options={shiftTypeOptions}
-              value={values.shiftTypeId ?? ''}
-              defaultValue=""
-              onChange={(value) => setValue('shiftTypeId', value)}
-              clearable
-              triggerClassName="self-end"
-            />
+            <div className="space-y-2">
+              <Label className="text-xs uppercase text-muted-foreground">
+                From Date
+              </Label>
+              <CustomDatePickerField
+                id="fromDate"
+                placeholder="From Date"
+                value={parseLocalDate(values.fromDate)}
+                onChange={(value) =>
+                  setValue('fromDate', toLocalDateIso(value))
+                }
+                onBlur={() => undefined}
+                required={false}
+                useFormikError={false}
+                styleClasses={{
+                  parentDiv: 'grid grid-cols-1 gap-2 items-start',
+                  labelClassName: 'sr-only',
+                  inputClassName: 'w-full'
+                }}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-xs uppercase text-muted-foreground">
+                To Date
+              </Label>
+              <CustomDatePickerField
+                id="toDate"
+                placeholder="To Date"
+                value={parseLocalDate(values.toDate)}
+                onChange={(value) => setValue('toDate', toLocalDateIso(value))}
+                onBlur={() => undefined}
+                required={false}
+                useFormikError={false}
+                styleClasses={{
+                  parentDiv: 'grid grid-cols-1 gap-2 items-start',
+                  labelClassName: 'sr-only',
+                  inputClassName: 'w-full'
+                }}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-xs uppercase text-muted-foreground">
+                Select Department
+              </Label>
+              <Combobox
+                label="Department"
+                options={departmentOptions}
+                value={values.department ?? ''}
+                defaultValue=""
+                onChange={(value) => setValue('department', value)}
+                clearable
+              />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-xs uppercase text-muted-foreground">
+                Select Unit
+              </Label>
+              <Combobox
+                label="Unit"
+                options={unitOptions}
+                value={values.unit ?? ''}
+                defaultValue=""
+                onChange={(value) => setValue('unit', value)}
+                clearable
+              />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-xs uppercase text-muted-foreground">
+                Select Shift Type
+              </Label>
+              <Combobox
+                label="Shift Type"
+                options={shiftTypeOptions}
+                value={values.shiftTypeId ?? ''}
+                defaultValue=""
+                onChange={(value) => setValue('shiftTypeId', value)}
+                clearable
+              />
+            </div>
             <div className="space-y-2">
               <Label
                 htmlFor="night-staff-search"
                 className="text-xs uppercase text-muted-foreground"
               >
-                Staff
+                Staff Search
               </Label>
               <div className="relative">
                 <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -158,24 +182,32 @@ function SectionNightFiltersInner({
                 />
               </div>
             </div>
-            <Combobox
-              label="Approval Status"
-              options={statusOptions}
-              value={values.status ?? ''}
-              defaultValue=""
-              onChange={(value) => setValue('status', value)}
-              clearable
-              triggerClassName="self-end"
-            />
-            <Combobox
-              label="Salary Cycle"
-              options={salaryCycleOptions}
-              value={values.salaryCycle ?? ''}
-              defaultValue=""
-              onChange={(value) => setValue('salaryCycle', value)}
-              clearable
-              triggerClassName="self-end"
-            />
+            <div className="space-y-2">
+              <Label className="text-xs uppercase text-muted-foreground">
+                Select Approval Status
+              </Label>
+              <Combobox
+                label="Approval Status"
+                options={statusOptions}
+                value={values.status ?? ''}
+                defaultValue=""
+                onChange={(value) => setValue('status', value)}
+                clearable
+              />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-xs uppercase text-muted-foreground">
+                Select Salary Cycle
+              </Label>
+              <Combobox
+                label="Salary Cycle"
+                options={salaryCycleOptions}
+                value={values.salaryCycle ?? ''}
+                defaultValue=""
+                onChange={(value) => setValue('salaryCycle', value)}
+                clearable
+              />
+            </div>
           </div>
         )}
       </FilterWrapper>

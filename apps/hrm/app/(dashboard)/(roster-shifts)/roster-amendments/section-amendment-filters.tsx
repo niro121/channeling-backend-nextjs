@@ -7,7 +7,8 @@ import {
   Combobox,
   CustomDatePickerField,
   Input,
-  Label
+  Label,
+  Selector
 } from '@archmage/ui';
 import { FilterWrapper } from '@/app/(dashboard)/filter-wrapper';
 import type { RosterFilterOption } from '@/types/roster';
@@ -119,24 +120,32 @@ function SectionAmendmentFiltersInner({
                 />
               </div>
             </div>
-            <Combobox
-              label="Department"
-              options={departmentOptions}
-              value={values.department ?? ''}
-              defaultValue=""
-              onChange={(value) => setValue('department', value)}
-              clearable
-              triggerClassName="self-end"
-            />
-            <Combobox
-              label="Amendment Type"
-              options={typeOptions}
-              value={values.amendmentType ?? ''}
-              defaultValue=""
-              onChange={(value) => setValue('amendmentType', value)}
-              clearable
-              triggerClassName="self-end"
-            />
+            <div className="space-y-2">
+              <Label className="text-xs uppercase text-muted-foreground">
+                Select Department
+              </Label>
+              <Combobox
+                label="Department"
+                options={departmentOptions}
+                value={values.department ?? ''}
+                defaultValue=""
+                onChange={(value) => setValue('department', value)}
+                clearable
+              />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-xs uppercase text-muted-foreground">
+                Select Amendment Type
+              </Label>
+              <Selector
+                label="All Types"
+                options={typeOptions}
+                value={values.amendmentType || '__all__'}
+                defaultValue="__all__"
+                onChange={(value) => setValue('amendmentType', value)}
+                className={{ trigger: 'w-full font-normal' }}
+              />
+            </div>
             <CustomDatePickerField
               id="fromDate"
               placeholder="From Date"
@@ -165,24 +174,32 @@ function SectionAmendmentFiltersInner({
                 inputClassName: 'w-full'
               }}
             />
-            <Combobox
-              label="Approval Status"
-              options={statusOptions}
-              value={values.status ?? ''}
-              defaultValue=""
-              onChange={(value) => setValue('status', value)}
-              clearable
-              triggerClassName="self-end"
-            />
-            <Combobox
-              label="Requested By"
-              options={requesterOptions}
-              value={values.requestedById ?? ''}
-              defaultValue=""
-              onChange={(value) => setValue('requestedById', value)}
-              clearable
-              triggerClassName="self-end"
-            />
+            <div className="space-y-2">
+              <Label className="text-xs uppercase text-muted-foreground">
+                Select Approval Status
+              </Label>
+              <Selector
+                label="All Statuses"
+                options={statusOptions}
+                value={values.status || '__all__'}
+                defaultValue="__all__"
+                onChange={(value) => setValue('status', value)}
+                className={{ trigger: 'w-full font-normal' }}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-xs uppercase text-muted-foreground">
+                Select Requested By
+              </Label>
+              <Combobox
+                label="Requested By"
+                options={requesterOptions}
+                value={values.requestedById ?? ''}
+                defaultValue=""
+                onChange={(value) => setValue('requestedById', value)}
+                clearable
+              />
+            </div>
           </div>
         )}
       </FilterWrapper>

@@ -503,8 +503,11 @@ model StaffShiftAssignment {
   autoAssign         Boolean   @default(true)
   status             String    @default("active") // active | pending | inactive
 
-  staff        Staff         @relation(fields: [staffId], references: [id])
-  shiftType    ShiftType     @relation(fields: [shiftTypeId], references: [id])
+  /// INT-H9 belt-and-suspenders: Prisma Client emulates Restrict (Mongo has no FK).
+  /// Service-layer assertStaffDeletable remains the product-facing guard.
+  staff        Staff         @relation(fields: [staffId], references: [id], onDelete: Restrict)
+  /// Shift Types delete guard: paired with assertShiftTypeDeletable (service UX).
+  shiftType    ShiftType     @relation(fields: [shiftTypeId], references: [id], onDelete: Restrict)
   manageRoster ManageRoster? @relation(fields: [manageRosterId], references: [id])
   rosterAllocations RosterAllocation[]
 
@@ -605,12 +608,17 @@ model RosterAllocation {
   sendToPayroll     Boolean  @default(false)
 
   shiftRoster ShiftRoster       @relation(fields: [shiftRosterId], references: [id])
-  staff       Staff             @relation(fields: [staffId], references: [id])
-  shiftType   ShiftType         @relation(fields: [shiftTypeId], references: [id])
+  /// INT-H9 belt-and-suspenders: Prisma Client emulates Restrict (Mongo has no FK).
+  staff       Staff             @relation(fields: [staffId], references: [id], onDelete: Restrict)
+  /// Shift Types delete guard: paired with assertShiftTypeDeletable (service UX).
+  shiftType   ShiftType         @relation(fields: [shiftTypeId], references: [id], onDelete: Restrict)
   holiday     HolidayCalendar?  @relation(fields: [holidayId], references: [id])
-  dutyLocationDepartment Department? @relation(fields: [dutyLocationDepartmentId], references: [id])
-  dutyZone    Zone?             @relation(fields: [dutyZoneId], references: [id])
-  dutyRoom    Room?             @relation(fields: [dutyRoomId], references: [id])
+  /// Place delete guard: paired with assertDepartmentDeletable (service UX).
+  dutyLocationDepartment Department? @relation(fields: [dutyLocationDepartmentId], references: [id], onDelete: Restrict)
+  /// Place delete guard: paired with assertZoneDeletable (service UX).
+  dutyZone    Zone?             @relation(fields: [dutyZoneId], references: [id], onDelete: Restrict)
+  /// Place delete guard: paired with assertRoomDeletable (service UX).
+  dutyRoom    Room?             @relation(fields: [dutyRoomId], references: [id], onDelete: Restrict)
   staffShiftAssignment StaffShiftAssignment? @relation(fields: [staffShiftAssignmentId], references: [id])
 
   createdAt DateTime @default(now())
@@ -650,7 +658,11 @@ model RosterAmendment {
   amendedShiftLabel    String    @default("")
   swapStaffId          String?   @db.ObjectId
   swapStaffName        String    @default("")
+  /// Display snapshot; FKs below are source of truth for location_change.
   dutyLocation         String    @default("")
+  dutyLocationDepartmentId String? @db.ObjectId
+  dutyZoneId           String?   @db.ObjectId
+  dutyRoomId           String?   @db.ObjectId
   reason               String    @default("")
   remarks              String    @default("")
   requestedById        String?   @db.ObjectId
@@ -660,8 +672,15 @@ model RosterAmendment {
   status               String    @default("pending_approval") // draft | pending_approval | approved | rejected
 
   staff              Staff      @relation(fields: [staffId], references: [id])
-  originalShiftType  ShiftType  @relation("AmendmentOriginalShift", fields: [originalShiftTypeId], references: [id])
-  amendedShiftType   ShiftType? @relation("AmendmentAmendedShift", fields: [amendedShiftTypeId], references: [id])
+  /// Shift Types delete guard: paired with assertShiftTypeDeletable (service UX).
+  originalShiftType  ShiftType  @relation("AmendmentOriginalShift", fields: [originalShiftTypeId], references: [id], onDelete: Restrict)
+  amendedShiftType   ShiftType? @relation("AmendmentAmendedShift", fields: [amendedShiftTypeId], references: [id], onDelete: Restrict)
+  /// Place delete guard: paired with assertDepartmentDeletable (service UX).
+  dutyLocationDepartment Department? @relation(fields: [dutyLocationDepartmentId], references: [id], onDelete: Restrict)
+  /// Place delete guard: paired with assertZoneDeletable (service UX).
+  dutyZone           Zone?      @relation(fields: [dutyZoneId], references: [id], onDelete: Restrict)
+  /// Place delete guard: paired with assertRoomDeletable (service UX).
+  dutyRoom           Room?      @relation(fields: [dutyRoomId], references: [id], onDelete: Restrict)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -673,6 +692,9 @@ model RosterAmendment {
   @@index([status])
   @@index([amendmentType])
   @@index([createdAt(sort: Desc)])
+  @@index([dutyLocationDepartmentId])
+  @@index([dutyZoneId])
+  @@index([dutyRoomId])
 }
 
 /* ---------------------------------
@@ -756,7 +778,8 @@ model ManageRoster {
   departmentId          String @db.ObjectId // Department master (many rosters per department allowed)
   shiftsPerPersonPerDay Int // >= 1
 
-  department       Department             @relation(fields: [departmentId], references: [id])
+  /// Place delete guard: paired with assertDepartmentDeletable (service UX).
+  department       Department             @relation(fields: [departmentId], references: [id], onDelete: Restrict)
   shiftAssignments StaffShiftAssignment[]
 
   createdAt DateTime @default(now())
@@ -1184,6 +1207,9 @@ model Location {
   color           String?
   migrateSourceId String? // Channeling Location.id
 
+  zones Zone[]
+  rooms Room[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   createdBy String?  @db.ObjectId
@@ -1208,6 +1234,7 @@ model Department {
   jobPosts        JobPost[]
   manageRosters   ManageRoster[]
   rosterAllocations RosterAllocation[]
+  rosterAmendments RosterAmendment[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1232,7 +1259,10 @@ model Zone {
   status          Int     @default(1)
   migrateSourceId String? // Channeling Zone.id
 
+  location Location @relation(fields: [locationId], references: [id], onDelete: Restrict)
+
   rosterAllocations RosterAllocation[]
+  rosterAmendments RosterAmendment[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1261,7 +1291,10 @@ model Room {
   status          Int     @default(1)
   migrateSourceId String? // Channeling Room.id
 
+  location Location @relation(fields: [locationId], references: [id], onDelete: Restrict)
+
   rosterAllocations RosterAllocation[]
+  rosterAmendments RosterAmendment[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1489,7 +1522,8 @@ model VacancyRequest {
   linkedJobPost   Boolean @default(false)
   linkedJobPostId String? @db.ObjectId
 
-  department  Department  @relation(fields: [departmentId], references: [id])
+  /// Place delete guard: paired with assertDepartmentDeletable (service UX).
+  department  Department  @relation(fields: [departmentId], references: [id], onDelete: Restrict)
   designation Designation @relation(fields: [designationId], references: [id])
 
   createdAt DateTime @default(now())
@@ -1563,7 +1597,8 @@ model JobPost {
   applicationsCount Int @default(0)
 
   designation  Designation   @relation(fields: [designationId], references: [id])
-  department   Department?   @relation(fields: [departmentId], references: [id])
+  /// Place delete guard: paired with assertDepartmentDeletable (service UX).
+  department   Department?   @relation(fields: [departmentId], references: [id], onDelete: Restrict)
   applications Application[]
 
   createdAt DateTime @default(now())

@@ -1092,7 +1092,7 @@ apps/hrm/
 | **R9 — Summary counts** | Assigned staff count (match `employment.roster` → code); active standing assignment count | **Done** — INT-R6 (+ active assignment count) |
 | **R10 — Inspect dialogs** | Click **Active shifts** / **# Assigned staff** → CustomDialog with staff/assignment tables (read-only) | **Done** — INT-R10 |
 
-**R0–R10 (+ R6b) shipped** for Manage Rosters. Remaining roster hardening: **§32 INT-H8–H9**. Do not reopen Manage Rosters CRUD unless product asks.
+**R0–R10 (+ R6b) shipped** for Manage Rosters. Post-review **INT-H1–H9** done (§32). Do not reopen Manage Rosters CRUD unless product asks.
 
 ---
 
@@ -1212,7 +1212,7 @@ Track candidates here until each module gets its own detailed section.
 4. ~~**INT-H1–H7** — post-review hardening (below).~~ **Done**
 5. ~~**INT-R4 / R8** — Enforce shifts-per-person-per-day on allocate / fill / publish.~~ **Done**
 6. ~~**INT-L2** — Leave soft-warn + Continue on allocate / fill / publish.~~ **Done**
-7. **INT-H8–H9** — concurrency / staff delete guards
+7. ~~**INT-H8–H9** — concurrency / staff delete guards.~~ **Done**
 
 Do **not** merge sidebar groups. Do **not** change `ShiftRoster` period identity (`SR-n`). Details for Roster implementers: `ROSTER_SHIFTS_MANAGER_GUIDE.md` §1.1. Staff Employment: `STAFF_MANAGER_GUIDE.md` §7.
 
@@ -1231,8 +1231,8 @@ UI behaviour for Employment / Change Staff / Manage Rosters / Shift Assignment i
 | **INT-H7** | Overlap ignores `inactive` standing rows; `active` + `pending` still block | Shift Assignment | Should | **Done** |
 | **INT-R4** | Enforce `shiftsPerPersonPerDay` on allocate / fill / publish (full calendar day); not on standing-assignment create | Roster calendars (R8) | Later | **Done** |
 | **INT-L2** | Leave soft-warn + Continue on allocate / fill / publish when staff has leave that calendar day; not on standing Shift Assignment | Roster calendars + Leave | Later | **Done** |
-| **INT-H8** | Overlap / in-use check-then-write races (unique constraint or tighter transactional pattern if Mongo allows) | Shift Assignment / Manage Rosters | Later | TODO |
-| **INT-H9** | Staff delete guards when standing assignments / allocations exist | Staff | Later | TODO |
+| **INT-H8** | Overlap / in-use check-then-write races (unique constraint or tighter transactional pattern if Mongo allows) | Shift Assignment / Manage Rosters | Later | **Done** — overlap re-check immediately before create/update write (Mongo standalone cannot use interactive txn for range-unique) |
+| **INT-H9** | Staff delete guards when standing assignments / allocations exist | Staff | Later | **Done** — service refuse + schema `onDelete: Restrict` on `StaffShiftAssignment` / `RosterAllocation` → Staff (Prisma-emulated on Mongo) |
 
 **Checklist (copy into sprint):**
 
@@ -1245,8 +1245,8 @@ UI behaviour for Employment / Change Staff / Manage Rosters / Shift Assignment i
 - [x] **INT-H7** — Overlap ignores `inactive`; `active`/`pending` still block
 - [x] **INT-R4 / R8** — Day-limit on allocate / publish
 - [x] **INT-L2** — Leave soft-warn + Continue on allocate / fill / publish (not standing assignment)
-- [ ] **INT-H8** — Concurrent overlap / in-use races
-- [ ] **INT-H9** — Staff delete guards
+- [x] **INT-H8** — Concurrent overlap / in-use races (pre-write overlap re-check)
+- [x] **INT-H9** — Staff delete guards
 
 
 
@@ -1789,4 +1789,4 @@ Server re-checks hard blocks on apply; soft warns require `acknowledgedWarnings:
 
 ---
 
-*Last updated: Nov 2026 — INT-H1–H7 / INT-R4 / INT-L2 done; remaining INT-H8–H9 in §32.*
+*Last updated: Nov 2026 — INT-H1–H9 / INT-R4 / INT-L2 done.*

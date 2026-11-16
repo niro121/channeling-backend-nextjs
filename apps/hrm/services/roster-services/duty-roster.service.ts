@@ -533,7 +533,7 @@ export async function getDutyRosterFormOptions(): Promise<{
   error?: { message?: string };
 }> {
   try {
-    const [staffRecords, shiftTypes, departments, zones, rooms] =
+    const [staffRecords, shiftTypes, departments, locations, zones, rooms] =
       await Promise.all([
         prisma.staff.findMany({
           where: { status: 1 },
@@ -568,6 +568,11 @@ export async function getDutyRosterFormOptions(): Promise<{
           where: { status: 1 },
           orderBy: { name: 'asc' },
           select: { id: true, name: true, institution: true }
+        }),
+        prisma.location.findMany({
+          where: { status: 1 },
+          orderBy: [{ order: 'asc' }, { name: 'asc' }],
+          select: { id: true, name: true, code: true }
         }),
         prisma.zone.findMany({
           where: { status: 1 },
@@ -662,6 +667,10 @@ export async function getDutyRosterFormOptions(): Promise<{
           id: d.id,
           name: d.name,
           institutionId: String(d.institution)
+        })),
+        locations: locations.map((loc) => ({
+          id: loc.id,
+          name: loc.code ? `${loc.code} — ${loc.name}` : loc.name
         })),
         zones: zones.map((z) => ({
           id: z.id,

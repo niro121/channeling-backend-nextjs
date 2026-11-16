@@ -4,20 +4,29 @@ import { revalidatePath } from 'next/cache';
 import { logActivityNonBlocking } from '@/lib/activity-log';
 import { getAuditUser } from '@/lib/audit-user';
 import { requirePermission } from '@/lib/server-permissions';
+import { getRosterLeavePreview } from '@/lib/helpers/roster/leave-roster-soft-warn.helper';
+import { generateAutoAssignDraftCells } from '@/services/roster-services/auto-assign-roster.service';
 import {
   copyPreviousMonthRoster,
   copyPreviousWeekRoster,
+  deleteShiftRosterStaffAllocations,
   fillNewRosterDraft,
   fillOldRosterDraft,
+  getShiftRosterStaffHistory,
   loadRoster,
   publishRoster,
   saveRosterAllocationDraft,
   toggleRosterAllocationLeave
 } from '@/services/roster-services/shift-roster.service';
 import type {
+  DeleteShiftRosterStaffAllocationsPayload,
+  GetRosterLeavePreviewInput,
   LoadRosterParams,
   LoadRosterResult,
+  RosterLeavePreview,
   SaveRosterAllocationDraftPayload,
+  ShiftRosterExportScope,
+  ShiftRosterHistoryEntry,
   ToggleRosterAllocationLeavePayload
 } from '@/types/roster';
 
@@ -28,6 +37,7 @@ type RosterWorkflowPayload = {
   fromDate: string;
   toDate: string;
   acknowledgedWarnings?: boolean;
+  markLeaveOnApprovedLeave?: boolean;
 };
 
 function softAckErrors(error?: {
@@ -78,6 +88,57 @@ export async function loadRosterAction(params: LoadRosterParams): Promise<{
       errors: {
         message: error.message ?? 'Failed to load roster. Please try again.'
       }
+    };
+  }
+}
+
+/** Full (or capped) roster load for Print / Excel / PDF — not paged like the grid. */
+export async function getShiftRosterExportAction(
+  params: LoadRosterParams & { exportScope?: ShiftRosterExportScope }
+): Promise<{
+  success: boolean;
+  message?: string;
+  data: LoadRosterResult | null;
+  totalRecords?: number;
+  exportScope?: ShiftRosterExportScope;
+  limited?: boolean;
+}> {
+  try {
+    await requirePermission('shift-roster', 'view');
+    const exportScope = params.exportScope ?? '500';
+    const result = await loadRoster({
+      ...params,
+      page: '1',
+      exportScope
+    });
+
+    if (!result.success || !result.data) {
+      return {
+        success: false,
+        message: result.error?.message ?? 'Failed to load roster for export',
+        data: null
+      };
+    }
+
+    const totalRecords = result.data.totalRecords;
+    const limited = totalRecords > result.data.rows.length;
+
+    return {
+      success: true,
+      data: result.data,
+      totalRecords,
+      exportScope,
+      limited,
+      message: limited
+        ? `Export includes the first ${result.data.rows.length} of ${totalRecords} staff.`
+        : undefined
+    };
+  } catch (error: any) {
+    console.error('getShiftRosterExportAction error:', error);
+    return {
+      success: false,
+      message: error.message ?? 'Failed to load roster for export',
+      data: null
     };
   }
 }
@@ -194,7 +255,11 @@ export async function fillNewRosterDraftAction(data: RosterWorkflowPayload) {
     const auditUser = await getAuditUser();
     const result = await fillNewRosterDraft(data, auditUser);
     if (!result.success) {
-      throw new Error(result.error?.message ?? 'Failed to prepare draft roster');
+      return {
+        isError: true,
+        data: null,
+        errors: softAckErrors(result.error)
+      };
     }
 
     if (auditUser?.id) {
@@ -203,11 +268,16 @@ export async function fillNewRosterDraftAction(data: RosterWorkflowPayload) {
         action: 'shift.rosterDraft.created',
         entityType: 'ShiftRoster',
         importance: 'medium',
-        metadata: { draftCount: result.data?.draftCount ?? 0, ...data }
+        metadata: {
+          draftCount: result.data?.draftCount ?? 0,
+          created: result.data?.created ?? 0,
+          ...data
+        }
       });
     }
 
     revalidatePath('/shift-roster');
+    revalidatePath('/duty-roster');
     return { isError: false, data: result.data ?? null, errors: {} };
   } catch (error: any) {
     console.error('fillNewRosterDraftAction error:', error);
@@ -215,6 +285,67 @@ export async function fillNewRosterDraftAction(data: RosterWorkflowPayload) {
       isError: true,
       data: null,
       errors: { message: error.message ?? 'Failed to prepare draft roster' }
+    };
+  }
+}
+
+/** Shift Assignment → Auto Assign All (same E1 generator as Fill New). */
+export async function autoAssignRosterDraftAction(data: {
+  fromDate: string;
+  toDate: string;
+  department?: string;
+  unit?: string;
+  roster?: string;
+  assignmentIds?: string[];
+  acknowledgedWarnings?: boolean;
+  markLeaveOnApprovedLeave?: boolean;
+}) {
+  await requirePermission('shift-roster', 'add');
+  try {
+    const auditUser = await getAuditUser();
+    const result = await generateAutoAssignDraftCells(
+      {
+        ...data,
+        strategy: 'fixed'
+      },
+      auditUser
+    );
+
+    if (!result.success) {
+      return {
+        isError: true,
+        data: null,
+        errors: softAckErrors(result.error)
+      };
+    }
+
+    if (auditUser?.id) {
+      logActivityNonBlocking({
+        userId: auditUser.id,
+        action: 'shift.rosterAutoAssign.generated',
+        entityType: 'RosterAllocation',
+        importance: 'medium',
+        metadata: {
+          created: result.data?.created ?? 0,
+          fromDate: data.fromDate,
+          toDate: data.toDate,
+          assignmentCount: data.assignmentIds?.length ?? 0
+        }
+      });
+    }
+
+    revalidatePath('/shift-roster');
+    revalidatePath('/duty-roster');
+    revalidatePath('/shift-assignment');
+    return { isError: false, data: result.data ?? null, errors: {} };
+  } catch (error: any) {
+    console.error('autoAssignRosterDraftAction error:', error);
+    return {
+      isError: true,
+      data: null,
+      errors: {
+        message: error.message ?? 'Failed to auto-assign draft cells'
+      }
     };
   }
 }
@@ -337,6 +468,150 @@ export async function fillOldRosterDraftAction(data: RosterWorkflowPayload) {
       isError: true,
       data: null,
       errors: { message: error.message ?? 'Failed to fill old roster draft' }
+    };
+  }
+}
+
+/** Live INT-L2 leave hint for duty-writing sheets (Allocate / Duty / Night / …). */
+export async function getRosterLeavePreviewAction(
+  input: GetRosterLeavePreviewInput
+): Promise<{
+  isError: boolean;
+  data: RosterLeavePreview | null;
+  errors: Record<string, string | undefined>;
+}> {
+  try {
+    await requirePermission('shift-roster', 'view');
+    if (!input.staffId?.trim() || !input.date) {
+      return {
+        isError: false,
+        data: { hasLeave: false, message: '', details: [] },
+        errors: {}
+      };
+    }
+    const date =
+      typeof input.date === 'string' ? new Date(input.date) : input.date;
+    if (Number.isNaN(date.getTime())) {
+      return {
+        isError: false,
+        data: { hasLeave: false, message: '', details: [] },
+        errors: {}
+      };
+    }
+    const data = await getRosterLeavePreview({
+      staffId: input.staffId,
+      date,
+      startTime: input.startTime,
+      endTime: input.endTime,
+      staffLabel: input.staffLabel
+    });
+    return { isError: false, data, errors: {} };
+  } catch (error: any) {
+    console.error('getRosterLeavePreviewAction error:', error);
+    return {
+      isError: true,
+      data: null,
+      errors: {
+        message: error.message ?? 'Failed to preview leave overlap'
+      }
+    };
+  }
+}
+
+export async function deleteShiftRosterStaffAllocationsAction(
+  data: DeleteShiftRosterStaffAllocationsPayload & {
+    staffName?: string;
+    staffCode?: string;
+  }
+) {
+  await requirePermission('shift-roster', 'delete');
+  try {
+    const auditUser = await getAuditUser();
+    const result = await deleteShiftRosterStaffAllocations(data, auditUser);
+
+    if (!result.success) {
+      return {
+        isError: true,
+        data: {},
+        errors: {
+          message:
+            result.error?.message ??
+            'Something went wrong. Please try again later'
+        }
+      };
+    }
+
+    if (auditUser?.id) {
+      for (const entityId of result.data?.deletedIds ?? []) {
+        logActivityNonBlocking({
+          userId: auditUser.id,
+          action: 'shift.rosterAllocation.deleted',
+          entityType: 'RosterAllocation',
+          entityId,
+          importance: 'high',
+          metadata: {
+            staffId: data.staffId,
+            staffName: data.staffName,
+            staffCode: data.staffCode,
+            fromDate: data.fromDate,
+            toDate: data.toDate
+          }
+        });
+      }
+    }
+
+    revalidatePath('/shift-roster');
+    revalidatePath('/duty-roster');
+    return {
+      isError: false,
+      data: {
+        deleted: true,
+        deletedCount: result.data?.deletedCount ?? 0,
+        skippedLockedCount: result.data?.skippedLockedCount ?? 0,
+        message: result.message
+      },
+      errors: {}
+    };
+  } catch (error: any) {
+    console.error('deleteShiftRosterStaffAllocationsAction error:', error);
+    return {
+      isError: true,
+      data: null,
+      errors: {
+        message: error.message ?? 'Something went wrong. Please try again later'
+      }
+    };
+  }
+}
+
+export async function getShiftRosterStaffHistoryAction(
+  allocationIds: string[]
+): Promise<{
+  isError: boolean;
+  data: ShiftRosterHistoryEntry[] | null;
+  errors: Record<string, string | undefined>;
+}> {
+  try {
+    await requirePermission('shift-roster', 'view');
+    const result = await getShiftRosterStaffHistory(allocationIds);
+    if (!result.success) {
+      throw new Error(
+        result.error?.message ?? 'Unable to fetch shift roster history.'
+      );
+    }
+    return {
+      isError: false,
+      data: result.data ?? [],
+      errors: {}
+    };
+  } catch (error: any) {
+    console.error('getShiftRosterStaffHistoryAction error:', error);
+    return {
+      isError: true,
+      data: null,
+      errors: {
+        message: error.message ?? 'Unable to fetch shift roster history.'
+      }
     };
   }
 }

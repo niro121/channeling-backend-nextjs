@@ -36,7 +36,8 @@ export function nightShiftRecordToFormValues(
 }
 
 export function nightShiftFormValuesToPayload(
-  values: NightShiftFormValues
+  values: NightShiftFormValues,
+  options?: { acknowledgedWarnings?: boolean }
 ): NightShiftPayload {
   return {
     staffId: values.staffId,
@@ -47,7 +48,8 @@ export function nightShiftFormValuesToPayload(
     nightAllowance: parseNumber(values.nightAllowance),
     mealAllowance: parseNumber(values.mealAllowance),
     sendToPayroll: values.sendToPayroll,
-    remarks: values.remarks || null
+    remarks: values.remarks || null,
+    acknowledgedWarnings: options?.acknowledgedWarnings
   };
 }
 
