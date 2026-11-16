@@ -777,6 +777,8 @@ export type DutyRosterFormOptions = {
   shiftTypes: DutyRosterShiftOption[];
   supervisors: RosterFilterOption[];
   departments: DutyRosterDepartmentOption[];
+  /** Published locations — UI cascade only; not stored on RosterAllocation. */
+  locations: RosterFilterOption[];
   zones: DutyRosterZoneOption[];
   rooms: DutyRosterRoomOption[];
 };
@@ -980,6 +982,8 @@ export type RosterAmendmentFormOptions = {
   statuses: RosterFilterOption[];
   requesters: RosterFilterOption[];
   departments: DutyRosterDepartmentOption[];
+  /** Published locations — UI cascade only; not stored on amendment. */
+  locations: RosterFilterOption[];
   zones: DutyRosterZoneOption[];
   rooms: DutyRosterRoomOption[];
 };
@@ -1498,6 +1502,8 @@ export type PublicHolidayShiftFormOptions = {
   })[];
   /** Published departments; filter client-side by staff institutionId. */
   departments: (RosterFilterOption & { institutionId: string })[];
+  /** Published locations — UI cascade only; not stored on holiday allocation. */
+  locations: RosterFilterOption[];
   zones: DutyRosterZoneOption[];
   rooms: DutyRosterRoomOption[];
   payRates: RosterFilterOption[];

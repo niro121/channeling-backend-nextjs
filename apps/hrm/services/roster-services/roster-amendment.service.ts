@@ -764,6 +764,7 @@ export async function getRosterAmendmentFormOptions(): Promise<{
       users,
       replacementStaffRecords,
       departments,
+      locations,
       zones,
       rooms
     ] = await Promise.all([
@@ -819,6 +820,11 @@ export async function getRosterAmendmentFormOptions(): Promise<{
         where: { status: 1 },
         orderBy: { name: 'asc' },
         select: { id: true, name: true, institution: true }
+      }),
+      prisma.location.findMany({
+        where: { status: 1 },
+        orderBy: [{ order: 'asc' }, { name: 'asc' }],
+        select: { id: true, name: true, code: true }
       }),
       prisma.zone.findMany({
         where: { status: 1 },
@@ -949,6 +955,10 @@ export async function getRosterAmendmentFormOptions(): Promise<{
           id: d.id,
           name: d.name,
           institutionId: String(d.institution)
+        })),
+        locations: locations.map((loc) => ({
+          id: loc.id,
+          name: loc.code ? `${loc.code} — ${loc.name}` : loc.name
         })),
         zones: zones.map((z) => ({
           id: z.id,

@@ -37,7 +37,7 @@ Pages must not call Prisma. No business rules in components. Remaining work is m
 - Overnight Shifts: **`CommonDataTable`**; header Add + Recalculate Splits (live); table-only Print/PDF/Excel
 - Overnight Shifts: Auto Split at midnight; attendance allocation Start/End date; Status includes Amended
 - Public Holiday Shifts: **`CommonDataTable`**; header Add + Bulk Assign Holiday Duty (≥1 selected); table-only Print/PDF/Excel
-- Public Holiday Shifts: Holiday → Type + Duty Date; Shift → Worked Hours; Staff Combobox; duty place = working-dept switch + Duty Department / Zone / Unit–Room (Duty-parity, own FKs)
+- Public Holiday Shifts: Holiday → Type + Duty Date; Shift → Worked Hours; Staff Combobox; duty place = working-dept switch + Duty Department / optional Location → Zone / Unit–Room cascade (Duty-parity, own FKs; Location UI-only)
 - Public Holiday Shifts: conflict strip (same shift type / day limit hard-block; other duties info); leave soft-warn Continue via `acknowledgedWarnings`
 - Public Holiday Shifts: Pay Rate badges 1.50x / 2.00x / 2.50x; Lieu Leave Yes/No; Send to Payroll on form only; filter Status uses Selector
 - Public Holiday Shifts status: Draft / Pending Approval / Approved / Rejected / Amended; new defaults to Pending Approval
@@ -594,7 +594,7 @@ Field behaviour (locked):
 - **Start / End** auto from Shift Type / assignment (disabled).
 - **Duty department***: switch **Use staff working department** (default on). Off → department combobox scoped to staff institution. Persists `dutyLocationDepartmentId` (+ name snapshot).
 - **Deep-link:** `/duty-roster?dutyDate=&staffId=&allocationId=` (from Night / Overnight edit notes) filters the list and auto-opens Edit when the allocation is present.
-- **Zone** / **Unit–Room** optional (`dutyZoneId` / `dutyRoomId`).
+- **Location** (optional UI filter) → **Zone** / **Unit–Room** cascade. Location is not stored on the allocation; only `dutyZoneId` / `dutyRoomId` persist. Zone options narrow by selected Location; picking a Zone auto-fills Location from the zone master.
 - **Supervisor** staff combobox (excludes duty staff).
 - Persist `allocationSource` (`standing` \| `adhoc`) + optional `staffShiftAssignmentId`.
 - Status follows allocation / period (Draft / Published / Amended). INT-R4 / INT-L2 / weekly-off soft warn still apply on save.
@@ -675,7 +675,7 @@ Field behaviour (locked — **type-driven form**):
   - **Shift Swap** → **Published Duty** for primary + **Swap With Duty** Combobox (other published/amended duties that day; stores partner `staffId` + partner shift in `amendedShiftTypeId`); dual cards
   - **Staff Replacement** → **Published Duty** + Replacement Staff Combobox (**free that day only**; same shift kept); dual cards
   - **Duty Cancellation** → **Shift to Cancel** Combobox (`originalShiftTypeId`); summary card; Approve deletes that specific cell
-  - **Location Change** → **Published Duty** + Duty Department / optional Zone / Unit–Room; Approve writes FKs + name snapshot
+  - **Location Change** → **Published Duty** + Duty Department / optional Location → Zone / Unit–Room cascade; Approve writes Zone/Room FKs + dept name snapshot (no allocation `locationId`)
   - **Extra Duty** → Amended Shift; published cell optional; conflict strip (same type / INT-R4)
 - **INT-L2** leave + weekly-off soft warn + Continue (`acknowledgedWarnings`) on create/update **and header Approve**; Swap checks both staff; Replacement checks incoming partner too.
 - **Requested By** select.
@@ -896,7 +896,7 @@ Field behaviour (locked):
 - Layout: Holiday (full) → Holiday Type | Duty Date → Staff | Shift → remaining fields.
 - Holiday selection auto-fills **Holiday Type** and **Duty Date** (both read-only cards from Holiday Calendar). Server derives allocation date from the holiday; client `dutyDate` is ignored.
 - Shift auto-fills **Worked Hours** (editable). Staff is a **Combobox**. Working Location (institution) is read-only.
-- **Duty place (Duty-parity):** switch **Use staff working department** (default on). Off → **Duty Department** Combobox scoped to staff institution. Optional **Zone** / **Unit–Room** Comboboxes. Persist `dutyLocationDepartmentId` (+ name in `dutyLocation`), `dutyZoneId`, `dutyRoomId`.
+- **Duty place (Duty-parity):** switch **Use staff working department** (default on). Off → **Duty Department** Combobox scoped to staff institution. Optional **Location** → **Zone** / **Unit–Room** cascade (Location UI-only). Persist `dutyLocationDepartmentId` (+ name in `dutyLocation`), `dutyZoneId`, `dutyRoomId`.
 - **Conflict strip:** live preview on staff + holiday date + shift — hard-block same shift type / INT-R4 day limit; info when other duties exist that day. Leave soft warn + Continue via `acknowledgedWarnings`.
 - **Bulk Assign:** requires ≥1 selected register rows; unique `staffIds` from selection; one create per staff via `bulkCreatePublicHolidayShifts`. Soft leave/weekly-off preflight + Continue; hard skip same shift type / day limit; working-dept switch applies per staff (or one shared place when off). Toast created + skipped counts.
 - Filter **Approval Status** uses **Selector** (constant list).
@@ -1741,7 +1741,7 @@ Canonical table: `HR_ADMINISTRATION_GUIDE.md` §32 (**INT-H***). Roster & Shifts
 
 ## 11. Remaining completion — module-wise (Roster & Shifts group)
 
-Snapshot of what is still open vs largely done across the eight screens. **Shift Types**, **Shift Assignment**, **Duty Roster**, **Night**, **Overnight**, **Amendments**, and **Public Holiday (D11)** are complete in Roster & Shifts. **Shift Roster** A–E1 + View + master filters + Create Fixed Option B done; Dept/Zone/Room delete Restrict done. Remaining Phase F: OT read (parked). **INT-H8 / INT-H9** are done.
+Snapshot of what is still open vs largely done across the eight screens. **Shift Types**, **Shift Assignment**, **Duty Roster**, **Night**, **Overnight**, **Amendments**, and **Public Holiday (D11)** are complete in Roster & Shifts. **Shift Roster** A–E1 + View + master filters + Create Fixed Option B done; Dept/Zone/Room/Location delete Restrict done; optional Location → Zone → Room cascade on duty-place forms done. Remaining Phase F: OT read (parked). **INT-H8 / INT-H9** are done.
 
 ### Already done (do not re-open as “remaining”)
 
@@ -1785,7 +1785,7 @@ Operational Load / allocate draft / publish / fill / copy / View / Auto Assign (
 | **C** | Output & views | **Done** — Print blank/filled via `getShiftRosterExportAction` + `buildShiftRosterExport` + `printPdfUtil`; grid Print / Excel / PDF; export scope dialog (first 100 / 500 / all matching filters); Monthly View sets URL `fromDate`/`toDate` to calendar month then reloads grid |
 | **D** | Advanced planning | **Done** — drag persist (draft-only); conflict detail card; Create Fixed Roster Option B (wizard → E1) |
 | **E** | Auto Assign / rotation | **Done (E1)** — shared `generateAutoAssignDraftCells` (`auto-assign-roster.service`); Fixed + `autoAssign=true` + status **active**; empty days only; leave/weekly-off soft warn + Continue; Fill New + Auto Assign All both call it; Assignment UI disables Auto Assign when pattern ≠ Fixed |
-| **F** | Shared / external | Guide cleanup (**done**); Shift Roster Dept / Unit (Room) / Designation / Grade master filters (**done**); Dept/Zone/Room delete Restrict + asserts (**done**); Create Fixed Roster Option B (**done**); OT Process Staff Shift read (parked until Overtime ready) |
+| **F** | Shared / external | Guide cleanup (**done**); Shift Roster Dept / Unit (Room) / Designation / Grade master filters (**done**); Dept/Zone/Room/Location delete Restrict + asserts (**done**); optional Location → Zone → Room cascade on Duty / Allocate / PH / Amendment location_change (**done**); Create Fixed Roster Option B (**done**); OT Process Staff Shift read (parked until Overtime ready) |
 
 **Still deferred**
 
@@ -1810,7 +1810,8 @@ Operational Load / allocate draft / publish / fill / copy / View / Auto Assign (
 | Auto Assign / Fill from standing rotation (`autoAssign`) | **Done (E1 Fixed)** — E2/E3 later |
 | Overtime **Process Staff Shift** reads published roster cells | Overtime Manager (Phase F — parked) |
 | Dept / Unit (Room) / Designation / Grade filter options from masters | **Done** on Shift Roster |
-| Dept / Zone / Room delete Restrict + asserts | **Done** — schema `onDelete: Restrict` + `assertDepartmentDeletable` / Zone / Room (also blocks Manage Roster, vacancy, job post, rooms-under-zone) |
+| Dept / Zone / Room / Location delete Restrict + asserts | **Done** — schema `onDelete: Restrict` + `assertDepartmentDeletable` / Zone / Room / Location (also blocks Manage Roster, vacancy, job post, rooms-under-zone, zones/rooms-under-location) |
+| Location → Zone → Room cascade | **Done** — optional Location Combobox on Duty / Shift Allocate / PH / Amendment location_change; Location not stored on RosterAllocation |
 
 ### 11.2 Shift Types — `/shift-types` ✅
 
@@ -1900,7 +1901,7 @@ Operational Load / allocate draft / publish / fill / copy / View / Auto Assign (
 
 | Status | Notes |
 |--------|--------|
-| **Complete** | Live register on holiday dates; Status Selector; Staff Combobox; Duty-parity place (working-dept switch + Zone / Unit–Room); conflict strip (same type / INT-R4); leave/weekly-off soft warn; Bulk Assign per selected staff (skip same type / day limit); published lock; export; lieu / send-to-payroll **flags only** |
+| **Complete** | Live register on holiday dates; Status Selector; Staff Combobox; Duty-parity place (working-dept switch + Location → Zone / Unit–Room cascade); conflict strip (same type / INT-R4); leave/weekly-off soft warn; Bulk Assign per selected staff (skip same type / day limit); published lock; export; lieu / send-to-payroll **flags only** |
 
 **Nothing left inside Roster & Shifts for this screen.** Remaining items are owned elsewhere:
 
@@ -1928,4 +1929,4 @@ Operational Load / allocate draft / publish / fill / copy / View / Auto Assign (
 | HR Admin **Manage Shifts** | §11.2 Shift Types (**not required**) |
 | Multi-step approval | §11.5 Roster Amendments (**not** in v1) |
 
-*Last updated: Nov 2026 — Shift Roster A–E1 + View + guide cleanup + master filters + Dept/Zone/Room Restrict + Create Fixed Roster Option B done. Remaining Phase F: OT Process Staff Shift read (after Overtime).*
+*Last updated: Nov 2026 — Shift Roster A–E1 + View + guide cleanup + master filters + Dept/Zone/Room/Location Restrict + Location cascade + Create Fixed Roster Option B done. Remaining Phase F: OT Process Staff Shift read (after Overtime).*

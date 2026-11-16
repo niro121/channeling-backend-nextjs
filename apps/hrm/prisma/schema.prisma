@@ -1207,6 +1207,9 @@ model Location {
   color           String?
   migrateSourceId String? // Channeling Location.id
 
+  zones Zone[]
+  rooms Room[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   createdBy String?  @db.ObjectId
@@ -1256,6 +1259,8 @@ model Zone {
   status          Int     @default(1)
   migrateSourceId String? // Channeling Zone.id
 
+  location Location @relation(fields: [locationId], references: [id], onDelete: Restrict)
+
   rosterAllocations RosterAllocation[]
   rosterAmendments RosterAmendment[]
 
@@ -1285,6 +1290,8 @@ model Room {
   /** 0 = unpublish, 1 = publish */
   status          Int     @default(1)
   migrateSourceId String? // Channeling Room.id
+
+  location Location @relation(fields: [locationId], references: [id], onDelete: Restrict)
 
   rosterAllocations RosterAllocation[]
   rosterAmendments RosterAmendment[]

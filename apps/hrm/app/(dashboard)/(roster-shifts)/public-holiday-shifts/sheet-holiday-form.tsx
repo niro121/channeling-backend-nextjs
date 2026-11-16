@@ -22,6 +22,7 @@ import {
   useToast
 } from '@archmage/ui';
 import { formatAuditDateTime } from '@/lib/utils/date';
+import { DutyPlaceCascadeFields } from '@/components/roster/duty-place-cascade-fields';
 import { RosterLeaveHint } from '@/components/roster/leave-application-hint';
 import {
   holidayRecordToFormValues,
@@ -241,6 +242,7 @@ export default function SheetHolidayForm({
   const shifts = formOptions?.shifts ?? [];
   const staffList = formOptions?.staff ?? [];
   const departments = formOptions?.departments ?? [];
+  const locations = formOptions?.locations ?? [];
   const zones = formOptions?.zones ?? [];
   const rooms = formOptions?.rooms ?? [];
   const payRates = formOptions?.payRates ?? [];
@@ -475,10 +477,6 @@ export default function SheetHolidayForm({
                 }
               }
 
-              const roomOptions = formik.values.dutyZoneId
-                ? rooms.filter((r) => r.zoneId === formik.values.dutyZoneId)
-                : rooms;
-
               return (
                 <Form className="flex min-h-0 flex-1 flex-col">
                   <AutoHoliday
@@ -698,45 +696,20 @@ export default function SheetHolidayForm({
                           />
                         </div>
                       </div>
-                      <div className={fieldStyleClasses.parentDiv}>
-                        <Label className={fieldStyleClasses.labelClassName}>
-                          Zone
-                        </Label>
-                        <div className={fieldStyleClasses.inputClassName}>
-                          <Combobox
-                            label="Select zone"
-                            options={zones}
-                            value={formik.values.dutyZoneId}
-                            defaultValue=""
-                            clearable
-                            triggerClassName="w-full max-w-none font-normal!"
-                            popoverClassName="w-[var(--radix-popover-trigger-width)] min-w-60"
-                            onChange={(value) => {
-                              void formik.setFieldValue('dutyZoneId', value);
-                              void formik.setFieldValue('dutyRoomId', '');
-                            }}
-                          />
-                        </div>
-                      </div>
-                      <div className={fieldStyleClasses.parentDiv}>
-                        <Label className={fieldStyleClasses.labelClassName}>
-                          Unit / Room
-                        </Label>
-                        <div className={fieldStyleClasses.inputClassName}>
-                          <Combobox
-                            label="Select unit / room"
-                            options={roomOptions}
-                            value={formik.values.dutyRoomId}
-                            defaultValue=""
-                            clearable
-                            triggerClassName="w-full max-w-none font-normal!"
-                            popoverClassName="w-[var(--radix-popover-trigger-width)] min-w-60"
-                            onChange={(value) =>
-                              formik.setFieldValue('dutyRoomId', value)
-                            }
-                          />
-                        </div>
-                      </div>
+                      <DutyPlaceCascadeFields
+                        locations={locations}
+                        zones={zones}
+                        rooms={rooms}
+                        dutyZoneId={formik.values.dutyZoneId}
+                        dutyRoomId={formik.values.dutyRoomId}
+                        fieldStyleClasses={fieldStyleClasses}
+                        onZoneChange={(value) => {
+                          void formik.setFieldValue('dutyZoneId', value);
+                        }}
+                        onRoomChange={(value) => {
+                          void formik.setFieldValue('dutyRoomId', value);
+                        }}
+                      />
                       <CustomFormField
                         id="workedHours"
                         type="number"

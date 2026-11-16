@@ -379,6 +379,23 @@ export async function updateLocation(
   }
 }
 
+/**
+ * Product-facing delete guard. Paired with schema `onDelete: Restrict` on
+ * Zone / Room → Location.
+ */
+async function assertLocationDeletable(id: string): Promise<string | null> {
+  const [zoneCount, roomCount] = await Promise.all([
+    prisma.zone.count({ where: { locationId: id } }),
+    prisma.room.count({ where: { locationId: id } })
+  ]);
+
+  if (zoneCount > 0 || roomCount > 0) {
+    return 'Cannot delete a location that still has zones or rooms.';
+  }
+
+  return null;
+}
+
 export async function deleteLocation(id: string): Promise<{
   success: boolean;
   error?: { message?: string };
@@ -394,6 +411,11 @@ export async function deleteLocation(id: string): Promise<{
     });
     if (!existing) {
       return { success: false, error: { message: 'Location not found' } };
+    }
+
+    const blocked = await assertLocationDeletable(id);
+    if (blocked) {
+      return { success: false, error: { message: blocked } };
     }
 
     await prisma.location.delete({ where: { id } });

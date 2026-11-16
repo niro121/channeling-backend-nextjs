@@ -111,6 +111,7 @@ export default async function RosterAmendmentsPage({ searchParams }: SearchParam
         statuses: [],
         requesters: [],
         departments: [],
+        locations: [],
         zones: [],
         rooms: []
       }
@@ -122,6 +123,7 @@ export default async function RosterAmendmentsPage({ searchParams }: SearchParam
         statuses: [],
         requesters: [],
         departments: [],
+        locations: [],
         zones: [],
         rooms: []
       });

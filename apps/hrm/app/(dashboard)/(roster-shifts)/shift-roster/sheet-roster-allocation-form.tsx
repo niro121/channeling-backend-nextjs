@@ -25,6 +25,7 @@ import {
 } from '@archmage/ui';
 import { getStaffStandingAssignmentsForDutyAction } from '@/app/actions/roster-actions/duty-roster.actions';
 import { saveRosterAllocationDraftAction } from '@/app/actions/roster-actions/shift-roster.actions';
+import { DutyPlaceCascadeFields } from '@/components/roster/duty-place-cascade-fields';
 import {
   LeaveApplicationHint,
   useRosterLeavePreview
@@ -774,12 +775,6 @@ export default function SheetRosterAllocationForm({
                       dept.institutionId === selectedStaff.institutionId
                   )
                 : formOptions.departments;
-              const roomOptions = formik.values.dutyZoneId
-                ? formOptions.rooms.filter(
-                    (room) => room.zoneId === formik.values.dutyZoneId
-                  )
-                : formOptions.rooms;
-
               return (
                 <Form className="flex min-h-0 flex-1 flex-col">
                   <StandingAssignmentLoader
@@ -1125,48 +1120,21 @@ export default function SheetRosterAllocationForm({
                           ) : null}
                         </div>
 
-                        <div className={fieldStyleClasses.parentDiv}>
-                          <Label className={fieldStyleClasses.labelClassName}>
-                            Zone
-                          </Label>
-                          <div className={fieldStyleClasses.inputClassName}>
-                            <Combobox
-                              label="Select zone"
-                              options={formOptions.zones}
-                              value={formik.values.dutyZoneId}
-                              defaultValue=""
-                              clearable
-                              disabled={isLocked}
-                              triggerClassName="w-full max-w-none font-normal!"
-                              popoverClassName="w-[var(--radix-popover-trigger-width)] min-w-60"
-                              onChange={(value) => {
-                                void formik.setFieldValue('dutyZoneId', value);
-                                void formik.setFieldValue('dutyRoomId', '');
-                              }}
-                            />
-                          </div>
-                        </div>
-
-                        <div className={fieldStyleClasses.parentDiv}>
-                          <Label className={fieldStyleClasses.labelClassName}>
-                            Unit / Room
-                          </Label>
-                          <div className={fieldStyleClasses.inputClassName}>
-                            <Combobox
-                              label="Select unit / room"
-                              options={roomOptions}
-                              value={formik.values.dutyRoomId}
-                              defaultValue=""
-                              clearable
-                              disabled={isLocked}
-                              triggerClassName="w-full max-w-none font-normal!"
-                              popoverClassName="w-[var(--radix-popover-trigger-width)] min-w-60"
-                              onChange={(value) =>
-                                formik.setFieldValue('dutyRoomId', value)
-                              }
-                            />
-                          </div>
-                        </div>
+                        <DutyPlaceCascadeFields
+                          locations={formOptions.locations}
+                          zones={formOptions.zones}
+                          rooms={formOptions.rooms}
+                          dutyZoneId={formik.values.dutyZoneId}
+                          dutyRoomId={formik.values.dutyRoomId}
+                          disabled={isLocked}
+                          fieldStyleClasses={fieldStyleClasses}
+                          onZoneChange={(value) => {
+                            void formik.setFieldValue('dutyZoneId', value);
+                          }}
+                          onRoomChange={(value) => {
+                            void formik.setFieldValue('dutyRoomId', value);
+                          }}
+                        />
 
                         <div className={fieldStyleClasses.parentDiv}>
                           <Label className={fieldStyleClasses.labelClassName}>

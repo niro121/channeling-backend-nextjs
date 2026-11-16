@@ -57,6 +57,7 @@ const EMPTY_FORM_OPTIONS: DutyRosterFormOptions = {
   shiftTypes: [],
   supervisors: [],
   departments: [],
+  locations: [],
   zones: [],
   rooms: []
 };
