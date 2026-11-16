@@ -321,6 +321,9 @@ function ShiftRosterWorkspaceInner({
         conflicts={data.summary.conflicts}
         shiftTypes={data.shiftTypes}
         periodAudit={data.periodAudit}
+        periodFromDate={filters.fromDate}
+        periodToDate={filters.toDate}
+        rosterValue={filters.rosterId}
         viewMode={viewMode}
         onViewModeChange={handleViewModeChange}
         onExportRoster={loadExportBundle}

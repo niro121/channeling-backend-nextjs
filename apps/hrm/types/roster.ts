@@ -518,12 +518,22 @@ export type RosterStaffRow = {
   status: 'published' | 'draft' | 'amended' | 'none';
 };
 
+/** Overlapping duty windows on the same staff × day (Shift Roster summary). */
+export type RosterConflictItem = {
+  staffId: string;
+  staffCode: string;
+  staffName: string;
+  dateIso: string;
+  detail: string;
+};
+
 export type RosterGridSummary = {
   staffRostered: number;
   departments: number;
   shiftsThisWeek: number;
   totalHours: number;
   conflicts: number;
+  conflictItems: RosterConflictItem[];
 };
 
 export type RosterFilterOptions = {

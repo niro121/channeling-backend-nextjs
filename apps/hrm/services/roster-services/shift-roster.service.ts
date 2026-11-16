@@ -42,6 +42,7 @@ import type {
   RosterAllocationStatus,
   RosterFilterOption,
   RosterFilterOptions,
+  RosterConflictItem,
   RosterGridSummary,
   RosterStaffRow,
   SaveRosterAllocationDraftPayload,
@@ -464,6 +465,7 @@ export async function loadRoster(
     let totalShifts = 0;
     let totalHoursSum = 0;
     let conflictCount = 0;
+    const conflictItems: RosterConflictItem[] = [];
     const departmentSet = new Set<string>();
 
     const rows: RosterStaffRow[] = pagedStaff.map((staff) => {
@@ -486,7 +488,7 @@ export async function loadRoster(
       let rowStatus: RosterStaffRow['status'] = 'none';
       const dayIntervals = new Map<
         string,
-        Array<{ start: number; end: number }>
+        Array<{ start: number; end: number; label: string; timeRange: string }>
       >();
 
       for (const alloc of staffAllocations) {
@@ -527,10 +529,27 @@ export async function loadRoster(
             const interval = shiftToInterval(times[0], times[1]);
             if (interval) {
               const existing = dayIntervals.get(dateKey) ?? [];
-              if (existing.some((other) => intervalsOverlap(interval, other))) {
+              const overlaps = existing.filter((other) =>
+                intervalsOverlap(interval, other)
+              );
+              for (const other of overlaps) {
                 conflictCount++;
+                conflictItems.push({
+                  staffId: staff.id,
+                  staffCode: staff.code ?? '',
+                  staffName: staff.name ?? '',
+                  dateIso: dateKey,
+                  detail: `${cell.label} (${cell.timeRange}) overlaps ${other.label} (${other.timeRange})`
+                });
               }
-              dayIntervals.set(dateKey, [...existing, interval]);
+              dayIntervals.set(dateKey, [
+                ...existing,
+                {
+                  ...interval,
+                  label: cell.label,
+                  timeRange: cell.timeRange
+                }
+              ]);
             }
           }
 
@@ -598,7 +617,8 @@ export async function loadRoster(
       departments: departmentSet.size,
       shiftsThisWeek: totalShifts,
       totalHours: totalHoursSum,
-      conflicts: conflictCount
+      conflicts: conflictCount,
+      conflictItems: conflictItems.slice(0, 25)
     };
 
     const shiftTypeChips: ShiftTypeChip[] = [...shiftTypeMap.values()];

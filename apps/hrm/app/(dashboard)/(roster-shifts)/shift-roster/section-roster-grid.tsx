@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { format, parseISO } from 'date-fns';
 import {
   FileSpreadsheet,
@@ -17,6 +18,7 @@ import {
   CardFooter,
   CardHeader,
   CardTitle,
+  CustomAlertDialog,
   Select,
   SelectContent,
   SelectItem,
@@ -24,7 +26,10 @@ import {
   SelectValue,
   useToast
 } from '@archmage/ui';
-import { toggleRosterAllocationLeaveAction } from '@/app/actions/roster-actions/shift-roster.actions';
+import {
+  saveRosterAllocationDraftAction,
+  toggleRosterAllocationLeaveAction
+} from '@/app/actions/roster-actions/shift-roster.actions';
 import { cn } from '@/lib/utils';
 import { formatAuditDateTime } from '@/lib/utils/date';
 import {
@@ -43,7 +48,13 @@ import {
   TableRow
 } from '@/components/ui/table';
 import { usePermissions } from '@/components/hooks/use-permissions';
-import type { RosterStaffRow, ShiftRosterPeriodAudit, ShiftTypeChip } from '@/types/roster';
+import type {
+  RosterStaffRow,
+  SaveRosterAllocationDraftPayload,
+  ShiftCell,
+  ShiftRosterPeriodAudit,
+  ShiftTypeChip
+} from '@/types/roster';
 import RosterRecordActions from './record-actions';
 import {
   RosterColumnHeader,
@@ -52,6 +63,15 @@ import {
 import { ShiftChip } from './shift-chip';
 import { ShiftLegend } from './shift-legend';
 import { useShiftRosterUi } from './shift-roster-ui-context';
+
+const DRAG_MIME = 'application/x-shift-roster-drag';
+
+type DragPayload = {
+  allocationId: string;
+  sourceStaffId: string;
+  sourceDateIso: string;
+  shift: ShiftCell;
+};
 
 type SectionRosterGridProps = {
   weekLabel: string;
@@ -62,6 +82,9 @@ type SectionRosterGridProps = {
   conflicts: number;
   shiftTypes: ShiftTypeChip[];
   periodAudit: ShiftRosterPeriodAudit | null;
+  periodFromDate: string;
+  periodToDate: string;
+  rosterValue: string;
   viewMode: 'weekly' | 'monthly';
   onViewModeChange: (mode: 'weekly' | 'monthly') => void;
   onExportRoster: () => Promise<{
@@ -183,11 +206,15 @@ export default function SectionRosterGrid({
   conflicts,
   shiftTypes,
   periodAudit,
+  periodFromDate,
+  periodToDate,
+  rosterValue,
   viewMode,
   onViewModeChange,
   onExportRoster
 }: SectionRosterGridProps) {
   const { toast } = useToast();
+  const router = useRouter();
   const { has } = usePermissions();
   const { openAdd, openEdit } = useShiftRosterUi();
   const canEdit = has('shift-roster', 'edit');
@@ -204,6 +231,15 @@ export default function SectionRosterGrid({
   const [columnFilters, setColumnFilters] = useState<ColumnFilters>(() =>
     emptyFilters(dayIsos)
   );
+  const [dragOverKey, setDragOverKey] = useState<string | null>(null);
+  const [draggingAllocationId, setDraggingAllocationId] = useState<
+    string | null
+  >(null);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [confirmDescription, setConfirmDescription] = useState('');
+  const [confirmLoading, setConfirmLoading] = useState(false);
+  const suppressClickRef = useRef(false);
+  const pendingMoveRef = useRef<SaveRosterAllocationDraftPayload | null>(null);
 
   useEffect(() => {
     setColumnFilters((prev) => ({
@@ -367,6 +403,197 @@ export default function SectionRosterGrid({
     });
   };
 
+  const buildMovePayload = (
+    drag: DragPayload,
+    target: RosterStaffRow,
+    targetDateIso: string,
+    acknowledgedWarnings = false
+  ): SaveRosterAllocationDraftPayload => {
+    const crossStaff = drag.sourceStaffId !== target.staffId;
+    const source = drag.shift.allocationSource === 'standing' ? 'standing' : 'adhoc';
+    // Standing assignment belongs to the source staff — switch to ad-hoc on cross-staff move.
+    const allocationSource = crossStaff ? 'adhoc' : source;
+    return {
+      allocationId: drag.allocationId,
+      staffId: target.staffId,
+      shiftTypeId: drag.shift.shiftTypeId,
+      rosterDate: targetDateIso,
+      periodFromDate,
+      periodToDate,
+      department: target.department || null,
+      unit: target.unit || null,
+      designation: target.designation || null,
+      roster: rosterValue || null,
+      isLeave: drag.shift.isLeave,
+      otHours: drag.shift.otHours,
+      comments: drag.shift.comments ?? null,
+      dutyLocationDepartmentId: drag.shift.dutyLocationDepartmentId ?? null,
+      dutyZoneId: drag.shift.dutyZoneId ?? null,
+      dutyRoomId: drag.shift.dutyRoomId ?? null,
+      supervisorId: drag.shift.supervisorId ?? null,
+      allocationSource,
+      staffShiftAssignmentId: crossStaff
+        ? null
+        : (drag.shift.staffShiftAssignmentId ?? null),
+      ...(acknowledgedWarnings ? { acknowledgedWarnings: true } : {})
+    };
+  };
+
+  const runMove = async (
+    payload: SaveRosterAllocationDraftPayload,
+    acknowledgedWarnings = false
+  ) => {
+    const result = await saveRosterAllocationDraftAction({
+      ...payload,
+      ...(acknowledgedWarnings ? { acknowledgedWarnings: true } : {})
+    });
+
+    if (result.isError) {
+      const errorMap = result.errors as Record<
+        string,
+        string | string[] | boolean | undefined
+      >;
+
+      if (errorMap.requiresAck) {
+        const softWarnings = Array.isArray(errorMap.softWarnings)
+          ? errorMap.softWarnings.filter(
+              (item): item is string => typeof item === 'string'
+            )
+          : [];
+        pendingMoveRef.current = payload;
+        setConfirmDescription(
+          softWarnings.join(' ') ||
+            (typeof errorMap.message === 'string'
+              ? errorMap.message
+              : 'Staff leave or weekly off overlaps this cell. Continue anyway?')
+        );
+        setConfirmOpen(true);
+        return;
+      }
+
+      toast({
+        variant: 'destructive',
+        title: 'Could not move shift',
+        description:
+          (typeof errorMap.message === 'string'
+            ? errorMap.message
+            : undefined) ?? 'Drag reassignment failed.'
+      });
+      return;
+    }
+
+    pendingMoveRef.current = null;
+    toast({
+      variant: 'success',
+      title: 'Shift moved',
+      description: 'Draft allocation updated.'
+    });
+    router.refresh();
+  };
+
+  const parseDragPayload = (event: React.DragEvent): DragPayload | null => {
+    try {
+      const raw =
+        event.dataTransfer.getData(DRAG_MIME) ||
+        event.dataTransfer.getData('text/plain');
+      if (!raw) return null;
+      return JSON.parse(raw) as DragPayload;
+    } catch {
+      return null;
+    }
+  };
+
+  const handleChipDragStart = (
+    event: React.DragEvent<HTMLDivElement>,
+    payload: DragPayload
+  ) => {
+    if (!canEdit) {
+      event.preventDefault();
+      return;
+    }
+    if (
+      payload.shift.status === 'published' ||
+      payload.shift.status === 'amended'
+    ) {
+      event.preventDefault();
+      toast({
+        variant: 'destructive',
+        title: 'Cannot move',
+        description:
+          'Published or amended cells cannot be dragged. Use Roster Amendments.'
+      });
+      return;
+    }
+    event.dataTransfer.effectAllowed = 'move';
+    event.dataTransfer.setData(DRAG_MIME, JSON.stringify(payload));
+    event.dataTransfer.setData('text/plain', JSON.stringify(payload));
+    setDraggingAllocationId(payload.allocationId);
+    suppressClickRef.current = true;
+  };
+
+  const handleChipDragEnd = () => {
+    setDraggingAllocationId(null);
+    setDragOverKey(null);
+    window.setTimeout(() => {
+      suppressClickRef.current = false;
+    }, 0);
+  };
+
+  const handleCellDragOver = (
+    event: React.DragEvent,
+    cellKey: string
+  ) => {
+    if (!canEdit) return;
+    const types = Array.from(event.dataTransfer.types ?? []);
+    if (
+      !types.includes(DRAG_MIME) &&
+      !types.includes('text/plain') &&
+      !draggingAllocationId
+    ) {
+      return;
+    }
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'move';
+    if (dragOverKey !== cellKey) setDragOverKey(cellKey);
+  };
+
+  const handleCellDrop = async (
+    event: React.DragEvent,
+    target: RosterStaffRow,
+    targetDateIso: string
+  ) => {
+    event.preventDefault();
+    setDragOverKey(null);
+    setDraggingAllocationId(null);
+
+    if (!canEdit) return;
+
+    const drag = parseDragPayload(event);
+    if (!drag) return;
+
+    if (
+      drag.sourceStaffId === target.staffId &&
+      drag.sourceDateIso === targetDateIso
+    ) {
+      return;
+    }
+
+    if (
+      drag.shift.status === 'published' ||
+      drag.shift.status === 'amended'
+    ) {
+      toast({
+        variant: 'destructive',
+        title: 'Cannot move',
+        description:
+          'Published or amended cells cannot be dragged. Use Roster Amendments.'
+      });
+      return;
+    }
+
+    await runMove(buildMovePayload(drag, target, targetDateIso));
+  };
+
   const handleSort = (key: string) => {
     const nextKey = key as SortableKey;
     if (sortKey === nextKey) {
@@ -401,6 +628,7 @@ export default function SectionRosterGrid({
     Object.values(columnFilters.day).some((v) => v.trim());
 
   return (
+    <>
     <Card className="overflow-hidden rounded-lg border border-border shadow-sm">
       <CardHeader className="flex flex-col gap-3 space-y-0 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
         <div className="min-w-0 space-y-1.5">
@@ -408,8 +636,8 @@ export default function SectionRosterGrid({
             {weekLabel || 'Shift Roster'}
           </CardTitle>
           <CardDescription>
-            Drag a shift chip to another cell to reassign. Tick &apos;Leave&apos;
-            to mark the cell as leave-covered.
+            Drag a draft shift chip to another cell to reassign. Published /
+            amended cells stay locked. Tick &apos;Leave&apos; to mark leave-covered.
           </CardDescription>
         </div>
         <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
@@ -652,14 +880,29 @@ export default function SectionRosterGrid({
                         ) : null}
                         {dayIsos.map((dayIso) => {
                           const dayShifts = row.shifts[dayIso] ?? [];
+                          const cellKey = `${row.staffId}:${dayIso}`;
+                          const isDropTarget = dragOverKey === cellKey;
                           if (!dayShifts.length) {
                             return (
                               <TableCell
                                 key={dayIso}
                                 className={cn(
                                   'text-xs text-muted-foreground',
-                                  CELL_SEP
+                                  CELL_SEP,
+                                  isDropTarget &&
+                                    'bg-primary/5 ring-1 ring-inset ring-primary/30'
                                 )}
+                                onDragOver={(e) =>
+                                  handleCellDragOver(e, cellKey)
+                                }
+                                onDragLeave={() => {
+                                  if (dragOverKey === cellKey) {
+                                    setDragOverKey(null);
+                                  }
+                                }}
+                                onDrop={(e) =>
+                                  void handleCellDrop(e, row, dayIso)
+                                }
                               >
                                 {canEdit ? (
                                   <button
@@ -682,17 +925,47 @@ export default function SectionRosterGrid({
                           return (
                             <TableCell
                               key={dayIso}
-                              className={cn('align-top', CELL_SEP)}
+                              className={cn(
+                                'align-top',
+                                CELL_SEP,
+                                isDropTarget &&
+                                  'bg-primary/5 ring-1 ring-inset ring-primary/30'
+                              )}
+                              onDragOver={(e) =>
+                                handleCellDragOver(e, cellKey)
+                              }
+                              onDragLeave={() => {
+                                if (dragOverKey === cellKey) {
+                                  setDragOverKey(null);
+                                }
+                              }}
+                              onDrop={(e) =>
+                                void handleCellDrop(e, row, dayIso)
+                              }
                             >
                               <div className="flex flex-col gap-1.5">
                                 {dayShifts.map((shift) => {
                                   const isLeave =
                                     leaveOverrides[shift.allocationId] ??
                                     shift.isLeave;
+                                  const canDrag =
+                                    canEdit &&
+                                    shift.status !== 'published' &&
+                                    shift.status !== 'amended';
                                   return (
                                     <ShiftChip
                                       key={shift.allocationId}
                                       shift={{ ...shift, isLeave }}
+                                      draggable={canDrag}
+                                      onDragStart={(e) =>
+                                        handleChipDragStart(e, {
+                                          allocationId: shift.allocationId,
+                                          sourceStaffId: row.staffId,
+                                          sourceDateIso: dayIso,
+                                          shift: { ...shift, isLeave }
+                                        })
+                                      }
+                                      onDragEnd={handleChipDragEnd}
                                       onLeaveToggle={() =>
                                         void toggleLeave(
                                           shift.allocationId,
@@ -701,12 +974,16 @@ export default function SectionRosterGrid({
                                       }
                                       onClick={
                                         canEdit
-                                          ? () =>
+                                          ? () => {
+                                              if (suppressClickRef.current) {
+                                                return;
+                                              }
                                               openEdit({
                                                 row,
                                                 dateIso: dayIso,
                                                 shift
-                                              })
+                                              });
+                                            }
                                           : undefined
                                       }
                                     />
@@ -772,7 +1049,8 @@ export default function SectionRosterGrid({
             </div>
             <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border px-4 py-2 text-xs text-muted-foreground">
               <p>
-                Drag a shift chip to another cell to reassign. Tick
+                Drag a <span className="font-medium text-foreground">draft</span>{' '}
+                shift chip to another staff/day cell to reassign. Tick
                 &apos;Leave&apos; to mark the cell as leave-covered.
               </p>
               {hasActiveColumnFilters ? (
@@ -897,5 +1175,33 @@ export default function SectionRosterGrid({
         </div>
       </div>
     </Card>
+
+    <CustomAlertDialog
+      open={confirmOpen}
+      title="Staff leave / weekly off overlaps"
+      description={confirmDescription}
+      loading={confirmLoading}
+      handleVisibilityChange={(nextOpen) => {
+        if (!nextOpen) {
+          pendingMoveRef.current = null;
+        }
+        setConfirmOpen(nextOpen);
+      }}
+      handleContinue={async () => {
+        const payload = pendingMoveRef.current;
+        if (!payload) {
+          setConfirmOpen(false);
+          return;
+        }
+        setConfirmLoading(true);
+        setConfirmOpen(false);
+        try {
+          await runMove(payload, true);
+        } finally {
+          setConfirmLoading(false);
+        }
+      }}
+    />
+    </>
   );
 }

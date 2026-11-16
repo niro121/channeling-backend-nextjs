@@ -45,7 +45,8 @@ const EMPTY_RESULT: LoadRosterResult = {
     departments: 0,
     shiftsThisWeek: 0,
     totalHours: 0,
-    conflicts: 0
+    conflicts: 0,
+    conflictItems: []
   },
   filterOptions: { departments: [], units: [], rosters: [] },
   shiftTypes: [],
