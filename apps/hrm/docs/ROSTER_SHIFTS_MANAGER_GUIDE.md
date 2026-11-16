@@ -1929,4 +1929,21 @@ Operational Load / allocate draft / publish / fill / copy / View / Auto Assign (
 | HR Admin **Manage Shifts** | §11.2 Shift Types (**not required**) |
 | Multi-step approval | §11.5 Roster Amendments (**not** in v1) |
 
-*Last updated: Nov 2026 — Shift Roster A–E1 + View + guide cleanup + master filters + Dept/Zone/Room/Location Restrict + Location cascade + Create Fixed Roster Option B done. Remaining Phase F: OT Process Staff Shift read (after Overtime).*
+### 11.11 Status close-out — Roster & Shifts v1
+
+**Inside this group:** all eight screens are **complete for v1** (Shift Types, Shift Assignment, Shift Roster A–E1 + View + master filters + Create Fixed Option B, Duty, Amendments, Night, Overnight, Public Holiday). No further roster screens are required to close the module.
+
+**What remains is owned by other managers** (consumers of `RosterAllocation` / flags) — not more Roster & Shifts UI:
+
+| # | Integration | Owner | Notes |
+|---|-------------|--------|--------|
+| 1 | **OT — Process Staff Shift** reads published roster cells | Overtime Manager | Parked until Overtime is ready; do not invent a fake roster API |
+| 2 | **Payroll — `sendToPayroll`** real post | Payroll | Night / Overnight / PH flags only in v1 |
+| 3 | **Attendance — Confirm to Duty Roster** | Attendance | Writes Present/Late/Absent after HR confirm; never auto from punches. Overnight allocation-date sync in same wave |
+| 4 | **Leave — `grantLieuLeave`** entitlement write | Leave Manager | PH flag only in v1 |
+| 5 | **HR Admin follow-ons** | HR Admin | Optional Units master polish; Holiday Calendar H7/H8; Duty filter master options if product wants parity with Shift Roster |
+| 6 | **Optional product later** | Product | Auto Assign E2/E3; Create Fixed Roster Option C (named templates); multi-step amendment approval; staff/supervisor notify on Approve |
+
+**Summary:** Roster & Shifts core ✅ · remain = **OT + Payroll + Attendance / Leave / HR Admin follow-ons** (and optional product later). Prefer this section + §11.1–§11.10 over older “toast / Phase 0” lines when they disagree.
+
+*Last updated: Nov 2026 — Roster & Shifts v1 closed (§11.11). Remaining work is cross-module: OT Process Staff Shift, Payroll `sendToPayroll`, Attendance Confirm to Duty, Leave lieu entitlement, HR Admin follow-ons.*
