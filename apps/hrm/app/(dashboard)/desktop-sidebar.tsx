@@ -62,6 +62,8 @@ import {
   UserPen,
   Star,
   Mail,
+  FileBarChart2,
+  PieChart,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { canAccessRoute } from "@/lib/permissions";
@@ -533,6 +535,36 @@ export function DesktopSidebar({ session, className }: { session: Session | null
                   icon={<History className="h-5 w-5" />}
                 />
               )}
+            </SidebarCollapsible>
+          </SidebarGroup>
+        )}
+        {hasAccess('/reports') && (
+          <SidebarGroup label="Reports">
+            <SidebarCollapsible
+              label="Reports"
+              icon={<FileBarChart2 className="h-5 w-5" />}
+              paths={[
+                '/reports',
+                '/reports/department',
+                '/reports/staff',
+                '/reports/attendance',
+                '/reports/payroll',
+                '/reports/overtime',
+                '/reports/leave',
+                '/reports/statistical'
+              ]}
+              allExpanded={allExpanded}
+            >
+              <NavLink
+                href="/reports/department"
+                label="Department Reports"
+                icon={<Building2 className="h-5 w-5" />}
+              />
+              <NavLink
+                href="/reports"
+                label="All Reports"
+                icon={<PieChart className="h-5 w-5" />}
+              />
             </SidebarCollapsible>
           </SidebarGroup>
         )}
