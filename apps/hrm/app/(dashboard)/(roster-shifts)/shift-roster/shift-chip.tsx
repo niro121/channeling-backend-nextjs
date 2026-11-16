@@ -12,26 +12,44 @@ const CHIP_STYLES: Record<string, string> = {
 };
 
 const DEFAULT_CHIP = 'border-border bg-muted/40 text-foreground';
+/**
+ * Amber when duty Leave is on, or when approved leave covers this duty
+ * (even if Leave checkbox is still off).
+ */
+const LEAVE_CHIP =
+  'border-dashed border-amber-300 bg-amber-50 text-amber-950';
 
 type ShiftChipProps = {
   shift: ShiftCell;
   onLeaveToggle?: () => void;
   onClick?: () => void;
   compact?: boolean;
+  draggable?: boolean;
+  onDragStart?: (event: React.DragEvent<HTMLDivElement>) => void;
+  onDragEnd?: (event: React.DragEvent<HTMLDivElement>) => void;
 };
 
 export function ShiftChip({
   shift,
   onLeaveToggle,
   onClick,
-  compact
+  compact,
+  draggable,
+  onDragStart,
+  onDragEnd
 }: ShiftChipProps) {
-  const chipStyle = CHIP_STYLES[shift.code] ?? DEFAULT_CHIP;
+  const chipStyle =
+    shift.isLeave || shift.hasApprovedLeave
+      ? LEAVE_CHIP
+      : (CHIP_STYLES[shift.code] ?? DEFAULT_CHIP);
 
   return (
     <div
       role={onClick ? 'button' : undefined}
       tabIndex={onClick ? 0 : undefined}
+      draggable={draggable}
+      onDragStart={onDragStart}
+      onDragEnd={onDragEnd}
       onClick={onClick}
       onKeyDown={
         onClick
@@ -48,7 +66,8 @@ export function ShiftChip({
         chipStyle,
         compact && 'min-w-22 px-1.5 py-1',
         onClick &&
-          'cursor-pointer hover:-translate-y-px hover:brightness-[0.98] hover:shadow-md focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/40'
+          'cursor-pointer hover:-translate-y-px hover:brightness-[0.98] hover:shadow-md focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/40',
+        draggable && 'cursor-grab active:cursor-grabbing'
       )}
     >
       <p className="text-xs font-semibold leading-tight">{shift.label}</p>

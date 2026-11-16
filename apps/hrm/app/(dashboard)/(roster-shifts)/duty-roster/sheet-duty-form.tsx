@@ -30,6 +30,8 @@ import {
   dutyRosterRowToFormValues,
   emptyDutyFormValues
 } from '@/lib/mappers/duty-roster-form.mapper';
+import { DutyPlaceCascadeFields } from '@/components/roster/duty-place-cascade-fields';
+import { RosterLeaveHint } from '@/components/roster/leave-application-hint';
 import {
   getStaffStandingAssignmentsForDutyAction,
   replaceDutyStaffAction,
@@ -710,14 +712,6 @@ export default function SheetDutyForm({
                   });
                 }
               }
-              const roomOptions = (
-                formik.values.dutyZoneId
-                  ? formOptions.rooms.filter(
-                      (r) => r.zoneId === formik.values.dutyZoneId
-                    )
-                  : formOptions.rooms
-              ).map((r) => ({ id: r.id, name: r.name }));
-
               return (
                 <Form className="flex min-h-0 flex-1 flex-col">
                   <StandingAssignmentLoader
@@ -1030,6 +1024,57 @@ export default function SheetDutyForm({
                       />
                     ) : null}
 
+                    {mode === 'assign' || mode === 'edit' ? (
+                      <RosterLeaveHint
+                        open={open}
+                        staffId={formik.values.staffId}
+                        date={formik.values.dutyDate}
+                        startTime={formik.values.startTime}
+                        endTime={formik.values.endTime}
+                        staffLabel={selectedStaff?.name}
+                      />
+                    ) : null}
+
+                    {mode === 'swap' ? (
+                      <>
+                        <RosterLeaveHint
+                          open={open}
+                          staffId={formik.values.staffId}
+                          date={formik.values.dutyDate}
+                          startTime={formik.values.startTime}
+                          endTime={formik.values.endTime}
+                          staffLabel={selectedStaff?.name}
+                        />
+                        <RosterLeaveHint
+                          open={open}
+                          staffId={formik.values.otherStaffId}
+                          date={formik.values.dutyDate}
+                          startTime={formik.values.startTime}
+                          endTime={formik.values.endTime}
+                          staffLabel={
+                            formOptions.staff.find(
+                              (s) => s.id === formik.values.otherStaffId
+                            )?.name
+                          }
+                        />
+                      </>
+                    ) : null}
+
+                    {mode === 'replace' ? (
+                      <RosterLeaveHint
+                        open={open}
+                        staffId={formik.values.otherStaffId}
+                        date={formik.values.dutyDate}
+                        startTime={formik.values.startTime}
+                        endTime={formik.values.endTime}
+                        staffLabel={
+                          formOptions.staff.find(
+                            (s) => s.id === formik.values.otherStaffId
+                          )?.name
+                        }
+                      />
+                    ) : null}
+
                     {showDutyPlace ? (
                       <div className="space-y-4">
                         <div className="flex items-center justify-between gap-3 rounded-lg border border-border px-3 py-2.5">
@@ -1093,55 +1138,21 @@ export default function SheetDutyForm({
                             styleClasses={fieldStyleClasses}
                           />
 
-                          <div className={fieldStyleClasses.parentDiv}>
-                            <Label
-                              className={fieldStyleClasses.labelClassName}
-                            >
-                              Zone
-                            </Label>
-                            <div className={fieldStyleClasses.inputClassName}>
-                              <Combobox
-                                label="Select zone"
-                                options={formOptions.zones}
-                                value={formik.values.dutyZoneId}
-                                defaultValue=""
-                                clearable
-                                disabled={isLocked}
-                                triggerClassName="w-full max-w-none font-normal!"
-                                popoverClassName="w-[var(--radix-popover-trigger-width)] min-w-60"
-                                onChange={(value) => {
-                                  void formik.setFieldValue(
-                                    'dutyZoneId',
-                                    value
-                                  );
-                                  void formik.setFieldValue('dutyRoomId', '');
-                                }}
-                              />
-                            </div>
-                          </div>
-
-                          <div className={fieldStyleClasses.parentDiv}>
-                            <Label
-                              className={fieldStyleClasses.labelClassName}
-                            >
-                              Unit / Room
-                            </Label>
-                            <div className={fieldStyleClasses.inputClassName}>
-                              <Combobox
-                                label="Select unit / room"
-                                options={roomOptions}
-                                value={formik.values.dutyRoomId}
-                                defaultValue=""
-                                clearable
-                                disabled={isLocked}
-                                triggerClassName="w-full max-w-none font-normal!"
-                                popoverClassName="w-[var(--radix-popover-trigger-width)] min-w-60"
-                                onChange={(value) =>
-                                  formik.setFieldValue('dutyRoomId', value)
-                                }
-                              />
-                            </div>
-                          </div>
+                          <DutyPlaceCascadeFields
+                            locations={formOptions.locations}
+                            zones={formOptions.zones}
+                            rooms={formOptions.rooms}
+                            dutyZoneId={formik.values.dutyZoneId}
+                            dutyRoomId={formik.values.dutyRoomId}
+                            disabled={isLocked}
+                            fieldStyleClasses={fieldStyleClasses}
+                            onZoneChange={(value) => {
+                              void formik.setFieldValue('dutyZoneId', value);
+                            }}
+                            onRoomChange={(value) => {
+                              void formik.setFieldValue('dutyRoomId', value);
+                            }}
+                          />
 
                           <div className={fieldStyleClasses.parentDiv}>
                             <Label

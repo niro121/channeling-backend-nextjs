@@ -16,16 +16,19 @@ type FormSheetState = {
   mode: PublicHolidayFormSheetMode;
   record: PublicHolidayShiftRecord | null;
   selectedCount: number;
+  selectedStaffIds: string[];
 };
 
 type PublicHolidayShiftsUiContextValue = {
   formSheet: FormSheetState | null;
   historyRecord: PublicHolidayShiftRecord | null;
   selectedCount: number;
+  selectedStaffIds: string[];
   setSelectedCount: (count: number) => void;
+  setSelectedStaffIds: (staffIds: string[]) => void;
   openCreate: () => void;
   openEdit: (record: PublicHolidayShiftRecord) => void;
-  openBulk: (selectedCount: number) => void;
+  openBulk: (selectedCount: number, selectedStaffIds: string[]) => void;
   openHistory: (record: PublicHolidayShiftRecord) => void;
   closeFormSheet: () => void;
   closeHistorySheet: () => void;
@@ -43,17 +46,33 @@ export function PublicHolidayShiftsUiProvider({
   const [historyRecord, setHistoryRecord] =
     useState<PublicHolidayShiftRecord | null>(null);
   const [selectedCount, setSelectedCount] = useState(0);
+  const [selectedStaffIds, setSelectedStaffIds] = useState<string[]>([]);
 
   const openCreate = useCallback(() => {
-    setFormSheet({ mode: 'create', record: null, selectedCount: 0 });
+    setFormSheet({
+      mode: 'create',
+      record: null,
+      selectedCount: 0,
+      selectedStaffIds: []
+    });
   }, []);
 
   const openEdit = useCallback((record: PublicHolidayShiftRecord) => {
-    setFormSheet({ mode: 'edit', record, selectedCount: 0 });
+    setFormSheet({
+      mode: 'edit',
+      record,
+      selectedCount: 0,
+      selectedStaffIds: []
+    });
   }, []);
 
-  const openBulk = useCallback((count: number) => {
-    setFormSheet({ mode: 'bulk', record: null, selectedCount: count });
+  const openBulk = useCallback((count: number, staffIds: string[]) => {
+    setFormSheet({
+      mode: 'bulk',
+      record: null,
+      selectedCount: count,
+      selectedStaffIds: staffIds
+    });
   }, []);
 
   const openHistory = useCallback((record: PublicHolidayShiftRecord) => {
@@ -68,7 +87,9 @@ export function PublicHolidayShiftsUiProvider({
       formSheet,
       historyRecord,
       selectedCount,
+      selectedStaffIds,
       setSelectedCount,
+      setSelectedStaffIds,
       openCreate,
       openEdit,
       openBulk,
@@ -80,6 +101,7 @@ export function PublicHolidayShiftsUiProvider({
       formSheet,
       historyRecord,
       selectedCount,
+      selectedStaffIds,
       openCreate,
       openEdit,
       openBulk,

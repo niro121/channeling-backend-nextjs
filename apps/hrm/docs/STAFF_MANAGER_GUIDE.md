@@ -106,11 +106,13 @@ Cross-module IDs live in `HR_ADMINISTRATION_GUIDE.md` §32 (**INT-H***). Staff-o
 | **INT-H1** | **Server-side** Employment roster lock: `updateStaffEmployment` rejects changing `employment.roster` when any `StaffShiftAssignment` exists (mirrors UI) | Must | **Done** |
 | **INT-H4** | Align Institution / Working Department soft warn with Change Staff: server softWarnings + `acknowledgedWarnings` ack | Should | **Done** |
 | **INT-H6** | Case-insensitive `employment.roster` matching everywhere membership / counts resolve a Manage Roster code | Should | **Done** |
+| **INT-H9** | Refuse `deleteStaff` / `deleteStaffs` while standing shift assignments or roster allocations exist; schema also uses `onDelete: Restrict` on those relations (Prisma Client emulation on Mongo — service remains the UX guard) | Later | **Done** |
 
 Related (owned elsewhere; done with this wave):
 
 - [x] **INT-H2** — Shift Assignment create/bulk/update assert staff membership = selected Manage Roster code
 - [x] **INT-H3** — Legacy null `manageRosterId` included in Manage Rosters in-use + backfill
+- [x] **INT-H8** — Shift Assignment overlap re-check immediately before create/update write
 
 See §7 for required Employment UI behaviour.
 
@@ -125,8 +127,8 @@ See §7 for required Employment UI behaviour.
 | Export | `getStaffForExport` — all matching rows (no 1,000 cap); `{ success, data, totalRecords }` |
 | Create / General update | `ChannelingSyncAlertDialog`: Cancel · Save/Update HRM only · Continue (create/update Channeling) |
 | HR Detail update | Same three choices when Channeling fields changed or record unlinked |
-| Single delete | `ChannelingSyncAlertDialog`: Cancel · Delete HRM only · Continue (both if `migrateSourceId`) |
-| Bulk delete | Same three choices when `getChannelingBulkDeleteDialog` is set; sync only if `syncToChanneling: true` |
+| Single delete | `ChannelingSyncAlertDialog`: Cancel · Delete HRM only · Continue (both if `migrateSourceId`). **INT-H9:** server refuses delete while standing shift assignments or roster allocations exist |
+| Bulk delete | Same three choices when `getChannelingBulkDeleteDialog` is set; sync only if `syncToChanneling: true`. **INT-H9:** same assignment/allocation guard for the whole selection |
 
 ---
 
@@ -203,9 +205,10 @@ See `HR_ADMINISTRATION_GUIDE.md` §26 / §32 / §39 and `ROSTER_SHIFTS_MANAGER_G
 3. Zone Code dropdown shows published zones; stored value is the zone code.
 4. List status filter and export use the same where-builder.
 5. Linked Channeling deletes never treat Cancel as HRM-only delete.
+5b. **INT-H9:** do not hard-delete staff while standing shift assignments or roster allocations exist — remove/reassign in Roster & Shifts first.
 6. Create/update Cancel discards the save; it never saves HRM-only (that is the middle button).
 7. Employment roster is read-only in the UI when standing shift assignments exist; server lock **INT-H1** rejects roster changes while assignments exist.
 8. Employment shows a read-only standing-assignments panel; Default Shift is not edited on Employment.
 9. Institution / Working Department soft-warn when standing assignments exist; department change does not clear a locked roster.
 
-*Last updated: Nov 2026 — INT-H1 / H4 / H6 done; remaining Later items in HR Admin §32.*
+*Last updated: Nov 2026 — INT-H1 / H4 / H6 / H9 done (H8 on Shift Assignment); see HR Admin §32.*

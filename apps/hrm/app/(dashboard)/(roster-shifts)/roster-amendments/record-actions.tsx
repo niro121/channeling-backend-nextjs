@@ -11,6 +11,7 @@ import {
   type RosterAmendmentRecord
 } from '@/types/roster';
 import { useRosterAmendmentsUi } from './roster-amendments-ui-context';
+import { buttonStyles } from '@/lib/utils/common-styles';
 
 type AmendmentRecordActionsProps = {
   record: RosterAmendmentRecord;
@@ -114,8 +115,7 @@ export default function AmendmentRecordActions({
           void handleDelete();
         }}
         className={{
-          actionButton:
-            'bg-destructive text-destructive-foreground hover:bg-destructive/90 hover:text-destructive-foreground/90'
+          actionButton: buttonStyles.delete.danger
         }}
       />
     </>

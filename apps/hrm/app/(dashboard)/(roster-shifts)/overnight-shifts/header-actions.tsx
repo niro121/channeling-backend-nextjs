@@ -31,8 +31,9 @@ export function OvernightShiftsHeaderActions() {
         });
       } else {
         toast({
-          title: 'Splits recalculated',
-          description: `Updated ${result.data?.updated ?? 0} records`
+          variant: 'success',
+          title: 'Success',
+          description: `Splits recalculated. Updated ${result.data?.updated ?? 0} records.`
         });
         router.refresh();
       }

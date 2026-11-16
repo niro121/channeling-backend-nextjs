@@ -9,20 +9,25 @@ import {
   resolveAuthUsers,
   type AuthUserSummary
 } from '@/lib/helpers/resolve-auth-users.helper';
-import { formatOvernightMoney } from '@/lib/utils/overnight-shift';
+import {
+  assertStaffDayShiftLimit,
+  getShiftsPerPersonPerDayLimit
+} from '@/lib/helpers/roster/shifts-per-person-per-day.helper';
 import { saveRosterAllocationDraft } from '@/services/roster-services/shift-roster.service';
+import { getInstitutionName } from '@/types/institution';
 import {
   OVERNIGHT_SHIFT_STATUS_OPTIONS,
   OVERNIGHT_ALLOCATION_OPTIONS,
   type GetOvernightShiftsParams,
   type OvernightAllocationDate,
+  type OvernightShiftConflictPreview,
   type OvernightShiftFilterOptions,
   type OvernightShiftFormOptions,
   type OvernightShiftHistoryEntry,
   type OvernightShiftPayload,
   type OvernightShiftRecord,
-  type OvernightShiftSummary,
-  type RosterFilterOption
+  type OvernightShiftStaffOption,
+  type OvernightShiftSummary
 } from '@/types/roster';
 
 const PUBLISHED_LOCK_MESSAGE =
@@ -75,8 +80,9 @@ const overnightPayloadSchema = z.object({
   shiftTypeId: z.string().min(1, 'Overnight shift type is required'),
   startDate: z.coerce.date(),
   endDate: z.coerce.date(),
-  startTime: z.string().min(1, 'Start time is required'),
-  endTime: z.string().min(1, 'End time is required'),
+  /** Ignored — times always taken from ShiftType master. */
+  startTime: z.string().optional().nullable(),
+  endTime: z.string().optional().nullable(),
   day1Hours: z.number().min(0).optional().nullable(),
   day2Hours: z.number().min(0).optional().nullable(),
   totalHours: z.number().min(0).optional().nullable(),
@@ -85,8 +91,29 @@ const overnightPayloadSchema = z.object({
   overnightAllowance: z.number().min(0).optional().nullable(),
   autoSplit: z.boolean().optional().default(true),
   sendToPayroll: z.boolean().optional().default(false),
-  remarks: z.string().max(500).optional().nullable()
+  remarks: z.string().max(500).optional().nullable(),
+  acknowledgedWarnings: z.boolean().optional()
 });
+
+type OvernightWriteError = {
+  message?: string;
+  issues?: Record<string, string[]>;
+  softWarnings?: string[];
+  requiresAck?: boolean;
+};
+
+function toDutyDateUtc(value: Date): Date {
+  return new Date(
+    Date.UTC(value.getFullYear(), value.getMonth(), value.getDate())
+  );
+}
+
+function parseInstitutionId(value: string | null | undefined): number | null {
+  if (!value?.trim()) return null;
+  if (value === 'ruhunu_hospitals') return 0;
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) && parsed >= 0 && parsed <= 3 ? parsed : null;
+}
 
 function toIsoString(value: Date | string | null | undefined): string {
   if (!value) return '';
@@ -99,14 +126,60 @@ function startOfDayUtc(dateStr: string): Date {
   return new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
 }
 
-function toOption(value: string): RosterFilterOption {
-  return { id: value, name: value };
-}
-
 function uniqueStrings(values: Array<string | null | undefined>): string[] {
   return [
     ...new Set(values.map((v) => v?.trim()).filter(Boolean) as string[])
   ].sort((a, b) => a.localeCompare(b));
+}
+
+function isObjectId(value: string): boolean {
+  return /^[a-f\d]{24}$/i.test(value.trim());
+}
+
+type DeptUnitLabels = {
+  departmentNameById: Map<string, string>;
+  unitNameById: Map<string, string>;
+};
+
+async function resolveDeptUnitLabels(
+  departments: Array<string | null | undefined>,
+  units: Array<string | null | undefined>
+): Promise<DeptUnitLabels> {
+  const deptIds = uniqueStrings(departments).filter(isObjectId);
+  const unitIds = uniqueStrings(units).filter(isObjectId);
+  const [depts, rooms] = await Promise.all([
+    deptIds.length
+      ? prisma.department.findMany({
+          where: { id: { in: deptIds } },
+          select: { id: true, name: true }
+        })
+      : Promise.resolve([]),
+    unitIds.length
+      ? prisma.room.findMany({
+          where: { id: { in: unitIds } },
+          select: { id: true, number: true, code: true }
+        })
+      : Promise.resolve([])
+  ]);
+
+  return {
+    departmentNameById: new Map(depts.map((row) => [row.id, row.name])),
+    unitNameById: new Map(
+      rooms.map((row) => [
+        row.id,
+        row.code ? `${row.number} (${row.code})` : row.number
+      ])
+    )
+  };
+}
+
+function labelOrRaw(
+  value: string | null | undefined,
+  nameById: Map<string, string>
+): string {
+  const id = value?.trim() ?? '';
+  if (!id) return '';
+  return nameById.get(id) ?? id;
 }
 
 function formatShiftLabel(input: {
@@ -208,14 +281,17 @@ async function getStaffSnapshot(staffId: string): Promise<{
   const employment = (staff.employmentDetails as {
     employment?: { department?: string; roster?: string };
   } | null)?.employment;
+  const departmentId =
+    staff.shiftAssignments[0]?.department?.trim() ||
+    employment?.department?.trim() ||
+    '';
+  const unitId = staff.shiftAssignments[0]?.unit?.trim() || '';
+  const labels = await resolveDeptUnitLabels([departmentId], [unitId]);
   return {
     staffCode: staff.code ?? '',
     staffName: staff.name ?? '',
-    department:
-      staff.shiftAssignments[0]?.department?.trim() ||
-      employment?.department?.trim() ||
-      '',
-    unit: staff.shiftAssignments[0]?.unit?.trim() || '',
+    department: labelOrRaw(departmentId, labels.departmentNameById),
+    unit: labelOrRaw(unitId, labels.unitNameById),
     roster: employment?.roster?.trim() || ''
   };
 }
@@ -268,7 +344,8 @@ function mapOvernightRecord(
   users?: {
     createdUser: AuthUserSummary | null;
     updatedUser: AuthUserSummary | null;
-  }
+  },
+  labels?: DeptUnitLabels
 ): OvernightShiftRecord {
   const startDate = toIsoString(record.startAt ?? record.date);
   const endDate = toIsoString(record.endAt ?? (record.startAt ? addDays(record.startAt, 1) : addDays(record.date, 1)));
@@ -278,8 +355,12 @@ function mapOvernightRecord(
     staffId: record.staffId,
     staffCode: record.staffCode,
     staffName: record.staffName,
-    department: record.department,
-    unit: record.unit,
+    department: labels
+      ? labelOrRaw(record.department, labels.departmentNameById)
+      : record.department,
+    unit: labels
+      ? labelOrRaw(record.unit, labels.unitNameById)
+      : record.unit,
     shiftTypeId: record.shiftTypeId,
     overnightShift: formatShiftLabel(record.shiftType),
     startDate,
@@ -343,11 +424,19 @@ export async function getOvernightShifts(params: GetOvernightShiftsParams): Prom
     ]);
 
     const withUsers = await resolveAuthUsers(records);
+    const labels = await resolveDeptUnitLabels(
+      withUsers.map((row) => row.department),
+      withUsers.map((row) => row.unit)
+    );
     const mapped = withUsers.map((record) =>
-      mapOvernightRecord(record, {
-        createdUser: record.createdUser,
-        updatedUser: record.updatedUser
-      })
+      mapOvernightRecord(
+        record,
+        {
+          createdUser: record.createdUser,
+          updatedUser: record.updatedUser
+        },
+        labels
+      )
     );
 
     const summaryResult = await getOvernightShiftSummary(params);
@@ -456,13 +545,23 @@ export async function getOvernightShiftFilterOptions(): Promise<{
         })
       : [];
 
+    const departmentValues = uniqueStrings(
+      allocations.map((row) => row.department)
+    );
+    const unitValues = uniqueStrings(allocations.map((row) => row.unit));
+    const labels = await resolveDeptUnitLabels(departmentValues, unitValues);
+
     return {
       success: true,
       data: {
-        departments: uniqueStrings(allocations.map((row) => row.department)).map(
-          toOption
-        ),
-        units: uniqueStrings(allocations.map((row) => row.unit)).map(toOption),
+        departments: departmentValues.map((value) => ({
+          id: value,
+          name: labelOrRaw(value, labels.departmentNameById)
+        })),
+        units: unitValues.map((value) => ({
+          id: value,
+          name: labelOrRaw(value, labels.unitNameById)
+        })),
         shiftTypes: shiftTypes.map((row) => ({
           id: row.id,
           name: formatShiftLabel(row)
@@ -486,13 +585,22 @@ export async function getOvernightShiftFormOptions(): Promise<{
   error?: { message?: string };
 }> {
   try {
-    const [staffRecords, shiftTypes] = await Promise.all([
+    const [staffRecords, shiftTypes, departments] = await Promise.all([
       prisma.staff.findMany({
         where: { status: 1 },
         orderBy: { name: 'asc' },
-        take:
-          Number.parseInt(process.env.DEFAULT_PAGE_SIZE ?? '100', 10) || 100,
-        select: { id: true, name: true, code: true }
+        select: {
+          id: true,
+          name: true,
+          code: true,
+          employmentDetails: true,
+          shiftAssignments: {
+            where: { status: 'active' },
+            select: { department: true, unit: true },
+            take: 1,
+            orderBy: { effectiveFrom: 'desc' }
+          }
+        }
       }),
       prisma.shiftType.findMany({
         where: { status: 'active', isOvernight: true },
@@ -505,18 +613,72 @@ export async function getOvernightShiftFormOptions(): Promise<{
           endTime: true,
           durationHours: true
         }
+      }),
+      prisma.department.findMany({
+        where: { status: 1 },
+        orderBy: { name: 'asc' },
+        select: { id: true, name: true, institution: true }
       })
     ]);
+
+    const departmentById = new Map(departments.map((d) => [d.id, d]));
+    const departmentsByNameInstitution = new Map(
+      departments.map((d) => [`${d.institution}::${d.name.toLowerCase()}`, d])
+    );
+
+    const staff: OvernightShiftStaffOption[] = staffRecords.map((record) => {
+      const employment = (
+        record.employmentDetails as {
+          employment?: {
+            institution?: string;
+            department?: string;
+            roster?: string;
+          };
+        } | null
+      )?.employment;
+      const institutionNum = parseInstitutionId(employment?.institution);
+      const institutionId =
+        institutionNum != null ? String(institutionNum) : '';
+      const rawDept = employment?.department?.trim() || '';
+      const byId = rawDept ? departmentById.get(rawDept) : undefined;
+      const byName =
+        !byId && rawDept && institutionNum != null
+          ? departmentsByNameInstitution.get(
+              `${institutionNum}::${rawDept.toLowerCase()}`
+            )
+          : undefined;
+      const workingDept = byId || byName;
+      const assignmentDept =
+        record.shiftAssignments[0]?.department?.trim() || '';
+      const assignmentDeptRow = assignmentDept
+        ? departmentById.get(assignmentDept) ||
+          (institutionNum != null
+            ? departmentsByNameInstitution.get(
+                `${institutionNum}::${assignmentDept.toLowerCase()}`
+              )
+            : undefined)
+        : undefined;
+
+      return {
+        id: record.id,
+        name: record.code
+          ? `${record.code} — ${record.name}`
+          : (record.name ?? ''),
+        staffCode: record.code ?? '',
+        institutionId,
+        institutionName:
+          institutionNum != null ? getInstitutionName(institutionNum) : '',
+        workingDepartmentName:
+          workingDept?.name || assignmentDeptRow?.name || assignmentDept || '',
+        unit: record.shiftAssignments[0]?.unit?.trim() || '',
+        roster: employment?.roster?.trim() || ''
+      };
+    });
 
     return {
       success: true,
       data: {
-        staff: staffRecords.map((staff) => ({
-          id: staff.id,
-          name: staff.code
-            ? `${staff.name} (${staff.code})`
-            : (staff.name ?? '')
-        })),
+        staff,
         shiftTypes: shiftTypes.map((shift) => ({
           id: shift.id,
           name: formatShiftLabel(shift),
@@ -535,6 +697,132 @@ export async function getOvernightShiftFormOptions(): Promise<{
   }
 }
 
+export async function getOvernightShiftConflictPreview(input: {
+  staffId: string;
+  startDate: Date | string;
+  shiftTypeId?: string | null;
+  excludeAllocationId?: string | null;
+}): Promise<{
+  success: boolean;
+  data?: OvernightShiftConflictPreview;
+  error?: { message?: string };
+}> {
+  try {
+    const staffId = input.staffId?.trim();
+    if (!staffId || !input.startDate) {
+      return {
+        success: true,
+        data: {
+          allocations: [],
+          sameShiftTypeExists: false,
+          dayLimit: 1,
+          existingCount: 0,
+          dayLimitReached: false,
+          blocksSave: false,
+          blockReason: null,
+          infoMessage: null
+        }
+      };
+    }
+
+    const raw =
+      typeof input.startDate === 'string'
+        ? parseISO(String(input.startDate).slice(0, 10))
+        : input.startDate;
+    const dutyDate = toDutyDateUtc(raw);
+    const shiftTypeId = input.shiftTypeId?.trim() || '';
+    const excludeId = input.excludeAllocationId?.trim() || null;
+
+    const snapshot = await getStaffSnapshot(staffId);
+    const { limit } = await getShiftsPerPersonPerDayLimit(snapshot?.roster);
+    const dayLimit = await assertStaffDayShiftLimit({
+      staffId,
+      date: dutyDate,
+      rosterCode: snapshot?.roster,
+      excludeAllocationId: excludeId,
+      issueField: 'startDate'
+    });
+
+    const rows = await prisma.rosterAllocation.findMany({
+      where: {
+        staffId,
+        date: dutyDate,
+        ...(excludeId ? { id: { not: excludeId } } : {})
+      },
+      select: {
+        id: true,
+        shiftTypeId: true,
+        status: true,
+        shiftType: {
+          select: {
+            name: true,
+            chipLabel: true,
+            startTime: true,
+            endTime: true,
+            isOvernight: true
+          }
+        }
+      },
+      orderBy: { createdAt: 'asc' }
+    });
+
+    const allocations = rows.map((row) => ({
+      id: row.id,
+      shiftTypeId: row.shiftTypeId,
+      shiftLabel: formatShiftLabel(row.shiftType),
+      startTime: row.shiftType.startTime,
+      endTime: row.shiftType.endTime,
+      status: row.status,
+      isOvernight: row.shiftType.isOvernight
+    }));
+
+    const sameShiftTypeExists = Boolean(
+      shiftTypeId &&
+        allocations.some((row) => row.shiftTypeId === shiftTypeId)
+    );
+
+    let blocksSave = false;
+    let blockReason: string | null = null;
+    let infoMessage: string | null = null;
+
+    if (sameShiftTypeExists) {
+      blocksSave = true;
+      blockReason =
+        'This staff member already has this overnight shift type on the selected start date.';
+    } else if (!dayLimit.ok) {
+      blocksSave = true;
+      blockReason = dayLimit.message;
+    } else if (allocations.length > 0) {
+      const labels = allocations
+        .map((row) => `${row.shiftLabel} (${row.startTime}–${row.endTime})`)
+        .join('; ');
+      infoMessage = `Also rostered that day: ${labels}. Day limit ${limit} (currently ${allocations.length}). Overnight spans into the next calendar day.`;
+    }
+
+    return {
+      success: true,
+      data: {
+        allocations,
+        sameShiftTypeExists,
+        dayLimit: limit,
+        existingCount: allocations.length,
+        dayLimitReached: !dayLimit.ok,
+        blocksSave,
+        blockReason,
+        infoMessage
+      }
+    };
+  } catch (error: any) {
+    console.error('getOvernightShiftConflictPreview error:', error);
+    return {
+      success: false,
+      error: {
+        message: error.message || 'Failed to check overnight shift conflicts'
+      }
+    };
+  }
+}
+
 async function applyOvernightExtras(
   allocationId: string,
   data: z.infer<typeof overnightPayloadSchema>,
@@ -542,24 +830,32 @@ async function applyOvernightExtras(
   user?: AuditUser
 ) {
   const auditUser = toAuditUser(user);
+  // Times always come from ShiftType master (UI disabled; ignore payload times).
+  const startTime = shiftType.startTime;
+  const endTime = shiftType.endTime;
 
   let day1 = data.day1Hours;
   let day2 = data.day2Hours;
   let total = data.totalHours;
 
   if (data.autoSplit) {
-    const split = computeSplit(data.startDate, data.startTime || shiftType.startTime, data.endDate, data.endTime || shiftType.endTime);
+    const split = computeSplit(
+      data.startDate,
+      startTime,
+      data.endDate,
+      endTime
+    );
     day1 = split.day1;
     day2 = split.day2;
     total = split.total;
   }
 
   const startDt = new Date(data.startDate);
-  const [sh, sm] = (data.startTime || shiftType.startTime).split(':').map(Number);
+  const [sh, sm] = startTime.split(':').map(Number);
   if (!Number.isNaN(sh) && !Number.isNaN(sm)) startDt.setHours(sh, sm, 0, 0);
 
   const endDt = new Date(data.endDate);
-  const [eh, em] = (data.endTime || shiftType.endTime).split(':').map(Number);
+  const [eh, em] = endTime.split(':').map(Number);
   if (!Number.isNaN(eh) && !Number.isNaN(em)) endDt.setHours(eh, em, 0, 0);
 
   await prisma.rosterAllocation.update({
@@ -586,7 +882,7 @@ export async function createOvernightShift(
 ): Promise<{
   success: boolean;
   data?: OvernightShiftRecord;
-  error?: { message?: string; issues?: Record<string, string[]> };
+  error?: OvernightWriteError;
 }> {
   try {
     const parsed = overnightPayloadSchema.safeParse(payload);
@@ -601,29 +897,7 @@ export async function createOvernightShift(
     }
 
     const data = parsed.data;
-    const dutyDate = new Date(
-      Date.UTC(
-        data.startDate.getFullYear(),
-        data.startDate.getMonth(),
-        data.startDate.getDate()
-      )
-    );
-
-    const existing = await prisma.rosterAllocation.findFirst({
-      where: { staffId: data.staffId, date: dutyDate },
-      select: { id: true }
-    });
-    if (existing) {
-      return {
-        success: false,
-        error: {
-          message: 'A roster allocation already exists for this staff member on that date',
-          issues: {
-            startDate: ['Select a date with no existing roster cell for this staff member']
-          }
-        }
-      };
-    }
+    const dutyDate = toDutyDateUtc(data.startDate);
 
     const shiftType = await prisma.shiftType.findUnique({
       where: { id: data.shiftTypeId },
@@ -641,6 +915,29 @@ export async function createOvernightShift(
       return { success: false, error: { message: 'Staff member not found' } };
     }
 
+    const sameType = await prisma.rosterAllocation.findFirst({
+      where: {
+        staffId: data.staffId,
+        date: dutyDate,
+        shiftTypeId: data.shiftTypeId
+      },
+      select: { id: true }
+    });
+    if (sameType) {
+      return {
+        success: false,
+        error: {
+          message:
+            'This staff member already has this overnight shift type on that date',
+          issues: {
+            startDate: [
+              'Duplicate shift type for the same staff/date is not allowed'
+            ]
+          }
+        }
+      };
+    }
+
     const periodFrom = addDays(dutyDate, -dutyDate.getUTCDay());
     const periodTo = addDays(periodFrom, 6);
 
@@ -654,7 +951,8 @@ export async function createOvernightShift(
         department: snapshot.department,
         unit: snapshot.unit,
         roster: snapshot.roster,
-        comments: data.remarks?.trim() ?? ''
+        comments: data.remarks?.trim() ?? '',
+        acknowledgedWarnings: data.acknowledgedWarnings
       },
       user
     );
@@ -664,7 +962,9 @@ export async function createOvernightShift(
         success: false,
         error: {
           message: draftResult.error?.message ?? 'Could not create overnight shift allocation',
-          issues: draftResult.error?.issues
+          issues: draftResult.error?.issues,
+          softWarnings: draftResult.error?.softWarnings,
+          requiresAck: draftResult.error?.requiresAck
         }
       };
     }
@@ -680,12 +980,20 @@ export async function createOvernightShift(
     }
 
     const [withUsers] = await resolveAuthUsers([record]);
+    const labels = await resolveDeptUnitLabels(
+      [withUsers.department],
+      [withUsers.unit]
+    );
     return {
       success: true,
-      data: mapOvernightRecord(withUsers, {
-        createdUser: withUsers.createdUser,
-        updatedUser: withUsers.updatedUser
-      })
+      data: mapOvernightRecord(
+        withUsers,
+        {
+          createdUser: withUsers.createdUser,
+          updatedUser: withUsers.updatedUser
+        },
+        labels
+      )
     };
   } catch (error: any) {
     console.error('createOvernightShift error:', error);
@@ -703,7 +1011,7 @@ export async function updateOvernightShift(
 ): Promise<{
   success: boolean;
   data?: OvernightShiftRecord;
-  error?: { message?: string; issues?: Record<string, string[]> };
+  error?: OvernightWriteError;
 }> {
   try {
     const parsed = overnightPayloadSchema.safeParse(payload);
@@ -738,13 +1046,7 @@ export async function updateOvernightShift(
     }
 
     const lock = await assertWritableAllocation(existing);
-    const dutyDate = new Date(
-      Date.UTC(
-        data.startDate.getFullYear(),
-        data.startDate.getMonth(),
-        data.startDate.getDate()
-      )
-    );
+    const dutyDate = toDutyDateUtc(data.startDate);
 
     const structuralChanged =
       data.staffId !== existing.staffId ||
@@ -768,6 +1070,7 @@ export async function updateOvernightShift(
         where: {
           staffId: data.staffId,
           date: dutyDate,
+          shiftTypeId: data.shiftTypeId,
           id: { not: id }
         },
         select: { id: true }
@@ -777,7 +1080,7 @@ export async function updateOvernightShift(
           success: false,
           error: {
             message:
-              'A roster allocation already exists for this staff member on that date',
+              'This staff member already has this overnight shift type on that date',
             issues: {
               startDate: [
                 'Duplicate shift type for the same staff/date is not allowed'
@@ -806,7 +1109,8 @@ export async function updateOvernightShift(
           department: snapshot.department,
           unit: snapshot.unit,
           roster: snapshot.roster,
-          comments: data.remarks?.trim() ?? ''
+          comments: data.remarks?.trim() ?? '',
+          acknowledgedWarnings: data.acknowledgedWarnings
         },
         user
       );
@@ -817,7 +1121,9 @@ export async function updateOvernightShift(
           error: {
             message:
               draftResult.error?.message ?? 'Could not update overnight shift allocation',
-            issues: draftResult.error?.issues
+            issues: draftResult.error?.issues,
+            softWarnings: draftResult.error?.softWarnings,
+            requiresAck: draftResult.error?.requiresAck
           }
         };
       }
@@ -847,12 +1153,20 @@ async function loadOvernightShiftRecord(id: string): Promise<{
     return { success: false, error: { message: 'Overnight shift record not found' } };
   }
   const [withUsers] = await resolveAuthUsers([record]);
+  const labels = await resolveDeptUnitLabels(
+    [withUsers.department],
+    [withUsers.unit]
+  );
   return {
     success: true,
-    data: mapOvernightRecord(withUsers, {
-      createdUser: withUsers.createdUser,
-      updatedUser: withUsers.updatedUser
-    })
+    data: mapOvernightRecord(
+      withUsers,
+      {
+        createdUser: withUsers.createdUser,
+        updatedUser: withUsers.updatedUser
+      },
+      labels
+    )
   };
 }
 
@@ -972,58 +1286,38 @@ export async function getOvernightShiftHistory(id: string): Promise<{
 export async function getOvernightShiftsForExport(
   params: GetOvernightShiftsParams
 ): Promise<{
-  success: boolean;
-  data?: Record<string, unknown>[];
-  message?: string;
-  error?: { message?: string };
+  data: OvernightShiftRecord[];
+  totalRecords: number;
 }> {
   try {
     const where = buildOvernightWhere(params);
     const records = await prisma.rosterAllocation.findMany({
       where,
       select: allocationSelect,
-      orderBy: [{ date: 'desc' }, { staffCode: 'asc' }],
-      take: 2000
+      orderBy: [{ date: 'desc' }, { staffCode: 'asc' }]
     });
-
-    const statusLabels = Object.fromEntries(
-      OVERNIGHT_SHIFT_STATUS_OPTIONS.map((option) => [option.id, option.name])
+    const recordsWithUsers = await resolveAuthUsers(records);
+    const labels = await resolveDeptUnitLabels(
+      recordsWithUsers.map((row) => row.department),
+      recordsWithUsers.map((row) => row.unit)
     );
-
+    const data = recordsWithUsers.map((record) =>
+      mapOvernightRecord(
+        record,
+        {
+          createdUser: record.createdUser,
+          updatedUser: record.updatedUser
+        },
+        labels
+      )
+    );
     return {
-      success: true,
-      data: records.map((record) => {
-        const mapped = mapOvernightRecord(record);
-        return {
-          staffCode: mapped.staffCode,
-          staffName: mapped.staffName,
-          department: mapped.department,
-          unit: mapped.unit,
-          startDate: mapped.startDate ? format(new Date(mapped.startDate), 'yyyy-MM-dd') : '',
-          endDate: mapped.endDate ? format(new Date(mapped.endDate), 'yyyy-MM-dd') : '',
-          startTime: mapped.startTime,
-          endTime: mapped.endTime,
-          day1Hours: mapped.day1Hours.toFixed(2),
-          day2Hours: mapped.day2Hours.toFixed(2),
-          totalHours: mapped.totalHours.toFixed(2),
-          attendanceDate: mapped.attendanceDate ? format(new Date(mapped.attendanceDate), 'yyyy-MM-dd') : '',
-          overnightOt: mapped.overnightOt.toFixed(2),
-          allowance: formatOvernightMoney(mapped.overnightAllowance),
-          payrollReady: mapped.payrollReady ? 'Yes' : 'No',
-          status: statusLabels[mapped.status] ?? mapped.status,
-          updatedBy: record.updatedBy ?? '',
-          updatedAt: toIsoString(record.updatedAt),
-          createdBy: record.createdBy ?? '',
-          createdAt: toIsoString(record.createdAt)
-        };
-      })
+      data,
+      totalRecords: data.length
     };
-  } catch (error: any) {
+  } catch (error) {
     console.error('getOvernightShiftsForExport error:', error);
-    return {
-      success: false,
-      error: { message: error.message || 'Failed to export overnight shifts' }
-    };
+    throw new Error('Error getting data');
   }
 }
 

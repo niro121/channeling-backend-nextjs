@@ -26,6 +26,21 @@ export function parseDutyView(value?: string | null): DutyRosterViewMode {
   return 'list';
 }
 
+/** Deep-link to Duty Roster list for a specific allocation (opens Edit when found). */
+export function buildDutyRosterEditHref(input: {
+  allocationId: string;
+  dutyDate: string;
+  staffId?: string;
+}): string {
+  const params = new URLSearchParams();
+  params.set('dutyDate', input.dutyDate.slice(0, 10));
+  params.set('allocationId', input.allocationId);
+  if (input.staffId?.trim()) {
+    params.set('staffId', input.staffId.trim());
+  }
+  return `/duty-roster?${params.toString()}`;
+}
+
 export function dutyRangeLabel(
   dutyDate: Date,
   view: DutyRosterViewMode

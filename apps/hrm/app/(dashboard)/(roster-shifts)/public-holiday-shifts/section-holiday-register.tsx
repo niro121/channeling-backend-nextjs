@@ -26,15 +26,19 @@ type SectionHolidayRegisterProps = {
 };
 
 function SelectionSync() {
-  const { rowSelection } = useCommonDataTableContext();
-  const { setSelectedCount } = usePublicHolidayShiftsUi();
+  const { rowSelection, table } = useCommonDataTableContext();
+  const { setSelectedCount, setSelectedStaffIds } = usePublicHolidayShiftsUi();
 
   useEffect(() => {
-    const count = Object.keys(rowSelection).filter(
+    const selectedKeys = Object.keys(rowSelection).filter(
       (key) => rowSelection[key]
-    ).length;
-    setSelectedCount(count);
-  }, [rowSelection, setSelectedCount]);
+    );
+    const staffIds = selectedKeys.map(
+      (key) => (table.getRow(key).original as PublicHolidayShiftRecord).staffId
+    );
+    setSelectedCount(selectedKeys.length);
+    setSelectedStaffIds([...new Set(staffIds.filter(Boolean))]);
+  }, [rowSelection, setSelectedCount, setSelectedStaffIds, table]);
 
   return null;
 }

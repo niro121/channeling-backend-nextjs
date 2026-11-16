@@ -8,12 +8,14 @@ import {
   approveRosterAmendments,
   createRosterAmendment,
   deleteRosterAmendment,
+  getRosterAmendmentConflictPreview,
   getRosterAmendmentFilterOptions,
   getRosterAmendmentFormOptions,
   getRosterAmendmentHistory,
   getRosterAmendmentSummary,
   getRosterAmendments,
   getRosterAmendmentsForExport,
+  listPublishedAllocationsForAmendment,
   lookupPublishedAllocationForAmendment,
   rejectRosterAmendments,
   updateRosterAmendment
@@ -176,11 +178,16 @@ export async function getRosterAmendmentFormOptionsAction() {
 
 export async function lookupPublishedAllocationForAmendmentAction(
   staffId: string,
-  dutyDate: string
+  dutyDate: string,
+  shiftTypeId?: string | null
 ) {
   try {
     await requirePermission('shift-roster', 'view');
-    const result = await lookupPublishedAllocationForAmendment(staffId, dutyDate);
+    const result = await lookupPublishedAllocationForAmendment(
+      staffId,
+      dutyDate,
+      shiftTypeId
+    );
     if (!result.success) {
       throw new Error(
         result.error?.message ?? 'Could not lookup published allocation'
@@ -203,6 +210,66 @@ export async function lookupPublishedAllocationForAmendmentAction(
   }
 }
 
+export async function listPublishedAllocationsForAmendmentAction(
+  staffId: string,
+  dutyDate: string
+) {
+  try {
+    await requirePermission('shift-roster', 'view');
+    const result = await listPublishedAllocationsForAmendment(staffId, dutyDate);
+    if (!result.success) {
+      throw new Error(
+        result.error?.message ?? 'Could not list published duties'
+      );
+    }
+    return {
+      isError: false,
+      data: result.data ?? [],
+      errors: {}
+    };
+  } catch (error: any) {
+    console.error('listPublishedAllocationsForAmendmentAction error', error);
+    return {
+      isError: true,
+      data: null,
+      errors: {
+        message: error.message ?? 'Could not list published duties'
+      }
+    };
+  }
+}
+
+export async function getRosterAmendmentConflictPreviewAction(input: {
+  staffId: string;
+  dutyDate: Date | string;
+  shiftTypeId?: string | null;
+  excludeAllocationId?: string | null;
+}) {
+  try {
+    await requirePermission('shift-roster', 'view');
+    const result = await getRosterAmendmentConflictPreview(input);
+    if (!result.success) {
+      throw new Error(
+        result.error?.message ?? 'Could not check amendment conflicts'
+      );
+    }
+    return {
+      isError: false,
+      data: result.data ?? null,
+      errors: {}
+    };
+  } catch (error: any) {
+    console.error('getRosterAmendmentConflictPreviewAction error', error);
+    return {
+      isError: true,
+      data: null,
+      errors: {
+        message: error.message ?? 'Could not check amendment conflicts'
+      }
+    };
+  }
+}
+
 export async function createRosterAmendmentAction(payload: RosterAmendmentPayload) {
   await requirePermission('shift-roster', 'add');
   try {
@@ -217,7 +284,11 @@ export async function createRosterAmendmentAction(payload: RosterAmendmentPayloa
         data: null,
         errors: {
           message: result.error?.message ?? 'Could not save amendment',
-          ...(result.error?.issues ?? {})
+          ...(result.error?.issues ?? {}),
+          ...(result.error?.softWarnings
+            ? { softWarnings: result.error.softWarnings }
+            : {}),
+          ...(result.error?.requiresAck ? { requiresAck: true } : {})
         }
       };
     }
@@ -270,7 +341,11 @@ export async function updateRosterAmendmentAction(
         data: null,
         errors: {
           message: result.error?.message ?? 'Could not update amendment',
-          ...(result.error?.issues ?? {})
+          ...(result.error?.issues ?? {}),
+          ...(result.error?.softWarnings
+            ? { softWarnings: result.error.softWarnings }
+            : {}),
+          ...(result.error?.requiresAck ? { requiresAck: true } : {})
         }
       };
     }
@@ -344,16 +419,30 @@ export async function deleteRosterAmendmentAction(id: string) {
 
 export async function approveRosterAmendmentsAction(
   ids: string[],
-  remarks?: string | null
+  remarks?: string | null,
+  acknowledgedWarnings?: boolean
 ) {
   await requirePermission('shift-roster', 'edit');
   try {
     const auditUser = await getAuditUser();
-    const result = await approveRosterAmendments(ids, auditUser, remarks);
+    const result = await approveRosterAmendments(
+      ids,
+      auditUser,
+      remarks,
+      acknowledgedWarnings
+    );
     if (!result.success) {
-      throw new Error(
-        result.error?.message ?? 'Could not approve selected amendments'
-      );
+      return {
+        isError: true,
+        data: null,
+        errors: {
+          message: result.error?.message ?? 'Could not approve selected amendments',
+          ...(result.error?.softWarnings
+            ? { softWarnings: result.error.softWarnings }
+            : {}),
+          ...(result.error?.requiresAck ? { requiresAck: true } : {})
+        }
+      };
     }
 
     if (auditUser?.id) {
@@ -454,27 +543,38 @@ export async function getRosterAmendmentHistoryAction(id: string) {
   }
 }
 
-export async function getRosterAmendmentsExportAction(
+export async function getRosterAmendmentsExport(
   params: GetRosterAmendmentsParams
 ) {
+  await requirePermission('shift-roster', 'view');
+
   try {
-    await requirePermission('shift-roster', 'view');
-    const result = await getRosterAmendmentsForExport(listParams(params));
-    if (!result.success) {
+    const response = await getRosterAmendmentsForExport(listParams(params));
+
+    if (!response.data?.length) {
       return {
         success: false,
-        message: result.error?.message ?? 'Failed to export amendments'
+        message: 'No amendments found',
+        data: [],
+        totalRecords: 0
       };
     }
+
     return {
       success: true,
-      data: result.data ?? []
+      data: response.data,
+      totalRecords: response.totalRecords
     };
-  } catch (error: any) {
-    console.error('getRosterAmendmentsExportAction error', error);
+  } catch (error: unknown) {
+    console.error('getRosterAmendmentsExport error', error);
     return {
       success: false,
-      message: error.message ?? 'Failed to export amendments'
+      message:
+        error instanceof Error
+          ? error.message
+          : 'Error getting data. Please try again later',
+      data: [],
+      totalRecords: 0
     };
   }
 }

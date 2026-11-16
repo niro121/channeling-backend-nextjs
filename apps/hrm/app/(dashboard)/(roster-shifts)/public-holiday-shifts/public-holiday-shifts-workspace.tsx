@@ -102,6 +102,7 @@ function PublicHolidayShiftsWorkspaceInner({
           mode={formSheet.mode}
           record={formSheet.record}
           selectedCount={formSheet.selectedCount}
+          selectedStaffIds={formSheet.selectedStaffIds}
           formOptions={formOptions}
           onOpenChange={(next) => {
             if (!next) closeFormSheet();
