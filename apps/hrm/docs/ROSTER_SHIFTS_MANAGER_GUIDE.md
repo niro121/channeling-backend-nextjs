@@ -210,11 +210,12 @@ Key files under `app/(dashboard)/(roster-shifts)/shift-roster/`:
 | `roster-column-header.tsx` | Sortable header + per-column filter input |
 | `shift-chip.tsx` | Reusable chip (type, time range, Leave checkbox); click → Edit sheet |
 | `shift-legend.tsx` | D / E / N / O / L badges |
-| `record-actions.tsx` | Edit / Delete / History (sheets + delete confirm) |
+| `record-actions.tsx` | View / Edit / Delete / History (sheets + delete confirm) |
 | `shift-roster-workspace.tsx` | Client: filters, Hide/Visible, Load/Clear, sheets provider |
-| `shift-roster-ui-context.tsx` | Open Add / Edit / History sheets |
+| `shift-roster-ui-context.tsx` | Open Add / Edit / View / History sheets |
 | `sheet-roster-allocation-form.tsx` | Allocate / Edit allocation sheet (toast save Phase 0) |
 | `sheet-roster-allocation-history.tsx` | Change History sheet; **Cancel only** |
+| `sheet-roster-staff-view.tsx` | View staff + duties for loaded week/month range; **Close only** |
 | `sample-data.ts` | Mock staff rows, shifts, summary, filter options |
 
 ### 2.1 Header
@@ -294,7 +295,7 @@ Row 2: action buttons
 | Days | Sun 01 Sep … Sat 07 Sep (weekly). Monthly: days of the selected month |
 | Metrics | Total Hours, OT Hours |
 | Status | Draft / Pending Approval / Published / Amended pills |
-| Actions | Edit, Delete, History |
+| Actions | View, Edit, Delete, History |
 
 #### Shift chip
 
@@ -321,6 +322,7 @@ Right-side Sheets (same sticky-header pattern as Shift Types).
 |-------|------------|--------|
 | Allocate Shift | **+ Allocate Shift**; empty day cell (staff + date prefilled) | Cancel + Save Allocation |
 | Edit Roster Allocation | Chip click; row pencil (first allocated day this week, else toast) | Cancel + Save Changes |
+| View Roster | Row eye | Staff header + duties for loaded week/month range; **Close only** |
 | Change History | Row clock | **Cancel only** |
 
 Form fields: Staff Member*, Shift Type*, Department / Unit / Designation (**read-only** from staff), Roster Date*, Total Hours (**auto** from shift type), OT Hours (editable, default 0), Status* (Draft / Pending Approval / Published / Amended), Comments. Audit footer Created / Last updated.
@@ -926,6 +928,7 @@ app/(dashboard)/(roster-shifts)/shift-roster/
   record-actions.tsx
   sheet-roster-allocation-form.tsx
   sheet-roster-allocation-history.tsx
+  sheet-roster-staff-view.tsx
   sample-data.ts
 
 app/(dashboard)/(roster-shifts)/shift-types/

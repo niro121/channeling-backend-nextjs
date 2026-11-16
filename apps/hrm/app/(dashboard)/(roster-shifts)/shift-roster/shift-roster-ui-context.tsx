@@ -22,6 +22,7 @@ export type RosterAllocationFormTarget = {
 type ShiftRosterUiContextValue = {
   formTarget: RosterAllocationFormTarget | null;
   historyRow: RosterStaffRow | null;
+  viewRow: RosterStaffRow | null;
   openAdd: (prefill?: {
     row?: RosterStaffRow;
     dateIso?: string;
@@ -32,8 +33,10 @@ type ShiftRosterUiContextValue = {
     shift: ShiftCell;
   }) => void;
   openHistory: (row: RosterStaffRow) => void;
+  openView: (row: RosterStaffRow) => void;
   closeFormSheet: () => void;
   closeHistorySheet: () => void;
+  closeViewSheet: () => void;
 };
 
 const ShiftRosterUiContext = createContext<ShiftRosterUiContextValue | null>(
@@ -44,6 +47,7 @@ export function ShiftRosterUiProvider({ children }: { children: ReactNode }) {
   const [formTarget, setFormTarget] =
     useState<RosterAllocationFormTarget | null>(null);
   const [historyRow, setHistoryRow] = useState<RosterStaffRow | null>(null);
+  const [viewRow, setViewRow] = useState<RosterStaffRow | null>(null);
 
   const openAdd = useCallback(
     (prefill?: { row?: RosterStaffRow; dateIso?: string }) => {
@@ -73,27 +77,38 @@ export function ShiftRosterUiProvider({ children }: { children: ReactNode }) {
     setHistoryRow(row);
   }, []);
 
+  const openView = useCallback((row: RosterStaffRow) => {
+    setViewRow(row);
+  }, []);
+
   const closeFormSheet = useCallback(() => setFormTarget(null), []);
   const closeHistorySheet = useCallback(() => setHistoryRow(null), []);
+  const closeViewSheet = useCallback(() => setViewRow(null), []);
 
   const value = useMemo(
     () => ({
       formTarget,
       historyRow,
+      viewRow,
       openAdd,
       openEdit,
       openHistory,
+      openView,
       closeFormSheet,
-      closeHistorySheet
+      closeHistorySheet,
+      closeViewSheet
     }),
     [
       formTarget,
       historyRow,
+      viewRow,
       openAdd,
       openEdit,
       openHistory,
+      openView,
       closeFormSheet,
-      closeHistorySheet
+      closeHistorySheet,
+      closeViewSheet
     ]
   );
 

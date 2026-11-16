@@ -37,6 +37,7 @@ import SectionRosterInstructions from './section-roster-instructions';
 import SectionRosterSummary from './section-roster-summary';
 import SheetRosterAllocationForm from './sheet-roster-allocation-form';
 import SheetRosterAllocationHistory from './sheet-roster-allocation-history';
+import SheetRosterStaffView from './sheet-roster-staff-view';
 import {
   ShiftRosterUiProvider,
   useShiftRosterUi
@@ -102,8 +103,10 @@ function ShiftRosterWorkspaceInner({
   const {
     formTarget,
     historyRow,
+    viewRow,
     closeFormSheet,
-    closeHistorySheet
+    closeHistorySheet,
+    closeViewSheet
   } = useShiftRosterUi();
   const [staffMetaVisible, setStaffMetaVisible] = useState(true);
   const [exportScopeOpen, setExportScopeOpen] = useState(false);
@@ -349,6 +352,15 @@ function ShiftRosterWorkspaceInner({
         dayIsos={data.dayIsos}
         onOpenChange={(next) => {
           if (!next) closeHistorySheet();
+        }}
+      />
+
+      <SheetRosterStaffView
+        open={!!viewRow}
+        record={viewRow}
+        dayIsos={data.dayIsos}
+        onOpenChange={(next) => {
+          if (!next) closeViewSheet();
         }}
       />
 

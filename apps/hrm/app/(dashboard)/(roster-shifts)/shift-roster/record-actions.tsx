@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Clock3, Pencil, Trash2 } from 'lucide-react';
+import { Clock3, Eye, Pencil, Trash2 } from 'lucide-react';
 import { Button, CustomAlertDialog, useToast } from '@archmage/ui';
 import { usePermissions } from '@/components/hooks/use-permissions';
 import { deleteShiftRosterStaffAllocationsAction } from '@/app/actions/roster-actions/shift-roster.actions';
@@ -22,7 +22,7 @@ export default function RosterRecordActions({
   const { toast } = useToast();
   const router = useRouter();
   const { has } = usePermissions();
-  const { openEdit, openHistory } = useShiftRosterUi();
+  const { openEdit, openHistory, openView } = useShiftRosterUi();
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
 
@@ -66,6 +66,16 @@ export default function RosterRecordActions({
   return (
     <>
       <div className="flex items-center justify-end gap-1.5">
+        <Button
+          type="button"
+          size="icon"
+          variant="ghost"
+          className="h-8 w-8 rounded-full border border-border"
+          aria-label={`View roster for ${record.staffName}`}
+          onClick={() => openView(record)}
+        >
+          <Eye className="h-3.5 w-3.5" />
+        </Button>
         {canEdit ? (
           <Button
             type="button"
