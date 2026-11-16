@@ -22,16 +22,28 @@ import {
   useToast
 } from '@archmage/ui';
 import { usePermissions } from '@/components/hooks/use-permissions';
-import type { LoadRosterParams } from '@/types/roster';
+import type { LoadRosterParams, RosterFilterOption } from '@/types/roster';
 import DialogSoftWarnAck from '../dialog-soft-warn-ack';
-
-const LATER = 'Will be wired in a later phase.';
+import DialogCreateFixedRoster, {
+  type CreateFixedRosterValues
+} from './dialog-create-fixed-roster';
 
 type ShiftRosterHeaderActionsProps = {
   initialFilters: LoadRosterParams;
+  rosterOptions?: RosterFilterOption[];
+  departmentOptions?: RosterFilterOption[];
+  unitOptions?: RosterFilterOption[];
 };
 
-type SoftAckAction = 'fillNew' | 'fillOld' | 'publish';
+type SoftAckAction = 'fillNew' | 'fillOld' | 'publish' | 'createFixed';
+
+type WorkflowFilters = {
+  department?: string;
+  unit?: string;
+  roster?: string;
+  fromDate: string;
+  toDate: string;
+};
 
 function formatRangeLabel(fromDate: string, toDate: string): string {
   const formatOne = (value: string) => {
@@ -44,7 +56,10 @@ function formatRangeLabel(fromDate: string, toDate: string): string {
 }
 
 export function ShiftRosterHeaderActions({
-  initialFilters
+  initialFilters,
+  rosterOptions = [],
+  departmentOptions = [],
+  unitOptions = []
 }: ShiftRosterHeaderActionsProps) {
   const { toast } = useToast();
   const { has } = usePermissions();
@@ -59,9 +74,12 @@ export function ShiftRosterHeaderActions({
     useState(false);
   const [fillIntroOpen, setFillIntroOpen] = useState(false);
   const [fillIntroLoading, setFillIntroLoading] = useState(false);
+  const [createFixedOpen, setCreateFixedOpen] = useState(false);
+  const [createFixedLoading, setCreateFixedLoading] = useState(false);
   const pendingActionRef = useRef<SoftAckAction | null>(null);
+  const pendingFiltersRef = useRef<WorkflowFilters | null>(null);
 
-  const currentFilters = {
+  const currentFilters: WorkflowFilters = {
     department: searchParams.get('department') ?? initialFilters.department,
     unit: searchParams.get('unit') ?? initialFilters.unit,
     roster: searchParams.get('roster') ?? initialFilters.roster,
@@ -74,24 +92,25 @@ export function ShiftRosterHeaderActions({
     currentFilters.toDate
   );
 
-  const notify = (title: string) => {
-    toast({ title, description: LATER });
-  };
-
   const runWorkflow = async (
     action: SoftAckAction,
     acknowledgedWarnings = false,
-    markLeaveOnApprovedLeave = false
+    markLeaveOnApprovedLeave = false,
+    filtersOverride?: WorkflowFilters
   ) => {
+    const filters = filtersOverride ?? currentFilters;
+    pendingFiltersRef.current = filters;
+
+    const isAutoFill = action === 'fillNew' || action === 'createFixed';
     const payload = {
-      ...currentFilters,
+      ...filters,
       ...(acknowledgedWarnings ? { acknowledgedWarnings: true } : {}),
-      ...(action === 'fillNew' && markLeaveOnApprovedLeave
+      ...(isAutoFill && markLeaveOnApprovedLeave
         ? { markLeaveOnApprovedLeave: true }
         : {})
     };
     const result =
-      action === 'fillNew'
+      action === 'fillNew' || action === 'createFixed'
         ? await fillNewRosterDraftAction(payload)
         : action === 'fillOld'
           ? await fillOldRosterDraftAction(payload)
@@ -110,13 +129,15 @@ export function ShiftRosterHeaderActions({
             )
           : [];
         pendingActionRef.current = action;
-        setAllowMarkLeaveOnApproved(action === 'fillNew');
+        setAllowMarkLeaveOnApproved(isAutoFill);
         setConfirmTitle(
-          action === 'fillNew'
-            ? 'Leave / weekly off overlaps Fill New'
-            : action === 'publish'
-              ? 'Leave / weekly off overlaps publish'
-              : 'Leave / weekly off overlaps'
+          action === 'createFixed'
+            ? 'Leave / weekly off overlaps Create Fixed Roster'
+            : action === 'fillNew'
+              ? 'Leave / weekly off overlaps Fill New'
+              : action === 'publish'
+                ? 'Leave / weekly off overlaps publish'
+                : 'Leave / weekly off overlaps'
         );
         setConfirmWarnings(
           softWarnings.length
@@ -143,6 +164,7 @@ export function ShiftRosterHeaderActions({
     }
 
     pendingActionRef.current = null;
+    pendingFiltersRef.current = null;
     const created =
       result.data && 'created' in result.data
         ? Number(result.data.created ?? 0)
@@ -156,7 +178,7 @@ export function ShiftRosterHeaderActions({
       variant: 'success',
       title: 'Success',
       description:
-        action === 'fillNew'
+        action === 'fillNew' || action === 'createFixed'
           ? `Created ${created} draft cell(s)${
               skippedOccupied
                 ? `; skipped ${skippedOccupied} occupied day(s)`
@@ -169,6 +191,22 @@ export function ShiftRosterHeaderActions({
             : 'Roster published.'
     });
     router.refresh();
+  };
+
+  const handleCreateFixed = async (values: CreateFixedRosterValues) => {
+    setCreateFixedLoading(true);
+    try {
+      setCreateFixedOpen(false);
+      await runWorkflow('createFixed', false, false, {
+        roster: values.roster,
+        fromDate: values.fromDate,
+        toDate: values.toDate,
+        department: values.department,
+        unit: values.unit
+      });
+    } finally {
+      setCreateFixedLoading(false);
+    }
   };
 
   if (!canEdit) return null;
@@ -199,7 +237,7 @@ export function ShiftRosterHeaderActions({
           size="sm"
           variant="outline"
           className="h-9 gap-1.5"
-          onClick={() => notify('Create Fixed Roster')}
+          onClick={() => setCreateFixedOpen(true)}
         >
           <Sparkles className="h-4 w-4" />
           Create Fixed Roster
@@ -301,6 +339,23 @@ export function ShiftRosterHeaderActions({
         </AlertDialogContent>
       </AlertDialog>
 
+      <DialogCreateFixedRoster
+        open={createFixedOpen}
+        loading={createFixedLoading}
+        rosterOptions={rosterOptions}
+        departmentOptions={departmentOptions}
+        unitOptions={unitOptions}
+        initial={{
+          roster: currentFilters.roster ?? '',
+          fromDate: currentFilters.fromDate,
+          toDate: currentFilters.toDate,
+          department: currentFilters.department,
+          unit: currentFilters.unit
+        }}
+        onOpenChange={setCreateFixedOpen}
+        onConfirm={(values) => void handleCreateFixed(values)}
+      />
+
       <DialogSoftWarnAck
         open={confirmOpen}
         title={confirmTitle}
@@ -310,6 +365,7 @@ export function ShiftRosterHeaderActions({
         onOpenChange={(nextOpen) => {
           if (!nextOpen) {
             pendingActionRef.current = null;
+            pendingFiltersRef.current = null;
             setConfirmWarnings([]);
             setAllowMarkLeaveOnApproved(false);
           }
@@ -324,7 +380,12 @@ export function ShiftRosterHeaderActions({
           setConfirmLoading(true);
           setConfirmOpen(false);
           try {
-            await runWorkflow(action, true, markLeaveOnApprovedLeave);
+            await runWorkflow(
+              action,
+              true,
+              markLeaveOnApprovedLeave,
+              pendingFiltersRef.current ?? undefined
+            );
           } finally {
             setConfirmLoading(false);
           }

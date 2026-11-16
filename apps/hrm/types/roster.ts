@@ -550,6 +550,10 @@ export type RosterFilterOptions = {
   departments: RosterFilterOption[];
   units: RosterFilterOption[];
   rosters: RosterFilterOption[];
+  /** Designation master options (INT-R1). */
+  designations: RosterFilterOption[];
+  /** Staff Grade master options (INT-R2). */
+  staffGrades: RosterFilterOption[];
 };
 
 export type ShiftTypeChip = {
@@ -567,6 +571,10 @@ export type LoadRosterParams = {
   department?: string;
   unit?: string;
   roster?: string;
+  /** Designation master id (assignment snapshot). */
+  designation?: string;
+  /** Staff Grade master id (employment). */
+  staffGrade?: string;
   fromDate: string;
   toDate: string;
   search?: string;

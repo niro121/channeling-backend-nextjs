@@ -60,7 +60,7 @@ Pages must not call Prisma. No business rules in components. Remaining work is m
 - Overnight: **store** Day 1 / Day 2 / Total hours + attendance allocation date; service still computes from start/end.
 - **Uniqueness (allocations):** Prisma `@@unique([staffId, date, shiftTypeId])` — multiple different shift types on the same day are allowed up to Manage Rosters `shiftsPerPersonPerDay` (**INT-R4**); same shift type on the same day is blocked; overlapping duty time windows are also rejected. Standing Shift Assignment uniqueness is separate (same staff + same shift type + overlapping effective dates among active/pending).
 - Permissions: keep **one** `shift-roster` resource. `edit` = allocate / save draft / swap. `add` or `edit` = publish and amendment approve. View-only cannot publish.
-- **Defer / upcoming:** Create Fixed Roster (needs template schema); OT Process Staff Shift roster **read** (Overtime Manager); Dept / Unit / Designation / Grade master filters (HR Admin §31–32); Auto Assign E2/E3 rotation patterns (when product asks); **Manage Shifts** HR Admin screen (not required — keep Shift Types; §34).
+- **Defer / upcoming:** OT Process Staff Shift roster **read** (after Overtime); Auto Assign E2/E3 (when product asks); Create Fixed Roster Option C named templates (only if product asks); **Manage Shifts** HR Admin screen (not required — keep Shift Types; §34).
 
 ---
 
@@ -81,7 +81,7 @@ Pages must not call Prisma. No business rules in components. Remaining work is m
 
 Sidebar: **Roster & Shifts** collapsible → Shift Roster, Shift Types, Shift Assignment, Duty Roster, Roster Amendments, Night Shifts, Overnight Shifts, Public Holiday Shifts.
 
-Shift Roster v1 is **one screen** for calendar planning. Header actions stay on that page (dialogs / sheets); only **Create Fixed Roster** remains a placeholder toast.
+Shift Roster v1 is **one screen** for calendar planning. Header actions stay on that page (dialogs / sheets), including **Create Fixed Roster** Option B.
 
 Overtime **Process Staff Shift** still uses sample/toast until Overtime wires a published-roster **read** (Phase F / Overtime Manager — roster store is ready).
 
@@ -168,7 +168,7 @@ Full backlog: `HR_ADMINISTRATION_GUIDE.md` §26, §29, §32 (incl. **INT-H*** po
 
 ## 2. UI map — Shift Roster (Phase 0)
 
-> **Live status (Nov 2026):** Load Roster, Allocate / Edit (Duty-parity), View, Delete drafts, History, publish / fill / copy, weekly + monthly views, print / Excel / PDF (export scope dialog), draft-only drag persist, conflict detail card, Fill New + Auto Assign All (E1 Fixed), leave / weekly-off soft warn, approved-leave amber hints. Still toast: **Create Fixed Roster** only. Prefer this callout + §11.1 over Phase 0 “toast” rows below when they disagree.
+> **Live status (Nov 2026):** Load Roster, Allocate / Edit (Duty-parity), View, Delete drafts, History, publish / fill / copy, weekly + monthly views, print / Excel / PDF (export scope dialog), draft-only drag persist, conflict detail card, Fill New + Auto Assign All (E1 Fixed), **Create Fixed Roster** Option B wizard (same E1 engine), leave / weekly-off soft warn, approved-leave amber hints. Prefer this callout + §11.1 over Phase 0 “toast” rows below when they disagree.
 
 Match the Shift Roster mock. Compose like Overtime (`CommonManagerHeader` + count cards + sections).
 
@@ -205,7 +205,8 @@ Key files under `app/(dashboard)/(roster-shifts)/shift-roster/`:
 | File | Role |
 |------|------|
 | `page.tsx` | Access check; load roster + form options; compose workspace |
-| `header-actions.tsx` | Fill New, Fill Old, Create Fixed (toast), Save Draft, Publish |
+| `header-actions.tsx` | Fill New, Fill Old, Create Fixed (Option B dialog), Save Draft, Publish |
+| `dialog-create-fixed-roster.tsx` | Create Fixed Roster wizard — roster + range → E1 fill |
 | `section-roster-summary.tsx` | Four count cards (live) |
 | `section-roster-filters.tsx` | Search & Filters card |
 | `section-roster-grid.tsx` | Week/month header, legend, **module table**, pagination, audit footer |
@@ -232,7 +233,7 @@ Reuse `CommonManagerHeader`:
 |--------|-------|------|
 | Fill New | Outline | **Live** — Fixed + `autoAssign` standing rules → empty days (E1); soft warn + Continue |
 | Fill Old Roster | Outline | **Live** — copy previous published pattern into empty cells / new range |
-| Create Fixed Roster | Outline + sparkles icon | **Toast** — deferred until template schema |
+| Create Fixed Roster | Outline + sparkles icon | **Live (Option B)** — dialog: roster + date range (+ optional dept/unit) → same Fixed Auto Assign engine as Fill New; soft warn + Continue |
 | Save Draft | Outline + disk icon | **Live** — period + draft cells; published dates guarded |
 | Publish Roster | Primary green + send icon | **Live** — period/cells → published |
 
@@ -260,7 +261,7 @@ Row 2: action buttons
 
 | Control | Live |
 |---------|------|
-| Dropdowns / date range / search | URL + workspace; roster options via Manage Rosters (`buildManageRosterFilterOptions`). Dept/Unit still free-text / snapshot until HR Admin masters |
+| Dropdowns / date range / search | URL + workspace; **Department / Unit (Room) / Designation / Staff Grade** from masters (+ legacy orphan dual-read); **Roster** via Manage Rosters (`buildManageRosterFilterOptions`) |
 | **Load Roster** | Primary green — server load for filters + date range |
 | Clear | Reset filters + reload default week |
 | Hide / Visible | Local: Hide collapses Department / Unit / Designation; Visible restores |
@@ -928,6 +929,8 @@ app/(dashboard)/(roster-shifts)/shift-roster/
   sheet-roster-allocation-form.tsx
   sheet-roster-allocation-history.tsx
   sheet-roster-staff-view.tsx
+  dialog-create-fixed-roster.tsx
+  dialog-export-scope.tsx
   sample-data.ts
 
 app/(dashboard)/(roster-shifts)/shift-types/
@@ -1529,14 +1532,14 @@ Auto Assign that **creates week cells** waits for D5.
 | Fill New | New draft period for the current filters (empty cells) |
 | Fill Old Roster | Copy from a previous published period into a **new date range** or into empty cells only — never a second row for the same staff+date+shiftType |
 | Copy Previous Week / Month | Pattern shifted by 7 days / month |
-| Create Fixed Roster | **Toast** — do not block publish/copy |
+| Create Fixed Roster | **Live (Option B)** — guided Fixed Auto Assign over chosen roster + range (no separate template collection) |
 
 | Done when |
 |-----------|
 | [x] Publish is idempotent; further allocate/swap on those dates fails without an amendment |
 | [x] Copy previous week creates a draft with the pattern shifted by 7 days |
 | [x] Activity log on publish / copy |
-| [x] Create Fixed Roster still toast |
+| [x] Create Fixed Roster Option B (wizard → E1 Fixed fill) |
 
 ---
 
@@ -1651,7 +1654,7 @@ Auto Assign that **creates week cells** waits for D5.
 | Print / PDF / Excel | **Done** on Shift Roster + flat registers |
 | Duty Weekly / Monthly views | **Done** as date-range lists on `/duty-roster`; calendar grid stays on Shift Roster |
 | Drag-and-drop persist | **Done** — draft-only (Phase D) |
-| Create Fixed Roster templates | Still deferred — separate collection when product specifies schema |
+| Create Fixed Roster templates (Option C named templates) | Not in v1 — Option B wizard reuses E1 Fixed Auto Assign |
 | Overtime Process Staff Shift | Still open — replace OT sample fill with published roster **read** (Phase F / Overtime) |
 | Leave overlap (**INT-L2**) | **Done:** soft warn + Continue on allocate / fill / publish **and Duty Swap / Replace** when approved/pending leave overlaps the duty window (Colombo civil bounds; half-day AM/PM aware). Not on standing Shift Assignment create. Cell `isLeave` independent of Leave Application. |
 | Weekly-off soft warn | **Done:** soft warn + Continue when covering standing `weeklyOffDay` matches Colombo weekday (same ack as INT-L2). |
@@ -1699,7 +1702,7 @@ Auto Assign that **creates week cells** waits for D5.
 2. **Do not** use `CommonDataTable` for the roster grid — chips, sticky days, and drag-and-drop do not fit it. Keep the **same card/table styling**.
 3. Register `/shift-roster`, `/shift-types`, `/shift-assignment`, `/duty-roster`, `/roster-amendments`, `/night-shifts`, `/overnight-shifts`, and `/public-holiday-shifts` in `ROUTE_TO_RESOURCE` (same `shift-roster` resource) or the routes stay open.
 4. Permission changes need re-login (JWT snapshot).
-5. Do not reintroduce toast no-ops for Save / Publish / Copy / Swap / Allocate — those paths are live; only **Create Fixed Roster** remains a placeholder.
+5. Do not reintroduce toast no-ops for Save / Publish / Copy / Swap / Allocate / Create Fixed Roster — those paths are live (Create Fixed = Option B wizard over E1).
 6. Do not merge allocations into Staff or Leave Application documents. Do not write Leave Entitlement from `grantLieuLeave`.
 7. Do not create `NightShift`, `DutyRosterRow`, or `PublicHolidayShift` collections — query / extra fields on `RosterAllocation`.
 8. Do not block remaining polish on Fixed Roster templates or OT Process Staff Shift — those are deferred/external (Phase F / product).
@@ -1738,7 +1741,7 @@ Canonical table: `HR_ADMINISTRATION_GUIDE.md` §32 (**INT-H***). Roster & Shifts
 
 ## 11. Remaining completion — module-wise (Roster & Shifts group)
 
-Snapshot of what is still open vs largely done across the eight screens. **Shift Types**, **Shift Assignment**, **Duty Roster**, **Night**, **Overnight**, **Amendments**, and **Public Holiday (D11)** are complete in Roster & Shifts. **Shift Roster** Phases A–E1 (+ row View) are done; leftovers are Phase F (OT read / HR master filters) and deferred Fixed Roster / E2. **INT-H8 / INT-H9** are done.
+Snapshot of what is still open vs largely done across the eight screens. **Shift Types**, **Shift Assignment**, **Duty Roster**, **Night**, **Overnight**, **Amendments**, and **Public Holiday (D11)** are complete in Roster & Shifts. **Shift Roster** A–E1 + View + master filters + Create Fixed Option B done; Dept/Zone/Room delete Restrict done. Remaining Phase F: OT read (parked). **INT-H8 / INT-H9** are done.
 
 ### Already done (do not re-open as “remaining”)
 
@@ -1769,7 +1772,7 @@ Operational Load / allocate draft / publish / fill / copy / View / Auto Assign (
 | 2 | Rotation expansion — **E1 Fixed-like locked for v1**; E2 catalog cycle / E3 multi-row later |
 | 3 | Bulk generate entry point — **both** Shift Roster **Fill New** and Assignment **Auto Assign All** (shared generator) |
 | 4 | Drag-and-drop persist = **draft-only** |
-| 5 | **Create Fixed Roster** deferred until template schema / mock exists |
+| 5 | **Create Fixed Roster** = Option B wizard over E1 Fixed Auto Assign (no separate template collection in v1) |
 | 6 | Start implementation with **Phase A** (Duty-parity Allocate) |
 
 **Implementation order**
@@ -1780,16 +1783,17 @@ Operational Load / allocate draft / publish / fill / copy / View / Auto Assign (
 | **A+** | Live INT-L2 leave hint | **Done** — shared `getRosterLeavePreview` + amber strip on Allocate (under Leave + highlight / Set Yes), Duty (assign/edit/swap/replace), Night, Overnight, PH, Amendments. Skip Shift Types / Assignment. Save Continue dialog unchanged |
 | **B** | Grid row completeness | **Done** — row Delete removes **draft** cells for staff in loaded range (published/amended skipped → Amendments); Change History loads activity timeline for row allocation IDs |
 | **C** | Output & views | **Done** — Print blank/filled via `getShiftRosterExportAction` + `buildShiftRosterExport` + `printPdfUtil`; grid Print / Excel / PDF; export scope dialog (first 100 / 500 / all matching filters); Monthly View sets URL `fromDate`/`toDate` to calendar month then reloads grid |
-| **D** | Advanced planning | **Done** except Fixed Roster — drag persist (draft-only); conflict detail card. Fixed Roster **deferred** (needs schema) |
+| **D** | Advanced planning | **Done** — drag persist (draft-only); conflict detail card; Create Fixed Roster Option B (wizard → E1) |
 | **E** | Auto Assign / rotation | **Done (E1)** — shared `generateAutoAssignDraftCells` (`auto-assign-roster.service`); Fixed + `autoAssign=true` + status **active**; empty days only; leave/weekly-off soft warn + Continue; Fill New + Auto Assign All both call it; Assignment UI disables Auto Assign when pattern ≠ Fixed |
-| **F** | Shared / external | HR master filter options; OT Process Staff Shift read; guide cleanup (**done** Nov 2026 — uniqueness + stale toast notes) |
+| **F** | Shared / external | Guide cleanup (**done**); Shift Roster Dept / Unit (Room) / Designation / Grade master filters (**done**); Dept/Zone/Room delete Restrict + asserts (**done**); Create Fixed Roster Option B (**done**); OT Process Staff Shift read (parked until Overtime ready) |
 
-**Still toast / deferred**
+**Still deferred**
 
 | Remaining | Notes |
 |-----------|--------|
-| Create Fixed Roster | Deferred — needs template schema |
+| Create Fixed Roster Option C (named templates) | Not in v1 — Option B is live |
 | Auto Assign E2 / E3 | Catalog cycle / multi-row — when product asks (E1 Fixed is v1) |
+| OT Process Staff Shift roster read | After Overtime module |
 
 **Related features**
 
@@ -1797,14 +1801,16 @@ Operational Load / allocate draft / publish / fill / copy / View / Auto Assign (
 |---------|----------------|
 | Duty-parity Allocate Shift (Phase A) | **Done** |
 | Row View sheet | **Done** — staff + duties for loaded week/month |
-| Fixed Roster templates + Create Fixed Roster wire-up | This module (when product specifies schema) |
+| Create Fixed Roster Option B (wizard → E1 Fixed fill) | **Done** — no separate template collection |
+| Create Fixed Roster Option C (named templates) | Only if product later needs reusable matrices beyond standing rules |
 | Drag-and-drop allocate persist (draft-only) | **Done** (Phase D) |
 | Full monthly planning grid | **Done** (Phase C) |
 | Real Print blank / filled + Export Excel / PDF | **Done** (Phase C) |
 | Richer conflict summary (overlap detail list) | **Done** (Phase D) |
 | Auto Assign / Fill from standing rotation (`autoAssign`) | **Done (E1 Fixed)** — E2/E3 later |
-| Overtime **Process Staff Shift** reads published roster cells | Overtime Manager (Phase F) |
-| Dept / Unit / Designation / Grade filter options from HR masters | HR Admin masters → this screen’s filters (Phase F) |
+| Overtime **Process Staff Shift** reads published roster cells | Overtime Manager (Phase F — parked) |
+| Dept / Unit (Room) / Designation / Grade filter options from masters | **Done** on Shift Roster |
+| Dept / Zone / Room delete Restrict + asserts | **Done** — schema `onDelete: Restrict` + `assertDepartmentDeletable` / Zone / Room (also blocks Manage Roster, vacancy, job post, rooms-under-zone) |
 
 ### 11.2 Shift Types — `/shift-types` ✅
 
@@ -1909,7 +1915,7 @@ Operational Load / allocate draft / publish / fill / copy / View / Auto Assign (
 | Item | Touches |
 |------|---------|
 | **INT-H8 / INT-H9** | **Done** — see §10 |
-| Dept / Unit / Designation / Grade master filters | When HR Admin masters land (`HR_ADMINISTRATION_GUIDE.md` §31–32) — apply on Shift Roster / Duty / Assignment filters |
+| Dept / Unit (Room) / Designation / Grade master filters | Shift Roster **done** (Unit = Room master, same as Assignment); Duty follow as needed |
 | Staff `employment.roster` = Manage Roster **code** (INT-S3) | Staff module; Roster already consumes codes |
 | Guide cleanup | **Done** (Nov 2026) — uniqueness = staff×date×shiftType + overlap; Shift Roster §2 live callouts; stale toast / one-shift-per-day lines fixed |
 
@@ -1922,4 +1928,4 @@ Operational Load / allocate draft / publish / fill / copy / View / Auto Assign (
 | HR Admin **Manage Shifts** | §11.2 Shift Types (**not required**) |
 | Multi-step approval | §11.5 Roster Amendments (**not** in v1) |
 
-*Last updated: Nov 2026 — Shift Roster Phases A–**E1** + row View done; guide cleanup (Phase F docs slice) done. Still open in F: OT Process Staff Shift read; HR master Dept/Unit/Designation/Grade filters. Fixed Roster + E2 deferred until product asks.*
+*Last updated: Nov 2026 — Shift Roster A–E1 + View + guide cleanup + master filters + Dept/Zone/Room Restrict + Create Fixed Roster Option B done. Remaining Phase F: OT Process Staff Shift read (after Overtime).*

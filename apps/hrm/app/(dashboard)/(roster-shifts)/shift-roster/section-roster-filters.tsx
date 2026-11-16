@@ -16,6 +16,8 @@ export type RosterFilterValues = {
   departmentId: string;
   unitId: string;
   rosterId: string;
+  designationId: string;
+  staffGradeId: string;
   fromDate: string;
   toDate: string;
   staffSearch: string;
@@ -26,10 +28,14 @@ type SectionRosterFiltersProps = {
   departmentOptions: RosterFilterOption[];
   unitOptions: RosterFilterOption[];
   rosterOptions: RosterFilterOption[];
+  designationOptions: RosterFilterOption[];
+  staffGradeOptions: RosterFilterOption[];
   onCopyPreviousWeek: (values: {
     department?: string;
     unit?: string;
     roster?: string;
+    designation?: string;
+    staffGrade?: string;
     fromDate: string;
     toDate: string;
   }) => void;
@@ -37,6 +43,8 @@ type SectionRosterFiltersProps = {
     department?: string;
     unit?: string;
     roster?: string;
+    designation?: string;
+    staffGrade?: string;
     fromDate: string;
     toDate: string;
   }) => void;
@@ -52,6 +60,8 @@ function SectionRosterFiltersInner({
   departmentOptions,
   unitOptions,
   rosterOptions,
+  designationOptions,
+  staffGradeOptions,
   onCopyPreviousWeek,
   onCopyPreviousMonth,
   onPrintBlank,
@@ -67,7 +77,9 @@ function SectionRosterFiltersInner({
   const [draftMeta, setDraftMeta] = useState({
     department: initial.departmentId ?? '',
     unit: initial.unitId ?? '',
-    roster: initial.rosterId ?? ''
+    roster: initial.rosterId ?? '',
+    designation: initial.designationId ?? '',
+    staffGrade: initial.staffGradeId ?? ''
   });
   const [printing, setPrinting] = useState<'blank' | 'filled' | null>(null);
 
@@ -75,6 +87,8 @@ function SectionRosterFiltersInner({
     department: initial.departmentId ?? '',
     unit: initial.unitId ?? '',
     roster: initial.rosterId ?? '',
+    designation: initial.designationId ?? '',
+    staffGrade: initial.staffGradeId ?? '',
     fromDate: initial.fromDate ?? '',
     toDate: initial.toDate ?? '',
     search: initial.staffSearch ?? ''
@@ -84,6 +98,8 @@ function SectionRosterFiltersInner({
     department: draftMeta.department || undefined,
     unit: draftMeta.unit || undefined,
     roster: draftMeta.roster || undefined,
+    designation: draftMeta.designation || undefined,
+    staffGrade: draftMeta.staffGrade || undefined,
     fromDate: draftDates.fromDate,
     toDate: draftDates.toDate
   });
@@ -117,7 +133,9 @@ function SectionRosterFiltersInner({
             setDraftMeta({
               department: values.department ?? '',
               unit: values.unit ?? '',
-              roster: values.roster ?? ''
+              roster: values.roster ?? '',
+              designation: values.designation ?? '',
+              staffGrade: values.staffGrade ?? ''
             });
           }}
           searchButton={{
@@ -142,10 +160,10 @@ function SectionRosterFiltersInner({
               </div>
               <div className="space-y-2">
                 <Label className="text-xs uppercase text-muted-foreground">
-                  Select Unit
+                  Select Unit / Room
                 </Label>
                 <Combobox
-                  label="Unit"
+                  label="Unit / Room"
                   options={unitOptions}
                   value={values.unit ?? ''}
                   defaultValue=""
@@ -163,6 +181,32 @@ function SectionRosterFiltersInner({
                   value={values.roster ?? ''}
                   defaultValue=""
                   onChange={(value) => setValue('roster', value)}
+                  clearable
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs uppercase text-muted-foreground">
+                  Select Designation
+                </Label>
+                <Combobox
+                  label="Designation"
+                  options={designationOptions}
+                  value={values.designation ?? ''}
+                  defaultValue=""
+                  onChange={(value) => setValue('designation', value)}
+                  clearable
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs uppercase text-muted-foreground">
+                  Select Staff Grade
+                </Label>
+                <Combobox
+                  label="Staff Grade"
+                  options={staffGradeOptions}
+                  value={values.staffGrade ?? ''}
+                  defaultValue=""
+                  onChange={(value) => setValue('staffGrade', value)}
                   clearable
                 />
               </div>

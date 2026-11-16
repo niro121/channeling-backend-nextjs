@@ -66,6 +66,8 @@ function emptyFilters(
     departmentId: initialFilters?.department ?? '',
     unitId: initialFilters?.unit ?? '',
     rosterId: initialFilters?.roster ?? '',
+    designationId: initialFilters?.designation ?? '',
+    staffGradeId: initialFilters?.staffGrade ?? '',
     fromDate: initialFilters?.fromDate ?? data.dayIsos[0] ?? '',
     toDate:
       initialFilters?.toDate ??
@@ -125,6 +127,8 @@ function ShiftRosterWorkspaceInner({
       department: filters.departmentId || undefined,
       unit: filters.unitId || undefined,
       roster: filters.rosterId || undefined,
+      designation: filters.designationId || undefined,
+      staffGrade: filters.staffGradeId || undefined,
       fromDate: filters.fromDate,
       toDate: filters.toDate,
       search: filters.staffSearch || undefined
@@ -294,6 +298,8 @@ function ShiftRosterWorkspaceInner({
         departmentOptions={data.filterOptions.departments}
         unitOptions={data.filterOptions.units}
         rosterOptions={data.filterOptions.rosters}
+        designationOptions={data.filterOptions.designations}
+        staffGradeOptions={data.filterOptions.staffGrades}
         onCopyPreviousWeek={(payload) =>
           void runCopy(
             copyPreviousWeekRosterAction,

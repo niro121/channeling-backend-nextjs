@@ -35,6 +35,10 @@ import {
   intervalsOverlap
 } from '@/lib/helpers/roster/shift-time-overlap.helper';
 import { generateRecordCode } from '@/lib/conventions/record-code-generator';
+import { getDepartmentOptions } from '@/services/organization-services/department.service';
+import { getRoomOptions } from '@/services/organization-services/room.service';
+import { getDesignationOptions } from '@/services/hr-admin-services/designation.service';
+import { getStaffGradeOptions } from '@/services/hr-admin-services/staff-grade.service';
 import type {
   DeleteShiftRosterStaffAllocationsPayload,
   LoadRosterParams,
@@ -61,12 +65,48 @@ import {
 /*  Helpers                                                            */
 /* ------------------------------------------------------------------ */
 
-function toOption(value: string): RosterFilterOption {
-  return { id: value, name: value };
+/** Master options first; append legacy snapshot values not present on the master. */
+function mergeMasterWithLegacy(
+  master: RosterFilterOption[],
+  legacyValues: Array<string | null | undefined>,
+  nameById?: Map<string, string>
+): RosterFilterOption[] {
+  const byId = new Map<string, RosterFilterOption>();
+  for (const row of master) {
+    const id = row.id.trim();
+    if (!id) continue;
+    byId.set(id, { id, name: row.name });
+  }
+  for (const raw of legacyValues) {
+    const id = (raw ?? '').trim();
+    if (!id || byId.has(id)) continue;
+    byId.set(id, { id, name: nameById?.get(id) ?? id });
+  }
+  return [...byId.values()].sort((a, b) =>
+    a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })
+  );
 }
 
-function uniqueStrings(values: string[]): string[] {
-  return [...new Set(values.filter(Boolean))].sort();
+function matchesOrgFilter(
+  stored: string | null | undefined,
+  filterValue: string,
+  nameById: Map<string, string>
+): boolean {
+  const value = (stored ?? '').trim();
+  if (!value) return false;
+  if (value === filterValue) return true;
+  const filterName = nameById.get(filterValue)?.trim();
+  if (filterName && value === filterName) return true;
+  return false;
+}
+
+function resolveOrgLabel(
+  value: string | null | undefined,
+  nameById: Map<string, string>
+): string {
+  const id = (value ?? '').trim();
+  if (!id) return '';
+  return nameById.get(id) ?? id;
 }
 
 function iso(d: Date): string {
@@ -343,8 +383,15 @@ export async function loadRoster(
       ];
     }
 
-    // 2. Query staff with their active assignments
-    const [allStaff, shiftTypes] = await Promise.all([
+    // 2. Query staff with their active assignments + master filter options
+    const [
+      allStaff,
+      shiftTypes,
+      departmentRes,
+      roomRes,
+      designationRes,
+      staffGradeRes
+    ] = await Promise.all([
       prisma.staff.findMany({
         where: staffWhere,
         select: {
@@ -375,25 +422,74 @@ export async function loadRoster(
           endTime: true,
           durationHours: true
         }
-      })
+      }),
+      getDepartmentOptions(),
+      getRoomOptions(),
+      getDesignationOptions(),
+      getStaffGradeOptions()
     ]);
+
+    const departmentMaster = departmentRes.data ?? [];
+    const roomMaster = roomRes.data ?? [];
+    const designationMaster = designationRes.data ?? [];
+    const staffGradeMaster = staffGradeRes.data ?? [];
+
+    const departmentNameById = new Map(
+      departmentMaster.map((row) => [row.id, row.name])
+    );
+    const unitNameById = new Map(roomMaster.map((row) => [row.id, row.name]));
+    const designationNameById = new Map(
+      designationMaster.map((row) => [row.id, row.name])
+    );
+    const staffGradeNameById = new Map(
+      staffGradeMaster.map((row) => [row.id, row.name])
+    );
 
     // Filter: only staff with active shift assignments
     let staffWithAssignments = allStaff.filter(
       (s) => s.shiftAssignments.length > 0
     );
 
-    // Apply department / unit / roster filters on assignment snapshot
+    // Apply department / unit / designation / grade / roster filters
     if (params.department) {
-      staffWithAssignments = staffWithAssignments.filter((s) => {
-        const dept = s.shiftAssignments[0]?.department;
-        return dept === params.department;
-      });
+      const deptFilter = params.department.trim();
+      staffWithAssignments = staffWithAssignments.filter((s) =>
+        matchesOrgFilter(
+          s.shiftAssignments[0]?.department,
+          deptFilter,
+          departmentNameById
+        )
+      );
     }
     if (params.unit) {
+      const unitFilter = params.unit.trim();
+      staffWithAssignments = staffWithAssignments.filter((s) =>
+        matchesOrgFilter(
+          s.shiftAssignments[0]?.unit,
+          unitFilter,
+          unitNameById
+        )
+      );
+    }
+    if (params.designation) {
+      const designationFilter = params.designation.trim();
+      staffWithAssignments = staffWithAssignments.filter((s) =>
+        matchesOrgFilter(
+          s.shiftAssignments[0]?.designation,
+          designationFilter,
+          designationNameById
+        )
+      );
+    }
+    if (params.staffGrade) {
+      const gradeFilter = params.staffGrade.trim();
       staffWithAssignments = staffWithAssignments.filter((s) => {
-        const unit = s.shiftAssignments[0]?.unit;
-        return unit === params.unit;
+        const employment = (s.employmentDetails as any)?.employment;
+        return matchesOrgFilter(
+          employment?.staffGrade,
+          gradeFilter,
+          staffGradeNameById
+        );
       });
     }
 
@@ -483,9 +579,15 @@ export async function loadRoster(
 
     const rows: RosterStaffRow[] = pagedStaff.map((staff) => {
       const assignment = staff.shiftAssignments[0];
-      const dept = assignment?.department ?? '';
-      const unit = assignment?.unit ?? '';
-      const designation = assignment?.designation ?? '';
+      const dept = resolveOrgLabel(
+        assignment?.department,
+        departmentNameById
+      );
+      const unit = resolveOrgLabel(assignment?.unit, unitNameById);
+      const designation = resolveOrgLabel(
+        assignment?.designation,
+        designationNameById
+      );
 
       if (dept) departmentSet.add(dept);
 
@@ -619,10 +721,12 @@ export async function loadRoster(
       };
     });
 
-    // 5. Build filter options — departments/units from assignments;
-    //    rosters from Manage Rosters codes (+ legacy employment values).
+    // 5. Build filter options — Dept/Unit(Room)/Designation/Grade from masters
+    //    (+ legacy orphan dual-read); Rosters from Manage Rosters codes.
     const allDepts: string[] = [];
     const allUnits: string[] = [];
+    const allDesignations: string[] = [];
+    const allStaffGrades: string[] = [];
     const allRosters: string[] = [];
 
     for (const staff of allStaff) {
@@ -630,17 +734,22 @@ export async function loadRoster(
       const a = staff.shiftAssignments[0];
       if (a.department) allDepts.push(a.department);
       if (a.unit) allUnits.push(a.unit);
+      if (a.designation) allDesignations.push(a.designation);
       const employment = (staff.employmentDetails as any)?.employment;
       if (employment?.roster) allRosters.push(employment.roster);
+      if (employment?.staffGrade) allStaffGrades.push(employment.staffGrade);
     }
 
     const rosterFilterOptions =
       await buildManageRosterFilterOptions(allRosters);
 
     const filterOptions: RosterFilterOptions = {
-      departments: uniqueStrings(allDepts).map(toOption),
-      units: uniqueStrings(allUnits).map(toOption),
-      rosters: rosterFilterOptions
+      departments: mergeMasterWithLegacy(departmentMaster, allDepts),
+      /** Unit = Room master (same as Shift Assignment). */
+      units: mergeMasterWithLegacy(roomMaster, allUnits),
+      rosters: rosterFilterOptions,
+      designations: mergeMasterWithLegacy(designationMaster, allDesignations),
+      staffGrades: mergeMasterWithLegacy(staffGradeMaster, allStaffGrades)
     };
 
     const summary: RosterGridSummary = {

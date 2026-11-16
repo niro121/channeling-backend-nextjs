@@ -376,6 +376,43 @@ export async function updateDepartment(
   }
 }
 
+/**
+ * Product-facing delete guard. Paired with schema `onDelete: Restrict` on
+ * ManageRoster / RosterAllocation / RosterAmendment / VacancyRequest / JobPost
+ * → Department (Prisma Client emulation on Mongo).
+ */
+async function assertDepartmentDeletable(id: string): Promise<string | null> {
+  const [
+    manageRosterCount,
+    allocationCount,
+    amendmentCount,
+    vacancyCount,
+    jobPostCount
+  ] = await Promise.all([
+    prisma.manageRoster.count({ where: { departmentId: id } }),
+    prisma.rosterAllocation.count({
+      where: { dutyLocationDepartmentId: id }
+    }),
+    prisma.rosterAmendment.count({
+      where: { dutyLocationDepartmentId: id }
+    }),
+    prisma.vacancyRequest.count({ where: { departmentId: id } }),
+    prisma.jobPost.count({ where: { departmentId: id } })
+  ]);
+
+  if (
+    manageRosterCount > 0 ||
+    allocationCount > 0 ||
+    amendmentCount > 0 ||
+    vacancyCount > 0 ||
+    jobPostCount > 0
+  ) {
+    return 'Cannot delete a department that is used by manage rosters, duty places, vacancy requests, or job posts.';
+  }
+
+  return null;
+}
+
 export async function deleteDepartment(id: string): Promise<{
   success: boolean;
   error?: { message?: string };
@@ -391,6 +428,11 @@ export async function deleteDepartment(id: string): Promise<{
     });
     if (!existing) {
       return { success: false, error: { message: 'Department not found' } };
+    }
+
+    const blocked = await assertDepartmentDeletable(id);
+    if (blocked) {
+      return { success: false, error: { message: blocked } };
     }
 
     await prisma.department.delete({ where: { id } });

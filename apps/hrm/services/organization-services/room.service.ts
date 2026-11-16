@@ -671,6 +671,23 @@ export async function updateRoom(
   }
 }
 
+/**
+ * Product-facing delete guard. Paired with schema `onDelete: Restrict` on
+ * RosterAllocation / RosterAmendment → Room.
+ */
+async function assertRoomDeletable(id: string): Promise<string | null> {
+  const [allocationCount, amendmentCount] = await Promise.all([
+    prisma.rosterAllocation.count({ where: { dutyRoomId: id } }),
+    prisma.rosterAmendment.count({ where: { dutyRoomId: id } })
+  ]);
+
+  if (allocationCount > 0 || amendmentCount > 0) {
+    return 'Cannot delete a room that is used by duty places or amendments.';
+  }
+
+  return null;
+}
+
 export async function deleteRoom(id: string): Promise<{
   success: boolean;
   error?: { message?: string };
@@ -686,6 +703,11 @@ export async function deleteRoom(id: string): Promise<{
     });
     if (!existing) {
       return { success: false, error: { message: 'Room not found' } };
+    }
+
+    const blocked = await assertRoomDeletable(id);
+    if (blocked) {
+      return { success: false, error: { message: blocked } };
     }
 
     await prisma.room.delete({ where: { id } });

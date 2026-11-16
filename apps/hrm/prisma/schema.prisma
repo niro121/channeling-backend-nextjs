@@ -613,9 +613,12 @@ model RosterAllocation {
   /// Shift Types delete guard: paired with assertShiftTypeDeletable (service UX).
   shiftType   ShiftType         @relation(fields: [shiftTypeId], references: [id], onDelete: Restrict)
   holiday     HolidayCalendar?  @relation(fields: [holidayId], references: [id])
-  dutyLocationDepartment Department? @relation(fields: [dutyLocationDepartmentId], references: [id])
-  dutyZone    Zone?             @relation(fields: [dutyZoneId], references: [id])
-  dutyRoom    Room?             @relation(fields: [dutyRoomId], references: [id])
+  /// Place delete guard: paired with assertDepartmentDeletable (service UX).
+  dutyLocationDepartment Department? @relation(fields: [dutyLocationDepartmentId], references: [id], onDelete: Restrict)
+  /// Place delete guard: paired with assertZoneDeletable (service UX).
+  dutyZone    Zone?             @relation(fields: [dutyZoneId], references: [id], onDelete: Restrict)
+  /// Place delete guard: paired with assertRoomDeletable (service UX).
+  dutyRoom    Room?             @relation(fields: [dutyRoomId], references: [id], onDelete: Restrict)
   staffShiftAssignment StaffShiftAssignment? @relation(fields: [staffShiftAssignmentId], references: [id])
 
   createdAt DateTime @default(now())
@@ -672,9 +675,12 @@ model RosterAmendment {
   /// Shift Types delete guard: paired with assertShiftTypeDeletable (service UX).
   originalShiftType  ShiftType  @relation("AmendmentOriginalShift", fields: [originalShiftTypeId], references: [id], onDelete: Restrict)
   amendedShiftType   ShiftType? @relation("AmendmentAmendedShift", fields: [amendedShiftTypeId], references: [id], onDelete: Restrict)
-  dutyLocationDepartment Department? @relation(fields: [dutyLocationDepartmentId], references: [id])
-  dutyZone           Zone?      @relation(fields: [dutyZoneId], references: [id])
-  dutyRoom           Room?      @relation(fields: [dutyRoomId], references: [id])
+  /// Place delete guard: paired with assertDepartmentDeletable (service UX).
+  dutyLocationDepartment Department? @relation(fields: [dutyLocationDepartmentId], references: [id], onDelete: Restrict)
+  /// Place delete guard: paired with assertZoneDeletable (service UX).
+  dutyZone           Zone?      @relation(fields: [dutyZoneId], references: [id], onDelete: Restrict)
+  /// Place delete guard: paired with assertRoomDeletable (service UX).
+  dutyRoom           Room?      @relation(fields: [dutyRoomId], references: [id], onDelete: Restrict)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -772,7 +778,8 @@ model ManageRoster {
   departmentId          String @db.ObjectId // Department master (many rosters per department allowed)
   shiftsPerPersonPerDay Int // >= 1
 
-  department       Department             @relation(fields: [departmentId], references: [id])
+  /// Place delete guard: paired with assertDepartmentDeletable (service UX).
+  department       Department             @relation(fields: [departmentId], references: [id], onDelete: Restrict)
   shiftAssignments StaffShiftAssignment[]
 
   createdAt DateTime @default(now())
@@ -1508,7 +1515,8 @@ model VacancyRequest {
   linkedJobPost   Boolean @default(false)
   linkedJobPostId String? @db.ObjectId
 
-  department  Department  @relation(fields: [departmentId], references: [id])
+  /// Place delete guard: paired with assertDepartmentDeletable (service UX).
+  department  Department  @relation(fields: [departmentId], references: [id], onDelete: Restrict)
   designation Designation @relation(fields: [designationId], references: [id])
 
   createdAt DateTime @default(now())
@@ -1582,7 +1590,8 @@ model JobPost {
   applicationsCount Int @default(0)
 
   designation  Designation   @relation(fields: [designationId], references: [id])
-  department   Department?   @relation(fields: [departmentId], references: [id])
+  /// Place delete guard: paired with assertDepartmentDeletable (service UX).
+  department   Department?   @relation(fields: [departmentId], references: [id], onDelete: Restrict)
   applications Application[]
 
   createdAt DateTime @default(now())
