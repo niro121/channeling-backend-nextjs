@@ -1,3 +1,4 @@
+import { toValidDate } from '@/lib/utils/date';
 import type {
   LeaveApplicationFormValues,
   LeaveApplicationPayload,
@@ -57,13 +58,12 @@ export function leaveApplicationRecordToFormValues(
     formNumber: record.formNumber ?? '',
     staffId: record.staffId,
     leaveTypeId: record.leaveTypeId,
-    fromDate: record.fromDate ? new Date(record.fromDate) : null,
-    toDate: record.toDate ? new Date(record.toDate) : null,
-    requestedDate: record.requestedDate
-      ? new Date(record.requestedDate)
-      : null,
+    // List API returns display strings (dd/MM/yyyy); parse those safely.
+    fromDate: toValidDate(record.fromDate),
+    toDate: toValidDate(record.toDate),
+    requestedDate: toValidDate(record.requestedDate),
     approverId: record.approverId ?? '',
-    approvedDate: record.approvedAt ? new Date(record.approvedAt) : null,
+    approvedDate: toValidDate(record.approvedAt),
     lieuShiftId: record.lieuShiftId ?? '',
     comment: record.comment ?? '',
     outWithCancel: Boolean(record.outWithCancel),

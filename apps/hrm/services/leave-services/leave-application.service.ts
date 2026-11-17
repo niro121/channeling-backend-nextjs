@@ -190,6 +190,103 @@ function buildApplicationWhere(
   return where;
 }
 
+type LeaveDbClient = Prisma.TransactionClient | typeof prisma;
+
+async function getCoveringEntitlementAvailability(
+  params: {
+    staffId: string;
+    leaveTypeId: string;
+    fromDate: Date;
+    toDate: Date;
+    excludeApplicationId?: string;
+  },
+  db: LeaveDbClient = prisma
+): Promise<{
+  entitlement: {
+    id: string;
+    entitled: number;
+    carryForward: number;
+    used: number;
+    remaining: number;
+    fromDate: Date;
+    toDate: Date;
+  } | null;
+  pendingReserved: number;
+  available: number;
+}> {
+  const entitlement = await db.leaveEntitlement.findFirst({
+    where: {
+      staffId: params.staffId,
+      leaveTypeId: params.leaveTypeId,
+      status: { in: ['active', 'pending'] },
+      fromDate: { lte: params.toDate },
+      toDate: { gte: params.fromDate }
+    },
+    orderBy: { fromDate: 'desc' },
+    select: {
+      id: true,
+      entitled: true,
+      carryForward: true,
+      used: true,
+      remaining: true,
+      fromDate: true,
+      toDate: true
+    }
+  });
+
+  if (!entitlement) {
+    return { entitlement: null, pendingReserved: 0, available: 0 };
+  }
+
+  const pendingApps = await db.leaveApplication.findMany({
+    where: {
+      staffId: params.staffId,
+      leaveTypeId: params.leaveTypeId,
+      status: 'pending',
+      ...(params.excludeApplicationId
+        ? { id: { not: params.excludeApplicationId } }
+        : {}),
+      fromDate: { lte: entitlement.toDate },
+      toDate: { gte: entitlement.fromDate }
+    },
+    select: { days: true }
+  });
+
+  const pendingReserved = pendingApps.reduce(
+    (sum, row) => sum + Number(row.days ?? 0),
+    0
+  );
+  const available = Math.max(0, entitlement.remaining - pendingReserved);
+
+  return { entitlement, pendingReserved, available };
+}
+
+function insufficientBalanceError(
+  required: number,
+  available: number,
+  remaining: number,
+  pendingReserved: number
+) {
+  const pendingNote =
+    pendingReserved > 0
+      ? ` (${remaining} remaining minus ${pendingReserved} reserved by other pending applications)`
+      : '';
+  return {
+    success: false as const,
+    error: {
+      message: `Insufficient leave balance (available ${available}, required ${required})${pendingNote}`,
+      issues: {
+        toDate: [
+          `Requested ${required} day(s) exceeds available balance (${available}).`
+        ],
+        fromDate: [
+          `Requested ${required} day(s) exceeds available balance (${available}).`
+        ]
+      }
+    }
+  };
+}
+
 export async function getLeaveApplications(
   params: GetLeaveApplicationsParams
 ): Promise<{
@@ -462,6 +559,38 @@ export async function createLeaveApplication(
       };
     }
 
+    const availability = await getCoveringEntitlementAvailability({
+      staffId: data.staffId,
+      leaveTypeId: data.leaveTypeId,
+      fromDate: leaveFromDate,
+      toDate: leaveToDate
+    });
+    if (!availability.entitlement) {
+      return {
+        success: false,
+        error: {
+          message:
+            'No covering leave entitlement found for this staff, leave type, and dates',
+          issues: {
+            leaveTypeId: [
+              'No leave entitlement covers this leave type and date range'
+            ],
+            fromDate: [
+              'No leave entitlement covers this leave type and date range'
+            ]
+          }
+        }
+      };
+    }
+    if (days > availability.available) {
+      return insufficientBalanceError(
+        days,
+        availability.available,
+        availability.entitlement.remaining,
+        availability.pendingReserved
+      );
+    }
+
     const generated = await generateRecordCode(staff.code);
     if (!generated.success) {
       return {
@@ -647,6 +776,39 @@ export async function updateLeaveApplication(
       };
     }
 
+    const availability = await getCoveringEntitlementAvailability({
+      staffId: data.staffId,
+      leaveTypeId: data.leaveTypeId,
+      fromDate: leaveFromDate,
+      toDate: leaveToDate,
+      excludeApplicationId: id
+    });
+    if (!availability.entitlement) {
+      return {
+        success: false,
+        error: {
+          message:
+            'No covering leave entitlement found for this staff, leave type, and dates',
+          issues: {
+            leaveTypeId: [
+              'No leave entitlement covers this leave type and date range'
+            ],
+            fromDate: [
+              'No leave entitlement covers this leave type and date range'
+            ]
+          }
+        }
+      };
+    }
+    if (days > availability.available) {
+      return insufficientBalanceError(
+        days,
+        availability.available,
+        availability.entitlement.remaining,
+        availability.pendingReserved
+      );
+    }
+
     const shifts =
       data.shifts !== undefined
         ? mapShiftsForWrite(data.shifts as LeaveApplicationShiftRow[])
@@ -783,25 +945,6 @@ export async function approveLeaveApplication(
         };
       }
 
-      const entitlement = await tx.leaveEntitlement.findFirst({
-        where: {
-          staffId: existing.staffId,
-          leaveTypeId: existing.leaveTypeId,
-          status: { in: ['active', 'pending'] },
-          fromDate: { lte: existing.toDate },
-          toDate: { gte: existing.fromDate }
-        },
-        orderBy: { fromDate: 'desc' }
-      });
-
-      if (!entitlement) {
-        return {
-          ok: false as const,
-          message:
-            'No covering leave entitlement found for this staff, leave type, and dates'
-        };
-      }
-
       const days = Number(existing.days ?? 0);
       if (days <= 0) {
         return {
@@ -810,13 +953,37 @@ export async function approveLeaveApplication(
         };
       }
 
-      if (entitlement.remaining < days) {
+      const availability = await getCoveringEntitlementAvailability(
+        {
+          staffId: existing.staffId,
+          leaveTypeId: existing.leaveTypeId,
+          fromDate: existing.fromDate,
+          toDate: existing.toDate,
+          excludeApplicationId: id
+        },
+        tx
+      );
+
+      if (!availability.entitlement) {
         return {
           ok: false as const,
-          message: `Insufficient leave balance (remaining ${entitlement.remaining}, required ${days})`
+          message:
+            'No covering leave entitlement found for this staff, leave type, and dates'
         };
       }
 
+      if (days > availability.available) {
+        const pendingNote =
+          availability.pendingReserved > 0
+            ? ` (${availability.entitlement.remaining} remaining minus ${availability.pendingReserved} reserved by other pending applications)`
+            : '';
+        return {
+          ok: false as const,
+          message: `Insufficient leave balance (available ${availability.available}, required ${days})${pendingNote}`
+        };
+      }
+
+      const entitlement = availability.entitlement;
       const used = entitlement.used + days;
       const remaining = computeEntitlementRemaining(
         entitlement.entitled,
@@ -1132,18 +1299,22 @@ export async function getLeaveApproverOptions(): Promise<{
   }
 }
 
-/** Snapshot for Recalculate: covering entitlement for staff + type + leave dates. */
+/** Snapshot for covering entitlement for staff + type + leave dates. */
 export async function getLeaveApplicationBalanceSnapshot(params: {
   staffId: string;
   leaveTypeId: string;
   fromDate: Date | string;
   toDate: Date | string;
+  excludeApplicationId?: string;
 }): Promise<{
   success: boolean;
   data?: {
     entitle: number;
     utilized: number;
     balance: number;
+    pendingReserved: number;
+    available: number;
+    hasEntitlement: boolean;
   };
   message?: string;
   error?: { message?: string };
@@ -1160,34 +1331,50 @@ export async function getLeaveApplicationBalanceSnapshot(params: {
     ) {
       return {
         success: true,
-        data: { entitle: 0, utilized: 0, balance: 0 }
+        data: {
+          entitle: 0,
+          utilized: 0,
+          balance: 0,
+          pendingReserved: 0,
+          available: 0,
+          hasEntitlement: false
+        }
       };
     }
 
-    const entitlement = await prisma.leaveEntitlement.findFirst({
-      where: {
-        staffId: params.staffId,
-        leaveTypeId: params.leaveTypeId,
-        status: { in: ['active', 'pending'] },
-        fromDate: { lte: toDate },
-        toDate: { gte: fromDate }
-      },
-      orderBy: { fromDate: 'desc' }
+    const availability = await getCoveringEntitlementAvailability({
+      staffId: params.staffId,
+      leaveTypeId: params.leaveTypeId,
+      fromDate,
+      toDate,
+      excludeApplicationId: params.excludeApplicationId
     });
 
-    if (!entitlement) {
+    if (!availability.entitlement) {
       return {
         success: true,
-        data: { entitle: 0, utilized: 0, balance: 0 }
+        data: {
+          entitle: 0,
+          utilized: 0,
+          balance: 0,
+          pendingReserved: 0,
+          available: 0,
+          hasEntitlement: false
+        }
       };
     }
 
     return {
       success: true,
       data: {
-        entitle: entitlement.entitled + entitlement.carryForward,
-        utilized: entitlement.used,
-        balance: entitlement.remaining
+        entitle:
+          availability.entitlement.entitled +
+          availability.entitlement.carryForward,
+        utilized: availability.entitlement.used,
+        balance: availability.entitlement.remaining,
+        pendingReserved: availability.pendingReserved,
+        available: availability.available,
+        hasEntitlement: true
       }
     };
   } catch (error: any) {

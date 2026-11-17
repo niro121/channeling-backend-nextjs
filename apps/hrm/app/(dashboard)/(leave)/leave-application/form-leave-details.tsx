@@ -78,6 +78,9 @@ type LeaveBalanceSnapshot = {
   entitle: number;
   utilized: number;
   balance: number;
+  pendingReserved: number;
+  available: number;
+  hasEntitlement: boolean;
 };
 
 type ShiftRow = {
@@ -127,7 +130,10 @@ const emptyValues: LeaveApplicationFormValues = {
 const emptyBalance: LeaveBalanceSnapshot = {
   entitle: 0,
   utilized: 0,
-  balance: 0
+  balance: 0,
+  pendingReserved: 0,
+  available: 0,
+  hasEntitlement: false
 };
 
 const validationSchema = Yup.object({
@@ -238,15 +244,18 @@ function StaffEntitlementBalanceSync({
 /** Keeps Entitle / Utilized / Balance in sync with staff, leave type, and dates. */
 function LeaveBalanceSnapshotSync({
   loadLeaveBalance,
-  clearLeaveBalance
+  clearLeaveBalance,
+  excludeApplicationId
 }: {
   loadLeaveBalance: (params: {
     staffId: string;
     leaveTypeId: string;
     fromDate: Date;
     toDate: Date;
+    excludeApplicationId?: string;
   }) => Promise<void>;
   clearLeaveBalance: () => void;
+  excludeApplicationId?: string;
 }) {
   const { values } = useFormikContext<LeaveApplicationFormValues>();
   const staffId = values.staffId;
@@ -264,13 +273,15 @@ function LeaveBalanceSnapshotSync({
       staffId,
       leaveTypeId,
       fromDate,
-      toDate
+      toDate,
+      excludeApplicationId
     });
   }, [
     staffId,
     leaveTypeId,
     fromKey,
     toKey,
+    excludeApplicationId,
     loadLeaveBalance,
     clearLeaveBalance
   ]);
@@ -367,24 +378,35 @@ export default function FormLeaveDetails({
       leaveTypeId: string;
       fromDate: Date;
       toDate: Date;
+      excludeApplicationId?: string;
     }) => {
       const result = await getLeaveApplicationBalanceSnapshotAction(params);
       if (result.isError || !result.data) {
         clearLeaveBalance();
         return;
       }
-      setBalance(result.data);
+      setBalance({
+        entitle: result.data.entitle,
+        utilized: result.data.utilized,
+        balance: result.data.balance,
+        pendingReserved: result.data.pendingReserved ?? 0,
+        available: result.data.available ?? result.data.balance,
+        hasEntitlement: Boolean(result.data.hasEntitlement)
+      });
     },
     [clearLeaveBalance]
   );
 
   useEffect(() => {
     if (selectedRecord) {
-      // Prefer stored snapshots immediately; live sync refreshes when form values settle.
+      const snapshotBalance = Number(selectedRecord.balanceSnapshot ?? 0);
       setBalance({
         entitle: Number(selectedRecord.entitleSnapshot ?? 0),
         utilized: Number(selectedRecord.utilizedSnapshot ?? 0),
-        balance: Number(selectedRecord.balanceSnapshot ?? 0)
+        balance: snapshotBalance,
+        pendingReserved: 0,
+        available: snapshotBalance,
+        hasEntitlement: snapshotBalance > 0 || Number(selectedRecord.entitleSnapshot ?? 0) > 0
       });
       setShiftRows(
         (selectedRecord.shifts ?? []).map((shift, index) => ({
@@ -429,6 +451,25 @@ export default function FormLeaveDetails({
     }: FormikHelpers<LeaveApplicationFormValues>
   ) => {
     if (isReadOnly) return;
+
+    const requestDays = previewLeaveDays(
+      values,
+      Boolean(leaveTypeAllowHalfDay.get(values.leaveTypeId))
+    ).days;
+    if (
+      !balance.hasEntitlement ||
+      (requestDays > 0 && requestDays > balance.available)
+    ) {
+      toast({
+        variant: 'destructive',
+        title: 'Insufficient leave balance',
+        description: !balance.hasEntitlement
+          ? 'No leave entitlement covers this leave type and date range.'
+          : `Requested ${requestDays} day(s) exceeds available balance (${balance.available.toFixed(1)}).`
+      });
+      return;
+    }
+
     try {
       setLoading(true);
       const shifts: LeaveApplicationShiftRow[] = shiftRows.map((row) => ({
@@ -445,7 +486,7 @@ export default function FormLeaveDetails({
         lieuShiftLabel: lieuLabel,
         entitleSnapshot: balance.entitle,
         utilizedSnapshot: balance.utilized,
-        balanceSnapshot: balance.balance,
+        balanceSnapshot: balance.available,
         shifts
       });
 
@@ -612,6 +653,24 @@ export default function FormLeaveDetails({
               const effectiveToDate = formik.values.isHalfDay
                 ? formik.values.fromDate
                 : formik.values.toDate;
+              const hasBalanceContext = Boolean(
+                formik.values.staffId &&
+                  formik.values.leaveTypeId &&
+                  leaveRange.fromDate &&
+                  leaveRange.toDate
+              );
+              const noCoveringEntitlement =
+                hasBalanceContext && !balance.hasEntitlement;
+              const projectedRemaining = balance.available - daysPreview.days;
+              const exceedsBalance =
+                !isReadOnly &&
+                hasBalanceContext &&
+                balance.hasEntitlement &&
+                daysPreview.days > 0 &&
+                projectedRemaining < 0;
+              const canSubmit =
+                canSave &&
+                !(hasBalanceContext && (noCoveringEntitlement || exceedsBalance));
 
               return (
                 <Form className="space-y-4">
@@ -668,6 +727,7 @@ export default function FormLeaveDetails({
                   <LeaveBalanceSnapshotSync
                     loadLeaveBalance={loadLeaveBalance}
                     clearLeaveBalance={clearLeaveBalance}
+                    excludeApplicationId={selectedRecord?.id}
                   />
 
                   {formik.values.staffId ? (
@@ -864,56 +924,14 @@ export default function FormLeaveDetails({
                     </span>
                   </div>
 
-                  <div className="space-y-3 rounded-lg border border-border bg-muted/30 p-3">
-                    {!isReadOnly ? (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        className="h-9 gap-1.5"
-                        onClick={async () => {
-                          if (
-                            !formik.values.staffId ||
-                            !formik.values.leaveTypeId ||
-                            !formik.values.fromDate ||
-                            (!formik.values.isHalfDay && !formik.values.toDate)
-                          ) {
-                            toast({
-                              variant: 'destructive',
-                              title: 'Missing details',
-                              description:
-                                'Select staff, leave type, and dates before recalculating.'
-                            });
-                            return;
-                          }
-
-                          const result =
-                            await getLeaveApplicationBalanceSnapshotAction({
-                              staffId: formik.values.staffId,
-                              leaveTypeId: formik.values.leaveTypeId,
-                              fromDate: formik.values.fromDate,
-                              toDate:
-                                effectiveToDate ?? formik.values.fromDate
-                            });
-
-                          if (result.isError || !result.data) {
-                            toast({
-                              variant: 'destructive',
-                              title: 'Error',
-                              description:
-                                result.errors?.message ??
-                                'Unable to recalculate balance.'
-                            });
-                            return;
-                          }
-
-                          setBalance(result.data);
-                        }}
-                      >
-                        <CirclePlay className="h-4 w-4" />
-                        Recalculate
-                      </Button>
-                    ) : null}
+                  <div
+                    className={cn(
+                      'space-y-3 rounded-lg border bg-muted/30 p-3',
+                      exceedsBalance || noCoveringEntitlement
+                        ? 'border-destructive/50'
+                        : 'border-border'
+                    )}
+                  >
                     <div className="grid grid-cols-3 gap-2 text-center text-sm">
                       <div>
                         <p className="text-xs font-medium text-muted-foreground">
@@ -933,13 +951,55 @@ export default function FormLeaveDetails({
                       </div>
                       <div>
                         <p className="text-xs font-medium text-muted-foreground">
-                          Balance
+                          Available
                         </p>
                         <p className="mt-0.5 text-base font-semibold tabular-nums text-emerald-600">
-                          {balance.balance.toFixed(1)}
+                          {balance.available.toFixed(1)}
                         </p>
                       </div>
                     </div>
+                    {balance.pendingReserved > 0 ? (
+                      <p className="text-[11px] text-muted-foreground">
+                        Ledger remaining {balance.balance.toFixed(1)};{' '}
+                        {balance.pendingReserved.toFixed(1)} reserved by other
+                        pending applications.
+                      </p>
+                    ) : null}
+                    {noCoveringEntitlement ? (
+                      <p className="text-[11px] font-medium text-destructive">
+                        No leave entitlement covers this leave type and date
+                        range. Save is blocked.
+                      </p>
+                    ) : exceedsBalance ? (
+                      <p className="text-[11px] font-medium text-destructive">
+                        Requested {daysPreview.days} day(s) exceeds available
+                        balance ({balance.available.toFixed(1)}). Save is
+                        blocked.
+                      </p>
+                    ) : (
+                      <p className="text-[11px] leading-snug text-muted-foreground">
+                        Available = entitlement remaining minus other pending
+                        requests for the same period. You cannot submit more
+                        than available.
+                        {!isReadOnly && daysPreview.days > 0 ? (
+                          <>
+                            {' '}
+                            After this request:{' '}
+                            <span
+                              className={cn(
+                                'font-medium tabular-nums',
+                                projectedRemaining < 0
+                                  ? 'text-destructive'
+                                  : 'text-foreground'
+                              )}
+                            >
+                              {projectedRemaining.toFixed(1)}
+                            </span>{' '}
+                            remaining.
+                          </>
+                        ) : null}
+                      </p>
+                    )}
                   </div>
 
                   <div className="space-y-3 rounded-lg border border-border bg-muted/30 p-3">
@@ -1124,7 +1184,12 @@ export default function FormLeaveDetails({
                       <Button
                         type="submit"
                         className="h-9 gap-1.5"
-                        disabled={loading}
+                        disabled={loading || !canSubmit}
+                        title={
+                          !canSubmit
+                            ? 'Resolve leave balance before saving'
+                            : undefined
+                        }
                       >
                         <SaveIcon className="h-4 w-4" />
                         {loading ? 'Saving...' : 'Save'}

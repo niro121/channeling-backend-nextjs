@@ -320,6 +320,7 @@ export async function getLeaveApplicationBalanceSnapshotAction(params: {
   leaveTypeId: string;
   fromDate: Date | string;
   toDate: Date | string;
+  excludeApplicationId?: string;
 }) {
   try {
     await requirePermission('leave-application', 'view');

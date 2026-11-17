@@ -371,7 +371,7 @@ export default function FormEmployeeInfo({
                     <CustomFormField
                       type="number"
                       id="entitled"
-                      placeholder="Entitled Days Per Year"
+                      placeholder="Entitled Days"
                       value={formik.values.entitled}
                       onChange={formik.handleChange}
                       onBlur={formik.handleBlur}
