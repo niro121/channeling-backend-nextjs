@@ -301,7 +301,8 @@ export function DesktopSidebar({ session, className }: { session: Session | null
             </SidebarCollapsible>
           </SidebarGroup>
         )}
-        {(hasAccess('/shift-roster') ||
+        {(hasAccess('/roster-shifts') ||
+          hasAccess('/shift-roster') ||
           hasAccess('/shift-types') ||
           hasAccess('/shift-assignment') ||
           hasAccess('/duty-roster') ||
@@ -314,6 +315,7 @@ export function DesktopSidebar({ session, className }: { session: Session | null
               label="Roster & Shifts"
               icon={<CalendarRange className="h-5 w-5" />}
               paths={[
+                '/roster-shifts',
                 '/shift-roster',
                 '/shift-types',
                 '/shift-assignment',
@@ -325,6 +327,13 @@ export function DesktopSidebar({ session, className }: { session: Session | null
               ]}
               allExpanded={allExpanded}
             >
+              {hasAccess('/roster-shifts') && (
+                <NavLink
+                  href="/roster-shifts"
+                  label="Guide"
+                  icon={<BookOpen className="h-5 w-5" />}
+                />
+              )}
               {hasAccess('/shift-roster') && (
                 <NavLink
                   href="/shift-roster"

@@ -17,7 +17,8 @@ Pages must not call Prisma. No business rules in components. Remaining work is m
 
 **Locked product decisions (Roster & Shifts group):**
 - Sidebar group: **Roster & Shifts**
-- **One permission resource** `shift-roster` for the whole group (`/shift-roster`, `/shift-types`, `/shift-assignment`, `/duty-roster`, `/roster-amendments`, `/night-shifts`, `/overnight-shifts`, `/public-holiday-shifts`, …)
+- **One permission resource** `shift-roster` for the whole group (`/roster-shifts` Guide, `/shift-roster`, `/shift-types`, `/shift-assignment`, `/duty-roster`, `/roster-amendments`, `/night-shifts`, `/overnight-shifts`, `/public-holiday-shifts`, …)
+- In-app **Guide** at `/roster-shifts` (same pattern as `/attendance`, `/payroll`) — module order, responsibilities, process
 - Shift Types codes: **`SHF-n`** via `generateRecordCode` (not fixed `D`/`E`/`N` system IDs) — auto on create/duplicate
 - Shift Types Add / Edit / Duplicate / History: **right-side Sheets** on `/shift-types` (no separate add/edit routes)
 - Shift Types: Total Working Hours **auto** from start / end / break; History sheet **Cancel only**
@@ -68,6 +69,7 @@ Pages must not call Prisma. No business rules in components. Remaining work is m
 
 | Route | Resource key | Role |
 |-------|----------------|------|
+| `/roster-shifts` | `shift-roster` | In-app **Guide** (module order, responsibilities, end-to-end process) — same pattern as `/attendance`, `/payroll` |
 | `/shift-roster` | `shift-roster` | Week/month grid **view** of allocations (plan, draft, publish, copy) |
 | `/shift-types` | `shift-roster` | **Current** hospital-wide shift template master (`ShiftType`, `SHF-n`) — used by Assignment, Duty, Shift Roster, Night/Overnight/PH |
 | `/shift-assignment` | `shift-roster` | Standing staff ↔ shift / rotation **rule** — own collection; feeds Fill / Auto Assign |
@@ -79,7 +81,7 @@ Pages must not call Prisma. No business rules in components. Remaining work is m
 
 **Permission:** one Auth User Group grant — resource id `shift-roster`, display name **Roster & Shifts** — covers every route in this group (same pattern as OT → `overtime-requests`).
 
-Sidebar: **Roster & Shifts** collapsible → Shift Roster, Shift Types, Shift Assignment, Duty Roster, Roster Amendments, Night Shifts, Overnight Shifts, Public Holiday Shifts.
+Sidebar: **Roster & Shifts** collapsible → **Guide** (first), Shift Roster, Shift Types, Shift Assignment, Duty Roster, Roster Amendments, Night Shifts, Overnight Shifts, Public Holiday Shifts.
 
 Shift Roster v1 is **one screen** for calendar planning. Header actions stay on that page (dialogs / sheets), including **Create Fixed Roster** Option B.
 
@@ -1076,16 +1078,16 @@ Unmapped routes stay open. Register before shipping the page.
 Checklist:
 
 1. `types/user-group.ts` → `{ id: 'shift-roster', name: 'Roster & Shifts' }`
-2. `lib/permissions.ts` → map `/shift-roster`, `/shift-types`, `/shift-assignment`, `/duty-roster`, `/roster-amendments`, `/night-shifts`, `/overnight-shifts`, `/public-holiday-shifts` → `shift-roster`
-3. Sidebar `hasAccess` for `/shift-roster`, `/shift-types`, `/shift-assignment`, `/duty-roster`, `/roster-amendments`, `/night-shifts`, `/overnight-shifts`, `/public-holiday-shifts` under **Roster & Shifts**
+2. `lib/permissions.ts` → map `/roster-shifts`, `/shift-roster`, `/shift-types`, `/shift-assignment`, `/duty-roster`, `/roster-amendments`, `/night-shifts`, `/overnight-shifts`, `/public-holiday-shifts` → `shift-roster`
+3. Sidebar `hasAccess` for `/roster-shifts` (Guide first), `/shift-roster`, `/shift-types`, `/shift-assignment`, `/duty-roster`, `/roster-amendments`, `/night-shifts`, `/overnight-shifts`, `/public-holiday-shifts` under **Roster & Shifts**
 4. Pages `checkRouteAccess` → `/unauthorized-access`
 5. Mutations: `requirePermission('shift-roster', action)` — no extra resources for Night vs Roster
 6. Client buttons: `usePermissions().has('shift-roster', …)`
-   - **view** — load lists / grid
+   - **view** — load lists / grid / Guide
    - **edit** — allocate, save draft, Duty swap/replace, assignment update
    - **add** or **edit** — publish, amendment approve/reject
    - View-only cannot publish
-7. `breadcrumbs.tsx` → `shift-roster`, `shift-types`, `shift-assignment`, `duty-roster`, `roster-amendments`, `night-shifts`, `overnight-shifts`, `public-holiday-shifts`
+7. `breadcrumbs.tsx` → `roster-shifts` (Guide), `shift-roster`, `shift-types`, `shift-assignment`, `duty-roster`, `roster-amendments`, `night-shifts`, `overnight-shifts`, `public-holiday-shifts`
 8. Grant on Auth User Group; user re-logins
 
 ---
@@ -1946,4 +1948,4 @@ Operational Load / allocate draft / publish / fill / copy / View / Auto Assign (
 
 **Summary:** Roster & Shifts core ✅ · remain = **OT + Payroll + Attendance / Leave / HR Admin follow-ons** (and optional product later). Prefer this section + §11.1–§11.10 over older “toast / Phase 0” lines when they disagree.
 
-*Last updated: Nov 2026 — Roster & Shifts v1 closed (§11.11). Remaining work is cross-module: OT Process Staff Shift, Payroll `sendToPayroll`, Attendance Confirm to Duty, Leave lieu entitlement, HR Admin follow-ons.*
+*Last updated: Nov 2026 — Roster & Shifts v1 closed (§11.11); in-app Guide at `/roster-shifts`. Remaining work is cross-module: OT Process Staff Shift, Payroll `sendToPayroll`, Attendance Confirm to Duty, Leave lieu entitlement, HR Admin follow-ons.*
