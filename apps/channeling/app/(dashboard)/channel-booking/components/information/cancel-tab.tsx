@@ -44,6 +44,7 @@ import {
 } from "./refund-cancel-confirmations"
 import { emptyChannelApprovalConfirmations } from "@/types/approval-request"
 import {
+  SAVE_BOOKING_METHOD_API,
   SAVE_PAYMENT_TYPE_AGENT,
   SAVE_PAYMENT_TYPE_CASH,
   SAVE_PAYMENT_TYPE_CREDIT_CARD,
@@ -52,20 +53,35 @@ import {
   SAVE_PAYMENT_TYPE_SLIP,
 } from "@/types/save-booking"
 
+const REFUND_TO_AGENT = { value: SAVE_PAYMENT_TYPE_AGENT, label: "Refund to Agent" }
+
+/** API bookings refund to the agency. Credit card is not a refund destination for them. */
+function refundOptionsForApiBooking(
+  options: { value: number; label: string }[],
+  isApiBooking: boolean
+): { value: number; label: string }[] {
+  if (!isApiBooking) return options
+  const withoutCard = options.filter((opt) => opt.value !== SAVE_PAYMENT_TYPE_CREDIT_CARD)
+  if (withoutCard.some((opt) => opt.value === SAVE_PAYMENT_TYPE_AGENT)) return withoutCard
+  return [...withoutCard, REFUND_TO_AGENT]
+}
+
 /** refund_to: 0 Cash, 1 Card, 4 Agent, 5 Credit Customer, 6 E-wallet. Options depend on how booking was paid. */
 function getRefundToOptionsForCancel(
   paymentMethod: number | undefined,
-  includeMixed: boolean
+  includeMixed: boolean,
+  isApiBooking: boolean
 ): { value: number; label: string }[] {
   const cash = { value: 0, label: "Refund as CASH" }
-  if (paymentMethod === SAVE_PAYMENT_TYPE_AGENT) return [cash, { value: SAVE_PAYMENT_TYPE_AGENT, label: "Refund to Agent" }]
-  if (paymentMethod === 5) return [cash, { value: 5, label: "Refund to Credit Customer" }]
-  if (paymentMethod === 6) return [cash, { value: 6, label: "Refund as E-WALLET" }]
-  if (paymentMethod === 1) return [cash, { value: 1, label: "Refund as CREDIT CARD" }]
-  if (paymentMethod === SAVE_PAYMENT_TYPE_SLIP) return [cash, { value: SAVE_PAYMENT_TYPE_SLIP, label: "Refund as SLIP" }]
-  if (includeMixed) return [cash, { value: SAVE_PAYMENT_TYPE_MIXED, label: "Refund as MIXED PAYMENT" }]
-  // Cash (0), Cheque (3): only Cash refund
-  return [cash]
+  let options: { value: number; label: string }[]
+  if (paymentMethod === SAVE_PAYMENT_TYPE_AGENT) options = [cash, REFUND_TO_AGENT]
+  else if (paymentMethod === 5) options = [cash, { value: 5, label: "Refund to Credit Customer" }]
+  else if (paymentMethod === 6) options = [cash, { value: 6, label: "Refund as E-WALLET" }]
+  else if (paymentMethod === 1) options = [cash, { value: 1, label: "Refund as CREDIT CARD" }]
+  else if (paymentMethod === SAVE_PAYMENT_TYPE_SLIP) options = [cash, { value: SAVE_PAYMENT_TYPE_SLIP, label: "Refund as SLIP" }]
+  else if (includeMixed) options = [cash, { value: SAVE_PAYMENT_TYPE_MIXED, label: "Refund as MIXED PAYMENT" }]
+  else options = [cash]
+  return refundOptionsForApiBooking(options, isApiBooking)
 }
 
 function actionError(result: { success?: boolean; message?: string } | undefined | null): string {
@@ -496,7 +512,11 @@ export function CancelTab({ onCancelSuccess }: { onCancelSuccess?: () => void })
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {getRefundToOptionsForCancel(details.settlement?.paymentMethod, isMixedCancelEligible).map((opt) => (
+              {getRefundToOptionsForCancel(
+                details.settlement?.paymentMethod,
+                isMixedCancelEligible,
+                selectedBooking.method === SAVE_BOOKING_METHOD_API
+              ).map((opt) => (
                 <SelectItem key={opt.value} value={String(opt.value)} className="text-xs">
                   {opt.label}
                 </SelectItem>

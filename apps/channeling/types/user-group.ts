@@ -84,6 +84,15 @@ export const RESOURCES: ResourceWithOptionalActions[] = [
   { id: "tags", name: "Tags" },
   { id: "zones", name: "Zones" },
   { id: "rooms", name: "Rooms" },
+  { id: "inventory", name: "Inventory" },
+  {
+    id: "room-inventory",
+    name: "Room Inventory",
+    customActions: [
+      { id: "view", name: "View" },
+      { id: "assign", name: "Assign / move items" },
+    ],
+  },
   { id: "specialities", name: "Specialities" },
   { id: "locations", name: "Locations" },
   { id: "agency-books", name: "Agency Books" },

@@ -7,7 +7,7 @@ import type {
   AgentWiseAppointmentsMonthColumn,
   AgentWiseAppointmentsSummaryRow,
 } from '@/types/reports/agent-wise-appointments';
-import { monthSubLabelFromKey } from './agent-wise-appointments-export-config';
+import { isAwaReversalBill, monthSubLabelFromKey } from './agent-wise-appointments-export-config';
 
 type SummaryProps = {
   mode: 'summary';
@@ -142,6 +142,9 @@ export function AgentWiseAppointmentsPrintLayout(props: Props) {
           .agent-wise-appointments-report-root .awa-muted {
             color: #333 !important;
             font-size: 5.75pt !important;
+          }
+          .agent-wise-appointments-report-root .rpt-print-root table.awa-print-table td .awa-cancel {
+            color: #dc2626 !important;
           }
           .agent-wise-appointments-report-root .awa-k {
             font-weight: 700 !important;
@@ -353,7 +356,9 @@ function DetailPrintTable({ detailRows, detailTotals }: DetailProps) {
                     <span className="awa-line awa-muted">No. {r.appointmentNo}</span>
                   </td>
                   <td className="awa-d4">
-                    <span className="awa-line">{r.billNumber || '—'}</span>
+                    <span className={`awa-line${isAwaReversalBill(r.statusLabel) ? ' awa-cancel' : ''}`}>
+                      {r.billNumber || '—'}
+                    </span>
                     <span className="awa-line awa-muted">{r.statusLabel || '—'}</span>
                   </td>
                   <td className="awa-d5">

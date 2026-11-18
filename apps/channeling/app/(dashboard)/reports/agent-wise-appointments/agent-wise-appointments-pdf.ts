@@ -301,6 +301,8 @@ export async function downloadAgentWiseAppointmentsReportPdf(
         if (row.isTotal) {
           hookData.cell.styles.fontStyle = 'bold';
           hookData.cell.styles.fillColor = [243, 243, 243];
+        } else if (row.isReversal && hookData.column.index === 4) {
+          hookData.cell.styles.textColor = [220, 38, 38];
         }
       },
     });

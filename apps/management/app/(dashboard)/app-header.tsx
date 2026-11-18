@@ -6,7 +6,8 @@ import { useSession } from 'next-auth/react';
 import { Avatar, AvatarFallback } from '@archmage/ui';
 import DashboardBreadcrumb from './breadcrumbs';
 import { Profile } from './profile';
-import { NAV_ITEMS, isNavActive } from './nav-items';
+import { MORE_ITEMS, NAV_ITEMS, isNavActive } from './nav-items';
+import { MoreMenu } from './more-menu';
 import { HEADER_ACTIONS_ID } from './header-actions';
 
 function initialOf(name?: string | null, email?: string | null): string {
@@ -17,11 +18,13 @@ function initialOf(name?: string | null, email?: string | null): string {
 export function AppHeader() {
   const pathname = usePathname();
   const { data: session } = useSession();
-  const title = NAV_ITEMS.find((item) => isNavActive(pathname, item.href))?.label ?? 'Management';
+  const title =
+    [...NAV_ITEMS, ...MORE_ITEMS].find((item) => isNavActive(pathname, item.href))?.label ?? 'Management';
 
   return (
     <header className="sticky top-0 z-40 border-b border-border/60 bg-background/95 pt-safe backdrop-blur supports-[backdrop-filter]:bg-background/80">
       <div className="flex h-14 items-center gap-4 px-4 sm:px-6">
+        <MoreMenu />
         <h1 className="min-w-0 flex-1 truncate text-xl font-semibold tracking-tight lg:hidden">{title}</h1>
         <div className="hidden min-w-0 flex-1 lg:block">
           <DashboardBreadcrumb />

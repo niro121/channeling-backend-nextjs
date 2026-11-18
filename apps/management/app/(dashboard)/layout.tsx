@@ -4,7 +4,8 @@ import { SidebarLayoutClient } from './sidebar-layout-client';
 import { AppHeader } from './app-header';
 import { PushSync } from '@/components/pwa/notifications';
 import { NoAccessScreen } from '@/components/no-access-screen';
-import { getManagementAccess } from '@/lib/management-access';
+import { getManagementAccess, getManagementFeatures } from '@/lib/management-access';
+import { FeaturesProvider } from './features-context';
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const session = await fetchServerSession();
@@ -23,8 +24,11 @@ export default async function DashboardLayout({ children }: { children: React.Re
     );
   }
 
+  const features = await getManagementFeatures();
+
   return (
     <Providers session={session}>
+      <FeaturesProvider features={features}>
       <PushSync />
       <div className="flex min-h-dvh w-full flex-col bg-background">
         <SidebarLayoutClient>
@@ -35,6 +39,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
           </main>
         </SidebarLayoutClient>
       </div>
+      </FeaturesProvider>
     </Providers>
   );
 }
