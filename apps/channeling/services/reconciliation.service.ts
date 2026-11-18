@@ -4,7 +4,7 @@ import type { Prisma } from "@prisma/client"
 import prisma from "@/lib/prisma"
 import { parseReportDateTimeSl } from "@/lib/parse-report-datetime"
 import { HANDOVER_STATUS, RECONCILIATION_STATUS } from "@/types/handover"
-import { RECEIPT_PAYMENT_METHOD } from "@/types/receipt"
+import { RECEIPT_METHOD, RECEIPT_PAYMENT_METHOD } from "@/types/receipt"
 import { REFERENCE_TYPES } from "@/types/accounting"
 import {
   getIncludedHandoversChain,
@@ -88,6 +88,7 @@ export type ReconciliationJournal = {
  * Filters in memory for reconciledAt so MongoDB null/missing optional fields match reliably.
  * Canceled receipts stay on the list. A ledger cancel marks the original canceled and posts a
  * reversal; hiding the original makes the reversal net to zero and leaves the replacement on the till.
+ * Cash vouchers are left out. They convert an already reconciled balance into till cash and are not ticked.
  * Includes receipts already reconciled for this document (reconciledHandoverId is this handover
  * or the top-level document it was posted under) so UI can show them pre-ticked.
  */
@@ -110,6 +111,7 @@ export async function getReceiptsForHandoverReconciliation(
         },
       ],
       paymentMethod: { in: [...NON_CASH_METHODS, RECEIPT_PAYMENT_METHOD.MIXED] },
+      method: { notIn: [RECEIPT_METHOD.CASH_VOUCHER, RECEIPT_METHOD.CASH_VOUCHER_CANCEL] },
     },
     select: {
       id: true,
