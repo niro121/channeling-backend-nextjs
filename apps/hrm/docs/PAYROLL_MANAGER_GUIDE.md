@@ -6,6 +6,7 @@ Use with:
 - `apps/hrm/docs/HRM_DEVELOPMENT_GUIDELINES.md` — layered architecture, checklists
 - `apps/hrm/docs/PERMISSION_FLOW.md` — Auth User Group grants
 - `apps/hrm/docs/HR_ADMINISTRATION_GUIDE.md` — Paysheet Components (§36), HRM Variable (§37), Salary Cycle (§38)
+- `apps/hrm/docs/STATUTORY_COMPLIANCE_GUIDE.md` — how Staff EPF/ETF IDs, Variables, paysheet flags, payroll lines, and the Statutory mock connect
 
 **Status:** Phase 0 UI shells shipped for all Payroll sidebar routes.  
 **Strategy:** Dynamize **module-wise** in dependency order (masters → assignments → engine → outputs).  

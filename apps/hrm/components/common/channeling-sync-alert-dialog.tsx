@@ -1,6 +1,7 @@
 'use client';
 
 import { Loader2 } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -11,6 +12,7 @@ import {
   AlertDialogTitle,
   Button
 } from '@archmage/ui';
+import { buttonStyles } from '@/lib/utils/common-styles';
 
 export type ChannelingSyncAlertDialogProps = {
   open: boolean;
@@ -20,6 +22,12 @@ export type ChannelingSyncAlertDialogProps = {
   cancelLabel?: string;
   hrmOnlyLabel?: string;
   continueLabel?: string;
+  /** When false, the Channeling action is hidden (no linked Channeling record). */
+  showContinue?: boolean;
+  /** Optional style for HRM-only (e.g. delete danger). */
+  hrmOnlyClassName?: string;
+  continueClassName?: string;
+  cancelClassName?: string;
   onCancel: () => void;
   onSaveHrmOnly: () => void;
   onContinue: () => void;
@@ -37,6 +45,10 @@ export function ChannelingSyncAlertDialog({
   cancelLabel = 'Cancel',
   hrmOnlyLabel = 'Save HRM only',
   continueLabel = 'Continue',
+  showContinue = true,
+  hrmOnlyClassName,
+  continueClassName,
+  cancelClassName,
   onCancel,
   onSaveHrmOnly,
   onContinue
@@ -52,29 +64,31 @@ export function ChannelingSyncAlertDialog({
           <AlertDialogCancel
             onClick={onCancel}
             disabled={loading}
-            className="text-red-500 hover:text-white hover:bg-red-500 transition-colors"
+            className={cn('relative cursor-pointer h-9! mr-0!', cancelClassName)}
           >
             {cancelLabel}
           </AlertDialogCancel>
           <Button
             type="button"
-            variant="outline"
+            variant={hrmOnlyClassName ? 'default' : 'outline'}
             disabled={loading}
-            className="relative cursor-pointer"
+            className={cn('relative cursor-pointer h-9! mr-0!', hrmOnlyClassName)}
             onClick={onSaveHrmOnly}
           >
             {loading ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : null}
             {hrmOnlyLabel}
           </Button>
-          <Button
-            type="button"
-            disabled={loading}
-            className="relative cursor-pointer"
-            onClick={onContinue}
-          >
-            {continueLabel}
-            {loading ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : null}
-          </Button>
+          {showContinue ? (
+            <Button
+              type="button"
+              disabled={loading}
+              className={cn('relative cursor-pointer h-9! mr-0!', continueClassName)}
+              onClick={onContinue}
+            >
+              {continueLabel}
+              {loading ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : null}
+            </Button>
+          ) : null}
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>

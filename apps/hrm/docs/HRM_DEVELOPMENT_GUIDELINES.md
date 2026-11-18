@@ -1,7 +1,8 @@
 # HRM App Development Guidelines
 
 Use this document when building or extending features in `apps/hrm`.  
-**Staff Manager** (`app/(dashboard)/staff`) is the reference implementation for list + tabbed CRUD managers.
+**Staff Manager** (`app/(dashboard)/staff`) is the reference implementation for list + tabbed CRUD managers.  
+Staff product decisions (Employment Reference, RFID, Zone Code, open Registration Number checklist): see **`STAFF_MANAGER_GUIDE.md`**.
 
 Leave features: see **`LEAVE_MANAGER_GUIDE.md`** (models, UI map, business rules, build order).  
 Overtime features: see **`OVERTIME_MANAGER_GUIDE.md`** (UI-first shell, then dynamic phases).  

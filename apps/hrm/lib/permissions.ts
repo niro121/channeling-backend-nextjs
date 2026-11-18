@@ -55,6 +55,7 @@ export const ROUTE_TO_RESOURCE: Record<string, string> = {
   '/designations': 'designations',
   '/staff-grades': 'staff-grades',
   '/staff-specialities': 'staff-specialities',
+  '/change-staff': 'change-staff',
   '/manage-rosters': 'manage-rosters',
   // Roster & Shifts
   '/shift-roster': 'shift-roster',
@@ -97,6 +98,15 @@ export const ROUTE_TO_RESOURCE: Record<string, string> = {
   '/interview-schedule': 'recruitment',
   '/evaluation': 'recruitment',
   '/appointment-letters': 'recruitment',
+  // Reports
+  '/reports': 'reports',
+  '/reports/department': 'reports',
+  '/reports/staff': 'reports',
+  '/reports/attendance': 'reports',
+  '/reports/payroll': 'reports',
+  '/reports/overtime': 'reports',
+  '/reports/leave': 'reports',
+  '/reports/statistical': 'reports',
   '/leave-types': 'leave-types',
   '/leave-entitlement': 'leave-entitlement',
   '/leave-management': 'leave-management',

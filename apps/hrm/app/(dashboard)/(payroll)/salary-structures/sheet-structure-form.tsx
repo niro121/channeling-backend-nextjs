@@ -37,7 +37,7 @@ import {
 import { formatLkr } from '@/lib/utils/currency';
 import { formatDateTime } from '@/lib/utils/date';
 import { INSTITUTION_OPTIONS } from '@/types/institution';
-import { STAFF_CATEGORY_OPTIONS } from '@/types/staff-employment-options';
+import { STAFF_CATEGORY_OPTIONS } from '@/types/staff-category';
 import type { PaysheetComponentOption } from '@/types/paysheet-component';
 import {
   EMPTY_SALARY_STRUCTURE_FORM,

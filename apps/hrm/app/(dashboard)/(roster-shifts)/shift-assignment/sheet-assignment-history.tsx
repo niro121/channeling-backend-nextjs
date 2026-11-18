@@ -16,6 +16,7 @@ import type {
   ShiftAssignmentHistoryEntry,
   ShiftAssignmentRecord
 } from '@/types/roster';
+import { buttonStyles } from '@/lib/utils/common-styles';
 
 type SheetAssignmentHistoryProps = {
   open: boolean;
@@ -95,7 +96,7 @@ export default function SheetAssignmentHistory({
             type="button"
             size="sm"
             variant="outline"
-            className="w-full sm:w-24 gap-1 border-red-500 text-red-500 transition-colors ease-in-out duration-100 hover:bg-red-500 hover:text-white"
+            className={buttonStyles.cancel.normal}
             onClick={() => onOpenChange(false)}
           >
             Cancel

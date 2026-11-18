@@ -3,13 +3,14 @@
 import { revalidatePath } from 'next/cache';
 import { logActivityNonBlocking } from '@/lib/activity-log';
 import { getAuditUser } from '@/lib/audit-user';
+import prisma from '@/lib/prisma';
 import { requirePermission } from '@/lib/server-permissions';
 import {
   createStaff,
   deleteStaff,
   deleteStaffs,
   getStaff,
-  getAllStaffForExport,
+  getStaffForExport,
   getStaffById,
   getStaffOptions,
   updateStaff,
@@ -23,10 +24,15 @@ import {
 import type {
   GetStaffParams,
   StaffCrudOptions,
+  StaffEmploymentFormOptions,
   StaffEmploymentPayload,
   StaffGeneralPayload,
   StaffPersonnelPayload
 } from '@/types/staff';
+import { getDepartmentOptions } from '@/services/organization-services/department.service';
+import { getDesignationOptions } from '@/services/hr-admin-services/designation.service';
+import { getStaffGradeOptions } from '@/services/hr-admin-services/staff-grade.service';
+import { getManageRosterOptions } from '@/services/hr-admin-services/manage-roster.service';
 import { staffRecordToChannelingPayload } from '@/lib/helpers/staff-channeling-fields.helper';
 import {
   pushStaffBulkDeleteToChanneling,
@@ -43,7 +49,8 @@ export async function getStaffAction(params: GetStaffParams) {
   const newParams: GetStaffParams = {
     page: params.page ?? process.env.DEFAULT_PAGE ?? '0',
     limit: params.limit ?? process.env.DEFAULT_PER_PAGE ?? '10',
-    keyword: params.keyword ?? ''
+    keyword: params.keyword ?? '',
+    status: params.status
   };
   try {
     await requirePermission('staff', 'view');
@@ -145,9 +152,11 @@ export async function createStaffAction(
     if (!result.success) {
       return {
         isError: true,
-        errors:
-          result.error?.issues ??
-          { message: result.error?.message ?? 'Something went wrong. Please try again later' },
+        errors: {
+          message:
+            result.error?.message ?? 'Something went wrong. Please try again later',
+          ...(result.error?.issues ?? {})
+        },
         data: {}
       };
     }
@@ -249,9 +258,11 @@ export async function updateStaffAction(
     if (!result.success) {
       return {
         isError: true,
-        errors:
-          result.error?.issues ??
-          { message: result.error?.message ?? 'Something went wrong. Please try again later' },
+        errors: {
+          message:
+            result.error?.message ?? 'Something went wrong. Please try again later',
+          ...(result.error?.issues ?? {})
+        },
         data: {}
       };
     }
@@ -383,6 +394,150 @@ export async function updateStaffPersonnelAction(
   }
 }
 
+/** Live masters for Staff Employment tab (CS4 / INT-S3). */
+export async function getStaffEmploymentFormOptionsAction(): Promise<{
+  isError: boolean;
+  data: StaffEmploymentFormOptions | null;
+  errors: Record<string, unknown>;
+}> {
+  try {
+    await requirePermission('staff', 'view');
+    const [deptRes, desigRes, gradeRes, rosterRes] = await Promise.all([
+      getDepartmentOptions(),
+      getDesignationOptions(),
+      getStaffGradeOptions(),
+      getManageRosterOptions()
+    ]);
+
+    return {
+      isError: false,
+      data: {
+        departments: deptRes.success ? (deptRes.data ?? []) : [],
+        designations: desigRes.success ? (desigRes.data ?? []) : [],
+        grades: gradeRes.success ? (gradeRes.data ?? []) : [],
+        rosters: rosterRes.success
+          ? (rosterRes.data ?? []).map((row) => ({
+              id: row.id,
+              name: row.name,
+              departmentId: row.departmentId
+            }))
+          : []
+      },
+      errors: {}
+    };
+  } catch (error: any) {
+    console.error('getStaffEmploymentFormOptionsAction error:', error);
+    return {
+      isError: true,
+      data: null,
+      errors: {
+        message: error.message ?? 'Unable to load employment form options.'
+      }
+    };
+  }
+}
+
+export type StaffEmploymentStandingAssignment = {
+  id: string;
+  code: string;
+  shiftTypeCode: string;
+  shiftTypeName: string;
+  status: string;
+  effectiveFrom: string;
+  effectiveTo: string | null;
+  manageRosterCode: string;
+  manageRosterName: string;
+};
+
+export type StaffEmploymentRosterShiftSummary = {
+  count: number;
+  activeCount: number;
+  assignments: StaffEmploymentStandingAssignment[];
+};
+
+/** Standing shift assignments for Employment roster/shift read-only UI + org-change warnings. */
+export async function getStaffEmploymentRosterShiftSummaryAction(
+  staffId: string
+): Promise<{
+  isError: boolean;
+  data: StaffEmploymentRosterShiftSummary | null;
+  errors: Record<string, unknown>;
+}> {
+  try {
+    await requirePermission('staff', 'view');
+    if (!staffId) {
+      throw new Error('Staff is required');
+    }
+
+    const rows = await prisma.staffShiftAssignment.findMany({
+      where: { staffId },
+      select: {
+        id: true,
+        code: true,
+        status: true,
+        effectiveFrom: true,
+        effectiveTo: true,
+        shiftType: { select: { code: true, name: true } },
+        manageRoster: { select: { code: true, name: true } }
+      },
+      orderBy: [{ status: 'asc' }, { effectiveFrom: 'desc' }, { code: 'asc' }]
+    });
+
+    const assignments: StaffEmploymentStandingAssignment[] = rows.map((row) => ({
+      id: row.id,
+      code: row.code,
+      shiftTypeCode: row.shiftType?.code ?? '',
+      shiftTypeName: row.shiftType?.name ?? '',
+      status: row.status,
+      effectiveFrom: row.effectiveFrom.toISOString(),
+      effectiveTo: row.effectiveTo ? row.effectiveTo.toISOString() : null,
+      manageRosterCode: row.manageRoster?.code?.trim().toUpperCase() ?? '',
+      manageRosterName: row.manageRoster?.name ?? ''
+    }));
+
+    return {
+      isError: false,
+      data: {
+        count: assignments.length,
+        activeCount: assignments.filter((row) => row.status === 'active').length,
+        assignments
+      },
+      errors: {}
+    };
+  } catch (error: any) {
+    console.error('getStaffEmploymentRosterShiftSummaryAction error:', error);
+    return {
+      isError: true,
+      data: null,
+      errors: {
+        message:
+          error.message ?? 'Unable to load shift assignment summary.'
+      }
+    };
+  }
+}
+
+/** @deprecated Prefer getStaffEmploymentRosterShiftSummaryAction */
+export async function getStaffShiftAssignmentCountAction(staffId: string): Promise<{
+  isError: boolean;
+  data: { count: number } | null;
+  errors: Record<string, unknown>;
+}> {
+  const result = await getStaffEmploymentRosterShiftSummaryAction(staffId);
+  if (result.isError || !result.data) {
+    return {
+      isError: true,
+      data: null,
+      errors: result.errors
+    };
+  }
+  return {
+    isError: false,
+    data: { count: result.data.count },
+    errors: {}
+  };
+}
+
 // ** Update Staff Employment Details Action * //
 export async function updateStaffEmploymentAction(
   id: string,
@@ -396,9 +551,16 @@ export async function updateStaffEmploymentAction(
     if (!result.success) {
       return {
         isError: true,
-        errors:
-          result.error?.issues ??
-          { message: result.error?.message ?? 'Something went wrong. Please try again later' },
+        errors: {
+          message:
+            result.error?.message ??
+            'Something went wrong. Please try again later',
+          ...(result.error?.issues ?? {}),
+          ...(result.error?.softWarnings
+            ? { softWarnings: result.error.softWarnings }
+            : {}),
+          ...(result.error?.requiresAck ? { requiresAck: true } : {})
+        },
         data: {}
       };
     }
@@ -480,11 +642,16 @@ export async function deleteStaffAction(id: string, options?: StaffCrudOptions) 
 }
 
 // ** Bulk Delete Staff Action * //
-export async function bulkDeleteStaffAction(ids: string[]) {
+export async function bulkDeleteStaffAction(
+  ids: string[],
+  options?: StaffCrudOptions
+) {
   await requirePermission('staff', 'delete');
   try {
     const auditUser = await getAuditUser();
-    const linkedRecords = await getChannelingStaffIdsByHrmIds(ids);
+    const linkedRecords = options?.syncToChanneling
+      ? await getChannelingStaffIdsByHrmIds(ids)
+      : [];
     const migrateSourceIds = linkedRecords
       .map((record) => record.channelingId)
       .filter(Boolean);
@@ -494,7 +661,7 @@ export async function bulkDeleteStaffAction(ids: string[]) {
       throw new Error(result.error?.message ?? 'Error deleting records. Please try again later');
     }
 
-    if (migrateSourceIds.length > 0) {
+    if (options?.syncToChanneling && migrateSourceIds.length > 0) {
       const channelingResult = await pushStaffBulkDeleteToChanneling(migrateSourceIds);
       if (!channelingResult.success) {
         throw new Error(
@@ -522,20 +689,31 @@ export async function bulkDeleteStaffAction(ids: string[]) {
   }
 }
 
-/** Build bulk delete dialog copy for staff linked to Channeling. */
-export async function getStaffBulkDeleteDescriptionAction(ids: string[]): Promise<string> {
+/** Build bulk delete dialog copy and whether any selected staff are linked to Channeling. */
+export async function getStaffBulkDeleteDescriptionAction(ids: string[]): Promise<{
+  title: string;
+  description: string;
+  hasChannelingLink: boolean;
+}> {
   'use server';
 
   const linkedCount = await countLinkedChannelingStaff(ids);
+  const hasChannelingLink = linkedCount > 0;
   const { buildChannelingSyncDialogDescription } = await import(
     '@/lib/helpers/staff-channeling-dialog.helper'
   );
 
-  return buildChannelingSyncDialogDescription({
-    mode: 'bulkDelete',
-    linkedCount,
-    totalCount: ids.length
-  });
+  return {
+    title: hasChannelingLink
+      ? 'Delete linked staff from Channeling too?'
+      : 'Delete staff from HRM?',
+    description: buildChannelingSyncDialogDescription({
+      mode: 'bulkDelete',
+      linkedCount,
+      totalCount: ids.length
+    }),
+    hasChannelingLink
+  };
 }
 
 //** Get Staff Options Action * //
@@ -570,41 +748,61 @@ export async function getStaffOptionsAction(): Promise<{
 }
 
 //** Staff Exports */
-export const getStaffExport = async (params: { keyword?: string }) => {
+export const getStaffExport = async (params: {
+  keyword?: string;
+  status?: string;
+}) => {
   try {
     await requirePermission('staff', 'view');
-    const result = await getAllStaffForExport(params.keyword ?? '');
+    const result = await getStaffForExport({
+      keyword: params.keyword ?? '',
+      status: params.status
+    });
 
-    if (!result.success || !result.data?.length) {
+    if (!result.success) {
       return {
         success: false,
-        message: result.success
-          ? 'No staff found'
-          : (result.error?.message || 'Error getting data')
+        message:
+          result.error?.message ??
+          'Error getting data. Please try again later',
+        data: [],
+        totalRecords: 0
       };
     }
+
+    if (!result.data?.length) {
+      return {
+        success: false,
+        message: 'No staff found',
+        data: [],
+        totalRecords: 0
+      };
+    }
+
     const auditUser = await getAuditUser();
     if (auditUser?.id) {
       logActivityNonBlocking({
         userId: auditUser.id,
-        action: "staff.exported",
-        entityType: "Staff",
-        importance: "medium",
-        metadata: { count: result.data.length },
-      })
+        action: 'staff.exported',
+        entityType: 'Staff',
+        importance: 'medium',
+        metadata: { count: result.data.length }
+      });
     }
+
     return {
       success: true,
       data: result.data,
-      totalRecords: result.totalRecords ?? result.data.length,
-      exportLimit: result.exportLimit,
-      limited: result.limited ?? false
+      totalRecords: result.totalRecords ?? result.data.length
     };
   } catch (error: any) {
-    console.log('getStaffExport error', error);
+    console.error('getStaffExport error', error);
     return {
       success: false,
-      message: error.message || 'Error getting data'
+      message:
+        error.message || 'Error getting data. Please try again later',
+      data: [],
+      totalRecords: 0
     };
   }
 };

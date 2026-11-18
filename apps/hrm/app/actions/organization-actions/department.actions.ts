@@ -10,6 +10,7 @@ import {
   deleteDepartment,
   getDepartmentById,
   getDepartmentList,
+  getDepartmentOptions,
   updateDepartment
 } from '@/services/organization-services/department.service';
 import { syncAllDepartmentsFromChanneling } from '@/services/organization-services/department-sync.service';
@@ -65,6 +66,41 @@ export async function getDepartmentListAction(
       data: null,
       errors: {
         message: error.message ?? 'Error getting data. Please try again later'
+      }
+    };
+  }
+}
+
+/**
+ * Published department options for Comboboxes in other modules (Manage Rosters, etc.).
+ * Auth: signed-in user only — not gated on organizations CRUD (mirrors Staff Speciality options pattern).
+ */
+export async function getDepartmentOptionsAction(): Promise<{
+  isError: boolean;
+  data: Array<{ id: string; name: string }> | null;
+  errors: Record<string, unknown>;
+}> {
+  try {
+    const auditUser = await getAuditUser();
+    if (!auditUser?.id) {
+      throw new Error('Unauthorized');
+    }
+    const result = await getDepartmentOptions();
+    if (!result.success) {
+      throw new Error(result.error?.message ?? 'Failed to load department options');
+    }
+    return {
+      isError: false,
+      data: result.data ?? [],
+      errors: {}
+    };
+  } catch (error: any) {
+    console.error('getDepartmentOptionsAction error:', error);
+    return {
+      isError: true,
+      data: null,
+      errors: {
+        message: error.message ?? 'Error getting department options.'
       }
     };
   }

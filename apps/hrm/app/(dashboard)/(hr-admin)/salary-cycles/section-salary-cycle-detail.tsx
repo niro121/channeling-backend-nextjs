@@ -15,6 +15,7 @@ import {
   createSalaryCycleAction,
   updateSalaryCycleAction
 } from '@/app/actions/hr-admin-actions/salary-cycle.actions';
+import { formatAuditLine } from '@/lib/helpers/format-audit-line.helper';
 import { cn } from '@/lib/utils';
 import { getInstitutionName } from '@/types/institution';
 import {
@@ -87,18 +88,6 @@ const validationSchema = Yup.object({
     }
   )
 });
-
-function formatAuditLine(
-  name?: string,
-  role?: string,
-  at?: string | null
-): string {
-  if (!name || !at) return '—';
-  const date = new Date(at);
-  if (Number.isNaN(date.getTime())) return '—';
-  const namePart = role ? `${name} (${role})` : name;
-  return `${namePart} · ${format(date, 'd MMM yyyy')} · ${format(date, 'HH:mm')}`;
-}
 
 function applyFieldErrors(
   helpers: FormikHelpers<SalaryCycleFormValues>,

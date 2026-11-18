@@ -5,7 +5,7 @@ import { Formik, Form, FormikHelpers, useFormikContext } from 'formik';
 import * as Yup from 'yup';
 import { useRouter } from 'next/navigation';
 import {
-  CustomAlertDialog,
+  Button,
   CustomDatePickerField,
   CustomFormField,
   CustomSelectField,
@@ -17,6 +17,13 @@ import {
   AccordionItem,
   AccordionTrigger
 } from '@/components/ui/accordion';
+import {
+  ChannelingSyncAlertDialog
+} from '@/components/common/channeling-sync-alert-dialog';
+import {
+  buildChannelingSyncDialog,
+  type ChannelingSyncDialogContent
+} from '@/components/common/channeling-sync-dialog.helper';
 import {
   HOME_TELEPHONE_REGEX,
   MOBILE_NUMBER_REGEX
@@ -43,6 +50,7 @@ import {
   personnelPayloadToStaffRecordSlice,
   staffRecordToHrDetailFormValues
 } from '@/lib/mappers/staff-personnel-details.mapper';
+import { buttonStyles } from '@/lib/utils/common-styles';
 
 const fieldStyleClasses = {
   parentDiv: 'grid grid-cols-1 gap-2 items-start',
@@ -279,12 +287,16 @@ export default function FormHrDetail({
     closeAfterSave: boolean;
   } | null>(null);
   const [showChannelingDialog, setShowChannelingDialog] = useState(false);
-  const [channelingDialogDescription, setChannelingDialogDescription] = useState('');
+  const [channelingDialog, setChannelingDialog] =
+    useState<ChannelingSyncDialogContent | null>(null);
+  const [channelingChangedFieldsNote, setChannelingChangedFieldsNote] =
+    useState('');
   const [isSaving, setIsSaving] = useState(false);
   const { toast } = useToast();
   const router = useRouter();
 
   const resolvedInitialValues = staffRecordToHrDetailFormValues(staff);
+  const generalAddress = staff.address?.trim() ?? '';
 
   const executeSave = async (
     values: HrDetailFormValues,
@@ -382,6 +394,8 @@ export default function FormHrDetail({
       setIsSaving(false);
       onLoadingChange?.(false);
       setShowChannelingDialog(false);
+      setChannelingDialog(null);
+      setChannelingChangedFieldsNote('');
       pendingSubmitRef.current = null;
     }
   };
@@ -407,10 +421,22 @@ export default function FormHrDetail({
       originalChanneling,
       updatedChanneling
     );
+    const hasChannelingLink = Boolean(staff.migrateSourceId);
     const shouldPromptChanneling =
-      changedFields.length > 0 || !staff.migrateSourceId;
+      changedFields.length > 0 || !hasChannelingLink;
 
     if (shouldPromptChanneling) {
+      const dialog = buildChannelingSyncDialog({
+        entityLabel: 'staff member',
+        mode: 'update',
+        hasChannelingLink
+      });
+      const detailNote = buildChannelingSyncDialogDescription({
+        mode: 'update',
+        changedFields,
+        hasChannelingLink
+      });
+
       pendingSubmitRef.current = {
         values,
         helpers: {
@@ -419,18 +445,33 @@ export default function FormHrDetail({
         },
         closeAfterSave
       };
-      setChannelingDialogDescription(
-        buildChannelingSyncDialogDescription({
-          mode: 'update',
-          changedFields,
-          hasChannelingLink: Boolean(staff.migrateSourceId)
-        })
+      setChannelingDialog(dialog);
+      setChannelingChangedFieldsNote(
+        changedFields.length > 0 ? ` ${detailNote}` : ''
       );
       setShowChannelingDialog(true);
       return;
     }
 
     await executeSave(values, false, closeAfterSave, helpers);
+  };
+
+  const handleChannelingCancel = () => {
+    pendingSubmitRef.current = null;
+    setShowChannelingDialog(false);
+    setChannelingDialog(null);
+    setChannelingChangedFieldsNote('');
+  };
+
+  const handleChannelingSaveHrmOnly = async () => {
+    const pending = pendingSubmitRef.current;
+    if (!pending) return;
+    await executeSave(
+      pending.values,
+      false,
+      pending.closeAfterSave,
+      pending.helpers
+    );
   };
 
   const handleChannelingContinue = async () => {
@@ -442,20 +483,6 @@ export default function FormHrDetail({
       pending.closeAfterSave,
       pending.helpers
     );
-  };
-
-  const handleChannelingDialogVisibility = (open: boolean) => {
-    if (!open && pendingSubmitRef.current) {
-      const pending = pendingSubmitRef.current;
-      void executeSave(
-        pending.values,
-        false,
-        pending.closeAfterSave,
-        pending.helpers
-      );
-      return;
-    }
-    setShowChannelingDialog(open);
   };
 
   return (
@@ -685,26 +712,57 @@ export default function FormHrDetail({
                   </AccordionTrigger>
                   <AccordionContent className="border-t-2 pt-2">
                     <div className="grid grid-cols-1 gap-4 pb-2 md:grid-cols-2">
-                      <CustomFormField
-                        type="text"
-                        id="permanentAddress"
-                        placeholder="Permanent Address"
-                        value={formik.values.permanentAddress}
-                        onChange={formik.handleChange}
-                        onBlur={formik.handleBlur}
-                        required
-                        styleClasses={fieldStyleClasses}
-                      />
-                      <CustomFormField
-                        type="text"
-                        id="postalAddress"
-                        placeholder="Postal Address"
-                        value={formik.values.postalAddress}
-                        onChange={formik.handleChange}
-                        onBlur={formik.handleBlur}
-                        required={false}
-                        styleClasses={fieldStyleClasses}
-                      />
+                      <div className="space-y-1.5">
+                        <CustomFormField
+                          type="text"
+                          id="permanentAddress"
+                          placeholder="Permanent Address"
+                          value={formik.values.permanentAddress}
+                          onChange={formik.handleChange}
+                          onBlur={formik.handleBlur}
+                          required
+                          styleClasses={fieldStyleClasses}
+                        />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="h-8 text-xs"
+                          disabled={!generalAddress}
+                          onClick={() =>
+                            formik.setFieldValue(
+                              'permanentAddress',
+                              generalAddress
+                            )
+                          }
+                        >
+                          Use general address
+                        </Button>
+                      </div>
+                      <div className="space-y-1.5">
+                        <CustomFormField
+                          type="text"
+                          id="postalAddress"
+                          placeholder="Postal Address"
+                          value={formik.values.postalAddress}
+                          onChange={formik.handleChange}
+                          onBlur={formik.handleBlur}
+                          required={false}
+                          styleClasses={fieldStyleClasses}
+                        />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="h-8 text-xs"
+                          disabled={!generalAddress}
+                          onClick={() =>
+                            formik.setFieldValue('postalAddress', generalAddress)
+                          }
+                        >
+                          Use general address
+                        </Button>
+                      </div>
                       <CustomFormField
                         type="text"
                         id="homeTelephone"
@@ -1049,13 +1107,17 @@ export default function FormHrDetail({
         }}
       </Formik>
 
-      <CustomAlertDialog
+      <ChannelingSyncAlertDialog
         open={showChannelingDialog}
-        handleVisibilityChange={handleChannelingDialogVisibility}
+        title={channelingDialog?.title ?? 'Sync Channeling staff?'}
+        description={`${channelingDialog?.description ?? ''}${channelingChangedFieldsNote}`}
+        hrmOnlyLabel={channelingDialog?.hrmOnlyLabel}
+        continueLabel={channelingDialog?.continueLabel}
+        cancelClassName={buttonStyles.cancel.warning}
         loading={isSaving}
-        title="Update Channeling staff too?"
-        description={`${channelingDialogDescription} Click Cancel to save in HRM only, or Continue to also apply the change in Channeling.`}
-        handleContinue={handleChannelingContinue}
+        onCancel={handleChannelingCancel}
+        onSaveHrmOnly={() => void handleChannelingSaveHrmOnly()}
+        onContinue={() => void handleChannelingContinue()}
       />
     </>
   );

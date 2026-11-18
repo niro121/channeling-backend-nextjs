@@ -12,6 +12,7 @@ import {
   useToast
 } from '@archmage/ui';
 import { formatAuditDateTime } from '@/lib/utils/date';
+import { buttonStyles } from '@/lib/utils/common-styles';
 import { getNightShiftHistoryAction } from '@/app/actions/roster-actions/night-shift.actions';
 import type { NightShiftHistoryEntry, NightShiftRecord } from '@/types/roster';
 
@@ -109,7 +110,7 @@ export default function SheetNightShiftHistory({
             type="button"
             variant="outline"
             size="sm"
-            className="w-full sm:w-24 gap-1 border-red-500 text-red-500 transition-colors ease-in-out duration-100 hover:bg-red-500 hover:text-white"
+            className={buttonStyles.cancel.normal}
             onClick={() => onOpenChange(false)}
           >
             Cancel

@@ -4,8 +4,6 @@ import { revalidatePath } from 'next/cache';
 import { logActivityNonBlocking } from '@/lib/activity-log';
 import { getAuditUser } from '@/lib/audit-user';
 import { requirePermission } from '@/lib/server-permissions';
-import { getStaffOptions } from '@/services/staff-services/staff.service';
-import { getActiveShiftTypeOptions } from '@/services/roster-services/shift-type.service';
 import {
   bulkCreateShiftAssignments,
   createShiftAssignment,
@@ -13,10 +11,13 @@ import {
   deleteShiftAssignments,
   getShiftAssignmentById,
   getShiftAssignmentFilterOptions,
+  getShiftAssignmentFormOptions,
   getShiftAssignmentHistory,
+  getShiftAssignmentRosterScope,
   getShiftAssignmentSummary,
   getShiftAssignments,
   getShiftAssignmentsForExport,
+  getStaffManageRosterId,
   updateShiftAssignment
 } from '@/services/roster-services/shift-assignment.service';
 import type {
@@ -93,34 +94,15 @@ export async function getShiftAssignmentsAction(params: GetShiftAssignmentsParam
 export async function getShiftAssignmentFormOptionsAction() {
   try {
     await requirePermission('shift-roster', 'view');
-    const [staffRes, shiftTypeRes] = await Promise.all([
-      getStaffOptions(),
-      getActiveShiftTypeOptions()
-    ]);
-
-    if (!staffRes.success) {
-      throw new Error(staffRes.error?.message ?? 'Failed to load staff options');
-    }
-    if (!shiftTypeRes.success) {
+    const result = await getShiftAssignmentFormOptions();
+    if (!result.success || !result.data) {
       throw new Error(
-        shiftTypeRes.error?.message ?? 'Failed to load shift type options'
+        result.error?.message ?? 'Failed to load assignment form options'
       );
     }
-
     return {
       isError: false,
-      data: {
-        staff: (staffRes.data ?? []).map((staff) => ({
-          id: staff.id,
-          name: staff.code ? `${staff.code} — ${staff.name}` : staff.name
-        })),
-        shiftTypes: (shiftTypeRes.data ?? []).map((shiftType) => ({
-          id: shiftType.id,
-          name: shiftType.code
-            ? `${shiftType.code} — ${shiftType.name}`
-            : shiftType.name
-        }))
-      },
+      data: result.data,
       errors: {}
     };
   } catch (error: any) {
@@ -130,6 +112,60 @@ export async function getShiftAssignmentFormOptionsAction() {
       data: null,
       errors: {
         message: error.message ?? 'Failed to load assignment form options'
+      }
+    };
+  }
+}
+
+export async function getShiftAssignmentRosterScopeAction(
+  manageRosterId: string
+) {
+  try {
+    await requirePermission('shift-roster', 'view');
+    const result = await getShiftAssignmentRosterScope(manageRosterId);
+    if (!result.success || !result.data) {
+      throw new Error(
+        result.error?.message ?? 'Failed to load roster staff options'
+      );
+    }
+    return {
+      isError: false,
+      data: result.data,
+      errors: {}
+    };
+  } catch (error: any) {
+    console.error('getShiftAssignmentRosterScopeAction error:', error);
+    return {
+      isError: true,
+      data: null,
+      errors: {
+        message: error.message ?? 'Failed to load roster staff options'
+      }
+    };
+  }
+}
+
+export async function getStaffManageRosterIdAction(staffId: string) {
+  try {
+    await requirePermission('shift-roster', 'view');
+    const result = await getStaffManageRosterId(staffId);
+    if (!result.success) {
+      throw new Error(
+        result.error?.message ?? 'Failed to resolve staff roster'
+      );
+    }
+    return {
+      isError: false,
+      data: result.data ?? null,
+      errors: {}
+    };
+  } catch (error: any) {
+    console.error('getStaffManageRosterIdAction error:', error);
+    return {
+      isError: true,
+      data: null,
+      errors: {
+        message: error.message ?? 'Failed to resolve staff roster'
       }
     };
   }
@@ -451,27 +487,47 @@ export async function bulkDeleteShiftAssignmentsAction(ids: string[]) {
 }
 
 export async function getShiftAssignmentsExport(params: GetShiftAssignmentsParams) {
+  await requirePermission('shift-roster', 'view');
+
   try {
-    await requirePermission('shift-roster', 'view');
-    const result = await getShiftAssignmentsForExport(listParams(params));
-    if (!result.success) {
+    const response = await getShiftAssignmentsForExport({
+      staffId: params.staffId,
+      shiftTypeId: params.shiftTypeId,
+      institution: params.institution,
+      department: params.department,
+      unit: params.unit,
+      designation: params.designation,
+      staffCategory: params.staffCategory,
+      staffGrade: params.staffGrade,
+      employeeStatus: params.employeeStatus,
+      status: params.status,
+      search: params.search
+    });
+
+    if (!response.data?.length) {
       return {
         success: false,
-        message: result.error?.message ?? 'Failed to export shift assignments',
-        data: []
+        message: 'No shift assignments found',
+        data: [],
+        totalRecords: 0
       };
     }
+
     return {
       success: true,
-      data: result.data ?? [],
-      message: result.message
+      data: response.data,
+      totalRecords: response.totalRecords
     };
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('getShiftAssignmentsExport error', error);
     return {
       success: false,
-      message: error.message ?? 'Failed to export shift assignments',
-      data: []
+      message:
+        error instanceof Error
+          ? error.message
+          : 'Error getting data. Please try again later',
+      data: [],
+      totalRecords: 0
     };
   }
 }

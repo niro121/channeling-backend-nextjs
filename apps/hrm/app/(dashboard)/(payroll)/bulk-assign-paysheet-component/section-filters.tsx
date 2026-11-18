@@ -4,7 +4,7 @@ import { Suspense } from 'react';
 import { Combobox, Label, Selector, useToast } from '@archmage/ui';
 import { FilterWrapper } from '@/app/(dashboard)/filter-wrapper';
 import { INSTITUTION_OPTIONS } from '@/types/institution';
-import { STAFF_CATEGORY_OPTIONS } from '@/types/staff-employment-options';
+import { STAFF_CATEGORY_OPTIONS } from '@/types/staff-category';
 import type {
   BulkPaysheetStaffFilters,
   PaysheetStaffOption,

@@ -13,6 +13,7 @@ import { Pencil, Trash2 } from 'lucide-react';
 import { usePermissions } from '@/components/hooks/use-permissions';
 import { deleteLeaveEntitlementAction } from '@/app/actions/leave-actions/leave-entitlement.actions';
 import type { LeaveEntitlementRecord } from '@/types/leave';
+import { buttonStyles } from '@/lib/utils/common-styles';
 
 interface LeaveEntitlementRecordActionsProps {
   row: Row<LeaveEntitlementRecord>;
@@ -99,6 +100,10 @@ export default function LeaveEntitlementRecordActions({
         title="Delete leave entitlement?"
         description={`This will remove the entitlement for ${record.leaveTypeName ?? 'this leave type'}.`}
         handleContinue={onDelete}
+        className={{
+          actionButton: buttonStyles.delete.danger,
+          cancelButton: `h-9!`
+        }}
       />
     </div>
   );

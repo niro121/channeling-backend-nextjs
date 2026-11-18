@@ -6,6 +6,12 @@ export type { GetStaffParams, Staff };
 
 export { TITLE_LIST, GENDER_OPTIONS, STAFF_STATUS_OPTIONS };
 
+/** Prefix for `generateRecordCode` → e.g. `ST-1`, `ST-2`. */
+export const STAFF_CODE_PREFIX = 'ST';
+
+/** Prefix for legacy staff codes → e.g. `ST-LG-1`, `ST-LG-2`. */
+export const STAFF_LEGACY_CODE_PREFIX = 'ST-LG';
+
 export type StaffHrDetails = {
   initials?: string | null;
   firstName?: string | null;
@@ -96,6 +102,8 @@ export type StaffEmploymentInfo = {
   staffCategory?: string | null;
   staffGrade?: string | null;
   staffDesignation?: string | null;
+  /** Current basic salary snapshot (LKR). History: StaffEmploymentChange field=basic. */
+  basic?: number | null;
   roster?: string | null;
   shift?: string | null;
 };
@@ -134,6 +142,8 @@ export type StaffEmploymentDetails = {
 
 export type StaffEmploymentPayload = {
   employmentDetails?: StaffEmploymentDetails;
+  /** Soft-warn ack for Institution / Working Department changes with standing assignments (INT-H4). */
+  acknowledgedWarnings?: boolean;
 };
 
 export type StaffPersonnelPayload = {
@@ -274,6 +284,9 @@ export type EmploymentFormValues = {
   staffCategory: string;
   staffGrade: string;
   staffDesignation: string;
+  /** Current basic salary snapshot (string for form input). */
+  basic: string;
+  /** Manage Roster business code (e.g. CHN). */
   roster: string;
   shift: string;
   payingMethod: string;
@@ -287,4 +300,23 @@ export type EmploymentFormValues = {
   allowedLateInLeave: boolean;
   allowedEarlyOutLeave: boolean;
   memo: string;
+};
+
+/** Live masters for Staff Employment tab (CS4 / INT-S3). */
+export type StaffEmploymentSelectOption = {
+  id: string;
+  name: string;
+};
+
+/** Roster option includes Manage Roster department for Employment filtering. */
+export type StaffEmploymentRosterOption = StaffEmploymentSelectOption & {
+  departmentId: string;
+};
+
+export type StaffEmploymentFormOptions = {
+  departments: StaffEmploymentSelectOption[];
+  designations: StaffEmploymentSelectOption[];
+  grades: StaffEmploymentSelectOption[];
+  /** id = ManageRoster.code */
+  rosters: StaffEmploymentRosterOption[];
 };

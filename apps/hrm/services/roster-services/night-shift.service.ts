@@ -9,18 +9,25 @@ import {
   resolveAuthUsers,
   type AuthUserSummary
 } from '@/lib/helpers/resolve-auth-users.helper';
+import {
+  assertStaffDayShiftLimit,
+  getShiftsPerPersonPerDayLimit
+} from '@/lib/helpers/roster/shifts-per-person-per-day.helper';
 import { formatNightMoney } from '@/lib/utils/night-shift';
 import { saveRosterAllocationDraft } from '@/services/roster-services/shift-roster.service';
+import { getInstitutionName } from '@/types/institution';
 import {
   CONSECUTIVE_NIGHT_LIMIT,
   NIGHT_SHIFT_STATUS_OPTIONS,
   exceedsConsecutiveNightPolicy,
   type GetNightShiftsParams,
+  type NightShiftConflictPreview,
   type NightShiftFilterOptions,
   type NightShiftFormOptions,
   type NightShiftHistoryEntry,
   type NightShiftPayload,
   type NightShiftRecord,
+  type NightShiftStaffOption,
   type NightShiftSummary,
   type RosterFilterOption
 } from '@/types/roster';
@@ -83,8 +90,29 @@ const nightPayloadSchema = z.object({
     .optional()
     .nullable(),
   sendToPayroll: z.boolean().optional().default(false),
-  remarks: z.string().max(500).optional().nullable()
+  remarks: z.string().max(500).optional().nullable(),
+  acknowledgedWarnings: z.boolean().optional()
 });
+
+type NightMutationError = {
+  message?: string;
+  issues?: Record<string, string[]>;
+  softWarnings?: string[];
+  requiresAck?: boolean;
+};
+
+function parseInstitutionId(value: string | null | undefined): number | null {
+  if (!value?.trim()) return null;
+  if (value === 'ruhunu_hospitals') return 0;
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) && parsed >= 0 && parsed <= 3 ? parsed : null;
+}
+
+function toDutyDateUtc(value: Date): Date {
+  return new Date(
+    Date.UTC(value.getFullYear(), value.getMonth(), value.getDate())
+  );
+}
 
 function toIsoString(value: Date | string | null | undefined): string {
   if (!value) return '';
@@ -238,6 +266,33 @@ async function countConsecutiveNights(
         staffId,
         date: cursor,
         shiftType: { isNightShift: true }
+      },
+      select: { id: true }
+    });
+    if (!found) break;
+    count += 1;
+    cursor = addDays(cursor, -1);
+  }
+
+  return count;
+}
+
+/** Preview consecutive nights if a night cell is added/kept on `date`. */
+async function previewConsecutiveNights(
+  staffId: string,
+  date: Date,
+  excludeAllocationId?: string | null
+): Promise<number> {
+  let count = 1;
+  let cursor = addDays(date, -1);
+
+  while (count < 31) {
+    const found = await prisma.rosterAllocation.findFirst({
+      where: {
+        staffId,
+        date: cursor,
+        shiftType: { isNightShift: true },
+        ...(excludeAllocationId ? { id: { not: excludeAllocationId } } : {})
       },
       select: { id: true }
     });
@@ -511,13 +566,22 @@ export async function getNightShiftFormOptions(): Promise<{
   error?: { message?: string };
 }> {
   try {
-    const [staffRecords, shiftTypes] = await Promise.all([
+    const [staffRecords, shiftTypes, departments] = await Promise.all([
       prisma.staff.findMany({
         where: { status: 1 },
         orderBy: { name: 'asc' },
-        take:
-          Number.parseInt(process.env.DEFAULT_PAGE_SIZE ?? '100', 10) || 100,
-        select: { id: true, name: true, code: true }
+        select: {
+          id: true,
+          name: true,
+          code: true,
+          employmentDetails: true,
+          shiftAssignments: {
+            where: { status: 'active' },
+            select: { department: true, unit: true },
+            take: 1,
+            orderBy: { effectiveFrom: 'desc' }
+          }
+        }
       }),
       prisma.shiftType.findMany({
         where: { status: 'active', isNightShift: true },
@@ -530,18 +594,72 @@ export async function getNightShiftFormOptions(): Promise<{
           endTime: true,
           durationHours: true
         }
+      }),
+      prisma.department.findMany({
+        where: { status: 1 },
+        orderBy: { name: 'asc' },
+        select: { id: true, name: true, institution: true }
       })
     ]);
+
+    const departmentById = new Map(departments.map((d) => [d.id, d]));
+    const departmentsByNameInstitution = new Map(
+      departments.map((d) => [`${d.institution}::${d.name.toLowerCase()}`, d])
+    );
+
+    const staff: NightShiftStaffOption[] = staffRecords.map((record) => {
+      const employment = (
+        record.employmentDetails as {
+          employment?: {
+            institution?: string;
+            department?: string;
+            roster?: string;
+          };
+        } | null
+      )?.employment;
+      const institutionNum = parseInstitutionId(employment?.institution);
+      const institutionId =
+        institutionNum != null ? String(institutionNum) : '';
+      const rawDept = employment?.department?.trim() || '';
+      const byId = rawDept ? departmentById.get(rawDept) : undefined;
+      const byName =
+        !byId && rawDept && institutionNum != null
+          ? departmentsByNameInstitution.get(
+              `${institutionNum}::${rawDept.toLowerCase()}`
+            )
+          : undefined;
+      const workingDept = byId || byName;
+      const assignmentDept =
+        record.shiftAssignments[0]?.department?.trim() || '';
+      const assignmentDeptRow = assignmentDept
+        ? departmentById.get(assignmentDept) ||
+          (institutionNum != null
+            ? departmentsByNameInstitution.get(
+                `${institutionNum}::${assignmentDept.toLowerCase()}`
+              )
+            : undefined)
+        : undefined;
+
+      return {
+        id: record.id,
+        name: record.code
+          ? `${record.code} — ${record.name}`
+          : (record.name ?? ''),
+        staffCode: record.code ?? '',
+        institutionId,
+        institutionName:
+          institutionNum != null ? getInstitutionName(institutionNum) : '',
+        workingDepartmentName:
+          workingDept?.name || assignmentDeptRow?.name || assignmentDept || '',
+        unit: record.shiftAssignments[0]?.unit?.trim() || '',
+        roster: employment?.roster?.trim() || ''
+      };
+    });
 
     return {
       success: true,
       data: {
-        staff: staffRecords.map((staff) => ({
-          id: staff.id,
-          name: staff.code
-            ? `${staff.name} (${staff.code})`
-            : (staff.name ?? '')
-        })),
+        staff,
         shiftTypes: shiftTypes.map((shift) => ({
           id: shift.id,
           name: formatShiftLabel(shift),
@@ -558,6 +676,151 @@ export async function getNightShiftFormOptions(): Promise<{
     return {
       success: false,
       error: { message: error.message || 'Failed to load form options' }
+    };
+  }
+}
+
+export async function getNightShiftConflictPreview(input: {
+  staffId: string;
+  shiftDate: Date | string;
+  shiftTypeId?: string | null;
+  excludeAllocationId?: string | null;
+}): Promise<{
+  success: boolean;
+  data?: NightShiftConflictPreview;
+  error?: { message?: string };
+}> {
+  try {
+    const staffId = input.staffId?.trim();
+    if (!staffId || !input.shiftDate) {
+      return {
+        success: true,
+        data: {
+          allocations: [],
+          sameShiftTypeExists: false,
+          dayLimit: 1,
+          existingCount: 0,
+          dayLimitReached: false,
+          consecutiveNightsPreview: 0,
+          exceedsConsecutivePolicy: false,
+          blocksSave: false,
+          blockReason: null,
+          infoMessage: null
+        }
+      };
+    }
+
+    const raw =
+      typeof input.shiftDate === 'string'
+        ? parseISO(String(input.shiftDate).slice(0, 10))
+        : input.shiftDate;
+    const dutyDate = toDutyDateUtc(raw);
+    const shiftTypeId = input.shiftTypeId?.trim() || '';
+    const excludeId = input.excludeAllocationId?.trim() || null;
+
+    const snapshot = await getStaffSnapshot(staffId);
+    const { limit } = await getShiftsPerPersonPerDayLimit(snapshot?.roster);
+    const dayLimit = await assertStaffDayShiftLimit({
+      staffId,
+      date: dutyDate,
+      rosterCode: snapshot?.roster,
+      excludeAllocationId: excludeId,
+      issueField: 'shiftDate'
+    });
+
+    const rows = await prisma.rosterAllocation.findMany({
+      where: {
+        staffId,
+        date: dutyDate,
+        ...(excludeId ? { id: { not: excludeId } } : {})
+      },
+      select: {
+        id: true,
+        shiftTypeId: true,
+        status: true,
+        shiftType: {
+          select: {
+            name: true,
+            chipLabel: true,
+            startTime: true,
+            endTime: true,
+            isNightShift: true
+          }
+        }
+      },
+      orderBy: { createdAt: 'asc' }
+    });
+
+    const allocations = rows.map((row) => ({
+      id: row.id,
+      shiftTypeId: row.shiftTypeId,
+      shiftLabel: formatShiftLabel(row.shiftType),
+      startTime: row.shiftType.startTime,
+      endTime: row.shiftType.endTime,
+      status: row.status,
+      isNightShift: row.shiftType.isNightShift
+    }));
+
+    const sameShiftTypeExists = Boolean(
+      shiftTypeId &&
+        allocations.some((row) => row.shiftTypeId === shiftTypeId)
+    );
+    const consecutiveNightsPreview = await previewConsecutiveNights(
+      staffId,
+      dutyDate,
+      excludeId
+    );
+    const exceedsConsecutivePolicy = exceedsConsecutiveNightPolicy(
+      consecutiveNightsPreview
+    );
+
+    let blocksSave = false;
+    let blockReason: string | null = null;
+    let infoMessage: string | null = null;
+
+    if (sameShiftTypeExists) {
+      blocksSave = true;
+      blockReason =
+        'This staff member already has this night shift type on the selected date.';
+    } else if (!dayLimit.ok) {
+      blocksSave = true;
+      blockReason = dayLimit.message;
+    } else if (allocations.length > 0) {
+      const labels = allocations
+        .map((row) => `${row.shiftLabel} (${row.startTime}–${row.endTime})`)
+        .join('; ');
+      infoMessage = `Also rostered that day: ${labels}. Day limit ${limit} (currently ${allocations.length}).`;
+    }
+
+    if (!blocksSave && exceedsConsecutivePolicy) {
+      infoMessage = [
+        infoMessage,
+        `Consecutive nights would be ${consecutiveNightsPreview} (policy limit ${CONSECUTIVE_NIGHT_LIMIT}).`
+      ]
+        .filter(Boolean)
+        .join(' ');
+    }
+
+    return {
+      success: true,
+      data: {
+        allocations,
+        sameShiftTypeExists,
+        dayLimit: limit,
+        existingCount: allocations.length,
+        dayLimitReached: !dayLimit.ok,
+        consecutiveNightsPreview,
+        exceedsConsecutivePolicy,
+        blocksSave,
+        blockReason,
+        infoMessage
+      }
+    };
+  } catch (error: any) {
+    console.error('getNightShiftConflictPreview error:', error);
+    return {
+      success: false,
+      error: { message: error.message || 'Failed to check night shift conflicts' }
     };
   }
 }
@@ -589,7 +852,7 @@ export async function createNightShift(
 ): Promise<{
   success: boolean;
   data?: NightShiftRecord;
-  error?: { message?: string; issues?: Record<string, string[]> };
+  error?: NightMutationError;
 }> {
   try {
     const parsed = nightPayloadSchema.safeParse(payload);
@@ -604,33 +867,17 @@ export async function createNightShift(
     }
 
     const data = parsed.data;
-    const dutyDate = new Date(
-      Date.UTC(
-        data.shiftDate.getFullYear(),
-        data.shiftDate.getMonth(),
-        data.shiftDate.getDate()
-      )
-    );
-
-    const existing = await prisma.rosterAllocation.findFirst({
-      where: { staffId: data.staffId, date: dutyDate },
-      select: { id: true }
-    });
-    if (existing) {
-      return {
-        success: false,
-        error: {
-          message: 'A roster allocation already exists for this staff member on that date',
-          issues: {
-            shiftDate: ['Select a date with no existing roster cell for this staff member']
-          }
-        }
-      };
-    }
+    const dutyDate = toDutyDateUtc(data.shiftDate);
 
     const shiftType = await prisma.shiftType.findUnique({
       where: { id: data.shiftTypeId },
-      select: { id: true, durationHours: true, isNightShift: true }
+      select: {
+        id: true,
+        durationHours: true,
+        isNightShift: true,
+        startTime: true,
+        endTime: true
+      }
     });
     if (!shiftType?.isNightShift) {
       return {
@@ -642,6 +889,29 @@ export async function createNightShift(
     const snapshot = await getStaffSnapshot(data.staffId);
     if (!snapshot) {
       return { success: false, error: { message: 'Staff member not found' } };
+    }
+
+    const sameType = await prisma.rosterAllocation.findFirst({
+      where: {
+        staffId: data.staffId,
+        date: dutyDate,
+        shiftTypeId: data.shiftTypeId
+      },
+      select: { id: true }
+    });
+    if (sameType) {
+      return {
+        success: false,
+        error: {
+          message:
+            'This staff member already has this night shift type on that date',
+          issues: {
+            shiftDate: [
+              'Duplicate shift type for the same staff/date is not allowed'
+            ]
+          }
+        }
+      };
     }
 
     const periodFrom = addDays(dutyDate, -dutyDate.getUTCDay());
@@ -657,7 +927,8 @@ export async function createNightShift(
         department: snapshot.department,
         unit: snapshot.unit,
         roster: snapshot.roster,
-        comments: data.remarks?.trim() ?? ''
+        comments: data.remarks?.trim() ?? '',
+        acknowledgedWarnings: data.acknowledgedWarnings
       },
       user
     );
@@ -666,8 +937,12 @@ export async function createNightShift(
       return {
         success: false,
         error: {
-          message: draftResult.error?.message ?? 'Could not create night shift allocation',
-          issues: draftResult.error?.issues
+          message:
+            draftResult.error?.message ??
+            'Could not create night shift allocation',
+          issues: draftResult.error?.issues,
+          softWarnings: draftResult.error?.softWarnings,
+          requiresAck: draftResult.error?.requiresAck
         }
       };
     }
@@ -679,7 +954,10 @@ export async function createNightShift(
       select: allocationSelect
     });
     if (!record) {
-      return { success: false, error: { message: 'Night shift could not be loaded after save' } };
+      return {
+        success: false,
+        error: { message: 'Night shift could not be loaded after save' }
+      };
     }
 
     const consecutiveNights = await countConsecutiveNights(
@@ -711,7 +989,7 @@ export async function updateNightShift(
 ): Promise<{
   success: boolean;
   data?: NightShiftRecord;
-  error?: { message?: string; issues?: Record<string, string[]> };
+  error?: NightMutationError;
 }> {
   try {
     const parsed = nightPayloadSchema.safeParse(payload);
@@ -730,13 +1008,22 @@ export async function updateNightShift(
       select: allocationSelect
     });
     if (!existing || !existing.shiftType.isNightShift) {
-      return { success: false, error: { message: 'Night shift record not found' } };
+      return {
+        success: false,
+        error: { message: 'Night shift record not found' }
+      };
     }
 
     const data = parsed.data;
     const shiftType = await prisma.shiftType.findUnique({
       where: { id: data.shiftTypeId },
-      select: { id: true, durationHours: true, isNightShift: true }
+      select: {
+        id: true,
+        durationHours: true,
+        isNightShift: true,
+        startTime: true,
+        endTime: true
+      }
     });
     if (!shiftType?.isNightShift) {
       return {
@@ -746,13 +1033,7 @@ export async function updateNightShift(
     }
 
     const lock = await assertWritableAllocation(existing);
-    const dutyDate = new Date(
-      Date.UTC(
-        data.shiftDate.getFullYear(),
-        data.shiftDate.getMonth(),
-        data.shiftDate.getDate()
-      )
-    );
+    const dutyDate = toDutyDateUtc(data.shiftDate);
 
     const structuralChanged =
       data.staffId !== existing.staffId ||
@@ -776,6 +1057,7 @@ export async function updateNightShift(
         where: {
           staffId: data.staffId,
           date: dutyDate,
+          shiftTypeId: data.shiftTypeId,
           id: { not: id }
         },
         select: { id: true }
@@ -785,8 +1067,12 @@ export async function updateNightShift(
           success: false,
           error: {
             message:
-              'A roster allocation already exists for this staff member on that date',
-            issues: { shiftDate: ['Duplicate staff/date allocation is not allowed'] }
+              'This staff member already has this night shift type on that date',
+            issues: {
+              shiftDate: [
+                'Duplicate shift type for the same staff/date is not allowed'
+              ]
+            }
           }
         };
       }
@@ -810,7 +1096,8 @@ export async function updateNightShift(
           department: snapshot.department,
           unit: snapshot.unit,
           roster: snapshot.roster,
-          comments: data.remarks?.trim() ?? ''
+          comments: data.remarks?.trim() ?? '',
+          acknowledgedWarnings: data.acknowledgedWarnings
         },
         user
       );
@@ -820,8 +1107,11 @@ export async function updateNightShift(
           success: false,
           error: {
             message:
-              draftResult.error?.message ?? 'Could not update night shift allocation',
-            issues: draftResult.error?.issues
+              draftResult.error?.message ??
+              'Could not update night shift allocation',
+            issues: draftResult.error?.issues,
+            softWarnings: draftResult.error?.softWarnings,
+            requiresAck: draftResult.error?.requiresAck
           }
         };
       }
@@ -980,52 +1270,31 @@ export async function getNightShiftHistory(id: string): Promise<{
 export async function getNightShiftsForExport(
   params: GetNightShiftsParams
 ): Promise<{
-  success: boolean;
-  data?: Record<string, unknown>[];
-  message?: string;
-  error?: { message?: string };
+  data: NightShiftRecord[];
+  totalRecords: number;
 }> {
   try {
     const where = buildNightWhere(params);
     const records = await prisma.rosterAllocation.findMany({
       where,
       select: allocationSelect,
-      orderBy: [{ date: 'desc' }, { staffCode: 'asc' }],
-      take: 2000
+      orderBy: [{ date: 'desc' }, { staffCode: 'asc' }]
     });
     const consecutiveMap = await batchConsecutiveNights(records);
-    const statusLabels = Object.fromEntries(
-      NIGHT_SHIFT_STATUS_OPTIONS.map((option) => [option.id, option.name])
+    const recordsWithUsers = await resolveAuthUsers(records);
+    const data = recordsWithUsers.map((record) =>
+      mapNightRecord(record, consecutiveMap.get(record.id) ?? 1, {
+        createdUser: record.createdUser,
+        updatedUser: record.updatedUser
+      })
     );
-
     return {
-      success: true,
-      data: records.map((record) => ({
-        staffCode: record.staffCode,
-        staffName: record.staffName,
-        department: record.department,
-        unit: record.unit,
-        shiftDate: format(record.date, 'yyyy-MM-dd'),
-        nightShift: formatShiftLabel(record.shiftType),
-        nightHours: (record.nightHours ?? defaultNightHours(record.shiftType)).toFixed(2),
-        nightOt: (record.nightOt ?? 0).toFixed(2),
-        nightAllowance: formatNightMoney(record.nightAllowance ?? 0),
-        mealAllowance: formatNightMoney(record.mealAllowance ?? 0),
-        consecutiveNights: consecutiveMap.get(record.id) ?? 1,
-        payrollReady: record.sendToPayroll ? 'Yes' : 'No',
-        status: statusLabels[record.status] ?? record.status,
-        updatedBy: record.updatedBy ?? '',
-        updatedAt: toIsoString(record.updatedAt),
-        createdBy: record.createdBy ?? '',
-        createdAt: toIsoString(record.createdAt)
-      }))
+      data,
+      totalRecords: data.length
     };
-  } catch (error: any) {
+  } catch (error) {
     console.error('getNightShiftsForExport error:', error);
-    return {
-      success: false,
-      error: { message: error.message || 'Failed to export night shifts' }
-    };
+    throw new Error('Error getting data');
   }
 }
 

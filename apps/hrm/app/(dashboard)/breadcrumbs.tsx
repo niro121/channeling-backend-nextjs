@@ -57,6 +57,8 @@ const PATH_NAMES = [
   { path: 'bank-transfer-file', name: 'Bank Transfer File' },
   { path: 'salary-history', name: 'Salary History' },
   { path: 'reports', name: 'Reports' },
+  { path: 'department', name: 'Department Reports' },
+  { path: 'statistical', name: 'Statistical Reports' },
   { path: 'users', name: 'Users' },
   { path: 'user-groups', name: 'User Groups' },
   { path: 'admin', name: 'Admin' },

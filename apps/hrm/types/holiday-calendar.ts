@@ -1,7 +1,7 @@
 import type { AuthUserSummary } from '@/lib/helpers/resolve-auth-users.helper';
-import type { HolidayTypeId } from '@/types/roster';
 
-export { HOLIDAY_TYPES, type HolidayTypeId } from '@/types/roster';
+export const HOLIDAY_TYPES = ['poya', 'mercantile', 'public'] as const;
+export type HolidayTypeId = (typeof HOLIDAY_TYPES)[number];
 
 export type HolidayCalendarAuditUser = {
   name: string;

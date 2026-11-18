@@ -38,9 +38,13 @@ const doctorSchema = z.object({
     ),
   mobile: z
     .string()
-    .min(1, 'Mobile number is required')
+    .nullable()
+    .optional()
     .transform((val) => val?.trim().replace(/\s/g, '') ?? '')
-    .refine((val) => sriLankaMobileRegex.test(val), 'Mobile Number Ex: 07x xxxxxxx'),
+    .refine(
+      (val) => !val || sriLankaMobileRegex.test(val),
+      'Mobile Number Ex: 07x xxxxxxx'
+    ),
   registrationNumber: z.string().trim().optional().nullable(),
   tinNumber: z.string().trim().optional().nullable(),
   nic: z.string().trim().optional().nullable(),

@@ -24,8 +24,10 @@ type ShiftAssignmentUiContextValue = {
   historyRecord: ShiftAssignmentRecord | null;
   selectedCount: number;
   selectedStaffIds: string[];
+  selectedAssignmentIds: string[];
   setSelectedCount: (count: number) => void;
   setSelectedStaffIds: (staffIds: string[]) => void;
+  setSelectedAssignmentIds: (assignmentIds: string[]) => void;
   openAssign: () => void;
   openEdit: (record: ShiftAssignmentRecord) => void;
   openBulk: (selectedCount: number, selectedStaffIds: string[]) => void;
@@ -47,6 +49,9 @@ export function ShiftAssignmentUiProvider({
     useState<ShiftAssignmentRecord | null>(null);
   const [selectedCount, setSelectedCount] = useState(0);
   const [selectedStaffIds, setSelectedStaffIds] = useState<string[]>([]);
+  const [selectedAssignmentIds, setSelectedAssignmentIds] = useState<string[]>(
+    []
+  );
 
   const openAssign = useCallback(() => {
     setFormSheet({
@@ -91,8 +96,10 @@ export function ShiftAssignmentUiProvider({
       historyRecord,
       selectedCount,
       selectedStaffIds,
+      selectedAssignmentIds,
       setSelectedCount,
       setSelectedStaffIds,
+      setSelectedAssignmentIds,
       openAssign,
       openEdit,
       openBulk,
@@ -105,6 +112,7 @@ export function ShiftAssignmentUiProvider({
       historyRecord,
       selectedCount,
       selectedStaffIds,
+      selectedAssignmentIds,
       openAssign,
       openEdit,
       openBulk,

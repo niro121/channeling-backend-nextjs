@@ -12,6 +12,7 @@ import { generateRecordCode } from '@/lib/conventions/record-code-generator';
 import { LOCATION_STATUS } from '@/types/location';
 import {
   ZONE_CODE_PREFIX,
+  ZONE_STATUS,
   type GetZoneParams,
   type ZoneLocationSummary,
   type ZonePayload,
@@ -219,6 +220,39 @@ export async function getZoneList(params: GetZoneParams = {}): Promise<{
     };
   } catch (error: any) {
     console.error('getZoneList error:', error);
+    return {
+      success: false,
+      error: { message: error.message || 'Failed to fetch zones' }
+    };
+  }
+}
+
+/** Published zone master rows for the staff Zone Code selector. */
+export async function getPublishedZoneOptions(includeCode?: string | null): Promise<{
+  success: boolean;
+  data?: { id: string; name: string }[];
+  error?: { message?: string };
+}> {
+  try {
+    const zones = await prisma.zone.findMany({
+      where: { status: ZONE_STATUS.PUBLISH },
+      select: { name: true, code: true },
+      orderBy: [{ name: 'asc' }]
+    });
+
+    const options = zones.map((zone) => ({
+      id: zone.code,
+      name: `${zone.name} (${zone.code})`
+    }));
+
+    const currentCode = includeCode?.trim();
+    if (currentCode && !options.some((option) => option.id === currentCode)) {
+      options.push({ id: currentCode, name: currentCode });
+    }
+
+    return { success: true, data: options };
+  } catch (error: any) {
+    console.error('getPublishedZoneOptions error:', error);
     return {
       success: false,
       error: { message: error.message || 'Failed to fetch zones' }
@@ -498,6 +532,25 @@ export async function updateZone(
   }
 }
 
+/**
+ * Product-facing delete guard. Paired with schema `onDelete: Restrict` on
+ * RosterAllocation / RosterAmendment → Zone. Also blocks when Rooms still
+ * reference `zoneId` (string field, no Prisma relation).
+ */
+async function assertZoneDeletable(id: string): Promise<string | null> {
+  const [allocationCount, amendmentCount, roomCount] = await Promise.all([
+    prisma.rosterAllocation.count({ where: { dutyZoneId: id } }),
+    prisma.rosterAmendment.count({ where: { dutyZoneId: id } }),
+    prisma.room.count({ where: { zoneId: id } })
+  ]);
+
+  if (allocationCount > 0 || amendmentCount > 0 || roomCount > 0) {
+    return 'Cannot delete a zone that is used by duty places or rooms.';
+  }
+
+  return null;
+}
+
 export async function deleteZone(id: string): Promise<{
   success: boolean;
   error?: { message?: string };
@@ -513,6 +566,11 @@ export async function deleteZone(id: string): Promise<{
     });
     if (!existing) {
       return { success: false, error: { message: 'Zone not found' } };
+    }
+
+    const blocked = await assertZoneDeletable(id);
+    if (blocked) {
+      return { success: false, error: { message: blocked } };
     }
 
     await prisma.zone.delete({ where: { id } });

@@ -22,6 +22,11 @@ export type LeaveApplicationStatus = (typeof LEAVE_APPLICATION_STATUSES)[number]
 export const LEAVE_HALF_DAY_SESSIONS = ['AM', 'PM'] as const;
 export type LeaveHalfDaySession = (typeof LEAVE_HALF_DAY_SESSIONS)[number];
 
+export const LEAVE_HALF_DAY_SESSION_OPTIONS = [
+  { id: 'AM', name: 'Morning' },
+  { id: 'PM', name: 'Afternoon' }
+] as const;
+
 export type LeaveApplicationShiftRow = {
   shiftLabel: string;
   from: string | Date;
@@ -80,6 +85,11 @@ export type GetLeaveApplicationsParams = {
   outWithCancel?: string;
 };
 
+export type GetLeaveApplicationsReturn = {
+  data: LeaveApplicationRecord[];
+  totalRecords: number;
+};
+
 /** Client Formik values for leave application form. */
 export type LeaveApplicationFormValues = {
   formNumber: string;
@@ -119,11 +129,17 @@ export type LeaveApplicationPayload = {
 
 export const LEAVE_ENTITLEMENT_STATUSES = [
   'active',
-  'expired',
-  'pending'
+  'pending',
+  'expired'
 ] as const;
 
 export type LeaveEntitlementStatus = (typeof LEAVE_ENTITLEMENT_STATUSES)[number];
+
+export const LEAVE_ENTITLEMENT_STATUS_OPTIONS = [
+  { id: 'active', name: 'Active' },
+  { id: 'pending', name: 'Pending' },
+  { id: 'expired', name: 'Expired' }
+] as const;
 
 export type LeaveEntitlementRecord = {
   id: string;
@@ -152,9 +168,14 @@ export type GetLeaveEntitlementsParams = {
   limit?: string;
   staffId?: string;
   leaveTypeId?: string;
-  departmentId?: string; // reserved — wire when departments exist
+  departmentId?: string;
   fromDate?: string;
   toDate?: string;
+};
+
+export type GetLeaveEntitlementsReturn = {
+  data: LeaveEntitlementRecord[];
+  totalRecords: number;
 };
 
 /** Client Formik values for entitlement form. */
@@ -178,11 +199,21 @@ export type LeaveEntitlementPayload = {
   status?: LeaveEntitlementStatus | string;
 };
 
+export type LeaveEntitlementBalanceLeaveType = {
+  leaveTypeId: string;
+  leaveTypeName: string;
+  entitled: number;
+  used: number;
+  remaining: number;
+  carryForward: number;
+};
+
 export type LeaveEntitlementBalanceSummary = {
   totalEntitlement: number;
   used: number;
   remaining: number;
   carryForward: number;
+  leaveTypes: LeaveEntitlementBalanceLeaveType[];
   utilisations: { label: string; percent: number }[];
 };
 
@@ -222,6 +253,11 @@ export type GetLeaveTypesParams = {
   isPaid?: string;
   requiresApproval?: string;
   allowHalfDay?: string;
+};
+
+export type GetLeaveTypesReturn = {
+  data: LeaveTypeRecord[];
+  totalRecords: number;
 };
 
 /** Client Formik values (string selects for CustomSelectField). */

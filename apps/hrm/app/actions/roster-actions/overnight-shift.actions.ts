@@ -7,6 +7,7 @@ import { requirePermission } from '@/lib/server-permissions';
 import {
   createOvernightShift,
   deleteOvernightShift,
+  getOvernightShiftConflictPreview,
   getOvernightShiftFilterOptions,
   getOvernightShiftFormOptions,
   getOvernightShiftHistory,
@@ -117,6 +118,45 @@ export async function getOvernightShiftFormOptionsAction() {
   }
 }
 
+export async function getOvernightShiftConflictPreviewAction(input: {
+  staffId: string;
+  startDate: Date | string | null;
+  shiftTypeId?: string | null;
+  excludeAllocationId?: string | null;
+}) {
+  try {
+    await requirePermission('shift-roster', 'view');
+    if (!input.staffId?.trim() || !input.startDate) {
+      return { isError: false, data: null, errors: {} };
+    }
+    const result = await getOvernightShiftConflictPreview({
+      staffId: input.staffId,
+      startDate: input.startDate,
+      shiftTypeId: input.shiftTypeId,
+      excludeAllocationId: input.excludeAllocationId
+    });
+    if (!result.success) {
+      return {
+        isError: true,
+        data: null,
+        errors: {
+          message: result.error?.message ?? 'Could not check conflicts'
+        }
+      };
+    }
+    return { isError: false, data: result.data ?? null, errors: {} };
+  } catch (error: any) {
+    console.error('getOvernightShiftConflictPreviewAction error', error);
+    return {
+      isError: true,
+      data: null,
+      errors: {
+        message: error.message ?? 'Could not check conflicts'
+      }
+    };
+  }
+}
+
 export async function createOvernightShiftAction(payload: OvernightShiftPayload) {
   await requirePermission('shift-roster', 'add');
   try {
@@ -128,7 +168,11 @@ export async function createOvernightShiftAction(payload: OvernightShiftPayload)
         data: null,
         errors: {
           message: result.error?.message ?? 'Could not save overnight shift',
-          ...(result.error?.issues ?? {})
+          ...(result.error?.issues ?? {}),
+          ...(result.error?.softWarnings
+            ? { softWarnings: result.error.softWarnings }
+            : {}),
+          ...(result.error?.requiresAck ? { requiresAck: true } : {})
         }
       };
     }
@@ -173,7 +217,11 @@ export async function updateOvernightShiftAction(
         data: null,
         errors: {
           message: result.error?.message ?? 'Could not update overnight shift',
-          ...(result.error?.issues ?? {})
+          ...(result.error?.issues ?? {}),
+          ...(result.error?.softWarnings
+            ? { softWarnings: result.error.softWarnings }
+            : {}),
+          ...(result.error?.requiresAck ? { requiresAck: true } : {})
         }
       };
     }
@@ -261,22 +309,38 @@ export async function getOvernightShiftHistoryAction(id: string) {
   }
 }
 
-export async function getOvernightShiftsExportAction(params: GetOvernightShiftsParams) {
+export async function getOvernightShiftsExportAction(
+  params: GetOvernightShiftsParams
+) {
+  await requirePermission('shift-roster', 'view');
+
   try {
-    await requirePermission('shift-roster', 'view');
-    const result = await getOvernightShiftsForExport(listParams(params));
-    if (!result.success) {
+    const response = await getOvernightShiftsForExport(listParams(params));
+
+    if (!response.data?.length) {
       return {
         success: false,
-        message: result.error?.message ?? 'Failed to export overnight shifts'
+        message: 'No overnight shifts found',
+        data: [],
+        totalRecords: 0
       };
     }
-    return { success: true, data: result.data ?? [] };
-  } catch (error: any) {
+
+    return {
+      success: true,
+      data: response.data,
+      totalRecords: response.totalRecords
+    };
+  } catch (error: unknown) {
     console.error('getOvernightShiftsExportAction error', error);
     return {
       success: false,
-      message: error.message ?? 'Failed to export overnight shifts'
+      message:
+        error instanceof Error
+          ? error.message
+          : 'Error getting data. Please try again later',
+      data: [],
+      totalRecords: 0
     };
   }
 }

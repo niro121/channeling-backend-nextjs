@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { X } from 'lucide-react';
 import {
   Button,
   Sheet,
@@ -12,6 +13,7 @@ import {
   useToast
 } from '@archmage/ui';
 import { formatAuditDateTime } from '@/lib/utils/date';
+import { buttonStyles } from '@/lib/utils/common-styles';
 import { getRosterAmendmentHistoryAction } from '@/app/actions/roster-actions/roster-amendment.actions';
 import type {
   RosterAmendmentHistoryEntry,
@@ -112,9 +114,10 @@ export default function SheetAmendmentHistory({
             type="button"
             variant="outline"
             size="sm"
-            className="w-full sm:w-24 gap-1 border-red-500 text-red-500 transition-colors ease-in-out duration-100 hover:bg-red-500 hover:text-white"
+            className={buttonStyles.cancel.normal}
             onClick={() => onOpenChange(false)}
           >
+            <X className="h-3.5 w-3.5" />
             Cancel
           </Button>
         </SheetFooter>

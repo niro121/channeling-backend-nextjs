@@ -383,9 +383,10 @@ export async function bulkActivateShiftTypesAction(ids: string[]) {
 }
 
 export async function getShiftTypesExport(params: GetShiftTypesParams) {
+  await requirePermission('shift-roster', 'view');
+
   try {
-    await requirePermission('shift-roster', 'view');
-    const result = await getShiftTypesForExport({
+    const response = await getShiftTypesForExport({
       search: params.search,
       code: params.code,
       name: params.name,
@@ -395,24 +396,31 @@ export async function getShiftTypesExport(params: GetShiftTypesParams) {
       overnight: params.overnight,
       holidayEligible: params.holidayEligible
     });
-    if (!result.success) {
+
+    if (!response.data?.length) {
       return {
         success: false,
-        message: result.error?.message ?? 'Failed to export shift types',
-        data: []
+        message: 'No shift types found',
+        data: [],
+        totalRecords: 0
       };
     }
+
     return {
       success: true,
-      data: result.data ?? [],
-      message: result.message
+      data: response.data,
+      totalRecords: response.totalRecords
     };
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('getShiftTypesExport error', error);
     return {
       success: false,
-      message: error.message ?? 'Failed to export shift types',
-      data: []
+      message:
+        error instanceof Error
+          ? error.message
+          : 'Error getting data. Please try again later',
+      data: [],
+      totalRecords: 0
     };
   }
 }

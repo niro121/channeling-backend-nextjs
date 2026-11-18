@@ -8,6 +8,7 @@ import { usePermissions } from '@/components/hooks/use-permissions';
 import { deletePublicHolidayShiftAction } from '@/app/actions/roster-actions/public-holiday-shift.actions';
 import type { PublicHolidayShiftRecord } from '@/types/roster';
 import { usePublicHolidayShiftsUi } from './public-holiday-shifts-ui-context';
+import { buttonStyles } from '@/lib/utils/common-styles';
 
 type HolidayRecordActionsProps = {
   record: PublicHolidayShiftRecord;
@@ -77,12 +78,18 @@ export default function HolidayRecordActions({
             const result = await deletePublicHolidayShiftAction(record.id);
             if (result.isError) {
               toast({
+                variant: 'destructive',
                 title: 'Error',
-                description: result.errors?.message || 'Could not delete',
-                variant: 'destructive'
+                description:
+                  result.errors?.message ||
+                  'Holiday shift deletion unsuccessful.'
               });
             } else {
-              toast({ title: 'Holiday shift deleted' });
+              toast({
+                variant: 'success',
+                title: 'Success',
+                description: 'Holiday shift was deleted successfully.'
+              });
               router.refresh();
             }
           } finally {
@@ -90,7 +97,10 @@ export default function HolidayRecordActions({
             setOpen(false);
           }
         }}
-        className={{ actionButton: 'bg-destructive text-destructive-foreground hover:bg-destructive/90 hover:text-destructive-foreground/90' }}
+        className={{
+          actionButton: buttonStyles.delete.danger,
+          cancelButton: `h-9!`
+        }}
       />
     </>
   );

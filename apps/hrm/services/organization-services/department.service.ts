@@ -8,6 +8,7 @@ import {
   resolveAuthUsers,
   type AuthUserSummary
 } from '@/lib/helpers/resolve-auth-users.helper';
+import { getInstitutionName } from '@/types/institution';
 import type {
   DepartmentPayload,
   DepartmentServiceRecord,
@@ -375,6 +376,43 @@ export async function updateDepartment(
   }
 }
 
+/**
+ * Product-facing delete guard. Paired with schema `onDelete: Restrict` on
+ * ManageRoster / RosterAllocation / RosterAmendment / VacancyRequest / JobPost
+ * → Department (Prisma Client emulation on Mongo).
+ */
+async function assertDepartmentDeletable(id: string): Promise<string | null> {
+  const [
+    manageRosterCount,
+    allocationCount,
+    amendmentCount,
+    vacancyCount,
+    jobPostCount
+  ] = await Promise.all([
+    prisma.manageRoster.count({ where: { departmentId: id } }),
+    prisma.rosterAllocation.count({
+      where: { dutyLocationDepartmentId: id }
+    }),
+    prisma.rosterAmendment.count({
+      where: { dutyLocationDepartmentId: id }
+    }),
+    prisma.vacancyRequest.count({ where: { departmentId: id } }),
+    prisma.jobPost.count({ where: { departmentId: id } })
+  ]);
+
+  if (
+    manageRosterCount > 0 ||
+    allocationCount > 0 ||
+    amendmentCount > 0 ||
+    vacancyCount > 0 ||
+    jobPostCount > 0
+  ) {
+    return 'Cannot delete a department that is used by manage rosters, duty places, vacancy requests, or job posts.';
+  }
+
+  return null;
+}
+
 export async function deleteDepartment(id: string): Promise<{
   success: boolean;
   error?: { message?: string };
@@ -390,6 +428,11 @@ export async function deleteDepartment(id: string): Promise<{
     });
     if (!existing) {
       return { success: false, error: { message: 'Department not found' } };
+    }
+
+    const blocked = await assertDepartmentDeletable(id);
+    if (blocked) {
+      return { success: false, error: { message: blocked } };
     }
 
     await prisma.department.delete({ where: { id } });
@@ -422,7 +465,10 @@ export async function setDepartmentMigrateSourceId(
   }
 }
 
-/** Lightweight published-department options for cross-module filters. */
+/**
+ * Lightweight **published** (active) department options for cross-module Comboboxes.
+ * Option `id` = Department ObjectId. Duplicate names across institutions get a short suffix.
+ */
 export async function getDepartmentOptions(): Promise<{
   success: boolean;
   data?: Array<{ id: string; name: string }>;
@@ -431,10 +477,30 @@ export async function getDepartmentOptions(): Promise<{
   try {
     const rows = await prisma.department.findMany({
       where: { status: 1 },
-      select: { id: true, name: true },
+      select: { id: true, name: true, institution: true },
       orderBy: { name: 'asc' }
     });
-    return { success: true, data: rows };
+
+    const nameCounts = new Map<string, number>();
+    for (const row of rows) {
+      nameCounts.set(row.name, (nameCounts.get(row.name) ?? 0) + 1);
+    }
+
+    return {
+      success: true,
+      data: rows.map((row) => {
+        const institutionLabel = getInstitutionName(row.institution);
+        const institutionShort =
+          institutionLabel.match(/\(([^)]+)\)\s*$/)?.[1] ?? institutionLabel;
+        const needsInstitution = (nameCounts.get(row.name) ?? 0) > 1;
+        return {
+          id: row.id,
+          name: needsInstitution
+            ? `${row.name} (${institutionShort})`
+            : row.name
+        };
+      })
+    };
   } catch (error: any) {
     console.error('getDepartmentOptions error:', error);
     return {

@@ -41,7 +41,8 @@ export function overnightRecordToFormValues(
 }
 
 export function overnightFormValuesToPayload(
-  values: OvernightFormValues
+  values: OvernightFormValues,
+  options?: { acknowledgedWarnings?: boolean }
 ): OvernightShiftPayload {
   return {
     staffId: values.staffId,
@@ -58,7 +59,8 @@ export function overnightFormValuesToPayload(
     overnightAllowance: parseNumber(values.allowance),
     autoSplit: values.autoSplit,
     sendToPayroll: values.sendToPayroll,
-    remarks: values.remarks || null
+    remarks: values.remarks || null,
+    acknowledgedWarnings: options?.acknowledgedWarnings
   };
 }
 

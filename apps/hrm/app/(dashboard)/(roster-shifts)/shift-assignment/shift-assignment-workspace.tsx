@@ -1,11 +1,9 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { CommonManagerHeader } from '@/components/common/common-manager-header';
 import type {
-  RosterFilterOption,
   ShiftAssignmentFilterOptions,
+  ShiftAssignmentFormOptions,
   ShiftAssignmentRecord,
   ShiftAssignmentSummary
 } from '@/types/roster';
@@ -23,11 +21,6 @@ import {
   useShiftAssignmentUi
 } from './shift-assignment-ui-context';
 
-type FormOptions = {
-  staff: RosterFilterOption[];
-  shiftTypes: RosterFilterOption[];
-};
-
 type ShiftAssignmentWorkspaceProps = {
   records: ShiftAssignmentRecord[];
   totalRecords: number;
@@ -35,23 +28,12 @@ type ShiftAssignmentWorkspaceProps = {
   filters: AssignmentFilterValues;
   summary: ShiftAssignmentSummary;
   filterOptions: ShiftAssignmentFilterOptions;
-  formOptions: FormOptions;
+  formOptions: ShiftAssignmentFormOptions;
   onExport: () => Promise<{
     success: boolean;
     message?: string;
     data?: Record<string, unknown>[];
   }>;
-};
-
-const EMPTY_FILTERS: AssignmentFilterValues = {
-  institutionId: '',
-  departmentId: '',
-  unitId: '',
-  designationId: '',
-  staffCategoryId: '',
-  staffGradeId: '',
-  employeeStatusId: '',
-  staffSearch: ''
 };
 
 function ShiftAssignmentWorkspaceInner({
@@ -64,38 +46,12 @@ function ShiftAssignmentWorkspaceInner({
   formOptions,
   onExport
 }: ShiftAssignmentWorkspaceProps) {
-  const router = useRouter();
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
   const {
     formSheet,
     historyRecord,
     closeFormSheet,
     closeHistorySheet
   } = useShiftAssignmentUi();
-  const [draft, setDraft] = useState<AssignmentFilterValues>(filters);
-
-  useEffect(() => {
-    setDraft(filters);
-  }, [filters]);
-
-  const pushFilters = (next: AssignmentFilterValues) => {
-    const params = new URLSearchParams();
-    const limit = searchParams.get('limit');
-    if (limit) params.set('limit', limit);
-    if (next.institutionId) params.set('institution', next.institutionId);
-    if (next.departmentId) params.set('department', next.departmentId);
-    if (next.unitId) params.set('unit', next.unitId);
-    if (next.designationId) params.set('designation', next.designationId);
-    if (next.staffCategoryId) params.set('staffCategory', next.staffCategoryId);
-    if (next.staffGradeId) params.set('staffGrade', next.staffGradeId);
-    if (next.employeeStatusId) {
-      params.set('employeeStatus', next.employeeStatusId);
-    }
-    if (next.staffSearch.trim()) params.set('search', next.staffSearch.trim());
-    const query = params.toString();
-    router.push(query ? `${pathname}?${query}` : pathname);
-  };
 
   return (
     <div className="space-y-6">
@@ -110,7 +66,7 @@ function ShiftAssignmentWorkspaceInner({
       <SectionAssignmentInstructions />
 
       <SectionAssignmentFilters
-        values={draft}
+        initial={filters}
         institutionOptions={filterOptions.institutions}
         departmentOptions={filterOptions.departments}
         unitOptions={filterOptions.units}
@@ -118,13 +74,6 @@ function ShiftAssignmentWorkspaceInner({
         staffCategoryOptions={filterOptions.staffCategories}
         staffGradeOptions={filterOptions.staffGrades}
         employeeStatusOptions={filterOptions.employeeStatuses}
-        onChange={(next) => setDraft((prev) => ({ ...prev, ...next }))}
-        onSearch={() => pushFilters(draft)}
-        onClear={() => {
-          setDraft(EMPTY_FILTERS);
-          const limit = searchParams.get('limit');
-          router.push(limit ? `${pathname}?limit=${limit}` : pathname);
-        }}
       />
 
       <SectionAssignmentRegister
@@ -141,7 +90,7 @@ function ShiftAssignmentWorkspaceInner({
           record={formSheet.record}
           selectedCount={formSheet.selectedCount}
           selectedStaffIds={formSheet.selectedStaffIds}
-          staffOptions={formOptions.staff}
+          rosterOptions={formOptions.rosters}
           shiftTypeOptions={formOptions.shiftTypes}
           onOpenChange={(next) => {
             if (!next) closeFormSheet();

@@ -2,6 +2,7 @@ import React from 'react';
 import { notFound, redirect } from 'next/navigation';
 import { BackButton } from '@archmage/ui';
 import { fetchServerSession } from '@/lib/session';
+import { logActivityNonBlocking } from '@/lib/activity-log';
 import { checkPermission } from '@/lib/server-permissions';
 import { fetchUserGroupById } from '@/app/actions/user-usergrp-actions/user-group.actions';
 import type { UserGroup } from '@/types/user-group';
@@ -19,6 +20,15 @@ export default async function EditUserGroupPage({ params }: PageProps) {
 
   const { id } = await params;
   const session = await fetchServerSession();
+  if (session?.user?.id) {
+    logActivityNonBlocking({
+      userId: session.user.id,
+      action: 'user-groups.visited',
+      entityType: 'UserGroups',
+      entityId: id,
+      importance: 'low'
+    });
+  }
 
   let userGroup;
   try {

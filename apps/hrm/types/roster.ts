@@ -1,4 +1,5 @@
 import type { AuthUserSummary } from '@/lib/helpers/resolve-auth-users.helper';
+import type { HolidayTypeId } from '@/types/holiday-calendar';
 
 /** `generateRecordCode('SHF')` → SHF-1 */
 export const SHIFT_TYPE_CODE_PREFIX = 'SHF';
@@ -81,11 +82,9 @@ export const OVERNIGHT_ALLOCATION_DATES = ['shift_start', 'shift_end', 'split_bo
 export type OvernightAllocationDate =
   (typeof OVERNIGHT_ALLOCATION_DATES)[number];
 
-export const HOLIDAY_TYPES = ['poya', 'mercantile', 'public'] as const;
-export type HolidayTypeId = (typeof HOLIDAY_TYPES)[number];
-
 export const HOLIDAY_PAY_RATES = ['1.50', '2.00', '2.50'] as const;
 export type HolidayPayRate = (typeof HOLIDAY_PAY_RATES)[number];
+export const DEFAULT_HOLIDAY_PAY_RATE: HolidayPayRate = '2.00';
 
 export type RosterFilterOption = {
   id: string;
@@ -212,6 +211,7 @@ export type ShiftAssignmentRecord = RosterAuditFields & {
   code: string;
   staffId: string;
   shiftTypeId: string;
+  manageRosterId: string;
   staffCode: string;
   staffName: string;
   department: string;
@@ -224,11 +224,14 @@ export type ShiftAssignmentRecord = RosterAuditFields & {
   autoAssign: boolean;
   status: ShiftAssignmentStatus | string;
   shiftTypeName?: string;
+  manageRosterCode?: string;
+  manageRosterName?: string;
 };
 
 export type ShiftAssignmentPayload = {
   staffId: string;
   shiftTypeId: string;
+  manageRosterId: string;
   rotationPattern?: string | null;
   effectiveFrom: Date | string;
   effectiveTo?: Date | string | null;
@@ -263,6 +266,8 @@ export const SHIFT_ASSIGNMENT_STATUS_OPTIONS: RosterFilterOption[] = [
 ];
 
 export type ShiftAssignmentFormValues = {
+  /** ManageRoster.id (ObjectId FK on StaffShiftAssignment). */
+  manageRosterId: string;
   staffId: string;
   shiftTypeId: string;
   rotationPatternId: string;
@@ -271,6 +276,33 @@ export type ShiftAssignmentFormValues = {
   weeklyOffDayId: string;
   status: string;
   autoAssign: boolean;
+};
+
+/** Context card for Assign / Bulk / Edit sheets (from Manage Rosters). */
+export type ShiftAssignmentRosterContext = {
+  id: string;
+  code: string;
+  name: string;
+  departmentName: string;
+  institutionName: string;
+  shiftsPerPersonPerDay: number;
+};
+
+/** Staff option scoped to a roster group; label includes active standing rules. */
+export type ShiftAssignmentStaffOption = RosterFilterOption & {
+  code: string;
+  staffName: string;
+  activeAssignmentCount: number;
+};
+
+export type ShiftAssignmentRosterScope = {
+  context: ShiftAssignmentRosterContext;
+  staff: ShiftAssignmentStaffOption[];
+};
+
+export type ShiftAssignmentFormOptions = {
+  rosters: RosterFilterOption[];
+  shiftTypes: RosterFilterOption[];
 };
 
 export type ShiftAssignmentSummary = {
@@ -455,10 +487,22 @@ export type ShiftCell = {
   label: string;
   timeRange: string;
   isLeave: boolean;
+  /**
+   * Approved leave application overlaps this duty window (grid amber hint).
+   * Independent of `isLeave` (duty leave flag).
+   */
+  hasApprovedLeave?: boolean;
   hours: number;
   otHours: number;
   status: RosterAllocationStatus | string;
   comments?: string;
+  /** Duty-parity fields for Allocate/Edit hydrate (same RosterAllocation store). */
+  allocationSource?: 'standing' | 'adhoc' | string;
+  staffShiftAssignmentId?: string | null;
+  dutyLocationDepartmentId?: string | null;
+  dutyZoneId?: string | null;
+  dutyRoomId?: string | null;
+  supervisorId?: string | null;
   createdAt?: string | null;
   updatedAt?: string | null;
   createdUser?: AuthUserSummary | null;
@@ -472,10 +516,25 @@ export type RosterStaffRow = {
   department: string;
   unit: string;
   designation: string;
-  shifts: Record<string, ShiftCell | null>;
+  /** Day ISO → zero or more allocated shifts (multi-shift / day allowed). */
+  shifts: Record<string, ShiftCell[]>;
+  /**
+   * Day ISO → staff has approved leave covering that civil day
+   * (empty-cell amber hint when no allocation yet).
+   */
+  approvedLeaveByDay?: Record<string, boolean>;
   totalHours: number;
   otHours: number;
   status: 'published' | 'draft' | 'amended' | 'none';
+};
+
+/** Overlapping duty windows on the same staff × day (Shift Roster summary). */
+export type RosterConflictItem = {
+  staffId: string;
+  staffCode: string;
+  staffName: string;
+  dateIso: string;
+  detail: string;
 };
 
 export type RosterGridSummary = {
@@ -484,12 +543,17 @@ export type RosterGridSummary = {
   shiftsThisWeek: number;
   totalHours: number;
   conflicts: number;
+  conflictItems: RosterConflictItem[];
 };
 
 export type RosterFilterOptions = {
   departments: RosterFilterOption[];
   units: RosterFilterOption[];
   rosters: RosterFilterOption[];
+  /** Designation master options (INT-R1). */
+  designations: RosterFilterOption[];
+  /** Staff Grade master options (INT-R2). */
+  staffGrades: RosterFilterOption[];
 };
 
 export type ShiftTypeChip = {
@@ -500,15 +564,24 @@ export type ShiftTypeChip = {
   durationHours: number;
 };
 
+/** Print / Excel / PDF row cap chosen in the export scope dialog. */
+export type ShiftRosterExportScope = '100' | '500' | 'all';
+
 export type LoadRosterParams = {
   department?: string;
   unit?: string;
   roster?: string;
+  /** Designation master id (assignment snapshot). */
+  designation?: string;
+  /** Staff Grade master id (employment). */
+  staffGrade?: string;
   fromDate: string;
   toDate: string;
   search?: string;
   page?: string;
   limit?: string;
+  /** When set, bypasses the grid page-size cap (100) for export. */
+  exportScope?: ShiftRosterExportScope;
 };
 
 export type ShiftRosterPeriodAudit = {
@@ -517,6 +590,21 @@ export type ShiftRosterPeriodAudit = {
   updatedByLabel: string;
   updatedAt: string | null;
   publishedLabel: string | null;
+};
+
+/** Activity-log timeline for Shift Roster Change History (staff × week cells). */
+export type ShiftRosterHistoryEntry = {
+  id: string;
+  title: string;
+  detail: string;
+  userLabel: string;
+  at: string;
+};
+
+export type DeleteShiftRosterStaffAllocationsPayload = {
+  staffId: string;
+  fromDate: string;
+  toDate: string;
 };
 
 export type LoadRosterResult = {
@@ -529,6 +617,24 @@ export type LoadRosterResult = {
   weekRangeShort: string;
   dayIsos: string[];
   periodAudit: ShiftRosterPeriodAudit | null;
+};
+
+export const ROSTER_ALLOCATION_SOURCES = ['standing', 'adhoc'] as const;
+export type RosterAllocationSource = (typeof ROSTER_ALLOCATION_SOURCES)[number];
+
+/** Live INT-L2 leave hint for duty-writing sheets (not Shift Assignment). */
+export type RosterLeavePreview = {
+  hasLeave: boolean;
+  message: string;
+  details: string[];
+};
+
+export type GetRosterLeavePreviewInput = {
+  staffId: string;
+  date: Date | string;
+  startTime?: string | null;
+  endTime?: string | null;
+  staffLabel?: string;
 };
 
 export type SaveRosterAllocationDraftPayload = {
@@ -546,8 +652,16 @@ export type SaveRosterAllocationDraftPayload = {
   otHours?: number;
   comments?: string | null;
   dutyLocation?: string | null;
+  dutyLocationDepartmentId?: string | null;
+  dutyZoneId?: string | null;
+  dutyRoomId?: string | null;
   supervisorId?: string | null;
   attendance?: DutyAttendance | string | null;
+  /** standing = StaffShiftAssignment; adhoc = Shift Type master only. */
+  allocationSource?: RosterAllocationSource | string | null;
+  staffShiftAssignmentId?: string | null;
+  /** INT-L2 — Continue after leave soft-warn. */
+  acknowledgedWarnings?: boolean;
 };
 
 /* ---------------------------------
@@ -564,11 +678,16 @@ export type DutyRosterRow = RosterAuditFields & {
   startTime: string;
   endTime: string;
   dutyLocation: string;
+  dutyLocationDepartmentId: string | null;
+  dutyZoneId: string | null;
+  dutyRoomId: string | null;
   wardUnit: string;
   department: string;
   roster: string;
   supervisorId: string | null;
   supervisorName: string;
+  allocationSource: RosterAllocationSource | string;
+  staffShiftAssignmentId: string | null;
   status: RosterAllocationStatus | string;
   attendance: DutyAttendance | string | null;
   comments: string;
@@ -583,14 +702,28 @@ export type DutyRosterSummary = {
   unfilledDuties: number;
 };
 
-export const DUTY_ROSTER_VIEW_MODES = ['daily', 'weekly', 'monthly'] as const;
+/** List = table; Days/Weeks/Months = card browsers with drill-down. */
+export const DUTY_ROSTER_VIEW_MODES = [
+  'list',
+  'days',
+  'weeks',
+  'months'
+] as const;
 export type DutyRosterViewMode = (typeof DUTY_ROSTER_VIEW_MODES)[number];
+
+/** Legacy query aliases still accepted by `parseDutyView`. */
+export const DUTY_ROSTER_VIEW_ALIASES: Record<string, DutyRosterViewMode> = {
+  daily: 'list',
+  weekly: 'weeks',
+  monthly: 'months'
+};
 
 export type DutyRosterFilterOptions = {
   departments: RosterFilterOption[];
   units: RosterFilterOption[];
   rosters: RosterFilterOption[];
   shifts: RosterFilterOption[];
+  staff: RosterFilterOption[];
 };
 
 export type DutyRosterShiftOption = RosterFilterOption & {
@@ -602,25 +735,68 @@ export type DutyRosterStaffOption = RosterFilterOption & {
   staffCode: string;
   dutyLocation: string;
   wardUnit: string;
+  institutionId: string;
+  institutionName: string;
+  workingDepartmentId: string;
+  workingDepartmentName: string;
+  roster: string;
+};
+
+export type DutyRosterDepartmentOption = RosterFilterOption & {
+  institutionId: string;
+};
+
+export type DutyRosterZoneOption = RosterFilterOption & {
+  locationId: string;
+};
+
+export type DutyRosterRoomOption = RosterFilterOption & {
+  zoneId: string;
+  locationId: string;
+};
+
+export type DutyRosterStandingAssignmentOption = RosterFilterOption & {
+  shiftTypeId: string;
+  shiftName: string;
+  startTime: string;
+  endTime: string;
+  rosterCode: string;
+  rosterName: string;
+  department: string;
+  unit: string;
+  designation: string;
+  rotationPattern: string;
+  weeklyOffDay: string;
+  effectiveFrom: string;
+  effectiveTo: string | null;
+  status: string;
 };
 
 export type DutyRosterFormOptions = {
   staff: DutyRosterStaffOption[];
   shiftTypes: DutyRosterShiftOption[];
   supervisors: RosterFilterOption[];
+  departments: DutyRosterDepartmentOption[];
+  /** Published locations — UI cascade only; not stored on RosterAllocation. */
   locations: RosterFilterOption[];
-  units: RosterFilterOption[];
+  zones: DutyRosterZoneOption[];
+  rooms: DutyRosterRoomOption[];
 };
 
 export type DutyRosterFormValues = {
+  /** true = standing assignment mode; false = ad-hoc */
+  useStandingAssignment: boolean;
   staffId: string;
   otherStaffId: string;
+  staffShiftAssignmentId: string;
   shiftTypeId: string;
   dutyDate: Date | null;
   startTime: string;
   endTime: string;
-  dutyLocation: string;
-  wardUnit: string;
+  useWorkingDepartment: boolean;
+  dutyLocationDepartmentId: string;
+  dutyZoneId: string;
+  dutyRoomId: string;
   supervisorId: string;
   attendance: string;
   comments: string;
@@ -633,6 +809,7 @@ export type GetDutyRosterParams = {
   unit?: string;
   roster?: string;
   shiftTypeId?: string;
+  staffId?: string;
   dutyDate?: string;
   view?: DutyRosterViewMode | string;
   search?: string;
@@ -651,6 +828,32 @@ export type SwapDutyPayload = {
   staffId: string;
   otherStaffId: string;
   dutyDate: Date | string;
+  /** UI-only — confirm dialog copy (stripped by Zod on save). */
+  confirmSummary?: string;
+  /** INT-L2 — Continue after leave soft-warn. */
+  acknowledgedWarnings?: boolean;
+};
+
+/** Staff already on duty for a calendar date — Swap partner picker. */
+export type DutyRosterSwapCandidate = {
+  id: string;
+  allocationId: string;
+  staffId: string;
+  name: string;
+  staffCode: string;
+  staffName: string;
+  shiftTypeId: string;
+  shiftName: string;
+  startTime: string;
+  endTime: string;
+  dutyLocation: string;
+  wardUnit: string;
+  department: string;
+  roster: string;
+  supervisorName: string;
+  status: string;
+  allocationSource: string;
+  date: string;
 };
 
 export type ReplaceDutyPayload = {
@@ -658,6 +861,10 @@ export type ReplaceDutyPayload = {
   staffId: string;
   replacementStaffId: string;
   dutyDate: Date | string;
+  /** UI-only — confirm dialog copy (stripped before service call). */
+  confirmSummary?: string;
+  /** INT-L2 — Continue after leave soft-warn. */
+  acknowledgedWarnings?: boolean;
 };
 
 export type UpdateDutyAttendancePayload = {
@@ -690,6 +897,9 @@ export type RosterAmendmentRecord = RosterAuditFields & {
   swapStaffId: string | null;
   swapStaffName: string;
   dutyLocation: string;
+  dutyLocationDepartmentId: string;
+  dutyZoneId: string;
+  dutyRoomId: string;
   reason: string;
   remarks: string;
   requestedById: string | null;
@@ -706,11 +916,17 @@ export type RosterAmendmentPayload = {
   amendedShiftTypeId?: string | null;
   amendmentType: RosterAmendmentType | string;
   swapStaffId?: string | null;
+  /** Snapshot name; server may overwrite from department resolve. */
   dutyLocation?: string | null;
+  dutyLocationDepartmentId?: string | null;
+  dutyZoneId?: string | null;
+  dutyRoomId?: string | null;
   reason?: string | null;
   remarks?: string | null;
   requestedById?: string | null;
   status?: RosterAmendmentStatus | string;
+  /** INT-L2 / weekly-off soft warn Continue. */
+  acknowledgedWarnings?: boolean;
 };
 
 export type GetRosterAmendmentsParams = {
@@ -745,17 +961,31 @@ export type RosterAmendmentFilterOptions = {
 export type RosterAmendmentStaffOption = RosterFilterOption & {
   staffCode: string;
   department: string;
+  institutionId: string;
   originalShiftTypeId: string;
   originalShiftLabel: string;
 };
 
+export type RosterAmendmentReplacementStaffOption = RosterFilterOption & {
+  staffCode: string;
+  institutionId: string;
+  institutionName: string;
+  workingDepartmentName: string;
+  roster: string;
+};
+
 export type RosterAmendmentFormOptions = {
   staff: RosterAmendmentStaffOption[];
-  replacementStaff: RosterFilterOption[];
+  replacementStaff: RosterAmendmentReplacementStaffOption[];
   shiftTypes: RosterFilterOption[];
   amendmentTypes: RosterFilterOption[];
   statuses: RosterFilterOption[];
   requesters: RosterFilterOption[];
+  departments: DutyRosterDepartmentOption[];
+  /** Published locations — UI cascade only; not stored on amendment. */
+  locations: RosterFilterOption[];
+  zones: DutyRosterZoneOption[];
+  rooms: DutyRosterRoomOption[];
 };
 
 export type RosterAmendmentHistoryEntry = {
@@ -766,13 +996,51 @@ export type RosterAmendmentHistoryEntry = {
   at: string;
 };
 
-export type RosterAmendmentAllocationLookup = {
+export type RosterAmendmentPublishedDuty = {
   allocationId: string;
+  staffId: string;
+  staffCode: string;
+  staffName: string;
+  dutyDate: string;
   originalShiftTypeId: string;
   originalShiftLabel: string;
+  startTime: string;
+  endTime: string;
   department: string;
+  unit: string;
+  roster: string;
+  dutyLocation: string;
+  dutyLocationDepartmentId: string;
+  dutyLocationDepartmentName: string;
+  dutyZoneId: string;
+  dutyZoneName: string;
+  dutyRoomId: string;
+  dutyRoomName: string;
+  supervisorName: string;
   status: RosterAllocationStatus | string;
-} | null;
+};
+
+export type RosterAmendmentAllocationLookup = RosterAmendmentPublishedDuty | null;
+
+export type RosterAmendmentDayConflict = {
+  id: string;
+  shiftTypeId: string;
+  shiftLabel: string;
+  startTime: string;
+  endTime: string;
+  status: string;
+};
+
+export type RosterAmendmentConflictPreview = {
+  allocations: RosterAmendmentDayConflict[];
+  sameShiftTypeExists: boolean;
+  dayLimit: number;
+  existingCount: number;
+  dayLimitReached: boolean;
+  blocksSave: boolean;
+  blockReason: string | null;
+  infoMessage: string | null;
+};
 
 export function isRosterAmendmentLocked(
   status: RosterAmendmentStatus | string
@@ -856,6 +1124,8 @@ export type NightShiftPayload = {
   mealAllowance?: number | null;
   sendToPayroll?: boolean;
   remarks?: string | null;
+  /** INT-L2 / weekly-off — Continue after soft-warn. */
+  acknowledgedWarnings?: boolean;
 };
 
 export type NightShiftFilterOptions = {
@@ -873,9 +1143,42 @@ export type NightShiftTypeFormOption = RosterFilterOption & {
   mealAllowance: string;
 };
 
+export type NightShiftStaffOption = RosterFilterOption & {
+  staffCode: string;
+  institutionId: string;
+  institutionName: string;
+  workingDepartmentName: string;
+  unit: string;
+  roster: string;
+};
+
 export type NightShiftFormOptions = {
-  staff: RosterFilterOption[];
+  staff: NightShiftStaffOption[];
   shiftTypes: NightShiftTypeFormOption[];
+};
+
+/** Proactive conflict strip for Add/Edit night shift sheet. */
+export type NightShiftDayConflict = {
+  id: string;
+  shiftTypeId: string;
+  shiftLabel: string;
+  startTime: string;
+  endTime: string;
+  status: string;
+  isNightShift: boolean;
+};
+
+export type NightShiftConflictPreview = {
+  allocations: NightShiftDayConflict[];
+  sameShiftTypeExists: boolean;
+  dayLimit: number;
+  existingCount: number;
+  dayLimitReached: boolean;
+  consecutiveNightsPreview: number;
+  exceedsConsecutivePolicy: boolean;
+  blocksSave: boolean;
+  blockReason: string | null;
+  infoMessage: string | null;
 };
 
 export type NightShiftHistoryEntry = {
@@ -954,8 +1257,9 @@ export type OvernightShiftPayload = {
   shiftTypeId: string;
   startDate: Date | string;
   endDate: Date | string;
-  startTime: string;
-  endTime: string;
+  /** Ignored on save — server uses ShiftType.startTime / endTime. */
+  startTime?: string | null;
+  endTime?: string | null;
   day1Hours?: number | null;
   day2Hours?: number | null;
   totalHours?: number | null;
@@ -965,6 +1269,30 @@ export type OvernightShiftPayload = {
   autoSplit?: boolean;
   sendToPayroll?: boolean;
   remarks?: string | null;
+  /** INT-L2 / weekly-off — Continue after soft-warn. */
+  acknowledgedWarnings?: boolean;
+};
+
+/** Proactive conflict strip for Add/Edit overnight shift sheet. */
+export type OvernightShiftDayConflict = {
+  id: string;
+  shiftTypeId: string;
+  shiftLabel: string;
+  startTime: string;
+  endTime: string;
+  status: string;
+  isOvernight: boolean;
+};
+
+export type OvernightShiftConflictPreview = {
+  allocations: OvernightShiftDayConflict[];
+  sameShiftTypeExists: boolean;
+  dayLimit: number;
+  existingCount: number;
+  dayLimitReached: boolean;
+  blocksSave: boolean;
+  blockReason: string | null;
+  infoMessage: string | null;
 };
 
 export type OvernightShiftFilterOptions = {
@@ -981,8 +1309,17 @@ export type OvernightShiftTypeFormOption = RosterFilterOption & {
   allowance: string;
 };
 
+export type OvernightShiftStaffOption = RosterFilterOption & {
+  staffCode: string;
+  institutionId: string;
+  institutionName: string;
+  workingDepartmentName: string;
+  unit: string;
+  roster: string;
+};
+
 export type OvernightShiftFormOptions = {
-  staff: RosterFilterOption[];
+  staff: OvernightShiftStaffOption[];
   shiftTypes: OvernightShiftTypeFormOption[];
 };
 
@@ -1071,6 +1408,9 @@ export type PublicHolidayShiftRecord = RosterAuditFields & {
   payRate: string;
   holidayAllowance: number;
   dutyLocation: string;
+  dutyLocationDepartmentId: string;
+  dutyZoneId: string;
+  dutyRoomId: string;
   lieuLeave: boolean;
   sendToPayroll: boolean;
   status: PublicHolidayShiftStatus;
@@ -1103,15 +1443,40 @@ export type PublicHolidayShiftPayload = {
   holidayId: string;
   staffId: string;
   shiftTypeId: string;
-  dutyDate: Date | string;
+  /** Optional; server always derives duty date from HolidayCalendar. */
+  dutyDate?: Date | string | null;
   workedHours?: number | null;
   payRate: string;
   holidayAllowance?: number | null;
-  dutyLocation?: string | null;
+  /** Department ObjectId — server snapshots name into dutyLocation. */
+  dutyLocationDepartmentId?: string | null;
+  dutyZoneId?: string | null;
+  dutyRoomId?: string | null;
   grantLieuLeave: boolean;
   sendToPayroll: boolean;
   status: string;
   remarks?: string | null;
+  /** INT-L2 — Continue after leave soft-warn. */
+  acknowledgedWarnings?: boolean;
+};
+
+/** Bulk Assign Holiday Duty — one shared form applied per selected staff. */
+export type PublicHolidayBulkShiftPayload = Omit<
+  PublicHolidayShiftPayload,
+  'staffId'
+> & {
+  staffIds: string[];
+  /**
+   * When true (default), each staff keeps their working department
+   * (`dutyLocationDepartmentId` ignored). When false, shared place FKs apply.
+   */
+  useWorkingDepartment?: boolean;
+};
+
+export type PublicHolidayBulkCreateResult = {
+  count: number;
+  ids: string[];
+  skipped: Array<{ staffId: string; reason: string }>;
 };
 
 export type PublicHolidayShiftFilterOptions = {
@@ -1129,13 +1494,41 @@ export type PublicHolidayShiftFormOptions = {
   shifts: (RosterFilterOption & { workedHours: string })[];
   staff: (RosterFilterOption & {
     staffCode: string;
+    departmentId: string;
     department: string;
     unit: string;
-    dutyLocation: string;
+    institutionId: string;
+    institutionName: string;
   })[];
+  /** Published departments; filter client-side by staff institutionId. */
+  departments: (RosterFilterOption & { institutionId: string })[];
+  /** Published locations — UI cascade only; not stored on holiday allocation. */
   locations: RosterFilterOption[];
+  zones: DutyRosterZoneOption[];
+  rooms: DutyRosterRoomOption[];
   payRates: RosterFilterOption[];
   statuses: RosterFilterOption[];
+};
+
+/** Proactive conflict strip for Add/Edit holiday shift sheet. */
+export type PublicHolidayShiftDayConflict = {
+  id: string;
+  shiftTypeId: string;
+  shiftLabel: string;
+  startTime: string;
+  endTime: string;
+  status: string;
+};
+
+export type PublicHolidayShiftConflictPreview = {
+  allocations: PublicHolidayShiftDayConflict[];
+  sameShiftTypeExists: boolean;
+  dayLimit: number;
+  existingCount: number;
+  dayLimitReached: boolean;
+  blocksSave: boolean;
+  blockReason: string | null;
+  infoMessage: string | null;
 };
 
 export type PublicHolidayShiftHistoryEntry = {

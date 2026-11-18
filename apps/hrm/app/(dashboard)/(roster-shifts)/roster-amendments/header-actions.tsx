@@ -5,6 +5,7 @@ import { Button, useToast } from '@archmage/ui';
 import { usePermissions } from '@/components/hooks/use-permissions';
 import { isRosterAmendmentLocked } from '@/types/roster';
 import { useRosterAmendmentsUi } from './roster-amendments-ui-context';
+import { buttonStyles } from '@/lib/utils/common-styles';
 
 export function RosterAmendmentsHeaderActions() {
   const { toast } = useToast();
@@ -75,7 +76,7 @@ export function RosterAmendmentsHeaderActions() {
             type="button"
             size="sm"
             variant="outline"
-            className="h-9 gap-1.5 border-red-300 text-red-600 hover:bg-red-50 hover:text-red-700"
+            className={buttonStyles.cancel.warning}
             onClick={() => {
               if (!ensureSelectable('reject')) return;
               requestRejectConfirm();

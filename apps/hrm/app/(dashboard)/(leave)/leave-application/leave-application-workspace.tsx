@@ -61,7 +61,6 @@ export default function LeaveApplicationWorkspace({
         <FormLeaveDetails
           staffOptions={staffOptions}
           leaveTypeOptions={leaveTypeOptions}
-          approverOptions={approverOptions}
           selectedRecord={selectedRecord}
           onClearSelection={() => setSelectedRecord(null)}
         />

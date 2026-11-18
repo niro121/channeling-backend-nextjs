@@ -274,27 +274,43 @@ export async function bulkDeleteLeaveApplicationsAction(ids: string[]) {
 export async function getLeaveApplicationsExport(
   params: Omit<GetLeaveApplicationsParams, 'page' | 'limit'>
 ) {
+  await requirePermission('leave-application', 'view');
+
   try {
-    await requirePermission('leave-application', 'view');
-    const result = await getLeaveApplicationsForExport(params);
-    if (!result.success) {
+    const response = await getLeaveApplicationsForExport({
+      staffId: params.staffId,
+      leaveTypeId: params.leaveTypeId,
+      approverId: params.approverId,
+      fromDate: params.fromDate,
+      toDate: params.toDate,
+      dateSearchBy: params.dateSearchBy,
+      outWithCancel: params.outWithCancel
+    });
+
+    if (!response.data?.length) {
       return {
         success: false,
-        message: result.error?.message ?? 'Failed to export leave applications',
-        data: []
+        message: 'No leave application records found',
+        data: [],
+        totalRecords: 0
       };
     }
+
     return {
       success: true,
-      data: result.data ?? [],
-      message: result.message
+      data: response.data,
+      totalRecords: response.totalRecords
     };
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('getLeaveApplicationsExport error', error);
     return {
       success: false,
-      message: error.message ?? 'Failed to export leave applications',
-      data: []
+      message:
+        error instanceof Error
+          ? error.message
+          : 'Error getting data. Please try again later',
+      data: [],
+      totalRecords: 0
     };
   }
 }

@@ -8,7 +8,6 @@ import {
   Card,
   CardContent,
   Combobox,
-  CustomAlertDialog,
   CustomCheckedField,
   CustomDatePickerField,
   CustomFormField,
@@ -23,6 +22,13 @@ import {
   AccordionItem,
   AccordionTrigger
 } from '@/components/ui/accordion';
+import {
+  ChannelingSyncAlertDialog
+} from '@/components/common/channeling-sync-alert-dialog';
+import {
+  buildChannelingSyncDialog,
+  type ChannelingSyncDialogContent
+} from '@/components/common/channeling-sync-dialog.helper';
 import {
   HOME_TELEPHONE_REGEX,
   MOBILE_NUMBER_REGEX
@@ -46,10 +52,9 @@ import {
 } from '@/lib/mappers/staff-general-form.mapper';
 import { getChangedChannelingFieldLabels } from '@/lib/helpers/staff-channeling-fields.helper';
 import { buildChannelingSyncDialogDescription } from '@/lib/helpers/staff-channeling-dialog.helper';
+import { buttonStyles } from '@/lib/utils/common-styles';
 
 export type { GeneralFormValues } from '@/types/staff';
-
-const ZONE_CODE_OPTIONS: { id: string; name: string }[] = [];
 
 const fieldStyleClasses = {
   parentDiv: 'grid grid-cols-1 gap-2 items-start',
@@ -244,6 +249,7 @@ type FormGeneralProps = {
   staffId?: string;
   isEditPage?: boolean;
   specialityOptions?: StaffSpecialityOption[];
+  zoneOptions?: { id: string; name: string }[];
   /** Wave 9 — link create to accepted appointment letter. */
   appointmentLetterId?: string;
   onRegisterActions?: (actions: GeneralFormActions) => void;
@@ -280,6 +286,7 @@ export default function FormGeneral({
   staffId,
   isEditPage = false,
   specialityOptions = [],
+  zoneOptions = [],
   appointmentLetterId,
   onRegisterActions,
   onLoadingChange
@@ -291,7 +298,10 @@ export default function FormGeneral({
     closeAfterSave: boolean;
   } | null>(null);
   const [showChannelingDialog, setShowChannelingDialog] = useState(false);
-  const [channelingDialogDescription, setChannelingDialogDescription] = useState('');
+  const [channelingDialog, setChannelingDialog] =
+    useState<ChannelingSyncDialogContent | null>(null);
+  const [channelingChangedFieldsNote, setChannelingChangedFieldsNote] =
+    useState('');
   const [isSaving, setIsSaving] = useState(false);
   const { toast } = useToast();
   const router = useRouter();
@@ -433,8 +443,44 @@ export default function FormGeneral({
       setIsSaving(false);
       onLoadingChange?.(false);
       setShowChannelingDialog(false);
+      setChannelingDialog(null);
+      setChannelingChangedFieldsNote('');
       pendingSubmitRef.current = null;
     }
+  };
+
+  const openChannelingDialog = (
+    values: GeneralFormValues,
+    helpers: FormikHelpers<GeneralFormValues>,
+    closeAfterSave: boolean,
+    mode: 'create' | 'update',
+    changedFields: string[]
+  ) => {
+    const hasChannelingLink = Boolean(staffRecord?.migrateSourceId);
+    const dialog = buildChannelingSyncDialog({
+      entityLabel: 'staff member',
+      mode,
+      hasChannelingLink
+    });
+    const detailNote = buildChannelingSyncDialogDescription({
+      mode,
+      changedFields,
+      hasChannelingLink
+    });
+
+    pendingSubmitRef.current = {
+      values,
+      helpers: {
+        setErrors: helpers.setErrors,
+        setTouched: helpers.setTouched
+      },
+      closeAfterSave
+    };
+    setChannelingDialog(dialog);
+    setChannelingChangedFieldsNote(
+      mode === 'update' && changedFields.length > 0 ? ` ${detailNote}` : ''
+    );
+    setShowChannelingDialog(true);
   };
 
   const handleSubmit = async (
@@ -444,38 +490,47 @@ export default function FormGeneral({
     const closeAfterSave = saveAndCloseRef.current;
     const payload = generalFormValuesToStaffPayload(values);
 
-    const shouldPromptChanneling = isEditPage
-      ? staffRecord
-        ? getChangedChannelingFieldLabels(staffRecord, payload).length > 0 ||
-          !staffRecord.migrateSourceId
-        : false
-      : false;
-
-    if (shouldPromptChanneling) {
-      const changedFields = staffRecord
-        ? getChangedChannelingFieldLabels(staffRecord, payload)
-        : [];
-
-      pendingSubmitRef.current = {
-        values,
-        helpers: {
-          setErrors: helpers.setErrors,
-          setTouched: helpers.setTouched
-        },
-        closeAfterSave
-      };
-      setChannelingDialogDescription(
-        buildChannelingSyncDialogDescription({
-          mode: isEditPage ? 'update' : 'create',
-          changedFields,
-          hasChannelingLink: Boolean(staffRecord?.migrateSourceId)
-        })
-      );
-      setShowChannelingDialog(true);
+    if (!isEditPage) {
+      openChannelingDialog(values, helpers, closeAfterSave, 'create', []);
       return;
     }
 
-    await executeSave(values, !isEditPage, closeAfterSave, helpers);
+    const changedFields = staffRecord
+      ? getChangedChannelingFieldLabels(staffRecord, payload)
+      : [];
+    const shouldPromptChanneling =
+      changedFields.length > 0 || !staffRecord?.migrateSourceId;
+
+    if (shouldPromptChanneling) {
+      openChannelingDialog(
+        values,
+        helpers,
+        closeAfterSave,
+        'update',
+        changedFields
+      );
+      return;
+    }
+
+    await executeSave(values, false, closeAfterSave, helpers);
+  };
+
+  const handleChannelingCancel = () => {
+    pendingSubmitRef.current = null;
+    setShowChannelingDialog(false);
+    setChannelingDialog(null);
+    setChannelingChangedFieldsNote('');
+  };
+
+  const handleChannelingSaveHrmOnly = async () => {
+    const pending = pendingSubmitRef.current;
+    if (!pending) return;
+    await executeSave(
+      pending.values,
+      false,
+      pending.closeAfterSave,
+      pending.helpers
+    );
   };
 
   const handleChannelingContinue = async () => {
@@ -487,20 +542,6 @@ export default function FormGeneral({
       pending.closeAfterSave,
       pending.helpers
     );
-  };
-
-  const handleChannelingDialogVisibility = (open: boolean) => {
-    if (!open && pendingSubmitRef.current) {
-      const pending = pendingSubmitRef.current;
-      void executeSave(
-        pending.values,
-        false,
-        pending.closeAfterSave,
-        pending.helpers
-      );
-      return;
-    }
-    setShowChannelingDialog(open);
   };
 
   return (
@@ -745,7 +786,7 @@ export default function FormGeneral({
                       <div className={fieldStyleClasses.inputClassName}>
                         <Combobox
                           label="Zone Code"
-                          options={ZONE_CODE_OPTIONS}
+                          options={zoneOptions}
                           value={formik.values.zoneCode}
                           defaultValue=""
                           clearable
@@ -968,13 +1009,17 @@ export default function FormGeneral({
       }}
     </Formik>
 
-    <CustomAlertDialog
+    <ChannelingSyncAlertDialog
       open={showChannelingDialog}
-      handleVisibilityChange={handleChannelingDialogVisibility}
+      title={channelingDialog?.title ?? 'Sync Channeling staff?'}
+      description={`${channelingDialog?.description ?? ''}${channelingChangedFieldsNote}`}
+      hrmOnlyLabel={channelingDialog?.hrmOnlyLabel}
+      continueLabel={channelingDialog?.continueLabel}
+      cancelClassName={buttonStyles.cancel.warning}
       loading={isSaving}
-      title={isEditPage ? 'Update Channeling staff too?' : 'Create Channeling staff too?'}
-      description={`${channelingDialogDescription} Click Cancel to save in HRM only, or Continue to also apply the change in Channeling.`}
-      handleContinue={handleChannelingContinue}
+      onCancel={handleChannelingCancel}
+      onSaveHrmOnly={() => void handleChannelingSaveHrmOnly()}
+      onContinue={() => void handleChannelingContinue()}
     />
     </>
   );

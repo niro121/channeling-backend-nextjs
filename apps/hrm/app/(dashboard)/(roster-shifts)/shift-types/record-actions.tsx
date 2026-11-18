@@ -8,6 +8,7 @@ import { usePermissions } from '@/components/hooks/use-permissions';
 import { deleteShiftTypeAction } from '@/app/actions/roster-actions/shift-type.actions';
 import type { ShiftTypeRecord } from '@/types/roster';
 import { useShiftTypesUi } from './shift-types-ui-context';
+import { buttonStyles } from '@/lib/utils/common-styles';
 
 type ShiftTypeRecordActionsProps = {
   record: ShiftTypeRecord;
@@ -110,7 +111,7 @@ export default function ShiftTypeRecordActions({
           void handleDelete();
         }}
         className={{
-          actionButton: 'bg-destructive text-destructive-foreground hover:bg-destructive/90'
+          actionButton: buttonStyles.delete.danger
         }}
       />
     </>

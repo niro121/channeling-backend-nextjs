@@ -11,6 +11,8 @@ import {
   getDutyRosterForExport,
   getDutyRosterFormOptions,
   getDutyRosterHistory,
+  getDutySwapCandidates,
+  getStaffStandingAssignmentsForDuty,
   replaceDutyStaff,
   saveDutyAllocation,
   swapDutyAllocations,
@@ -32,6 +34,7 @@ function listParams(params: GetDutyRosterParams): GetDutyRosterParams {
     unit: params.unit,
     roster: params.roster,
     shiftTypeId: params.shiftTypeId,
+    staffId: params.staffId,
     dutyDate: params.dutyDate,
     view: params.view,
     search: params.search
@@ -125,6 +128,61 @@ export async function getDutyRosterFormOptionsAction() {
   }
 }
 
+export async function getStaffStandingAssignmentsForDutyAction(
+  staffId: string,
+  dutyDate: Date | string
+) {
+  try {
+    await requirePermission('shift-roster', 'view');
+    const result = await getStaffStandingAssignmentsForDuty(staffId, dutyDate);
+    if (!result.success) {
+      throw new Error(
+        result.error?.message ?? 'Failed to load standing assignments'
+      );
+    }
+    return {
+      isError: false,
+      data: result.data ?? [],
+      errors: {}
+    };
+  } catch (error: any) {
+    console.error('getStaffStandingAssignmentsForDutyAction error:', error);
+    return {
+      isError: true,
+      data: null,
+      errors: {
+        message: error.message ?? 'Failed to load standing assignments'
+      }
+    };
+  }
+}
+
+export async function getDutySwapCandidatesAction(dutyDate: Date | string) {
+  try {
+    await requirePermission('shift-roster', 'view');
+    const result = await getDutySwapCandidates(dutyDate);
+    if (!result.success) {
+      throw new Error(
+        result.error?.message ?? 'Failed to load swap candidates'
+      );
+    }
+    return {
+      isError: false,
+      data: result.data ?? [],
+      errors: {}
+    };
+  } catch (error: any) {
+    console.error('getDutySwapCandidatesAction error:', error);
+    return {
+      isError: true,
+      data: null,
+      errors: {
+        message: error.message ?? 'Failed to load swap candidates'
+      }
+    };
+  }
+}
+
 export async function getDutyRosterHistoryAction(id: string) {
   try {
     await requirePermission('shift-roster', 'view');
@@ -152,25 +210,35 @@ export async function getDutyRosterHistoryAction(id: string) {
 }
 
 export async function getDutyRosterExport(params: GetDutyRosterParams) {
+  await requirePermission('shift-roster', 'view');
+
   try {
-    await requirePermission('shift-roster', 'view');
-    const result = await getDutyRosterForExport(listParams(params));
-    if (!result.success) {
+    const response = await getDutyRosterForExport(listParams(params));
+
+    if (!response.data?.length) {
       return {
         success: false,
-        message: result.error?.message ?? 'Failed to export duty roster'
+        message: 'No duty roster rows found',
+        data: [],
+        totalRecords: 0
       };
     }
+
     return {
       success: true,
-      data: result.data ?? [],
-      message: result.message
+      data: response.data,
+      totalRecords: response.totalRecords
     };
-  } catch (error: any) {
-    console.error('getDutyRosterExport error:', error);
+  } catch (error: unknown) {
+    console.error('getDutyRosterExport error', error);
     return {
       success: false,
-      message: error.message ?? 'Failed to export duty roster'
+      message:
+        error instanceof Error
+          ? error.message
+          : 'Error getting data. Please try again later',
+      data: [],
+      totalRecords: 0
     };
   }
 }
@@ -189,12 +257,16 @@ export async function saveDutyAllocationAction(
     if (!result.success) {
       return {
         isError: true,
-        errors:
-          result.error?.issues ?? {
-            message:
-              result.error?.message ??
-              'Something went wrong. Please try again later'
-          },
+        errors: {
+          ...(result.error?.issues ?? {}),
+          message:
+            result.error?.message ??
+            'Something went wrong. Please try again later',
+          ...(result.error?.softWarnings
+            ? { softWarnings: result.error.softWarnings }
+            : {}),
+          ...(result.error?.requiresAck ? { requiresAck: true } : {})
+        },
         data: {}
       };
     }
@@ -239,12 +311,16 @@ export async function swapDutyAllocationsAction(data: SwapDutyPayload) {
     if (!result.success) {
       return {
         isError: true,
-        errors:
-          result.error?.issues ?? {
-            message:
-              result.error?.message ??
-              'Something went wrong. Please try again later'
-          },
+        errors: {
+          ...(result.error?.issues ?? {}),
+          message:
+            result.error?.message ??
+            'Something went wrong. Please try again later',
+          ...(result.error?.softWarnings
+            ? { softWarnings: result.error.softWarnings }
+            : {}),
+          ...(result.error?.requiresAck ? { requiresAck: true } : {})
+        },
         data: {}
       };
     }
@@ -290,12 +366,16 @@ export async function replaceDutyStaffAction(data: ReplaceDutyPayload) {
     if (!result.success) {
       return {
         isError: true,
-        errors:
-          result.error?.issues ?? {
-            message:
-              result.error?.message ??
-              'Something went wrong. Please try again later'
-          },
+        errors: {
+          ...(result.error?.issues ?? {}),
+          message:
+            result.error?.message ??
+            'Something went wrong. Please try again later',
+          ...(result.error?.softWarnings
+            ? { softWarnings: result.error.softWarnings }
+            : {}),
+          ...(result.error?.requiresAck ? { requiresAck: true } : {})
+        },
         data: {}
       };
     }

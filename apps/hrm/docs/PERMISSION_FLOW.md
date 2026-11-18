@@ -209,6 +209,7 @@ From `lib/permissions.ts` / `RESOURCES` (keep these in sync when editing).
 | `/designations` | `designations` | Designations |
 | `/staff-grades` | `staff-grades` | Area / Staff Grade |
 | `/staff-specialities` | `staff-specialities` | Staff Specialities |
+| `/change-staff` | `change-staff` | Change Staff |
 | `/manage-rosters` | `manage-rosters` | Manage Rosters |
 | `/paysheet-components` | `paysheet-components` | Paysheet Components |
 | `/hrm-variables` | `hrm-variables` | HRM Variable (EPF/ETF/PAYE) |

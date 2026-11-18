@@ -14,10 +14,15 @@ export type LeaveCalendarDayEntry = {
   name: string;
   department?: string;
   leaveType: string;
+  status: 'pending' | 'approved';
+  dateRange?: string;
+  duration?: string;
 };
 
 export type LeaveCalendarDayData = {
   count: number;
+  pendingCount?: number;
+  approvedCount?: number;
   entries?: LeaveCalendarDayEntry[];
 };
 
@@ -89,42 +94,71 @@ export default function SectionLeaveCalendar({
           if (controlledYear == null) setInternalYear(nextYear);
           loadMonth(nextMonth, nextYear);
         }}
-        renderDayContent={(_date, data) =>
-          data && data.count > 0 ? (
-            <Badge className="mt-1 block w-fit border-0 bg-emerald-50 px-1.5 py-0 text-[10px] font-medium text-teal-800 hover:bg-emerald-50">
-              {data.count} off
-            </Badge>
-          ) : null
-        }
+        renderDayContent={(_date, data) => {
+          if (!data || data.count <= 0) return null;
+          const pending = data.pendingCount ?? 0;
+          const approved = data.approvedCount ?? 0;
+          return (
+            <div className="mt-1 flex flex-wrap gap-1">
+              {approved > 0 ? (
+                <Badge className="block w-fit border-0 bg-emerald-50 px-1.5 py-0 text-[10px] font-medium text-teal-800 hover:bg-emerald-50">
+                  {approved} approved
+                </Badge>
+              ) : null}
+              {pending > 0 ? (
+                <Badge className="block w-fit border-0 bg-amber-50 px-1.5 py-0 text-[10px] font-medium text-amber-800 hover:bg-amber-50">
+                  {pending} pending
+                </Badge>
+              ) : null}
+            </div>
+          );
+        }}
         renderDrawerTitle={(date) => format(date, 'EEEE, d MMMM yyyy')}
-        renderDrawerDescription={(_date, data) =>
-          data?.count
-            ? `${data.count} staff off on this day`
-            : 'No leave recorded for this day'
-        }
+        renderDrawerDescription={(_date, data) => {
+          if (!data?.count) return 'No leave recorded for this day';
+          const pending = data.pendingCount ?? 0;
+          const approved = data.approvedCount ?? 0;
+          const parts: string[] = [];
+          if (approved > 0) parts.push(`${approved} approved`);
+          if (pending > 0) parts.push(`${pending} pending`);
+          return parts.length
+            ? `${parts.join(' · ')} on this day`
+            : `${data.count} leave on this day`;
+        }}
         renderDrawerContent={(_date, data) =>
           data?.entries?.length ? (
-            data.entries.map((entry) => (
-              <div
-                key={entry.id}
-                className="flex items-center justify-between gap-3 rounded-lg border border-border px-3 py-2"
-              >
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold">{entry.name}</p>
-                  {entry.department ? (
-                    <p className="truncate text-xs text-muted-foreground">
-                      {entry.department}
-                    </p>
-                  ) : null}
-                </div>
-                <Badge
-                  variant="secondary"
-                  className="shrink-0 border-0 bg-slate-200/80 text-slate-700"
+            <div className="space-y-2">
+              {data.entries.map((entry) => (
+                <div
+                  key={entry.id}
+                  className="flex items-start justify-between gap-3 rounded-lg border border-border px-3 py-2"
                 >
-                  {entry.leaveType}
-                </Badge>
-              </div>
-            ))
+                  <div className="min-w-0 space-y-0.5">
+                    <p className="truncate text-sm font-semibold">{entry.name}</p>
+                    <p className="truncate text-xs text-muted-foreground">
+                      {entry.leaveType}
+                      {entry.dateRange ? ` · ${entry.dateRange}` : ''}
+                      {entry.duration ? ` · ${entry.duration}` : ''}
+                    </p>
+                    {entry.department ? (
+                      <p className="truncate text-xs text-muted-foreground">
+                        {entry.department}
+                      </p>
+                    ) : null}
+                  </div>
+                  <Badge
+                    variant="secondary"
+                    className={
+                      entry.status === 'approved'
+                        ? 'shrink-0 border-0 bg-emerald-50 text-teal-800'
+                        : 'shrink-0 border-0 bg-amber-50 text-amber-800'
+                    }
+                  >
+                    {entry.status === 'approved' ? 'Approved' : 'Pending'}
+                  </Badge>
+                </div>
+              ))}
+            </div>
           ) : (
             <p className="text-sm text-muted-foreground">
               No leave details available.
