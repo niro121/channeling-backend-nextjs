@@ -23,6 +23,7 @@ type ReportLimitKey =
   | 'bank_deposits'
   | 'cash_vouchers'
   | 'completed_handovers'
+  | 'unreconciled_handovers'
   | 'approval_requests'
   | 'channel_report_receipt_wise'
   | 'room_occupancy'
