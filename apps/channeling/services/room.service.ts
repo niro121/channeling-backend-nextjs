@@ -23,7 +23,12 @@ const roomSchema = z.object({
       message: 'Status must be Unpublish (0) or Publish (1)'
     }),
   locationId: z.string().min(1, 'This field is mandatory'),
-  zoneId: z.string().min(1, 'This field is mandatory')
+  zoneId: z.string().min(1, 'This field is mandatory'),
+  departmentId: z
+    .string()
+    .optional()
+    .nullable()
+    .transform((val) => (val && val.trim() !== '' ? val : null))
 });
 
 const roomUpdateSchema = roomSchema.partial().extend({
@@ -110,6 +115,7 @@ export const getAllRoomsService = async ({
       include: {
         location: true,
         zone: true,
+        department: true,
         createdUser: true,
         updatedUser: true
       }
@@ -218,6 +224,9 @@ export const createRoomService = async (
         zone: {
           connect: { id: data.zoneId }
         },
+        ...(data.departmentId
+          ? { department: { connect: { id: data.departmentId } } }
+          : {}),
         createdUser: userRelation,
         updatedUser: userRelation
       }
@@ -327,6 +336,12 @@ export const updateOneRoomService = async (
       };
     }
 
+    if (data.departmentId !== undefined) {
+      updateData.department = data.departmentId
+        ? { connect: { id: data.departmentId } }
+        : { disconnect: true };
+    }
+
     const room = await prisma.room.update({
       where: { id },
       data: updateData
@@ -393,6 +408,8 @@ export const getRoomByIdService = async (
       where: { id },
       include: {
         location: true,
+        zone: true,
+        department: true,
         createdUser: true,
         updatedUser: true
       }
