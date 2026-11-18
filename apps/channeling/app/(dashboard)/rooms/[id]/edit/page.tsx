@@ -4,6 +4,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import RoomForm from '../../room-form';
 import { getRoomById, getAllLocations, getAllZonesByLocaionID } from '@/app/actions/room.actions';
+import { getDepartmentOptions } from '@/app/actions/doctor.sessions.action';
 import { BackButton } from '@/components/common/back-button';
 
 type PageProps = {
@@ -24,13 +25,30 @@ export default async function EditRoomPage({ params }: PageProps) {
     notFound();
   }
 
-  const [locationRes, zonesRes] = await Promise.all([
+  const [locationRes, zonesRes, departmentRes] = await Promise.all([
     getAllLocations(),
-    data.locationId ? getAllZonesByLocaionID(data.locationId) : Promise.resolve({ success: false, data: [] })
+    data.locationId ? getAllZonesByLocaionID(data.locationId) : Promise.resolve({ success: false, data: [] }),
+    getDepartmentOptions()
   ]);
 
   const locationOptions =
     locationRes?.data?.map((l) => ({ id: l.id as string, name: l.name })) ?? [];
+
+  const departmentOptions =
+    departmentRes?.success && departmentRes.data
+      ? departmentRes.data.map((d) => ({ id: d.id, name: d.name }))
+      : [];
+
+  if (
+    data.departmentId &&
+    data.department?.name &&
+    !departmentOptions.some((d) => d.id === data.departmentId)
+  ) {
+    departmentOptions.unshift({
+      id: data.departmentId,
+      name: data.department.name
+    });
+  }
 
   const initialZoneOptions =
     zonesRes?.success && zonesRes?.data?.length
@@ -47,6 +65,7 @@ export default async function EditRoomPage({ params }: PageProps) {
         <RoomForm
           room={data}
           locationOptions={locationOptions}
+          departmentOptions={departmentOptions}
           initialZoneOptions={initialZoneOptions}
           isEditPage={true}
           user={{

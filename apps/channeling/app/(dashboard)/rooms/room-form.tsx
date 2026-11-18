@@ -25,6 +25,7 @@ type RoomFormProps = {
     name?: string;
   };
   locationOptions: { id: string; name: string }[];
+  departmentOptions?: { id: string; name: string }[];
   /** Zones for the room's location (edit). When provided, Zone dropdown is ready on first render. */
   initialZoneOptions?: { id: string; name: string }[];
   /** Pre-fetched zones by locationId (add page). When provided, Zone dropdown has no loading when user selects a location. */
@@ -35,6 +36,7 @@ export default function RoomForm({
   room,
   user,
   locationOptions,
+  departmentOptions,
   initialZoneOptions,
   initialZonesByLocation
 }: RoomFormProps) {
@@ -84,6 +86,7 @@ export default function RoomForm({
     number: room?.number ?? '',
     locationId: room?.locationId ?? '',
     zoneId: room?.zoneId ?? '',
+    departmentId: room?.departmentId ?? '',
     description: room?.description ? room.description : '',
     status: room?.status ? room.status : 1
   };
@@ -94,6 +97,7 @@ export default function RoomForm({
       .required('This field is mandatory'),
     locationId: Yup.string().required('This field is mandatory'),
     zoneId: Yup.string().required('This field is mandatory'),
+    departmentId: Yup.string(),
     description: Yup.string().max(500, 'Must be less than 500 characters'),
     status: Yup.number()
       .oneOf([0, 1], 'Visibility must be Unpublish (0) or Publish (1)')
@@ -308,6 +312,18 @@ export default function RoomForm({
                   styleClasses={styleClasses}
                 />
               </div>
+              <CustomSelectField
+                id="departmentId"
+                placeholder="Department"
+                value={formik.values.departmentId || undefined}
+                onChange={(value: string) =>
+                  formik.setFieldValue('departmentId', value)
+                }
+                required={false}
+                disabled={!departmentOptions || departmentOptions.length === 0}
+                options={departmentOptions || []}
+                styleClasses={styleClasses}
+              />
               <CustomFormField
                 type="textarea"
                 id="description"

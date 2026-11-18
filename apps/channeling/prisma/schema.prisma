@@ -177,6 +177,7 @@ model Department {
   // ==== RELATIONS ==== //
   doctorSessions DoctorSession[] @relation("SessionToDepartment")
   departments    Session[]       @relation("DepartmentToSession")
+  rooms          Room[]          @relation("DepartmentToRoom")
 
   // Indexes for list query: orderBy createdAt, filter by name (keyword search)
   @@index([createdAt(sort: Desc)])
@@ -492,6 +493,8 @@ model Room {
   zone           Zone?           @relation("ZoneToRoom", fields: [zoneId], references: [id], onDelete: SetNull)
   locationId     String?         @db.ObjectId
   location       Location?       @relation("LocationToRoom", fields: [locationId], references: [id], onDelete: SetNull)
+  departmentId   String?         @db.ObjectId
+  department     Department?     @relation("DepartmentToRoom", fields: [departmentId], references: [id], onDelete: SetNull)
   doctorSessions DoctorSession[] @relation("SessionToRoom")
   sessions       Session[]       @relation("RoomToSession")
   createdUser    User?           @relation("UserCreatedRooms", fields: [createdBy], references: [id], onDelete: SetNull)
