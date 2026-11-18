@@ -1,0 +1,509 @@
+'use server';
+
+import { revalidatePath } from 'next/cache';
+import { logActivityNonBlocking } from '@/lib/activity-log';
+import { getAuditUser } from '@/lib/audit-user';
+import { requirePermission } from '@/lib/server-permissions';
+import {
+  deleteDutyAllocation,
+  getDutyRoster,
+  getDutyRosterFilterOptions,
+  getDutyRosterForExport,
+  getDutyRosterFormOptions,
+  getDutyRosterHistory,
+  getDutySwapCandidates,
+  getStaffStandingAssignmentsForDuty,
+  replaceDutyStaff,
+  saveDutyAllocation,
+  swapDutyAllocations,
+  updateDutyAttendance
+} from '@/services/roster-services/duty-roster.service';
+import type {
+  GetDutyRosterParams,
+  ReplaceDutyPayload,
+  SaveRosterAllocationDraftPayload,
+  SwapDutyPayload,
+  UpdateDutyAttendancePayload
+} from '@/types/roster';
+
+function listParams(params: GetDutyRosterParams): GetDutyRosterParams {
+  return {
+    page: params.page ?? process.env.DEFAULT_PAGE ?? '0',
+    limit: params.limit ?? process.env.DEFAULT_PER_PAGE ?? '10',
+    department: params.department,
+    unit: params.unit,
+    roster: params.roster,
+    shiftTypeId: params.shiftTypeId,
+    staffId: params.staffId,
+    dutyDate: params.dutyDate,
+    view: params.view,
+    search: params.search
+  };
+}
+
+function revalidateDutyPaths() {
+  revalidatePath('/duty-roster');
+  revalidatePath('/shift-roster');
+}
+
+export async function getDutyRosterAction(params: GetDutyRosterParams) {
+  try {
+    await requirePermission('shift-roster', 'view');
+    const result = await getDutyRoster(listParams(params));
+    if (!result.success) {
+      throw new Error(
+        result.error?.message ?? 'Error getting data. Please try again later'
+      );
+    }
+    return {
+      isError: false,
+      data: {
+        data: result.data?.records ?? [],
+        totalRecords: result.data?.totalRecords ?? 0,
+        summary: result.data?.summary
+      },
+      errors: {}
+    };
+  } catch (error: any) {
+    console.error('getDutyRosterAction error', error);
+    return {
+      isError: true,
+      data: null,
+      errors: {
+        message: error.message ?? 'Error getting data. Please try again later'
+      }
+    };
+  }
+}
+
+export async function getDutyRosterFilterOptionsAction() {
+  try {
+    await requirePermission('shift-roster', 'view');
+    const result = await getDutyRosterFilterOptions();
+    if (!result.success || !result.data) {
+      throw new Error(
+        result.error?.message ?? 'Failed to load duty roster filters'
+      );
+    }
+    return {
+      isError: false,
+      data: result.data,
+      errors: {}
+    };
+  } catch (error: any) {
+    console.error('getDutyRosterFilterOptionsAction error:', error);
+    return {
+      isError: true,
+      data: null,
+      errors: {
+        message: error.message ?? 'Failed to load duty roster filters'
+      }
+    };
+  }
+}
+
+export async function getDutyRosterFormOptionsAction() {
+  try {
+    await requirePermission('shift-roster', 'view');
+    const result = await getDutyRosterFormOptions();
+    if (!result.success || !result.data) {
+      throw new Error(
+        result.error?.message ?? 'Failed to load duty roster form options'
+      );
+    }
+    return {
+      isError: false,
+      data: result.data,
+      errors: {}
+    };
+  } catch (error: any) {
+    console.error('getDutyRosterFormOptionsAction error:', error);
+    return {
+      isError: true,
+      data: null,
+      errors: {
+        message: error.message ?? 'Failed to load duty roster form options'
+      }
+    };
+  }
+}
+
+export async function getStaffStandingAssignmentsForDutyAction(
+  staffId: string,
+  dutyDate: Date | string
+) {
+  try {
+    await requirePermission('shift-roster', 'view');
+    const result = await getStaffStandingAssignmentsForDuty(staffId, dutyDate);
+    if (!result.success) {
+      throw new Error(
+        result.error?.message ?? 'Failed to load standing assignments'
+      );
+    }
+    return {
+      isError: false,
+      data: result.data ?? [],
+      errors: {}
+    };
+  } catch (error: any) {
+    console.error('getStaffStandingAssignmentsForDutyAction error:', error);
+    return {
+      isError: true,
+      data: null,
+      errors: {
+        message: error.message ?? 'Failed to load standing assignments'
+      }
+    };
+  }
+}
+
+export async function getDutySwapCandidatesAction(dutyDate: Date | string) {
+  try {
+    await requirePermission('shift-roster', 'view');
+    const result = await getDutySwapCandidates(dutyDate);
+    if (!result.success) {
+      throw new Error(
+        result.error?.message ?? 'Failed to load swap candidates'
+      );
+    }
+    return {
+      isError: false,
+      data: result.data ?? [],
+      errors: {}
+    };
+  } catch (error: any) {
+    console.error('getDutySwapCandidatesAction error:', error);
+    return {
+      isError: true,
+      data: null,
+      errors: {
+        message: error.message ?? 'Failed to load swap candidates'
+      }
+    };
+  }
+}
+
+export async function getDutyRosterHistoryAction(id: string) {
+  try {
+    await requirePermission('shift-roster', 'view');
+    const result = await getDutyRosterHistory(id);
+    if (!result.success) {
+      throw new Error(
+        result.error?.message ?? 'Unable to fetch duty roster history.'
+      );
+    }
+    return {
+      isError: false,
+      data: result.data ?? [],
+      errors: {}
+    };
+  } catch (error: any) {
+    console.error('getDutyRosterHistoryAction error:', error);
+    return {
+      isError: true,
+      data: null,
+      errors: {
+        message: error.message ?? 'Unable to fetch duty roster history.'
+      }
+    };
+  }
+}
+
+export async function getDutyRosterExport(params: GetDutyRosterParams) {
+  await requirePermission('shift-roster', 'view');
+
+  try {
+    const response = await getDutyRosterForExport(listParams(params));
+
+    if (!response.data?.length) {
+      return {
+        success: false,
+        message: 'No duty roster rows found',
+        data: [],
+        totalRecords: 0
+      };
+    }
+
+    return {
+      success: true,
+      data: response.data,
+      totalRecords: response.totalRecords
+    };
+  } catch (error: unknown) {
+    console.error('getDutyRosterExport error', error);
+    return {
+      success: false,
+      message:
+        error instanceof Error
+          ? error.message
+          : 'Error getting data. Please try again later',
+      data: [],
+      totalRecords: 0
+    };
+  }
+}
+
+export async function saveDutyAllocationAction(
+  data: SaveRosterAllocationDraftPayload
+) {
+  await requirePermission(
+    'shift-roster',
+    data.allocationId ? 'edit' : 'add'
+  );
+  try {
+    const auditUser = await getAuditUser();
+    const result = await saveDutyAllocation(data, auditUser);
+
+    if (!result.success) {
+      return {
+        isError: true,
+        errors: {
+          ...(result.error?.issues ?? {}),
+          message:
+            result.error?.message ??
+            'Something went wrong. Please try again later',
+          ...(result.error?.softWarnings
+            ? { softWarnings: result.error.softWarnings }
+            : {}),
+          ...(result.error?.requiresAck ? { requiresAck: true } : {})
+        },
+        data: {}
+      };
+    }
+
+    if (auditUser?.id) {
+      logActivityNonBlocking({
+        userId: auditUser.id,
+        action: data.allocationId
+          ? 'duty.roster.updated'
+          : 'duty.roster.assigned',
+        entityType: 'RosterAllocation',
+        entityId: result.data?.id,
+        importance: 'high',
+        metadata: { staffId: data.staffId }
+      });
+    }
+
+    revalidateDutyPaths();
+    return {
+      isError: false,
+      data: { saved: true, id: result.data?.id as string | undefined },
+      errors: {}
+    };
+  } catch (error: any) {
+    console.error('saveDutyAllocationAction error:', error);
+    return {
+      isError: true,
+      data: null,
+      errors: {
+        message: error.message ?? 'Something went wrong. Please try again later'
+      }
+    };
+  }
+}
+
+export async function swapDutyAllocationsAction(data: SwapDutyPayload) {
+  await requirePermission('shift-roster', 'edit');
+  try {
+    const auditUser = await getAuditUser();
+    const result = await swapDutyAllocations(data, auditUser);
+
+    if (!result.success) {
+      return {
+        isError: true,
+        errors: {
+          ...(result.error?.issues ?? {}),
+          message:
+            result.error?.message ??
+            'Something went wrong. Please try again later',
+          ...(result.error?.softWarnings
+            ? { softWarnings: result.error.softWarnings }
+            : {}),
+          ...(result.error?.requiresAck ? { requiresAck: true } : {})
+        },
+        data: {}
+      };
+    }
+
+    if (auditUser?.id) {
+      logActivityNonBlocking({
+        userId: auditUser.id,
+        action: 'duty.roster.swapped',
+        entityType: 'RosterAllocation',
+        entityId: data.allocationId,
+        importance: 'high',
+        metadata: {
+          staffId: data.staffId,
+          otherStaffId: data.otherStaffId
+        }
+      });
+    }
+
+    revalidateDutyPaths();
+    return {
+      isError: false,
+      data: { saved: true },
+      errors: {}
+    };
+  } catch (error: any) {
+    console.error('swapDutyAllocationsAction error:', error);
+    return {
+      isError: true,
+      data: null,
+      errors: {
+        message: error.message ?? 'Something went wrong. Please try again later'
+      }
+    };
+  }
+}
+
+export async function replaceDutyStaffAction(data: ReplaceDutyPayload) {
+  await requirePermission('shift-roster', 'edit');
+  try {
+    const auditUser = await getAuditUser();
+    const result = await replaceDutyStaff(data, auditUser);
+
+    if (!result.success) {
+      return {
+        isError: true,
+        errors: {
+          ...(result.error?.issues ?? {}),
+          message:
+            result.error?.message ??
+            'Something went wrong. Please try again later',
+          ...(result.error?.softWarnings
+            ? { softWarnings: result.error.softWarnings }
+            : {}),
+          ...(result.error?.requiresAck ? { requiresAck: true } : {})
+        },
+        data: {}
+      };
+    }
+
+    if (auditUser?.id) {
+      logActivityNonBlocking({
+        userId: auditUser.id,
+        action: 'duty.roster.replaced',
+        entityType: 'RosterAllocation',
+        entityId: data.allocationId,
+        importance: 'high',
+        metadata: {
+          staffId: data.staffId,
+          replacementStaffId: data.replacementStaffId
+        }
+      });
+    }
+
+    revalidateDutyPaths();
+    return {
+      isError: false,
+      data: { saved: true },
+      errors: {}
+    };
+  } catch (error: any) {
+    console.error('replaceDutyStaffAction error:', error);
+    return {
+      isError: true,
+      data: null,
+      errors: {
+        message: error.message ?? 'Something went wrong. Please try again later'
+      }
+    };
+  }
+}
+
+export async function updateDutyAttendanceAction(
+  data: UpdateDutyAttendancePayload
+) {
+  await requirePermission('shift-roster', 'edit');
+  try {
+    const auditUser = await getAuditUser();
+    const result = await updateDutyAttendance(data, auditUser);
+
+    if (!result.success) {
+      return {
+        isError: true,
+        errors:
+          result.error?.issues ?? {
+            message:
+              result.error?.message ??
+              'Something went wrong. Please try again later'
+          },
+        data: {}
+      };
+    }
+
+    if (auditUser?.id) {
+      logActivityNonBlocking({
+        userId: auditUser.id,
+        action: 'duty.roster.attendanceUpdated',
+        entityType: 'RosterAllocation',
+        entityId: data.allocationId,
+        importance: 'medium',
+        metadata: { attendance: data.attendance }
+      });
+    }
+
+    revalidateDutyPaths();
+    return {
+      isError: false,
+      data: { saved: true },
+      errors: {}
+    };
+  } catch (error: any) {
+    console.error('updateDutyAttendanceAction error:', error);
+    return {
+      isError: true,
+      data: null,
+      errors: {
+        message: error.message ?? 'Something went wrong. Please try again later'
+      }
+    };
+  }
+}
+
+export async function deleteDutyAllocationAction(id: string) {
+  await requirePermission('shift-roster', 'delete');
+  try {
+    const auditUser = await getAuditUser();
+    const result = await deleteDutyAllocation(id, auditUser);
+
+    if (!result.success) {
+      return {
+        isError: true,
+        errors: {
+          message:
+            result.error?.message ??
+            'Something went wrong. Please try again later'
+        },
+        data: {}
+      };
+    }
+
+    if (auditUser?.id) {
+      logActivityNonBlocking({
+        userId: auditUser.id,
+        action: 'duty.roster.deleted',
+        entityType: 'RosterAllocation',
+        entityId: id,
+        importance: 'high'
+      });
+    }
+
+    revalidateDutyPaths();
+    return {
+      isError: false,
+      data: { deleted: true },
+      errors: {}
+    };
+  } catch (error: any) {
+    console.error('deleteDutyAllocationAction error:', error);
+    return {
+      isError: true,
+      data: null,
+      errors: {
+        message: error.message ?? 'Something went wrong. Please try again later'
+      }
+    };
+  }
+}

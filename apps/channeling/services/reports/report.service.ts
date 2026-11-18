@@ -1,0 +1,185 @@
+'use server';
+
+import prisma from '@/lib/prisma';
+import { DoctorReportQuery, ChannelAgentReferenceBookReportQuery } from '@/types/report';
+import moment from 'moment';
+
+// Get Prisma types from the prisma instance
+type ExtractWhereInput<T> = T extends { where?: infer W } ? W : never;
+type PrismaDoctorWhereInput = ExtractWhereInput<NonNullable<Parameters<typeof prisma.doctor.findMany>[0]>>;
+type PrismaSessionWhereInput = ExtractWhereInput<NonNullable<Parameters<typeof prisma.session.findMany>[0]>>;
+type PrismaAgencyBookWhereInput = ExtractWhereInput<NonNullable<Parameters<typeof prisma.agencyBook.findMany>[0]>>;
+
+// ==== GET DOCTOR REPORT DATA ==== //
+export const getDoctorReportDataService = async ({
+  date,
+  doctorName,
+  doctorCode
+}: DoctorReportQuery) => {
+  try {
+    // Build where clause for filtering
+    const whereClause: PrismaDoctorWhereInput = {};
+
+    // Apply doctor name filter
+    if (doctorName && doctorName.trim() !== '') {
+      whereClause.name = {
+        contains: doctorName.trim(),
+        mode: 'insensitive'
+      };
+    }
+
+    // Apply doctor code filter
+    if (doctorCode && doctorCode.trim() !== '') {
+      whereClause.code = {
+        contains: doctorCode.trim(),
+        mode: 'insensitive'
+      };
+    }
+
+    // Fetch all doctors with their related data in a single query
+    // Note: Date filter is for future use with sessions/transactions
+    const doctors = await prisma.doctor.findMany({
+      where: whereClause,
+      include: {
+        createdUser: true,
+        updatedUser: true
+      },
+      orderBy: {
+        createdAt: 'desc'
+      }
+    });
+
+    return {
+      success: true,
+      data: doctors,
+      totalRecords: doctors.length
+    };
+  } catch (error: unknown) {
+    console.error('getDoctorReportDataService error', error);
+    const errorMessage = error instanceof Error ? error.message : 'Error getting doctor report data';
+    throw new Error(errorMessage);
+  }
+};
+
+// ==== GET CHANNEL AGENT REFERENCE BOOK REPORT DATA ==== //
+export const getChannelAgentReferenceBookReportDataService = async ({
+  fromDate,
+  toDate,
+  agencyId,
+  bookNumber,
+  createdBy,
+  updatedBy,
+  status
+}: ChannelAgentReferenceBookReportQuery) => {
+  try {
+    const whereClause: PrismaAgencyBookWhereInput = {};
+
+    // Date range filter (required)
+    const startOfDay = moment(fromDate).startOf('day').toDate();
+    const endOfDay = moment(toDate).endOf('day').toDate();
+
+    whereClause.createdAt = {
+      gte: startOfDay,
+      lte: endOfDay,
+    };
+
+    // Agency filter (optional)
+    if (agencyId && agencyId !== '__all__') {
+      whereClause.agencyId = agencyId;
+    }
+
+    // Book number filter (optional)
+    if (bookNumber && bookNumber.trim() !== '') {
+      whereClause.bookNumber = {
+        contains: bookNumber.trim(),
+        mode: 'insensitive'
+      };
+    }
+
+    // Created by user filter (supports selected user id or typed name/username)
+    if (createdBy && createdBy.trim() !== '') {
+      const q = createdBy.trim();
+      whereClause.createdUser = {
+        is: {
+          OR: [
+            { id: q },
+            { name: { contains: q, mode: 'insensitive' } },
+            { username: { contains: q, mode: 'insensitive' } }
+          ]
+        }
+      };
+    }
+
+    // Updated by user filter (supports selected user id or typed name/username)
+    if (updatedBy && updatedBy.trim() !== '') {
+      const q = updatedBy.trim();
+      whereClause.updatedUser = {
+        is: {
+          OR: [
+            { id: q },
+            { name: { contains: q, mode: 'insensitive' } },
+            { username: { contains: q, mode: 'insensitive' } }
+          ]
+        }
+      };
+    }
+
+    // Status filter (1 = Active, 0 = Inactive)
+    if (status && status !== '__all__') {
+      const statusNum = Number(status);
+      if (!Number.isNaN(statusNum)) {
+        whereClause.status = statusNum;
+      }
+    }
+
+    const records = await prisma.agencyBook.findMany({
+      where: whereClause,
+      include: {
+        agency: {
+          select: {
+            id: true,
+            name: true
+          }
+        },
+        createdUser: true,
+        updatedUser: true
+      },
+      orderBy: {
+        createdAt: 'desc'
+      }
+    });
+
+    const recordsWithUtilizedCount = await Promise.all(
+      records.map(async (book) => {
+        const utilizedPageCount = await prisma.booking.count({
+          where: {
+            agencyId: book.agencyId ?? undefined,
+            agencyRef: {
+              startsWith: book.bookNumber
+            },
+            status: { in: [0, 1] }
+          }
+        });
+
+        return {
+          ...book,
+          utilizedPageCount
+        };
+      })
+    );
+
+    const totalRecords = await prisma.agencyBook.count({
+      where: whereClause
+    });
+
+    return {
+      success: true,
+      data: recordsWithUtilizedCount,
+      totalRecords
+    };
+  } catch (error: unknown) {
+    console.error('getChannelAgentReferenceBookReportDataService error', error);
+    const errorMessage = error instanceof Error ? error.message : 'Error getting channel agent reference book report data';
+    throw new Error(errorMessage);
+  }
+};

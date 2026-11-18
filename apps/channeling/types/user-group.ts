@@ -1,0 +1,210 @@
+import type { ResourceWithOptionalActions } from "@archmage/shared";
+import { BOOKING_PAYMENT_METHOD_ACTIONS, BOOKING_PAYMENT_RESOURCE } from "@/lib/booking-payment-permissions";
+import { REPORT_PERMISSION_ACTIONS } from "@/lib/report-privileges";
+
+export {
+  type PermissionAction,
+  type ResourcePermissions,
+  type Permissions,
+  type TwoFactorMethodId,
+  type UserGroup,
+  type GetUserGroupsParams,
+  type GetUserGroupsQuery,
+  type GetUserGroupsReturn,
+  type ResourceWithOptionalActions,
+  PERMISSION_ACTIONS,
+} from "@archmage/shared";
+
+// Available resources in the system
+export const RESOURCES: ResourceWithOptionalActions[] = [
+  { id: "users", name: "Users" },
+  { id: "user-groups", name: "User Groups" },
+  {
+    id: "dashboard",
+    name: "Dashboard",
+    customActions: [
+      { id: "shift-status", name: "Active shift" },
+      { id: "today-bookings", name: "Today's bookings" },
+      { id: "today-revenue", name: "Today's revenue" },
+      { id: "sessions-today", name: "Sessions today" },
+      { id: "recent-bookings", name: "Recent bookings" },
+      { id: "queue-snapshot", name: "Queue snapshot" },
+    ],
+  },
+  { id: "channel-booking", name: "Channel Booking" },
+  { id: "channel-room-dashboard", name: "Channel Room Dashboard", actions: ["view"] },
+  {
+    id: BOOKING_PAYMENT_RESOURCE,
+    name: "Channel Booking – Payment methods",
+    customActions: BOOKING_PAYMENT_METHOD_ACTIONS.map((action) => ({
+      id: action.id,
+      name: action.name,
+    })),
+  },
+  { id: "channel-booking-date", name: "Channel Booking – Change Date", actions: ["view"], actionLabels: { view: "Change Date" } },
+  {
+    id: "channel-booking-block",
+    name: "Channel Booking – Block numbers",
+    actions: ["view"],
+    actionLabels: { view: "Block / unblock appointment numbers" },
+  },
+  {
+    id: "channel-booking-hidden-sessions",
+    name: "Channel Booking – See hidden sessions",
+    actions: ["view"],
+    actionLabels: { view: "See hidden sessions" },
+  },
+  {
+    id: "channel-booking-forced-booking",
+    name: "Channel Booking – Forced bookings",
+    actions: ["view"],
+    actionLabels: { view: "Book into blocked numbers" },
+  },
+  { id: "shift", name: "Shift (Channel Booking)" },
+  {
+    id: "handover",
+    name: "Handovers",
+    customActions: [
+      { id: "view", name: "View" },
+      { id: "view-any", name: "View any handover" },
+    ],
+  },
+  { id: "shifts", name: "Shifts" },
+  { id: "doctors", name: "Doctors" },
+  { id: "sessions", name: "Sessions" },
+  { id: "doctor-sessions", name: "Doctor Sessions" },
+  {
+    id: "bulk-price-change",
+    name: "Bulk Price Change",
+    actions: ["view", "edit", "delete"],
+  },
+  { id: "departments", name: "Departments" },
+  { id: "patients", name: "Patients" },
+  { id: "staff", name: "Staff" },
+  { id: "tags", name: "Tags" },
+  { id: "zones", name: "Zones" },
+  { id: "rooms", name: "Rooms" },
+  { id: "specialities", name: "Specialities" },
+  { id: "locations", name: "Locations" },
+  { id: "agency-books", name: "Agency Books" },
+  {
+    id: "agencies",
+    name: "Agencies",
+    customActions: [
+      { id: "view", name: "View" },
+      { id: "add", name: "Add" },
+      { id: "edit", name: "Edit" },
+      { id: "delete", name: "Delete" },
+      { id: "edit-credit-limit", name: "Edit Credit Limit" },
+      { id: "edit-allowed-credit-limit", name: "Edit Allowed Credit Limit" },
+    ],
+  },
+  { id: "credit-customers", name: "Credit Customers" },
+  { id: "discounts", name: "Discounts" },
+  { id: "doctor-leaves", name: "Doctor Leave" },
+  { id: "sms-playground", name: "SMS Playground" },
+  { id: "sms-templates", name: "SMS Templates" },
+  { id: "sms-activity", name: "SMS Activity", actions: ["view"] },
+  {
+    id: "reports",
+    name: "Reports",
+    customActions: REPORT_PERMISSION_ACTIONS,
+  },
+  { id: "api-clients", name: "API Clients" },
+  { id: "knowledge-hub", name: "Knowledge Hub", actions: ["view"] },
+  { id: "server-monitor", name: "Server Monitor", actions: ["view"] },
+  { id: "database-seeds", name: "Database Seeds", actions: ["view"] },
+  { id: "run-e2e", name: "Run End-to-end Tests", actions: ["view"] },
+  {
+    id: "bulk-cashier",
+    name: "Bulk Cashier",
+    customActions: [
+      { id: "float-view", name: "Float View" },
+      { id: "float-approve", name: "Float Approve" },
+      { id: "bulk-cashier-dashboard", name: "Bulk Cashier" },
+      { id: "float-request", name: "Float Request" },
+      { id: "my-till", name: "My Till" },
+    ],
+  },
+  { id: "float-transfers", name: "Float Transfers" },
+  { id: "doctor-payments", name: "Doctor Payments" },
+  { id: "accounting", name: "Accounting" },
+  {
+    id: "ledger",
+    name: "Ledger",
+    customActions: [
+      { id: "view", name: "View" },
+      { id: "add", name: "Add all types" },
+      { id: "add-branch-income", name: "Manage Branch Income" },
+      { id: "add-branch-expense", name: "Manage Branch Expense" },
+      { id: "add-agency-debit-note", name: "Manage Agency Debit Note" },
+      { id: "add-agency-credit-note", name: "Manage Agency Credit Note" },
+      { id: "add-agency-deposit", name: "Manage Agency Deposit" },
+      { id: "add-agency-withdraw", name: "Manage Agency Withdraw" },
+      { id: "add-bank-deposit", name: "Add Bank Deposit" },
+      { id: "add-cash-voucher", name: "Add Cash Voucher" },
+      { id: "edit", name: "Edit" },
+      { id: "delete", name: "Delete" },
+      { id: "cancel", name: "Cancel entries" },
+      { id: "cancel-bank-deposit", name: "Cancel Bank Deposits" },
+      { id: "cancel-cash-voucher", name: "Cancel Cash Vouchers" },
+    ],
+  },
+  { id: "bank-accounts", name: "Bank Accounts" },
+  {
+    id: "receipt-templates",
+    name: "Receipt Templates",
+    actions: ["view", "edit"],
+  },
+  { id: "receipt-manager", name: "Receipt Manager", actions: ["view"] },
+  {
+    id: "reconciliation",
+    name: "Reconciliation",
+    customActions: [
+      { id: "view", name: "View" },
+      { id: "submit-for-reconciliation", name: "Submit For Reconciliation" },
+      { id: "approve-reconciliation", name: "Approve Reconciliation" },
+      { id: "post-approved-reconciliation", name: "Post On Approved Reconciliation" },
+    ],
+  },
+  {
+    id: "approvals",
+    name: "Approval Center",
+    customActions: [
+      { id: "view", name: "View" },
+      { id: "approve-channel-cancel", name: "Approve Channel Cancellations" },
+      { id: "approve-channel-refund", name: "Approve Channel Refunds" },
+      { id: "approve-bank-deposit", name: "Approve Bank Deposits" },
+      { id: "approve-cash-voucher", name: "Approve Cash Vouchers" },
+    ],
+  },
+  {
+    // Management app (apps/management): who may use it at all. Admins always can.
+    id: "management-app",
+    name: "Management App",
+    customActions: [{ id: "access", name: "Sign in to Management app" }],
+  },
+  {
+    // Management app Overview (apps/management) — one switch per channel-insights module.
+    id: "management-overview",
+    name: "Management App Overview",
+    customActions: [
+      { id: "revenue", name: "Revenue" },
+      { id: "bookings", name: "Bookings & channel mix" },
+      { id: "top-doctors", name: "Top doctors" },
+      { id: "session-fill", name: "Session fill" },
+      { id: "booking-behaviour", name: "Booking behaviour" },
+      { id: "leakage", name: "Cancellations, no-shows & unpaid" },
+      { id: "specialities", name: "Speciality demand" },
+    ],
+  },
+];
+
+/** Extended permission actions specific to Bulk Cashier (use with customActions). */
+export const BULK_CASHIER_ACTIONS = [
+  { id: "float-view", name: "Float View" },
+  { id: "float-approve", name: "Float Approve" },
+  { id: "bulk-cashier-dashboard", name: "Bulk Cashier" },
+  { id: "float-request", name: "Float Request" },
+  { id: "my-till", name: "My Till" },
+] as const;
