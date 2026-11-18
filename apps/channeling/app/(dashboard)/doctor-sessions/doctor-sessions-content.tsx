@@ -15,6 +15,7 @@ import {
 import FilterSection from './filter-section';
 import AddBtnSection from './add-btn-section';
 import DoctorSessionsGroupedList from './doctor-sessions-grouped-list';
+import { DoctorSessionOverlapScanDialog } from './overlap-scan-dialog';
 import { Loader2 } from 'lucide-react';
 import type { DoctorSession } from '@/types/doctor.session';
 
@@ -115,6 +116,7 @@ export default function DoctorSessionsContent({
             onFilterChange={() => setFilterChanged(true)}
           />
           <div className="flex items-center gap-2">
+            <DoctorSessionOverlapScanDialog />
             <Button variant="outline" size="sm" asChild>
               <Link href="/doctor-sessions/bulk-price-change">Bulk Price Change</Link>
             </Button>
