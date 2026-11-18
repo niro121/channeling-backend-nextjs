@@ -170,6 +170,7 @@ export const KNOWN_ACTIVITY_ACTIONS: string[] = [
   'reports.bank-deposits.exported',
   'reports.cash-vouchers.exported',
   'reports.completed-handovers.exported',
+  'reports.unreconciled-handovers.exported',
   'reports.approval-requests.exported',
   'reports.agent-collection-receipt.exported',
   'shift.handover.submitted',
