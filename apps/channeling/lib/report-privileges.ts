@@ -380,6 +380,16 @@ export const REPORT_PRIVILEGES: ReportPrivilege[] = [
     rank: 34,
   },
   {
+    id: "40c",
+    action: "unreconciled-handovers",
+    name: "Unreconciled Handover Balance",
+    description:
+      "For one user, lists handover receipt lines that were never deducted from the till, with payment-method totals compared to the current till balance.",
+    route: "/reports/unreconciled-handovers",
+    category: "Cashier",
+    rank: 34.5,
+  },
+  {
     id: "41",
     action: "approval-requests",
     name: "Approval Requests Report",
@@ -434,6 +444,7 @@ export const REPORTS_WITH_USER_OPTIONS = [
   "bank-deposits",
   "cash-vouchers",
   "completed-handovers",
+  "unreconciled-handovers",
   "approval-requests",
   "agent-history-credit-limit-update",
 ] as const
