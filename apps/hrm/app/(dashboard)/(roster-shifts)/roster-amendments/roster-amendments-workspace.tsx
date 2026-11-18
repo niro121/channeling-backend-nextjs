@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { CustomAlertDialog, useToast } from '@archmage/ui';
 import { CommonManagerHeader } from '@/components/common/common-manager-header';
@@ -64,23 +64,54 @@ function RosterAmendmentsWorkspaceInner({
     closeHistorySheet
   } = useRosterAmendmentsUi();
   const [confirmLoading, setConfirmLoading] = useState(false);
+  const [softWarnOpen, setSoftWarnOpen] = useState(false);
+  const [softWarnDescription, setSoftWarnDescription] = useState('');
+  const pendingApproveAckRef = useRef(false);
 
-  const handleApprove = async () => {
+  const handleApprove = async (acknowledgedWarnings = false) => {
     setConfirmLoading(true);
     const result = await approveRosterAmendmentsAction(
-      selectedRecords.map((row) => row.id)
+      selectedRecords.map((row) => row.id),
+      null,
+      acknowledgedWarnings
     );
     setConfirmLoading(false);
+
     if (result.isError) {
+      const errorMap = result.errors as Record<
+        string,
+        string | string[] | boolean | undefined
+      >;
+      if (errorMap.requiresAck) {
+        const softWarnings = Array.isArray(errorMap.softWarnings)
+          ? errorMap.softWarnings.filter(
+              (item): item is string => typeof item === 'string'
+            )
+          : [];
+        setSoftWarnDescription(
+          softWarnings.join(' ') ||
+            (typeof errorMap.message === 'string'
+              ? errorMap.message
+              : 'One or more selected staff have leave or weekly off on the amendment date. Continue anyway?')
+        );
+        closeConfirm();
+        setSoftWarnOpen(true);
+        return;
+      }
+
       toast({
         variant: 'destructive',
         title: 'Error',
         description:
-          (result.errors as { message?: string })?.message ??
-          'Could not approve selected amendments.'
+          (typeof errorMap.message === 'string'
+            ? errorMap.message
+            : undefined) ?? 'Could not approve selected amendments.'
       });
       return;
     }
+
+    pendingApproveAckRef.current = false;
+    setSoftWarnOpen(false);
     toast({
       variant: 'success',
       title: 'Success',
@@ -163,13 +194,16 @@ function RosterAmendmentsWorkspaceInner({
       <CustomAlertDialog
         open={confirmKind === 'approve'}
         handleVisibilityChange={(open) => {
-          if (!open) closeConfirm();
+          if (!open) {
+            pendingApproveAckRef.current = false;
+            closeConfirm();
+          }
         }}
         loading={confirmLoading}
         title="Approve selected amendments?"
         description="Approved amendments immediately update the published duty roster and notify affected staff and supervisors."
         handleContinue={() => {
-          void handleApprove();
+          void handleApprove(pendingApproveAckRef.current);
         }}
       />
 
@@ -183,6 +217,24 @@ function RosterAmendmentsWorkspaceInner({
         description="Rejected amendments leave the original roster unchanged. Remarks are mandatory for audit."
         handleContinue={() => {
           void handleReject();
+        }}
+      />
+
+      <CustomAlertDialog
+        open={softWarnOpen}
+        title="Confirm roster warning"
+        description={softWarnDescription}
+        loading={confirmLoading}
+        handleVisibilityChange={(nextOpen) => {
+          if (!nextOpen) {
+            pendingApproveAckRef.current = false;
+          }
+          setSoftWarnOpen(nextOpen);
+        }}
+        handleContinue={async () => {
+          pendingApproveAckRef.current = true;
+          setSoftWarnOpen(false);
+          await handleApprove(true);
         }}
       />
     </div>

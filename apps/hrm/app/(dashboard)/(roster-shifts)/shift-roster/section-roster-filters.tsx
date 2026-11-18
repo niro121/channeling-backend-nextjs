@@ -7,8 +7,7 @@ import {
   Combobox,
   DateRangePicker,
   Input,
-  Label,
-  useToast
+  Label
 } from '@archmage/ui';
 import { FilterWrapper } from '@/app/(dashboard)/filter-wrapper';
 import type { RosterFilterOption } from '@/types/roster';
@@ -17,6 +16,8 @@ export type RosterFilterValues = {
   departmentId: string;
   unitId: string;
   rosterId: string;
+  designationId: string;
+  staffGradeId: string;
   fromDate: string;
   toDate: string;
   staffSearch: string;
@@ -27,10 +28,14 @@ type SectionRosterFiltersProps = {
   departmentOptions: RosterFilterOption[];
   unitOptions: RosterFilterOption[];
   rosterOptions: RosterFilterOption[];
+  designationOptions: RosterFilterOption[];
+  staffGradeOptions: RosterFilterOption[];
   onCopyPreviousWeek: (values: {
     department?: string;
     unit?: string;
     roster?: string;
+    designation?: string;
+    staffGrade?: string;
     fromDate: string;
     toDate: string;
   }) => void;
@@ -38,28 +43,33 @@ type SectionRosterFiltersProps = {
     department?: string;
     unit?: string;
     roster?: string;
+    designation?: string;
+    staffGrade?: string;
     fromDate: string;
     toDate: string;
   }) => void;
+  onPrintBlank: () => void | Promise<void>;
+  onPrintFilled: () => void | Promise<void>;
   onHideStaffMeta: () => void;
   onShowStaffMeta: () => void;
   staffMetaVisible: boolean;
 };
-
-const LATER = 'Will be wired in a later phase.';
 
 function SectionRosterFiltersInner({
   initial = {},
   departmentOptions,
   unitOptions,
   rosterOptions,
+  designationOptions,
+  staffGradeOptions,
   onCopyPreviousWeek,
   onCopyPreviousMonth,
+  onPrintBlank,
+  onPrintFilled,
   onHideStaffMeta,
   onShowStaffMeta,
   staffMetaVisible
 }: SectionRosterFiltersProps) {
-  const { toast } = useToast();
   const [draftDates, setDraftDates] = useState({
     fromDate: initial.fromDate ?? '',
     toDate: initial.toDate ?? ''
@@ -67,29 +77,41 @@ function SectionRosterFiltersInner({
   const [draftMeta, setDraftMeta] = useState({
     department: initial.departmentId ?? '',
     unit: initial.unitId ?? '',
-    roster: initial.rosterId ?? ''
+    roster: initial.rosterId ?? '',
+    designation: initial.designationId ?? '',
+    staffGrade: initial.staffGradeId ?? ''
   });
+  const [printing, setPrinting] = useState<'blank' | 'filled' | null>(null);
 
   const initialValues = {
     department: initial.departmentId ?? '',
     unit: initial.unitId ?? '',
     roster: initial.rosterId ?? '',
+    designation: initial.designationId ?? '',
+    staffGrade: initial.staffGradeId ?? '',
     fromDate: initial.fromDate ?? '',
     toDate: initial.toDate ?? '',
     search: initial.staffSearch ?? ''
-  };
-
-  const notify = (title: string) => {
-    toast({ title, description: LATER });
   };
 
   const workflowPayload = () => ({
     department: draftMeta.department || undefined,
     unit: draftMeta.unit || undefined,
     roster: draftMeta.roster || undefined,
+    designation: draftMeta.designation || undefined,
+    staffGrade: draftMeta.staffGrade || undefined,
     fromDate: draftDates.fromDate,
     toDate: draftDates.toDate
   });
+
+  const runPrint = async (mode: 'blank' | 'filled') => {
+    setPrinting(mode);
+    try {
+      await (mode === 'blank' ? onPrintBlank() : onPrintFilled());
+    } finally {
+      setPrinting(null);
+    }
+  };
 
   return (
     <div className="rounded-lg border border-border bg-card p-4 shadow-sm">
@@ -111,7 +133,9 @@ function SectionRosterFiltersInner({
             setDraftMeta({
               department: values.department ?? '',
               unit: values.unit ?? '',
-              roster: values.roster ?? ''
+              roster: values.roster ?? '',
+              designation: values.designation ?? '',
+              staffGrade: values.staffGrade ?? ''
             });
           }}
           searchButton={{
@@ -121,34 +145,72 @@ function SectionRosterFiltersInner({
         >
           {({ values, setValue }) => (
             <div className="flex w-full flex-wrap items-end gap-3">
-              <Combobox
-                label="Department"
-                options={departmentOptions}
-                value={values.department ?? ''}
-                defaultValue=""
-                onChange={(value) => setValue('department', value)}
-                clearable
-                triggerClassName="self-end"
-              />
-              <Combobox
-                label="Unit"
-                options={unitOptions}
-                value={values.unit ?? ''}
-                defaultValue=""
-                onChange={(value) => setValue('unit', value)}
-                clearable
-                triggerClassName="self-end"
-              />
-              <Combobox
-                label="Roster"
-                options={rosterOptions}
-                value={values.roster ?? ''}
-                defaultValue=""
-                onChange={(value) => setValue('roster', value)}
-                clearable
-                triggerClassName="self-end"
-              />
-              <div className="flex flex-col gap-1">
+              <div className="space-y-2">
+                <Label className="text-xs uppercase text-muted-foreground">
+                  Select Department
+                </Label>
+                <Combobox
+                  label="Department"
+                  options={departmentOptions}
+                  value={values.department ?? ''}
+                  defaultValue=""
+                  onChange={(value) => setValue('department', value)}
+                  clearable
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs uppercase text-muted-foreground">
+                  Select Unit / Room
+                </Label>
+                <Combobox
+                  label="Unit / Room"
+                  options={unitOptions}
+                  value={values.unit ?? ''}
+                  defaultValue=""
+                  onChange={(value) => setValue('unit', value)}
+                  clearable
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs uppercase text-muted-foreground">
+                  Select Roster
+                </Label>
+                <Combobox
+                  label="Roster"
+                  options={rosterOptions}
+                  value={values.roster ?? ''}
+                  defaultValue=""
+                  onChange={(value) => setValue('roster', value)}
+                  clearable
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs uppercase text-muted-foreground">
+                  Select Designation
+                </Label>
+                <Combobox
+                  label="Designation"
+                  options={designationOptions}
+                  value={values.designation ?? ''}
+                  defaultValue=""
+                  onChange={(value) => setValue('designation', value)}
+                  clearable
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs uppercase text-muted-foreground">
+                  Select Staff Grade
+                </Label>
+                <Combobox
+                  label="Staff Grade"
+                  options={staffGradeOptions}
+                  value={values.staffGrade ?? ''}
+                  defaultValue=""
+                  onChange={(value) => setValue('staffGrade', value)}
+                  clearable
+                />
+              </div>
+              <div className="flex flex-col">
                 <Label className="text-xs uppercase text-muted-foreground">
                   Date Range
                 </Label>
@@ -229,20 +291,22 @@ function SectionRosterFiltersInner({
             size="sm"
             variant="outline"
             className="h-9 gap-1.5"
-            onClick={() => notify('Print Blank Roster')}
+            disabled={printing !== null}
+            onClick={() => void runPrint('blank')}
           >
             <Printer className="h-3.5 w-3.5" />
-            Print Blank Roster
+            {printing === 'blank' ? 'Printing…' : 'Print Blank Roster'}
           </Button>
           <Button
             type="button"
             size="sm"
             variant="outline"
             className="h-9 gap-1.5"
-            onClick={() => notify('Print Filled Roster')}
+            disabled={printing !== null}
+            onClick={() => void runPrint('filled')}
           >
             <Printer className="h-3.5 w-3.5" />
-            Print Filled Roster
+            {printing === 'filled' ? 'Printing…' : 'Print Filled Roster'}
           </Button>
         </div>
       </div>

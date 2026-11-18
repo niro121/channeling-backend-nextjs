@@ -8,6 +8,7 @@ import { usePermissions } from '@/components/hooks/use-permissions';
 import { deleteNightShiftAction } from '@/app/actions/roster-actions/night-shift.actions';
 import type { NightShiftRecord } from '@/types/roster';
 import { useNightShiftsUi } from './night-shifts-ui-context';
+import { buttonStyles } from '@/lib/utils/common-styles';
 
 type NightShiftRecordActionsProps = {
   record: NightShiftRecord;
@@ -109,10 +110,7 @@ export default function NightShiftRecordActions({
         handleContinue={() => {
           void handleDelete();
         }}
-        className={{
-          actionButton:
-            'bg-destructive text-destructive-foreground hover:bg-destructive/90 hover:text-destructive-foreground/90'
-        }}
+        className={{ actionButton: buttonStyles.delete.danger }}
       />
     </>
   );

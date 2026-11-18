@@ -548,9 +548,13 @@ export default function SheetAssignmentForm({
                       id="rotationPatternId"
                       placeholder="Rotation Pattern"
                       value={formik.values.rotationPatternId}
-                      onChange={(value) =>
-                        formik.setFieldValue('rotationPatternId', value)
-                      }
+                      onChange={(value) => {
+                        formik.setFieldValue('rotationPatternId', value);
+                        // Phase E1 — Auto Assign supports Fixed only.
+                        if (value !== 'fixed') {
+                          formik.setFieldValue('autoAssign', false);
+                        }
+                      }}
                       required
                       options={[...SHIFT_ASSIGNMENT_ROTATION_PATTERNS]}
                       styleClasses={fieldStyleClasses}
@@ -601,27 +605,48 @@ export default function SheetAssignmentForm({
                     />
                   </div>
 
-                  <div className="flex items-center justify-between gap-4 rounded-lg border border-border px-4 py-3">
-                    <div className="min-w-0 space-y-0.5">
-                      <Label
-                        htmlFor="autoAssign"
-                        className="cursor-pointer text-sm font-semibold text-foreground"
-                      >
-                        Auto Assign
-                      </Label>
-                      <p className="text-xs text-muted-foreground">
-                        Generate roster entries automatically from the rotation
-                        pattern.
-                      </p>
+                  <div className="space-y-2 rounded-lg border border-border px-4 py-3">
+                    <div className="flex items-center justify-between gap-4">
+                      <div className="min-w-0 space-y-0.5">
+                        <Label
+                          htmlFor="autoAssign"
+                          className="cursor-pointer text-sm font-semibold text-foreground"
+                        >
+                          Auto Assign
+                        </Label>
+                        <p className="text-xs text-muted-foreground">
+                          Marks this Fixed standing rule as eligible for draft
+                          cell generation. Does not create duties by itself.
+                        </p>
+                      </div>
+                      <Switch
+                        id="autoAssign"
+                        checked={
+                          formik.values.rotationPatternId === 'fixed' &&
+                          formik.values.autoAssign
+                        }
+                        disabled={formik.values.rotationPatternId !== 'fixed'}
+                        onCheckedChange={(checked) =>
+                          formik.setFieldValue('autoAssign', checked)
+                        }
+                        className="shrink-0"
+                      />
                     </div>
-                    <Switch
-                      id="autoAssign"
-                      checked={formik.values.autoAssign}
-                      onCheckedChange={(checked) =>
-                        formik.setFieldValue('autoAssign', checked)
-                      }
-                      className="shrink-0"
-                    />
+                    {formik.values.rotationPatternId !== 'fixed' ? (
+                      <p className="text-xs text-amber-800">
+                        Auto Assign currently supports Fixed rotation only.
+                        Other patterns will be available in a later phase.
+                      </p>
+                    ) : formik.values.autoAssign ? (
+                      <p className="text-xs text-muted-foreground">
+                        Next: on Shift Roster, set the date range/filters and
+                        click <span className="font-medium">Fill New</span>, or
+                        use <span className="font-medium">Auto Assign All</span>{' '}
+                        here. Only <span className="font-medium">active</span>{' '}
+                        Fixed rules with Auto Assign on are filled; empty days
+                        only.
+                      </p>
+                    ) : null}
                   </div>
 
                   <div className="grid grid-cols-1 gap-2 rounded-lg border border-border bg-muted/40 px-3 py-2.5 text-xs text-muted-foreground sm:grid-cols-2">

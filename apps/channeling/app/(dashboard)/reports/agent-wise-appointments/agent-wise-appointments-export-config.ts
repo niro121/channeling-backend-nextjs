@@ -24,6 +24,10 @@ export const AWA_DETAIL_PDF_HEADERS = [
 
 export const AWA_DETAIL_PDF_COL_PERCENTS = [4, 14, 13, 12, 12, 14, 12, 19] as const;
 
+export function isAwaReversalBill(statusLabel: string | undefined): boolean {
+  return statusLabel === 'Cancel' || statusLabel === 'Refund';
+}
+
 export type AwaDetailCompactRow = {
   no: string;
   agent: string;
@@ -33,6 +37,7 @@ export type AwaDetailCompactRow = {
   patient: string;
   creator: string;
   fees: string;
+  isReversal?: boolean;
   isTotal?: boolean;
 };
 
@@ -46,6 +51,7 @@ export function mapAwaDetailCompactRow(
     consultant: row.consultantNameWithCode || '—',
     appointment: `${row.appointmentDateLabel || '—'}\n${row.appointmentTimeLabel || '—'}\nNo. ${row.appointmentNo}`,
     billStatus: `${row.billNumber || '—'}\n${row.statusLabel || '—'}`,
+    isReversal: isAwaReversalBill(row.statusLabel),
     patient: `${row.patientName || '—'}\n${row.patientPhone || '—'}`,
     creator: row.creatorLabel || '—',
     fees: `Hosp ${formatReceiptAmount(row.hospitalFee)}\nDoc ${formatReceiptAmount(row.doctorFee)}\nDisc ${formatReceiptAmount(row.discount)}\nTotal ${formatReceiptAmount(row.totalFee)}`,

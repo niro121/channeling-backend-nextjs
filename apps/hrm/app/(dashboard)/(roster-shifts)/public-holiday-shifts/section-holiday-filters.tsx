@@ -5,7 +5,8 @@ import { format } from 'date-fns';
 import {
   Combobox,
   CustomDatePickerField,
-  Label
+  Label,
+  Selector
 } from '@archmage/ui';
 import { FilterWrapper } from '@/app/(dashboard)/filter-wrapper';
 import type { RosterFilterOption } from '@/types/roster';
@@ -182,13 +183,13 @@ function SectionHolidayFiltersInner({
               <Label className="text-xs uppercase text-muted-foreground">
                 Select Approval Status
               </Label>
-              <Combobox
-                label="Approval Status"
+              <Selector
+                label="All Statuses"
                 options={statusOptions}
-                value={values.status ?? ''}
-                defaultValue=""
+                value={values.status || '__all__'}
+                defaultValue="__all__"
                 onChange={(value) => setValue('status', value)}
-                clearable
+                className={{ trigger: 'w-full font-normal' }}
               />
             </div>
           </div>
