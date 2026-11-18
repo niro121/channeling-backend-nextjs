@@ -62,6 +62,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { useToast } from '@/components/hooks/use-toast';
+import { usePermissions } from '@/components/hooks/use-permissions';
 import { InventoryIcon, InventoryIconPicker, InventoryItemVisual } from '@/components/inventory-icon';
 import { ConditionBadge, InventoryUnitDialog } from '@/components/inventory-unit-dialog';
 import {
@@ -84,8 +85,6 @@ import { ItemDialog } from './item-dialog';
 const ALL = '__all__';
 const PAGE = 200;
 
-type Perms = { canAdd: boolean; canEdit: boolean; canDelete: boolean; canViewBoard: boolean };
-
 type Confirm = { title: string; description: string; run: () => Promise<{ success: boolean; message?: string }> };
 
 export function InventoryManager({
@@ -93,14 +92,19 @@ export function InventoryManager({
   units,
   categories,
   locations,
-  perms,
 }: {
   items: InventoryItemRow[];
   units: InventoryUnitRow[];
   categories: InventoryCategoryRow[];
   locations: OptionRow[];
-  perms: Perms;
 }) {
+  const { has, canAccess } = usePermissions();
+  const perms = {
+    canAdd: has('inventory', 'add'),
+    canEdit: has('inventory', 'edit'),
+    canDelete: has('inventory', 'delete'),
+    canViewBoard: canAccess('/room-inventory'),
+  };
   const router = useRouter();
   const { toast } = useToast();
   const [pending, startTransition] = useTransition();

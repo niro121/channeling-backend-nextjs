@@ -48,6 +48,7 @@ import {
 } from '@/components/ui/sheet';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/components/hooks/use-toast';
+import { usePermissions } from '@/components/hooks/use-permissions';
 import { cn } from '@/lib/utils';
 import { InventoryIcon, InventoryItemVisual } from '@/components/inventory-icon';
 import { InventoryUnitDialog } from '@/components/inventory-unit-dialog';
@@ -119,9 +120,6 @@ export function RoomInventoryBoard({
   departments,
   locationId,
   groupBy,
-  canAssign,
-  canEditUnits,
-  canManage,
   focusRoomId,
 }: {
   rooms: InventoryRoomRow[];
@@ -131,11 +129,12 @@ export function RoomInventoryBoard({
   departments: OptionRow[];
   locationId: string | null;
   groupBy: GroupBy;
-  canAssign: boolean;
-  canEditUnits: boolean;
-  canManage: boolean;
   focusRoomId: string | null;
 }) {
+  const { has, canAccess } = usePermissions();
+  const canAssign = has('room-inventory', 'assign');
+  const canEditUnits = has('inventory', 'edit');
+  const canManage = canAccess('/inventory');
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();

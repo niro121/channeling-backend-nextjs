@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation';
 import { fetchServerSession } from '@/lib/session';
-import { checkPermission, checkRouteAccess } from '@/lib/server-permissions';
+import { checkRouteAccess } from '@/lib/server-permissions';
 import { logActivityNonBlocking } from '@/lib/activity-log';
 import {
   listInventoryOptions,
@@ -42,12 +42,9 @@ export default async function RoomInventoryPage({
     locationId = options.locations[0]?.id ?? null;
   }
 
-  const [rooms, units, canAssign, canEditUnits, canManage] = await Promise.all([
+  const [rooms, units] = await Promise.all([
     listInventoryRooms(locationId),
     listInventoryUnits(locationId ? { locationId } : undefined),
-    checkPermission('room-inventory', 'assign'),
-    checkPermission('inventory', 'edit'),
-    checkRouteAccess('/inventory'),
   ]);
 
   return (
@@ -60,9 +57,6 @@ export default async function RoomInventoryPage({
       departments={options.departments}
       locationId={locationId}
       groupBy={groupBy}
-      canAssign={canAssign}
-      canEditUnits={canEditUnits}
-      canManage={canManage}
       focusRoomId={focusRoomId}
     />
   );

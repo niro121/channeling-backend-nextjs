@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation';
 import { fetchServerSession } from '@/lib/session';
-import { checkPermission, checkRouteAccess } from '@/lib/server-permissions';
+import { checkRouteAccess } from '@/lib/server-permissions';
 import { logActivityNonBlocking } from '@/lib/activity-log';
 import {
   listInventoryCategories,
@@ -25,15 +25,11 @@ export default async function InventoryPage() {
     });
   }
 
-  const [items, units, categories, options, canAdd, canEdit, canDelete, canViewBoard] = await Promise.all([
+  const [items, units, categories, options] = await Promise.all([
     listInventoryItems(),
     listInventoryUnits(),
     listInventoryCategories(),
     listInventoryOptions(),
-    checkPermission('inventory', 'add'),
-    checkPermission('inventory', 'edit'),
-    checkPermission('inventory', 'delete'),
-    checkRouteAccess('/room-inventory'),
   ]);
 
   return (
@@ -42,7 +38,6 @@ export default async function InventoryPage() {
       units={units}
       categories={categories}
       locations={options.locations}
-      perms={{ canAdd, canEdit, canDelete, canViewBoard }}
     />
   );
 }

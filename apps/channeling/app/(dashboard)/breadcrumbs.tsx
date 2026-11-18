@@ -24,6 +24,8 @@ const PATH_NAMES: Path[] = [
     { path: "tags", name: "Tags" },
     { path: "zones", name: "Zones" },
     { path: "rooms", name: "Rooms" },
+    { path: "inventory", name: "Inventory" },
+    { path: "room-inventory", name: "Room Inventory" },
     { path: "specialities", name: "Specialities" },
     { path: "locations", name: "Locations" },
     { path: "agency-books", name: "Agency Books" },

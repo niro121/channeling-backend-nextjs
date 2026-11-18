@@ -6,6 +6,8 @@ import { ZodError } from 'zod';
 import { fetchServerSession } from '@/lib/session';
 import { checkPermission } from '@/lib/server-permissions';
 import { logActivityNonBlocking } from '@/lib/activity-log';
+import { roomInventoryCan } from '@/lib/room-inventory-access';
+import { userTypes } from '@/lib/roles';
 import {
   deleteBillAttachmentObject,
   getBillAttachmentThumbKey,
@@ -304,9 +306,8 @@ export async function setInventoryUnitsConditionAction(
     const session = await fetchServerSession();
     const userId = session?.user?.id;
     if (!userId) throw new InventoryError('Please sign in again.');
-    const ok =
-      (await checkPermission('inventory', 'edit')) || (await checkPermission('room-inventory', 'assign'));
-    if (!ok) throw new InventoryError("You don't have permission to change item condition.");
+    const can = roomInventoryCan(session?.user?.permissions, session?.user?.userType === userTypes.admin);
+    if (!can.condition) throw new InventoryError("You don't have permission to change item condition.");
     const changed = await setInventoryUnitsCondition(unitIds, condition, note, userId);
     logActivityNonBlocking({
       userId,
