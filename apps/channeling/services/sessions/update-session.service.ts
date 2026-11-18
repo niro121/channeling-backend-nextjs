@@ -2,6 +2,11 @@
 
 import prisma from '@/lib/prisma';
 import { logActivityNonBlocking } from '@/lib/activity-log';
+import {
+  formatSessionTimeOverlapMessage,
+  sriLankaMinutes,
+  timeRangesOverlap
+} from '@/lib/doctor-session-overlap';
 import moment from 'moment';
 
 export interface UpdateSessionInput {
@@ -20,7 +25,7 @@ export async function updateSessionService(
   try {
     const existing = await prisma.session.findUnique({
       where: { id: sessionId },
-      select: { date: true },
+      select: { date: true, doctorId: true },
     });
     if (!existing) {
       return { success: false, error: 'Session not found.' };
@@ -29,6 +34,35 @@ export async function updateSessionService(
     const todayStr = moment().format('YYYY-MM-DD');
     if (sessionDateStr < todayStr) {
       return { success: false, error: 'Cannot edit a session that is in the past.' };
+    }
+
+    if (existing.doctorId) {
+      const dayStart = moment.utc(existing.date).startOf('day').toDate();
+      const dayEnd = moment.utc(existing.date).endOf('day').toDate();
+      const others = await prisma.session.findMany({
+        where: {
+          doctorId: existing.doctorId,
+          id: { not: sessionId },
+          date: { gte: dayStart, lte: dayEnd },
+        },
+        select: { startTime: true, endTime: true },
+      });
+      const start = sriLankaMinutes(data.startTime);
+      const end = sriLankaMinutes(data.endTime);
+      const overlap = others.find((other) =>
+        timeRangesOverlap(
+          start,
+          end,
+          sriLankaMinutes(other.startTime),
+          sriLankaMinutes(other.endTime)
+        )
+      );
+      if (overlap) {
+        return {
+          success: false,
+          error: formatSessionTimeOverlapMessage(overlap.startTime, overlap.endTime),
+        };
+      }
     }
 
     const updated = await prisma.session.update({

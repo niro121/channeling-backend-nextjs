@@ -29,6 +29,8 @@ import {
 } from '@/types/doctor.session';
 import { revalidatePath } from 'next/cache';
 import { logActivityNonBlocking } from '@/lib/activity-log';
+import { scanDoctorSessionOverlaps as scanDoctorSessionOverlapsService } from '@/services/scan-session-overlaps.service';
+import type { DoctorSessionOverlapScan } from '@/types/session-overlaps';
 
 // ==== CREATE DOCTOR SESSION ==== //
 export const createDoctorSession = async (
@@ -526,6 +528,23 @@ export const getAllRoomsByLocaionID = async (
       error: {
         message: error.message || 'Failed to get rooms'
       }
+    };
+  }
+};
+
+export const scanDoctorSessionOverlaps = async (): Promise<{
+  success: boolean;
+  data?: DoctorSessionOverlapScan;
+  message?: string;
+}> => {
+  try {
+    const data = await scanDoctorSessionOverlapsService();
+    return { success: true, data };
+  } catch (error: any) {
+    console.error('scanDoctorSessionOverlaps error', error);
+    return {
+      success: false,
+      message: error.message || 'Failed to scan doctor sessions'
     };
   }
 };

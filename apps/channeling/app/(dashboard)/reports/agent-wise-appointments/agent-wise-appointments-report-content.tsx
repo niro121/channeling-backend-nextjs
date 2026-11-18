@@ -51,7 +51,7 @@ import type {
 import { AgentWiseAppointmentsPrintLayout } from './agent-wise-appointments-print-layout';
 import { downloadAgentWiseAppointmentsReportPdf } from './agent-wise-appointments-pdf';
 import { downloadAgentWiseAppointmentsReportExcel } from './agent-wise-appointments-excel';
-import { monthSubLabelFromKey } from './agent-wise-appointments-export-config';
+import { isAwaReversalBill, monthSubLabelFromKey } from './agent-wise-appointments-export-config';
 
 type Props = {
   currentUserName: string;
@@ -877,7 +877,9 @@ export default function AgentWiseAppointmentsReportContent({
                             <TableCell className="text-right tabular-nums">
                               {r.appointmentNo}
                             </TableCell>
-                            <TableCell className="whitespace-nowrap">
+                            <TableCell
+                              className={`whitespace-nowrap${isAwaReversalBill(r.statusLabel) ? ' text-red-600' : ''}`}
+                            >
                               {r.billNumber}
                             </TableCell>
                             <TableCell>{r.statusLabel}</TableCell>
