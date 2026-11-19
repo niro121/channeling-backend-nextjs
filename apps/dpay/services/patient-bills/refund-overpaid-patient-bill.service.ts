@@ -161,7 +161,12 @@ export async function refundOverpaidPatientBill(
 
           const newPaidAmount = bill.paidAmount - overpaidAmount;
           const newOutstandingAmount = Math.max(0, bill.totalAmount - newPaidAmount);
-          const newStatus = computeBillPaymentStatus(newPaidAmount, bill.totalAmount);
+          // Closing and refunding stay separate: refunding excess on a closed bill
+          // must not reopen it to paid/over_paid.
+          const newStatus =
+            bill.status === 'closed'
+              ? 'closed'
+              : computeBillPaymentStatus(newPaidAmount, bill.totalAmount);
           const refundedAt = new Date();
 
           const refundReceipt = await tx.patientBillReceipt.create({

@@ -65,8 +65,8 @@ export function MakeDoctorPaymentClient({ doctors }: MakeDoctorPaymentClientProp
 
   const [doctorName, setDoctorName] = useState('');
   const [bills, setBills] = useState<EligibleDoctorBill[]>([]);
-  const [selectedBillIds, setSelectedBillIds] = useState<Set<string>>(new Set());
-  const [processedBillIds, setProcessedBillIds] = useState<Set<string>>(new Set());
+  const [selectedLineItemIds, setSelectedLineItemIds] = useState<Set<string>>(new Set());
+  const [processedLineItemIds, setProcessedLineItemIds] = useState<Set<string>>(new Set());
   const [billsLoaded, setBillsLoaded] = useState(false);
   const [loadingBills, setLoadingBills] = useState(false);
 
@@ -98,8 +98,8 @@ export function MakeDoctorPaymentClient({ doctors }: MakeDoctorPaymentClientProp
   };
 
   const processedBills = useMemo(
-    () => bills.filter((b) => processedBillIds.has(b.billId)),
-    [bills, processedBillIds]
+    () => bills.filter((b) => processedLineItemIds.has(b.lineItemId)),
+    [bills, processedLineItemIds]
   );
 
   const totalSelectedAmount = useMemo(
@@ -109,8 +109,8 @@ export function MakeDoctorPaymentClient({ doctors }: MakeDoctorPaymentClientProp
 
   const netAmount = Math.round(totalSelectedAmount * 100) / 100;
 
-  const selectedCount = selectedBillIds.size;
-  const paymentReady = processedBillIds.size > 0;
+  const selectedCount = selectedLineItemIds.size;
+  const paymentReady = processedLineItemIds.size > 0;
 
   const handleLoadBills = () => {
     if (!doctorName.trim()) {
@@ -127,8 +127,8 @@ export function MakeDoctorPaymentClient({ doctors }: MakeDoctorPaymentClientProp
       try {
         const rows = await getEligibleBillsForDoctorAction(doctorName);
         setBills(rows);
-        setSelectedBillIds(new Set());
-        setProcessedBillIds(new Set());
+        setSelectedLineItemIds(new Set());
+        setProcessedLineItemIds(new Set());
         setBillsLoaded(true);
         resetPaymentForm();
         if (rows.length === 0) {
@@ -149,37 +149,37 @@ export function MakeDoctorPaymentClient({ doctors }: MakeDoctorPaymentClientProp
     });
   };
 
-  const toggleBill = (billId: string) => {
-    setSelectedBillIds((prev) => {
+  const toggleLineItem = (lineItemId: string) => {
+    setSelectedLineItemIds((prev) => {
       const next = new Set(prev);
-      if (next.has(billId)) next.delete(billId);
-      else next.add(billId);
+      if (next.has(lineItemId)) next.delete(lineItemId);
+      else next.add(lineItemId);
       return next;
     });
   };
 
   const selectAll = () => {
-    setSelectedBillIds(new Set(bills.map((b) => b.billId)));
+    setSelectedLineItemIds(new Set(bills.map((b) => b.lineItemId)));
   };
 
   const deselectAll = () => {
-    setSelectedBillIds(new Set());
+    setSelectedLineItemIds(new Set());
   };
 
   const handleProcessSelected = () => {
-    if (selectedBillIds.size === 0) {
+    if (selectedLineItemIds.size === 0) {
       toast({
         variant: 'destructive',
         title: 'No bills selected',
-        description: 'Select at least one bill to process.',
+        description: 'Select at least one bill line item to process.',
       });
       return;
     }
-    setProcessedBillIds(new Set(selectedBillIds));
+    setProcessedLineItemIds(new Set(selectedLineItemIds));
   };
 
   const validatePaymentForm = (): string | null => {
-    if (processedBillIds.size === 0) return 'Process selected bills before paying.';
+    if (processedLineItemIds.size === 0) return 'Process selected bills before paying.';
     if (totalSelectedAmount <= 0) return 'Payable amount must be greater than zero.';
     const methodErrors = validatePaymentMethodFields({
       paymentMethod: payment.paymentMethod,
@@ -216,7 +216,7 @@ export function MakeDoctorPaymentClient({ doctors }: MakeDoctorPaymentClientProp
     try {
       const result = await processDoctorPaymentAction({
         doctorName,
-        billIds: Array.from(processedBillIds),
+        lineItemIds: Array.from(processedLineItemIds),
         paymentMethod: payment.paymentMethod,
         bank: payment.bank,
         bankId: payment.bankId || undefined,
@@ -296,8 +296,8 @@ export function MakeDoctorPaymentClient({ doctors }: MakeDoctorPaymentClientProp
                   onChange={(value) => {
                     setDoctorName(value === '__all__' ? '' : value);
                     setBills([]);
-                    setSelectedBillIds(new Set());
-                    setProcessedBillIds(new Set());
+                    setSelectedLineItemIds(new Set());
+                    setProcessedLineItemIds(new Set());
                     setBillsLoaded(false);
                   }}
                   className="w-full"
@@ -331,9 +331,10 @@ export function MakeDoctorPaymentClient({ doctors }: MakeDoctorPaymentClientProp
             <div>
               <CardTitle className="text-base">2. Bills Ready for Payment</CardTitle>
               <CardDescription>
-                Select bills to include in this payout. Full payable amount is used per bill.
-                Patient collection status is shown for reference — unpaid patient bills are
-                still eligible.
+                Select fee lines to include in this payout. Each unpaid doctor line item is
+                listed separately, even when they share the same patient bill. Patient
+                collection status is shown for reference — unpaid patient bills are still
+                eligible.
               </CardDescription>
             </div>
             <div className="flex items-center gap-2">
@@ -364,7 +365,7 @@ export function MakeDoctorPaymentClient({ doctors }: MakeDoctorPaymentClientProp
             <p className="text-lg font-semibold tabular-nums">
               {formatLkr(
                 bills
-                  .filter((b) => selectedBillIds.has(b.billId))
+                  .filter((b) => selectedLineItemIds.has(b.lineItemId))
                   .reduce((sum, b) => sum + b.payableAmount, 0)
               )}
             </p>
@@ -381,6 +382,7 @@ export function MakeDoctorPaymentClient({ doctors }: MakeDoctorPaymentClientProp
                   <TableHead>Patient Status</TableHead>
                   <TableHead>Admission Date</TableHead>
                   <TableHead>Doctor</TableHead>
+                  <TableHead>Description</TableHead>
                   <TableHead className="text-right">Doctor Fee (LKR)</TableHead>
                   <TableHead className="text-right">Discount (LKR)</TableHead>
                   <TableHead className="text-right">Refund (LKR)</TableHead>
@@ -390,24 +392,24 @@ export function MakeDoctorPaymentClient({ doctors }: MakeDoctorPaymentClientProp
               <TableBody>
                 {!billsLoaded ? (
                   <TableRow>
-                    <TableCell colSpan={10} className="h-24 text-center text-muted-foreground">
+                    <TableCell colSpan={11} className="h-24 text-center text-muted-foreground">
                       Select a doctor and click Load Bills.
                     </TableCell>
                   </TableRow>
                 ) : bills.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={10} className="h-24 text-center text-muted-foreground">
+                    <TableCell colSpan={11} className="h-24 text-center text-muted-foreground">
                       No eligible bills for this doctor.
                     </TableCell>
                   </TableRow>
                 ) : (
                   bills.map((bill) => (
-                    <TableRow key={bill.billId}>
+                    <TableRow key={bill.lineItemId}>
                       <TableCell>
                         <Checkbox
-                          checked={selectedBillIds.has(bill.billId)}
-                          onCheckedChange={() => toggleBill(bill.billId)}
-                          aria-label={`Select ${bill.billNumber}`}
+                          checked={selectedLineItemIds.has(bill.lineItemId)}
+                          onCheckedChange={() => toggleLineItem(bill.lineItemId)}
+                          aria-label={`Select ${bill.billNumber} ${bill.description}`}
                         />
                       </TableCell>
                       <TableCell className="font-medium whitespace-nowrap">
@@ -421,6 +423,9 @@ export function MakeDoctorPaymentClient({ doctors }: MakeDoctorPaymentClientProp
                         {format(new Date(bill.admissionDate), 'dd MMM yyyy')}
                       </TableCell>
                       <TableCell>{bill.doctorName}</TableCell>
+                      <TableCell className="max-w-[220px] truncate text-muted-foreground">
+                        {bill.description}
+                      </TableCell>
                       <TableCell className="text-right tabular-nums">
                         {formatLkr(bill.doctorFee)}
                       </TableCell>
@@ -442,7 +447,7 @@ export function MakeDoctorPaymentClient({ doctors }: MakeDoctorPaymentClientProp
 
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <p className="text-sm text-muted-foreground">
-              {selectedCount} of {bills.length} bill(s) selected.
+              {selectedCount} of {bills.length} line item(s) selected.
             </p>
             <Button
               type="button"
@@ -493,6 +498,7 @@ export function MakeDoctorPaymentClient({ doctors }: MakeDoctorPaymentClientProp
                 }}
                 errors={paymentErrors}
                 disabled={!paymentReady}
+                allowedMethods={[RECEIPT_PAYMENT_METHOD.CASH]}
                 onBanksError={handleBanksError}
               />
             </div>
@@ -535,10 +541,10 @@ export function MakeDoctorPaymentClient({ doctors }: MakeDoctorPaymentClientProp
           <AlertDialogHeader>
             <AlertDialogTitle>Confirm doctor payment</AlertDialogTitle>
             <AlertDialogDescription>
-              You are about to process the doctor payment for {processedBillIds.size} bill
-              {processedBillIds.size !== 1 ? 's' : ''} via{' '}
+              You are about to process the doctor payment for {processedLineItemIds.size}{' '}
+              line item{processedLineItemIds.size !== 1 ? 's' : ''} via{' '}
               <strong>{paymentMethodLabel(payment.paymentMethod)}</strong>. This will create a
-              receipt and mark the selected bills as paid to the doctor.
+              receipt and mark the selected fee lines as paid to the doctor.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <div className="rounded-lg border bg-muted/40 px-4 py-3 text-sm space-y-3">

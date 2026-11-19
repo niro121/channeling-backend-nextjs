@@ -78,16 +78,45 @@ export function hasLineItemErrors(errors: LineItemFormErrors): boolean {
   return Boolean(errors.doctorName || errors.description || errors.amount);
 }
 
+export const DISCHARGE_BEFORE_ADMISSION =
+  'Discharge date must be on or after the admission date';
+
+/** Calendar-day compare on ISO strings from the date pickers. */
+export function isDischargeBeforeAdmission(
+  admissionDate: string | null | undefined,
+  dischargeDate: string | null | undefined
+): boolean {
+  if (!admissionDate || !dischargeDate) return false;
+  const admission = new Date(admissionDate);
+  const discharge = new Date(dischargeDate);
+  if (Number.isNaN(admission.getTime()) || Number.isNaN(discharge.getTime())) return false;
+  const admissionDay = Date.UTC(
+    admission.getUTCFullYear(),
+    admission.getUTCMonth(),
+    admission.getUTCDate()
+  );
+  const dischargeDay = Date.UTC(
+    discharge.getUTCFullYear(),
+    discharge.getUTCMonth(),
+    discharge.getUTCDate()
+  );
+  return dischargeDay < admissionDay;
+}
+
 /**
  * Validates admission and customer fields only (edit bill page).
  */
 export function validatePatientBillDetailsForm(
-  draft: Pick<PatientBillDraft, 'admissionDate' | 'customerName'>
+  draft: Pick<PatientBillDraft, 'admissionDate' | 'dischargeDate' | 'customerName'>
 ): PatientBillFormErrors {
   const errors: PatientBillFormErrors = {};
 
   if (!draft.admissionDate) {
     errors.admissionDate = 'Admission date is required';
+  }
+
+  if (isDischargeBeforeAdmission(draft.admissionDate, draft.dischargeDate)) {
+    errors.dischargeDate = DISCHARGE_BEFORE_ADMISSION;
   }
 
   if (!draft.customerName.trim()) {
@@ -98,7 +127,7 @@ export function validatePatientBillDetailsForm(
 }
 
 export function hasPatientBillDetailsErrors(errors: PatientBillFormErrors): boolean {
-  return Boolean(errors.admissionDate || errors.customerName);
+  return Boolean(errors.admissionDate || errors.dischargeDate || errors.customerName);
 }
 
 /**
@@ -117,6 +146,10 @@ export function validatePatientBillForm(draft: PatientBillDraft): PatientBillFor
 
   if (!draft.admissionDate) {
     errors.admissionDate = 'Admission date is required';
+  }
+
+  if (isDischargeBeforeAdmission(draft.admissionDate, draft.dischargeDate)) {
+    errors.dischargeDate = DISCHARGE_BEFORE_ADMISSION;
   }
 
   if (!draft.customerName.trim()) {
@@ -142,7 +175,9 @@ export function validatePatientBillForm(draft: PatientBillDraft): PatientBillFor
 }
 
 export function hasValidationErrors(errors: PatientBillFormErrors): boolean {
-  if (errors.bxtNumber || errors.admissionDate || errors.customerName) return true;
+  if (errors.bxtNumber || errors.admissionDate || errors.dischargeDate || errors.customerName) {
+    return true;
+  }
   if (errors.lineItems && Object.keys(errors.lineItems).length > 0) return true;
   return false;
 }

@@ -1,3 +1,4 @@
+import { RECEIPT_PAYMENT_METHOD } from '@archmage/shared';
 import prisma from '@/lib/prisma';
 import type {
   ProcessDoctorPaymentInput,
@@ -21,11 +22,14 @@ export async function processDoctorPayment(
   if (!doctorName) {
     return { success: false, message: 'Doctor is required.' };
   }
-  if (!Array.isArray(input.billIds) || input.billIds.length === 0) {
-    return { success: false, message: 'Select at least one bill.' };
+  if (!Array.isArray(input.lineItemIds) || input.lineItemIds.length === 0) {
+    return { success: false, message: 'Select at least one bill line item.' };
   }
   if (!isPatientBillPaymentMethod(input.paymentMethod)) {
     return { success: false, message: 'Invalid payment method.' };
+  }
+  if (input.paymentMethod !== RECEIPT_PAYMENT_METHOD.CASH) {
+    return { success: false, message: 'Doctor payments must be cash only.' };
   }
 
   const metaError = validatePaymentMethodMetaMessage({
@@ -50,15 +54,18 @@ export async function processDoctorPayment(
   });
 
   const eligible = await getEligibleBillsForDoctor(doctorName);
-  const eligibleById = new Map(eligible.map((row) => [row.billId, row]));
+  const eligibleByLineItemId = new Map(eligible.map((row) => [row.lineItemId, row]));
   const selected: typeof eligible = [];
+  const seenLineItemIds = new Set<string>();
 
-  for (const billId of input.billIds) {
-    const row = eligibleById.get(billId);
+  for (const lineItemId of input.lineItemIds) {
+    if (seenLineItemIds.has(lineItemId)) continue;
+    seenLineItemIds.add(lineItemId);
+    const row = eligibleByLineItemId.get(lineItemId);
     if (!row) {
       return {
         success: false,
-        message: 'One or more selected bills are no longer eligible for payment.',
+        message: 'One or more selected bill line items are no longer eligible for payment.',
       };
     }
     selected.push(row);
@@ -201,7 +208,7 @@ export async function processDoctorPayment(
     if (error instanceof Error && error.message === 'ALREADY_PAID') {
       return {
         success: false,
-        message: 'One or more selected bills were already paid to the doctor.',
+        message: 'One or more selected bill line items were already paid to the doctor.',
       };
     }
     console.error('processDoctorPayment failed', error);
