@@ -12,8 +12,15 @@ import type {
 function buildWhere(
   params: PatientExcessReportParams
 ): Prisma.PatientBillWhereInput {
+  // Open over-paid bills, plus closed bills that still hold unrefunded excess.
   const where: Prisma.PatientBillWhereInput = {
-    status: { in: ['over_paid'] },
+    OR: [
+      { status: 'over_paid' },
+      {
+        status: 'closed',
+        paidAmount: { gt: prisma.patientBill.fields.totalAmount },
+      },
+    ],
   };
   const keyword = params.keyword?.trim();
 

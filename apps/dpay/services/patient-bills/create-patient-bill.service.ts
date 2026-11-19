@@ -4,6 +4,10 @@ import type { PatientBillDraft } from '@/types/patient-bill';
 import { draftToCreatePayload } from '@/lib/patient-bills/mappers';
 import { BILL_LINE_ITEM_STATUS } from '@/lib/patient-bills/line-item-status';
 import { getNextSequenceNumber, isUniqueConstraintError } from '@/lib/patient-bills/sequence';
+import {
+  DISCHARGE_BEFORE_ADMISSION,
+  isDischargeBeforeAdmission,
+} from '@/lib/patient-bills/validations';
 
 export type CreatePatientBillResult =
   | { success: true; id: string; bxtNumber: string; billNumber: string }
@@ -36,6 +40,10 @@ export async function createPatientBill(
 
     if (!bhtNumber) {
       return { success: false, message: 'BHT number is required.' };
+    }
+
+    if (isDischargeBeforeAdmission(draft.admissionDate, draft.dischargeDate)) {
+      return { success: false, message: DISCHARGE_BEFORE_ADMISSION };
     }
 
     const existingBht = await prisma.patientBill.findUnique({

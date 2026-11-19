@@ -234,6 +234,7 @@ export type PatientBillSummary = {
 export type PatientBillFormErrors = {
   bxtNumber?: string;
   admissionDate?: string;
+  dischargeDate?: string;
   customerName?: string;
   lineItems?: Record<string, LineItemFormErrors>;
 };

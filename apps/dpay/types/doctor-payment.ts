@@ -79,7 +79,9 @@ export type DoctorOption = {
 };
 
 export type EligibleDoctorBill = {
-  /** Patient bill id — used as selection key */
+  /** Patient bill line item id — unique selection key (one row per unpaid line). */
+  lineItemId: string;
+  /** Parent patient bill id. */
   billId: string;
   billNumber: string;
   patientName: string;
@@ -87,16 +89,19 @@ export type EligibleDoctorBill = {
   /** Patient bill payment status (pending / partial / paid / over_paid). */
   billStatus: 'pending' | 'partial' | 'paid' | 'over_paid';
   doctorName: string;
+  description: string;
   doctorFee: number;
   discount: number;
   refund: number;
   payableAmount: number;
+  /** Always a single id matching lineItemId; kept for payment-item persistence. */
   lineItemIds: string[];
 };
 
 export type ProcessDoctorPaymentInput = {
   doctorName: string;
-  billIds: string[];
+  /** Unpaid patient-bill line item ids to include in this payout. */
+  lineItemIds: string[];
   /** Same receipt payment codes as patient bill record payment. */
   paymentMethod: PatientBillPaymentMethod;
   bank?: string;

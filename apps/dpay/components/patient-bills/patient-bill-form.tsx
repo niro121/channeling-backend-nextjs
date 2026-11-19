@@ -50,7 +50,7 @@ export function PatientBillForm({ bill, isEditPage = false }: PatientBillFormPro
 
     const stored = loadDraft();
     if (stored) {
-      setDraft({ ...stored, billNumber: '' });
+      setDraft({ ...stored, billNumber: '', admissionDate: new Date().toISOString() });
     }
     setHydrated(true);
   }, [isEditPage, loadDraft]);
@@ -174,7 +174,12 @@ export function PatientBillForm({ bill, isEditPage = false }: PatientBillFormPro
 
       <div className={`grid gap-6 ${isEditPage ? '' : 'lg:grid-cols-3'}`}>
         <div className={isEditPage ? '' : 'lg:col-span-2'}>
-          <BillInformationSection draft={draft} errors={errors} onChange={updateDraft} />
+          <BillInformationSection
+            draft={draft}
+            errors={errors}
+            onChange={updateDraft}
+            lockAdmissionDate={!isEditPage}
+          />
         </div>
         {!isEditPage && <BillSummaryCard summary={summary} />}
       </div>
