@@ -59,7 +59,7 @@ export const KNOWN_ACTIVITY_ACTIONS: Array<{
   {
     action: 'patient-bills.patient-bill.cancelled',
     importance: 'high',
-    when: 'User cancels a patient bill (including closed); active receipts are voided with refunds',
+    when: 'User cancels an open patient bill; active receipts are voided with refunds (closed bills cannot be cancelled)',
   },
   {
     action: 'patient-bills.patient-bill.closed',

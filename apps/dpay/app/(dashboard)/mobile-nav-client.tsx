@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { Session } from 'next-auth';
 import { Button, Sheet, SheetContent, SheetTrigger, NavLink } from '@archmage/ui';
-import { PanelLeft, LayoutGrid, Landmark, FileText, Receipt, ScrollText, Wallet, BarChart3 } from 'lucide-react';
+import { PanelLeft, LayoutGrid, Landmark, FileText, Receipt, ScrollText, Wallet, BarChart3, Users, Shield } from 'lucide-react';
 import { canAccessRoute } from '@/lib/permissions';
 import { userTypes } from '@/lib/roles';
 
@@ -63,6 +63,21 @@ export default function MobileNavClient({ session }: { session: Session | null }
                 )}
               </div>
             </div>
+            {(hasAccess('/users') || hasAccess('/user-groups')) && (
+              <div>
+                <p className="px-2 mb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  Administration
+                </p>
+                <div className="space-y-0.5">
+                  {hasAccess('/users') && (
+                    <NavLink href="/users" label="Users" icon={<Users className="h-5 w-5" />} />
+                  )}
+                  {hasAccess('/user-groups') && (
+                    <NavLink href="/user-groups" label="User Groups" icon={<Shield className="h-5 w-5" />} />
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         </nav>
       </SheetContent>

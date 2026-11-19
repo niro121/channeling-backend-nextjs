@@ -147,12 +147,18 @@ export function BillActivityTimeline({
   }
 
   items.push(
-    ...paymentEvents.map((receipt) => ({
-      key: receipt.id,
-      icon: <Receipt className="h-4 w-4" />,
-      title: `Payment received — ${formatLkr(receipt.amountPaid)}`,
-      subtitle: formatPaymentMeta(receipt),
-    }))
+    ...paymentEvents.map((receipt) => {
+      const isRefund = receipt.status === 'refund';
+      return {
+        key: receipt.id,
+        icon: <Receipt className="h-4 w-4" />,
+        title: isRefund
+          ? `Refund issued — ${formatLkr(receipt.amountPaid)}`
+          : `Payment received — ${formatLkr(receipt.amountPaid)}`,
+        subtitle: formatPaymentMeta(receipt),
+        iconClassName: isRefund ? 'bg-amber-600 text-white' : undefined,
+      };
+    })
   );
 
   if (isCancelled) {

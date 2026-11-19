@@ -37,8 +37,8 @@ export function PatientBillDetailView({ bill }: PatientBillDetailViewProps) {
   const overpaidAmount = Math.max(0, bill.paidAmount - bill.totalAmount);
   /** Excess refund stays available after close; blocked only for cancelled/draft. */
   const canRefundOverpayment = !isCancelled && !isDraft && overpaidAmount > 0;
-  /** Closed bills stay non-editable; cancel voids the bill + active receipts. */
-  const canCancelBill = !isCancelled;
+  /** Closed bills cannot be cancelled (including after excess refund). */
+  const canCancelBill = !isCancelled && !isClosed;
 
   return (
     <div className="space-y-6">
@@ -66,8 +66,7 @@ export function PatientBillDetailView({ bill }: PatientBillDetailViewProps) {
             ) : null}
             {isClosed ? (
               <p className="text-sm text-indigo-800">
-                This bill is closed and can no longer be edited. Use Cancel Bill to void it
-                and refund linked receipts.
+                This bill is closed and can no longer be edited or cancelled.
                 {overpaidAmount > 0
                   ? ' Excess payment can still be refunded separately below.'
                   : ''}
@@ -208,8 +207,7 @@ export function PatientBillDetailView({ bill }: PatientBillDetailViewProps) {
       <ClosePatientBillDialog
         open={closeOpen}
         onOpenChange={setCloseOpen}
-        billId={bill.id}
-        billNumber={bill.billNumber}
+        bill={bill}
       />
       <RefundOverpaymentDialog
         open={refundOpen}
