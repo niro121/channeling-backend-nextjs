@@ -30,15 +30,14 @@ export type CancelPatientBillResult =
   | { success: false; message: string };
 
 /**
- * Soft-cancel a patient bill (including closed) and void all active payment receipts.
+ * Soft-cancel an open patient bill and void all active payment receipts.
  * Each active receipt gets a separate refund receipt (`{code}DPAY-REF/########`)
  * linked via cancelReceiptNumber / refundOfReceiptId (same as single-receipt cancel).
  * Refund method is chosen by the user (may differ from original payment methods).
- * Closed bills stay non-editable — cancel is the supported reversal path.
+ * Closed bills cannot be cancelled (including after excess refund).
  * Blocked when any line item is still linked to a non-cancelled doctor payment.
- * Open bills are also blocked while active doctor charges remain; remove those lines first.
- * Closed bills skip that line-item check because their lines cannot be removed.
- * Single-receipt cancel remains blocked on closed bills (use full bill cancel instead).
+ * Also blocked while active doctor charges remain; remove those lines first.
+ * Single-receipt cancel remains blocked on closed bills.
  */
 export async function cancelPatientBill(
   input: CancelPatientBillInput
@@ -90,6 +89,13 @@ export async function cancelPatientBill(
     return { success: false, message: 'This patient bill is already cancelled.' };
   }
 
+  if (bill.status === 'closed') {
+    return {
+      success: false,
+      message: 'Cannot cancel a closed patient bill.',
+    };
+  }
+
   const activeDoctorPayment = bill.lineItems.find(
     (item) =>
       !isDeletedLineItem({ status: normalizeLineItemStatus(item.status) }) &&
@@ -107,7 +113,7 @@ export async function cancelPatientBill(
   const hasActiveLineItems = bill.lineItems.some(
     (item) => !isDeletedLineItem({ status: normalizeLineItemStatus(item.status) })
   );
-  if (bill.status !== 'closed' && hasActiveLineItems) {
+  if (hasActiveLineItems) {
     return {
       success: false,
       message:
