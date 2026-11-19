@@ -1,5 +1,10 @@
 import prisma from '@/lib/prisma';
+import { requireActiveShift } from '@/lib/dpay-shift';
 import type { PatientBillDraft } from '@/types/patient-bill';
+import {
+  DISCHARGE_BEFORE_ADMISSION,
+  isDischargeBeforeAdmission,
+} from '@/lib/patient-bills/validations';
 
 export type UpdatePatientBillDetailsResult =
   | { success: true; id: string }
@@ -25,6 +30,13 @@ export async function updatePatientBillDetails(
   if (!details.customerName.trim()) {
     return { success: false, message: 'Customer name is required' };
   }
+
+  if (isDischargeBeforeAdmission(details.admissionDate, details.dischargeDate)) {
+    return { success: false, message: DISCHARGE_BEFORE_ADMISSION };
+  }
+
+  const shiftGate = await requireActiveShift(updatedBy);
+  if (!shiftGate.success) return { success: false, message: shiftGate.message };
 
   try {
     const existing = await prisma.patientBill.findUnique({

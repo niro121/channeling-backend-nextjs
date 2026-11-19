@@ -64,11 +64,11 @@ export const KNOWN_ACTIVITY_ACTIONS: Array<{
   {
     action: 'patient-bills.patient-bill.closed',
     importance: 'high',
-    when: 'User closes a fully paid patient bill',
+    when: 'User closes a paid or over-paid patient bill (does not refund excess)',
   },
   {
     action: 'patient-bills.patient-bill.overpayment.refunded',
     importance: 'high',
-    when: 'User refunds an over-payment and creates a dedicated refund receipt',
+    when: 'User refunds excess payment on an open or closed over-paid bill and creates a dedicated refund receipt',
   },
 ];

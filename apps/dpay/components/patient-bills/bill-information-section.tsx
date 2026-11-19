@@ -8,6 +8,7 @@ type BillInformationSectionProps = {
   draft: PatientBillDraft;
   errors: PatientBillFormErrors;
   onChange: (patch: Partial<PatientBillDraft>) => void;
+  lockAdmissionDate?: boolean;
 };
 
 function parseDateString(value: string | null): Date | null {
@@ -52,7 +53,12 @@ function BhtNumberField({
   );
 }
 
-export function BillInformationSection({ draft, errors, onChange }: BillInformationSectionProps) {
+export function BillInformationSection({
+  draft,
+  errors,
+  onChange,
+  lockAdmissionDate = false,
+}: BillInformationSectionProps) {
   return (
     <div className="rounded-lg border bg-card p-5 shadow-sm space-y-5">
       <div>
@@ -88,6 +94,7 @@ export function BillInformationSection({ draft, errors, onChange }: BillInformat
           id="admission-date"
           placeholder="Admission Date"
           required
+          disabled={lockAdmissionDate}
           value={parseDateString(draft.admissionDate)}
           onChange={(date) => onChange({ admissionDate: toDateString(date ?? null) })}
           onBlur={() => {}}
@@ -104,6 +111,8 @@ export function BillInformationSection({ draft, errors, onChange }: BillInformat
           value={parseDateString(draft.dischargeDate)}
           onChange={(date) => onChange({ dischargeDate: toDateString(date ?? null) })}
           onBlur={() => {}}
+          error={errors.dischargeDate}
+          touched={!!errors.dischargeDate}
           useFormikError={false}
           captionLayout="dropdown-buttons"
           styleClasses={{ parentDiv: 'space-y-2' }}

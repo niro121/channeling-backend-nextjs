@@ -201,7 +201,7 @@ export function PaymentMethodFields({
         methodOptions.length === 1 &&
         methodOptions[0]?.value === RECEIPT_PAYMENT_METHOD.CASH ? (
           <p className="text-[11px] text-muted-foreground">
-            Refund must be cash for this payment.
+            Only cash is allowed for this payment.
           </p>
         ) : allowedMethods && methodOptions.length > 1 ? (
           <p className="text-[11px] text-muted-foreground">
