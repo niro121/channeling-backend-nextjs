@@ -10,8 +10,10 @@ import {
   LEAVE_TYPE_CODE_PREFIX,
   type GetLeaveTypesParams,
   type GetLeaveTypesReturn,
+  type LeaveTypeOption,
   type LeaveTypePayload,
-  type LeaveTypeRecord
+  type LeaveTypeRecord,
+  type LieuLeaveTypeSummary
 } from '@/types/leave';
 
 const optionalDayAmount = z
@@ -40,6 +42,7 @@ const leaveTypePayloadSchema = z.object({
   isPaid: z.boolean(),
   requiresApproval: z.boolean(),
   allowHalfDay: z.boolean(),
+  isLieuLeave: z.boolean().optional().default(false),
   carryForwardAllowed: z.boolean(),
   maxDaysPerYear: optionalDayAmount,
   maxCarryForwardDays: optionalDayAmount,
@@ -99,11 +102,82 @@ function buildLeaveTypeWhere(
   const allowHalfDay = parseYesNoFilter(params.allowHalfDay);
   if (allowHalfDay !== undefined) where.allowHalfDay = allowHalfDay;
 
+  const isLieuLeave = parseYesNoFilter(params.isLieuLeave);
+  if (isLieuLeave !== undefined) where.isLieuLeave = isLieuLeave;
+
   if (and.length) {
     where.AND = and;
   }
 
   return where;
+}
+
+/** At most one Leave Type may have isLieuLeave (any status). */
+async function assertSingleLieuType(params: {
+  isLieuLeave: boolean;
+  excludeId?: string;
+}): Promise<{ ok: true } | { ok: false; message: string }> {
+  if (!params.isLieuLeave) {
+    return { ok: true };
+  }
+
+  const other = await prisma.leaveType.findFirst({
+    where: {
+      isLieuLeave: true,
+      ...(params.excludeId ? { id: { not: params.excludeId } } : {})
+    },
+    select: { id: true, code: true, name: true }
+  });
+
+  if (other) {
+    return {
+      ok: false,
+      message: `Only one Lieu leave type is allowed. Edit ${other.code} — ${other.name} instead.`
+    };
+  }
+
+  return { ok: true };
+}
+
+/** Locked Lieu policy: paid, no half-day, no CF, no max days/year. */
+function normalizeLieuLeaveTypePayload<T extends Partial<{
+  isPaid: boolean;
+  allowHalfDay: boolean;
+  carryForwardAllowed: boolean;
+  maxDaysPerYear: number | null;
+  maxCarryForwardDays: number | null;
+  isLieuLeave: boolean;
+}>>(data: T): T {
+  if (!data.isLieuLeave) return data;
+  return {
+    ...data,
+    isPaid: true,
+    allowHalfDay: false,
+    carryForwardAllowed: false,
+    maxDaysPerYear: null,
+    maxCarryForwardDays: null
+  };
+}
+
+export async function getLieuLeaveType(): Promise<{
+  success: boolean;
+  data?: LieuLeaveTypeSummary | null;
+  error?: { message?: string };
+}> {
+  try {
+    const record = await prisma.leaveType.findFirst({
+      where: { isLieuLeave: true },
+      orderBy: { createdAt: 'asc' },
+      select: { id: true, code: true, name: true, status: true }
+    });
+    return { success: true, data: record };
+  } catch (error: any) {
+    console.error('getLieuLeaveType error:', error);
+    return {
+      success: false,
+      error: { message: error.message || 'Failed to load Lieu leave type' }
+    };
+  }
 }
 
 export async function getLeaveTypes(params: GetLeaveTypesParams): Promise<{
@@ -248,8 +322,23 @@ export async function createLeaveType(
       };
     }
 
-    const data = parsed.data;
     const auditUser = toAuditUser(user);
+    const data = normalizeLieuLeaveTypePayload({
+      ...parsed.data,
+      isLieuLeave: Boolean(parsed.data.isLieuLeave)
+    });
+    const isLieuLeave = Boolean(data.isLieuLeave);
+
+    const lieuGuard = await assertSingleLieuType({ isLieuLeave });
+    if (!lieuGuard.ok) {
+      return {
+        success: false,
+        error: {
+          message: lieuGuard.message,
+          issues: { isLieuLeave: [lieuGuard.message] }
+        }
+      };
+    }
 
     const generated = await generateRecordCode(LEAVE_TYPE_CODE_PREFIX);
     if (!generated.success) {
@@ -261,6 +350,12 @@ export async function createLeaveType(
       };
     }
 
+    const carryForwardAllowed = Boolean(data.carryForwardAllowed);
+    // Policy: CF off → maxCarryForwardDays is N/A (null), not 0.
+    const maxCarryForwardDays = carryForwardAllowed
+      ? (data.maxCarryForwardDays ?? null)
+      : null;
+
     const leaveType = await prisma.leaveType.create({
       data: {
         code: generated.code,
@@ -269,9 +364,10 @@ export async function createLeaveType(
         isPaid: data.isPaid,
         requiresApproval: data.requiresApproval,
         allowHalfDay: data.allowHalfDay,
-        carryForwardAllowed: data.carryForwardAllowed,
-        maxDaysPerYear: data.maxDaysPerYear,
-        maxCarryForwardDays: data.maxCarryForwardDays,
+        isLieuLeave,
+        carryForwardAllowed,
+        maxDaysPerYear: data.maxDaysPerYear ?? null,
+        maxCarryForwardDays,
         status: data.status,
         ...(auditUser?.id && {
           createdBy: auditUser.id,
@@ -329,12 +425,70 @@ export async function updateLeaveType(
     const auditUser = toAuditUser(user);
     const existing = await prisma.leaveType.findUnique({
       where: { id },
-      select: { id: true }
+      select: {
+        id: true,
+        isLieuLeave: true,
+        status: true,
+        carryForwardAllowed: true
+      }
     });
 
     if (!existing) {
       return { success: false, error: { message: 'Leave type not found' } };
     }
+
+    const nextIsLieu =
+      data.isLieuLeave !== undefined
+        ? Boolean(data.isLieuLeave)
+        : Boolean(existing.isLieuLeave);
+
+    // Normal edits cannot flip a row onto Lieu — use Add Lieu path only.
+    if (nextIsLieu && !existing.isLieuLeave) {
+      return {
+        success: false,
+        error: {
+          message:
+            'Cannot convert a normal leave type to Lieu. Use Add Lieu leave type.',
+          issues: {
+            isLieuLeave: [
+              'Cannot convert a normal leave type to Lieu. Use Add Lieu leave type.'
+            ]
+          }
+        }
+      };
+    }
+
+    // Lieu flag cannot be cleared from the normal/Lieu edit UI (no switch).
+    // Mis-tagged rows (e.g. Annual with Lieu=Yes) must be fixed via a dedicated
+    // cleanup if needed; prefer delete when unused, then Add Lieu.
+
+    const lieuGuard = await assertSingleLieuType({
+      isLieuLeave: nextIsLieu,
+      excludeId: id
+    });
+    if (!lieuGuard.ok) {
+      return {
+        success: false,
+        error: {
+          message: lieuGuard.message,
+          issues: { isLieuLeave: [lieuGuard.message] }
+        }
+      };
+    }
+
+    const nextCarryForwardAllowed = nextIsLieu
+      ? false
+      : data.carryForwardAllowed !== undefined
+        ? Boolean(data.carryForwardAllowed)
+        : existing.carryForwardAllowed;
+
+    const maxCarryForwardUpdate = nextIsLieu
+      ? { maxCarryForwardDays: null as number | null }
+      : !nextCarryForwardAllowed
+        ? { maxCarryForwardDays: null as number | null }
+        : data.maxCarryForwardDays !== undefined
+          ? { maxCarryForwardDays: data.maxCarryForwardDays }
+          : {};
 
     const leaveType = await prisma.leaveType.update({
       where: { id },
@@ -343,22 +497,31 @@ export async function updateLeaveType(
         ...(data.description !== undefined && {
           description: data.description
         }),
-        ...(data.isPaid !== undefined && { isPaid: data.isPaid }),
+        ...(nextIsLieu
+          ? {
+              isPaid: true,
+              allowHalfDay: false,
+              carryForwardAllowed: false,
+              maxDaysPerYear: null,
+              isLieuLeave: true
+            }
+          : {
+              ...(data.isPaid !== undefined && { isPaid: data.isPaid }),
+              ...(data.allowHalfDay !== undefined && {
+                allowHalfDay: data.allowHalfDay
+              }),
+              ...(data.carryForwardAllowed !== undefined && {
+                carryForwardAllowed: nextCarryForwardAllowed
+              }),
+              ...(data.maxDaysPerYear !== undefined && {
+                maxDaysPerYear: data.maxDaysPerYear
+              }),
+              ...(data.isLieuLeave !== undefined && { isLieuLeave: false })
+            }),
         ...(data.requiresApproval !== undefined && {
           requiresApproval: data.requiresApproval
         }),
-        ...(data.allowHalfDay !== undefined && {
-          allowHalfDay: data.allowHalfDay
-        }),
-        ...(data.carryForwardAllowed !== undefined && {
-          carryForwardAllowed: data.carryForwardAllowed
-        }),
-        ...(data.maxDaysPerYear !== undefined && {
-          maxDaysPerYear: data.maxDaysPerYear
-        }),
-        ...(data.maxCarryForwardDays !== undefined && {
-          maxCarryForwardDays: data.maxCarryForwardDays
-        }),
+        ...maxCarryForwardUpdate,
         ...(data.status !== undefined && { status: data.status }),
         ...(auditUser?.id && { updatedBy: auditUser.id })
       }
@@ -391,13 +554,14 @@ export async function updateLeaveType(
 }
 
 async function assertLeaveTypeDeletable(id: string): Promise<string | null> {
-  const [entitlementCount, applicationCount] = await Promise.all([
+  const [entitlementCount, applicationCount, grantCount] = await Promise.all([
     prisma.leaveEntitlement.count({ where: { leaveTypeId: id } }),
-    prisma.leaveApplication.count({ where: { leaveTypeId: id } })
+    prisma.leaveApplication.count({ where: { leaveTypeId: id } }),
+    prisma.lieuLeaveGrant.count({ where: { leaveTypeId: id } })
   ]);
 
-  if (entitlementCount > 0 || applicationCount > 0) {
-    return 'Cannot delete a leave type that is used by entitlements or applications.';
+  if (entitlementCount > 0 || applicationCount > 0 || grantCount > 0) {
+    return 'Cannot delete a leave type that is used by entitlements, applications, or lieu grants. Unpublish it instead.';
   }
 
   return null;
@@ -422,6 +586,15 @@ export async function deleteLeaveType(id: string): Promise<{
     if (error.code === 'P2025') {
       return { success: false, error: { message: 'Leave type not found' } };
     }
+    if (error.code === 'P2014' || error.code === 'P2003') {
+      return {
+        success: false,
+        error: {
+          message:
+            'Cannot delete a leave type that is still referenced by related records. Unpublish it instead.'
+        }
+      };
+    }
     return {
       success: false,
       error: { message: error.message || 'Failed to delete leave type' }
@@ -440,17 +613,18 @@ export async function deleteLeaveTypes(ids: string[]): Promise<{
       return { success: false, error: { message: 'No leave type IDs provided' } };
     }
 
-    const [entitlementCount, applicationCount] = await Promise.all([
+    const [entitlementCount, applicationCount, grantCount] = await Promise.all([
       prisma.leaveEntitlement.count({ where: { leaveTypeId: { in: ids } } }),
-      prisma.leaveApplication.count({ where: { leaveTypeId: { in: ids } } })
+      prisma.leaveApplication.count({ where: { leaveTypeId: { in: ids } } }),
+      prisma.lieuLeaveGrant.count({ where: { leaveTypeId: { in: ids } } })
     ]);
 
-    if (entitlementCount > 0 || applicationCount > 0) {
+    if (entitlementCount > 0 || applicationCount > 0 || grantCount > 0) {
       return {
         success: false,
         error: {
           message:
-            'Cannot delete leave types that are used by entitlements or applications.'
+            'Cannot delete leave types that are used by entitlements, applications, or lieu grants. Unpublish them instead.'
         }
       };
     }
@@ -480,8 +654,6 @@ export async function deleteLeaveTypes(ids: string[]): Promise<{
   }
 }
 
-export type LeaveTypeOption = { id: string; name: string; code: string };
-
 export async function getLeaveTypeOptions(): Promise<{
   success: boolean;
   data?: LeaveTypeOption[];
@@ -494,7 +666,16 @@ export async function getLeaveTypeOptions(): Promise<{
       orderBy: { name: 'asc' },
       take:
         Number.parseInt(process.env.DEFAULT_PAGE_SIZE ?? '100', 10) || 100,
-      select: { id: true, name: true, code: true }
+      select: {
+        id: true,
+        name: true,
+        code: true,
+        allowHalfDay: true,
+        isLieuLeave: true,
+        carryForwardAllowed: true,
+        maxDaysPerYear: true,
+        maxCarryForwardDays: true
+      }
     });
 
     return {
@@ -502,7 +683,16 @@ export async function getLeaveTypeOptions(): Promise<{
       data: records.map((record) => ({
         id: record.id,
         name: record.name,
-        code: record.code
+        code: record.code,
+        allowHalfDay: Boolean(record.allowHalfDay),
+        isLieuLeave: Boolean(record.isLieuLeave),
+        carryForwardAllowed: Boolean(record.carryForwardAllowed),
+        maxDaysPerYear:
+          record.maxDaysPerYear == null ? null : Number(record.maxDaysPerYear),
+        maxCarryForwardDays:
+          record.maxCarryForwardDays == null
+            ? null
+            : Number(record.maxCarryForwardDays)
       })),
       message: 'Leave type options fetched'
     };

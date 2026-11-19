@@ -18,7 +18,8 @@ import { leaveTypeColumns } from './columns';
 import {
   bulkDeleteLeaveTypesAction,
   getLeaveTypesAction,
-  getLeaveTypesExport
+  getLeaveTypesExport,
+  getLieuLeaveTypeAction
 } from '@/app/actions/leave-actions/leave-type.actions';
 
 type SearchParams = {
@@ -50,20 +51,24 @@ export default async function LeaveTypesPage({ searchParams }: SearchParams) {
   }
 
   const params = await searchParams;
-  const response = await getLeaveTypesAction({
-    page: params?.page,
-    limit: params?.limit,
-    keyword: params?.keyword,
-    status: params?.status,
-    isPaid: params?.isPaid,
-    requiresApproval: params?.requiresApproval,
-    allowHalfDay: params?.allowHalfDay
-  });
+  const [response, lieuRes] = await Promise.all([
+    getLeaveTypesAction({
+      page: params?.page,
+      limit: params?.limit,
+      keyword: params?.keyword,
+      status: params?.status,
+      isPaid: params?.isPaid,
+      requiresApproval: params?.requiresApproval,
+      allowHalfDay: params?.allowHalfDay
+    }),
+    getLieuLeaveTypeAction()
+  ]);
 
   const data = response.isError ? [] : (response.data?.data ?? []);
   const totalRecords = response.isError
     ? 0
     : (response.data?.totalRecords ?? 0);
+  const lieuType = lieuRes.isError ? null : lieuRes.data;
 
   const handleExport = async () => {
     'use server';
@@ -105,13 +110,14 @@ export default async function LeaveTypesPage({ searchParams }: SearchParams) {
   };
 
   const canAdd = await checkPermission('leave-types', 'add');
+  const canEdit = await checkPermission('leave-types', 'edit');
 
   return (
     <div className="overflow-hidden">
       <Suspense fallback={<Loading />}>
         <CommonDataTable
           heading="Leave Types"
-          subHeading="Manage leave type definitions used by entitlement and application workflows."
+          subHeading="Manage leave type definitions used by entitlement and application workflows. Lieu is a single compensatory bank — use Add Lieu leave type once."
           columns={leaveTypeColumns}
           data={data}
           rowCount={totalRecords}
@@ -129,8 +135,35 @@ export default async function LeaveTypesPage({ searchParams }: SearchParams) {
           }
           toolbarRight={
             <div className="flex flex-col gap-3 flex-1 min-w-0">
-              <div className="flex items-start justify-end gap-2 shrink-0">
+              <div className="flex flex-wrap items-start justify-end gap-2 shrink-0">
                 <DataTableBulkDeleteFeature />
+                {lieuType?.id && canEdit ? (
+                  <Link href={`/leave-types/${lieuType.id}/edit`}>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-9 gap-1.5 cursor-pointer"
+                    >
+                      <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">
+                        Edit Lieu ({lieuType.code})
+                      </span>
+                    </Button>
+                  </Link>
+                ) : null}
+                {canAdd && !lieuType?.id ? (
+                  <Link href="/leave-types/add-lieu">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-9 gap-1.5 cursor-pointer"
+                    >
+                      <Plus className="h-4 w-4" />
+                      <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">
+                        Add Lieu
+                      </span>
+                    </Button>
+                  </Link>
+                ) : null}
                 {canAdd ? (
                   <Link href="/leave-types/add">
                     <Button size="sm" className="gap-1.5 h-9 cursor-pointer">

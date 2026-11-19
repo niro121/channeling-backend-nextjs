@@ -36,7 +36,8 @@ import {
   LEAVE_ENTITLEMENT_STATUSES,
   LEAVE_ENTITLEMENT_STATUS_OPTIONS,
   type LeaveEntitlementFormValues,
-  type LeaveEntitlementRecord
+  type LeaveEntitlementRecord,
+  type LeaveTypeEntitlementOption
 } from '@/types/leave';
 import { usePermissions } from '@/components/hooks/use-permissions';
 
@@ -53,7 +54,7 @@ type AuditInfo = {
 
 type FormEmployeeInfoProps = {
   employeeOptions?: FilterOption[];
-  leaveTypeOptions?: FilterOption[];
+  leaveTypeOptions?: LeaveTypeEntitlementOption[];
   selectedRecord?: LeaveEntitlementRecord | null;
   onClearSelection?: () => void;
   createdBy?: AuditInfo | null;
@@ -76,26 +77,50 @@ const emptyValues: LeaveEntitlementFormValues = {
   status: 'active'
 };
 
-const validationSchema = Yup.object({
-  staffId: Yup.string().required('Employee is required'),
-  leaveTypeId: Yup.string().required('Leave type is required'),
-  fromDate: Yup.date().nullable().required('From date is required'),
-  toDate: Yup.date()
-    .nullable()
-    .required('To date is required')
-    .min(Yup.ref('fromDate'), 'To date must be on or after from date'),
-  entitled: Yup.number()
+function buildValidationSchema(leaveType: LeaveTypeEntitlementOption | null) {
+  let entitled = Yup.number()
     .transform((value, original) => (original === '' ? undefined : value))
     .min(0, 'Must be 0 or greater')
-    .required('Entitled days is required'),
-  carryForward: Yup.number()
+    .required('Entitled days is required');
+
+  if (leaveType?.maxDaysPerYear != null) {
+    entitled = entitled.max(
+      leaveType.maxDaysPerYear,
+      `Cannot exceed leave type maximum (${leaveType.maxDaysPerYear})`
+    );
+  }
+
+  let carryForward = Yup.number()
     .transform((value, original) => (original === '' ? 0 : value))
-    .min(0, 'Must be 0 or greater')
-    .optional(),
-  status: Yup.string()
-    .oneOf([...LEAVE_ENTITLEMENT_STATUSES], 'Invalid status')
-    .required('Status is required')
-});
+    .min(0, 'Must be 0 or greater');
+
+  if (!leaveType?.carryForwardAllowed) {
+    carryForward = carryForward.max(
+      0,
+      'Carry forward is not allowed for this leave type'
+    );
+  } else if (leaveType.maxCarryForwardDays != null) {
+    carryForward = carryForward.max(
+      leaveType.maxCarryForwardDays,
+      `Cannot exceed leave type maximum (${leaveType.maxCarryForwardDays})`
+    );
+  }
+
+  return Yup.object({
+    staffId: Yup.string().required('Employee is required'),
+    leaveTypeId: Yup.string().required('Leave type is required'),
+    fromDate: Yup.date().nullable().required('From date is required'),
+    toDate: Yup.date()
+      .nullable()
+      .required('To date is required')
+      .min(Yup.ref('fromDate'), 'To date must be on or after from date'),
+    entitled,
+    carryForward: carryForward.optional(),
+    status: Yup.string()
+      .oneOf([...LEAVE_ENTITLEMENT_STATUSES], 'Invalid status')
+      .required('Status is required')
+  });
+}
 
 export default function FormEmployeeInfo({
   employeeOptions = [],
@@ -280,7 +305,7 @@ export default function FormEmployeeInfo({
             {isEdit ? (
               <Button
                 type="button"
-                variant="ghost"
+                variant="default"
                 size="sm"
                 className="gap-1"
                 onClick={() => onClearSelection?.()}
@@ -295,10 +320,24 @@ export default function FormEmployeeInfo({
           <Formik
             initialValues={formInitialValues}
             enableReinitialize
-            validationSchema={validationSchema}
+            validationSchema={Yup.lazy((values: LeaveEntitlementFormValues) => {
+              const leaveType =
+                leaveTypeOptions.find((t) => t.id === values.leaveTypeId) ??
+                null;
+              return buildValidationSchema(leaveType);
+            })}
             onSubmit={handleSubmit}
           >
-            {(formik) => (
+            {(formik) => {
+              const selectedLeaveType =
+                leaveTypeOptions.find(
+                  (t) => t.id === formik.values.leaveTypeId
+                ) ?? null;
+              const carryForwardAllowed = Boolean(
+                selectedLeaveType?.carryForwardAllowed
+              );
+
+              return (
                 <Form className="space-y-4">
                   <div className="grid grid-cols-1 gap-4">
                     <div className={fieldStyleClasses.parentDiv}>
@@ -327,12 +366,32 @@ export default function FormEmployeeInfo({
                       placeholder="Leave Type"
                       options={leaveTypeOptions}
                       value={formik.values.leaveTypeId}
-                      onChange={(value) =>
-                        formik.setFieldValue('leaveTypeId', value)
-                      }
+                      onChange={(value) => {
+                        formik.setFieldValue('leaveTypeId', value);
+                        const nextType =
+                          leaveTypeOptions.find((t) => t.id === value) ?? null;
+                        if (!nextType?.carryForwardAllowed) {
+                          formik.setFieldValue('carryForward', '0');
+                        }
+                      }}
                       required
                       styleClasses={fieldStyleClasses}
                     />
+
+                    {selectedLeaveType ? (
+                      <p className="text-xs text-muted-foreground">
+                        Policy:{' '}
+                        {selectedLeaveType.maxDaysPerYear != null
+                          ? `max entitled ${selectedLeaveType.maxDaysPerYear}`
+                          : 'no entitled max'}
+                        {' · '}
+                        {carryForwardAllowed
+                          ? selectedLeaveType.maxCarryForwardDays != null
+                            ? `max carry forward ${selectedLeaveType.maxCarryForwardDays}`
+                            : 'carry forward allowed (no max)'
+                          : 'carry forward not allowed'}
+                      </p>
+                    ) : null}
 
                     <CustomDatePickerField
                       id="fromDate"
@@ -377,8 +436,32 @@ export default function FormEmployeeInfo({
                       onBlur={formik.handleBlur}
                       required
                       min={0}
+                      max={
+                        selectedLeaveType?.maxDaysPerYear != null
+                          ? selectedLeaveType.maxDaysPerYear
+                          : undefined
+                      }
                       styleClasses={fieldStyleClasses}
                     />
+
+                    {carryForwardAllowed ? (
+                      <CustomFormField
+                        type="number"
+                        id="carryForward"
+                        placeholder="Carry Forward Days"
+                        value={formik.values.carryForward}
+                        onChange={formik.handleChange}
+                        onBlur={formik.handleBlur}
+                        required={false}
+                        min={0}
+                        max={
+                          selectedLeaveType?.maxCarryForwardDays != null
+                            ? selectedLeaveType.maxCarryForwardDays
+                            : undefined
+                        }
+                        styleClasses={fieldStyleClasses}
+                      />
+                    ) : null}
 
                     <CustomSelectField
                       id="status"
@@ -440,7 +523,8 @@ export default function FormEmployeeInfo({
                     ) : null}
                   </div>
                 </Form>
-            )}
+              );
+            }}
           </Formik>
           <Card className="mt-8 rounded-lg border border-border shadow-sm">
             <CardContent className="space-y-3 pt-6 text-sm">

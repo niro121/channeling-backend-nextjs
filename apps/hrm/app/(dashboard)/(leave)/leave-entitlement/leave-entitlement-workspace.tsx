@@ -8,7 +8,8 @@ import {
 import { getLeaveEntitlementBalanceAction } from '@/app/actions/leave-actions/leave-entitlement.actions';
 import type {
   LeaveEntitlementBalanceSummary,
-  LeaveEntitlementRecord
+  LeaveEntitlementRecord,
+  LeaveTypeEntitlementOption
 } from '@/types/leave';
 import { createLeaveEntitlementColumns } from './columns';
 import FormEmployeeInfo from './form-employee-info';
@@ -23,7 +24,7 @@ type LeaveEntitlementWorkspaceProps = {
   entitlements: LeaveEntitlementRecord[];
   balance: LeaveEntitlementBalanceSummary | null;
   employeeOptions: FilterOption[];
-  leaveTypeOptions: FilterOption[];
+  leaveTypeOptions: LeaveTypeEntitlementOption[];
   exportHandler: () => Promise<{
     success: boolean;
     message?: string;

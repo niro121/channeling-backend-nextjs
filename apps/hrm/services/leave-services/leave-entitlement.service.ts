@@ -112,6 +112,68 @@ function buildEntitlementWhere(
 const OVERLAP_CONFLICT_MESSAGE =
   'An entitlement already exists for this employee, leave type, and overlapping date range.';
 
+type LeaveTypePolicy = {
+  id: string;
+  status: number;
+  maxDaysPerYear: number | null;
+  carryForwardAllowed: boolean;
+  maxCarryForwardDays: number | null;
+};
+
+/**
+ * Caps from Leave Type:
+ * - entitled ≤ maxDaysPerYear (when set)
+ * - carryForward = 0 when CF not allowed
+ * - carryForward ≤ maxCarryForwardDays (when CF allowed and max set)
+ */
+function applyLeaveTypeEntitlementCaps(input: {
+  entitled: number;
+  carryForward: number;
+  leaveType: LeaveTypePolicy;
+}):
+  | { ok: true; entitled: number; carryForward: number }
+  | { ok: false; message: string; issues: Record<string, string[]> } {
+  const { entitled, leaveType } = input;
+  let carryForward = input.carryForward;
+
+  if (
+    leaveType.maxDaysPerYear != null &&
+    entitled > leaveType.maxDaysPerYear
+  ) {
+    const message = `Entitled days cannot exceed the leave type maximum (${leaveType.maxDaysPerYear}).`;
+    return {
+      ok: false,
+      message,
+      issues: { entitled: [message] }
+    };
+  }
+
+  if (!leaveType.carryForwardAllowed) {
+    if (carryForward > 0) {
+      const message =
+        'Carry forward is not allowed for this leave type. Set carry forward days to 0.';
+      return {
+        ok: false,
+        message,
+        issues: { carryForward: [message] }
+      };
+    }
+    carryForward = 0;
+  } else if (
+    leaveType.maxCarryForwardDays != null &&
+    carryForward > leaveType.maxCarryForwardDays
+  ) {
+    const message = `Carry forward days cannot exceed the leave type maximum (${leaveType.maxCarryForwardDays}).`;
+    return {
+      ok: false,
+      message,
+      issues: { carryForward: [message] }
+    };
+  }
+
+  return { ok: true, entitled, carryForward };
+}
+
 async function findOverlappingLeaveEntitlement(params: {
   staffId: string;
   leaveTypeId: string;
@@ -135,6 +197,46 @@ async function findOverlappingLeaveEntitlement(params: {
     },
     orderBy: { fromDate: 'desc' }
   });
+}
+
+async function assertLeaveEntitlementDeletable(
+  id: string
+): Promise<string | null> {
+  const entitlement = await prisma.leaveEntitlement.findUnique({
+    where: { id },
+    select: {
+      id: true,
+      staffId: true,
+      leaveTypeId: true,
+      fromDate: true,
+      toDate: true
+    }
+  });
+  if (!entitlement) {
+    return 'Leave entitlement not found';
+  }
+
+  const [grantCount, applicationCount] = await Promise.all([
+    prisma.lieuLeaveGrant.count({ where: { entitlementId: id } }),
+    prisma.leaveApplication.count({
+      where: {
+        staffId: entitlement.staffId,
+        leaveTypeId: entitlement.leaveTypeId,
+        status: { in: ['pending', 'approved'] },
+        fromDate: { lte: entitlement.toDate },
+        toDate: { gte: entitlement.fromDate }
+      }
+    })
+  ]);
+
+  if (grantCount > 0) {
+    return 'Cannot delete an entitlement that has lieu leave grants. Reverse those grants first.';
+  }
+  if (applicationCount > 0) {
+    return 'Cannot delete an entitlement that is used by pending or approved leave applications.';
+  }
+
+  return null;
 }
 
 function mapEntitlementRecord(record: any) {
@@ -434,11 +536,17 @@ export async function createLeaveEntitlement(
     const data = parsed.data;
     const auditUser = toAuditUser(user);
 
-    const [staff, leaveType] = await Promise.all([
+    const [staff, leaveTypeRow] = await Promise.all([
       prisma.staff.findUnique({ where: { id: data.staffId }, select: { id: true } }),
       prisma.leaveType.findUnique({
         where: { id: data.leaveTypeId },
-        select: { id: true, status: true }
+        select: {
+          id: true,
+          status: true,
+          maxDaysPerYear: true,
+          carryForwardAllowed: true,
+          maxCarryForwardDays: true
+        }
       })
     ]);
 
@@ -452,13 +560,39 @@ export async function createLeaveEntitlement(
       };
     }
 
-    if (!leaveType) {
+    if (!leaveTypeRow) {
       return {
         success: false,
         error: {
           message: 'Leave type not found',
           issues: { leaveTypeId: ['Selected leave type was not found'] }
         }
+      };
+    }
+
+    const leaveType: LeaveTypePolicy = {
+      id: leaveTypeRow.id,
+      status: leaveTypeRow.status,
+      maxDaysPerYear:
+        leaveTypeRow.maxDaysPerYear == null
+          ? null
+          : Number(leaveTypeRow.maxDaysPerYear),
+      carryForwardAllowed: Boolean(leaveTypeRow.carryForwardAllowed),
+      maxCarryForwardDays:
+        leaveTypeRow.maxCarryForwardDays == null
+          ? null
+          : Number(leaveTypeRow.maxCarryForwardDays)
+    };
+
+    const caps = applyLeaveTypeEntitlementCaps({
+      entitled: data.entitled,
+      carryForward: data.carryForward,
+      leaveType
+    });
+    if (!caps.ok) {
+      return {
+        success: false,
+        error: { message: caps.message, issues: caps.issues }
       };
     }
 
@@ -483,8 +617,8 @@ export async function createLeaveEntitlement(
 
     const used = 0;
     const remaining = computeEntitlementRemaining(
-      data.entitled,
-      data.carryForward,
+      caps.entitled,
+      caps.carryForward,
       used
     );
 
@@ -494,10 +628,10 @@ export async function createLeaveEntitlement(
         leaveTypeId: data.leaveTypeId,
         fromDate: data.fromDate,
         toDate: data.toDate,
-        entitled: data.entitled,
+        entitled: caps.entitled,
         used,
         remaining,
-        carryForward: data.carryForward,
+        carryForward: caps.carryForward,
         status: data.status,
         ...(auditUser?.id && {
           createdBy: auditUser.id,
@@ -571,11 +705,6 @@ export async function updateLeaveEntitlement(
       return { success: false, error: { message: 'Leave entitlement not found' } };
     }
 
-    const entitled = data.entitled ?? existing.entitled;
-    const carryForward = data.carryForward ?? existing.carryForward;
-    const used = existing.used;
-    const remaining = computeEntitlementRemaining(entitled, carryForward, used);
-
     const fromDate = data.fromDate ?? existing.fromDate;
     const toDate = data.toDate ?? existing.toDate;
     if (toDate < fromDate) {
@@ -590,6 +719,60 @@ export async function updateLeaveEntitlement(
 
     const staffId = data.staffId ?? existing.staffId;
     const leaveTypeId = data.leaveTypeId ?? existing.leaveTypeId;
+
+    const leaveTypeRow = await prisma.leaveType.findUnique({
+      where: { id: leaveTypeId },
+      select: {
+        id: true,
+        status: true,
+        maxDaysPerYear: true,
+        carryForwardAllowed: true,
+        maxCarryForwardDays: true
+      }
+    });
+    if (!leaveTypeRow) {
+      return {
+        success: false,
+        error: {
+          message: 'Leave type not found',
+          issues: { leaveTypeId: ['Selected leave type was not found'] }
+        }
+      };
+    }
+
+    const leaveType: LeaveTypePolicy = {
+      id: leaveTypeRow.id,
+      status: leaveTypeRow.status,
+      maxDaysPerYear:
+        leaveTypeRow.maxDaysPerYear == null
+          ? null
+          : Number(leaveTypeRow.maxDaysPerYear),
+      carryForwardAllowed: Boolean(leaveTypeRow.carryForwardAllowed),
+      maxCarryForwardDays:
+        leaveTypeRow.maxCarryForwardDays == null
+          ? null
+          : Number(leaveTypeRow.maxCarryForwardDays)
+    };
+
+    const caps = applyLeaveTypeEntitlementCaps({
+      entitled: data.entitled ?? existing.entitled,
+      carryForward: data.carryForward ?? existing.carryForward,
+      leaveType
+    });
+    if (!caps.ok) {
+      return {
+        success: false,
+        error: { message: caps.message, issues: caps.issues }
+      };
+    }
+
+    const used = existing.used;
+    const remaining = computeEntitlementRemaining(
+      caps.entitled,
+      caps.carryForward,
+      used
+    );
+
     const overlapping = await findOverlappingLeaveEntitlement({
       staffId,
       leaveTypeId,
@@ -617,8 +800,8 @@ export async function updateLeaveEntitlement(
         ...(data.leaveTypeId !== undefined && { leaveTypeId: data.leaveTypeId }),
         fromDate,
         toDate,
-        entitled,
-        carryForward,
+        entitled: caps.entitled,
+        carryForward: caps.carryForward,
         remaining,
         ...(data.status !== undefined && { status: data.status }),
         ...(auditUser?.id && { updatedBy: auditUser.id })
@@ -664,12 +847,26 @@ export async function deleteLeaveEntitlement(id: string): Promise<{
   error?: { message?: string };
 }> {
   try {
+    const blocked = await assertLeaveEntitlementDeletable(id);
+    if (blocked) {
+      return { success: false, error: { message: blocked } };
+    }
+
     await prisma.leaveEntitlement.delete({ where: { id } });
     return { success: true, message: 'Leave entitlement deleted successfully' };
   } catch (error: any) {
     console.error('deleteLeaveEntitlement error:', error);
     if (error.code === 'P2025') {
       return { success: false, error: { message: 'Leave entitlement not found' } };
+    }
+    if (error.code === 'P2014' || error.code === 'P2003') {
+      return {
+        success: false,
+        error: {
+          message:
+            'Cannot delete an entitlement that is still referenced by related records.'
+        }
+      };
     }
     return {
       success: false,

@@ -84,7 +84,15 @@ export default async function LeaveEntitlementPage({
 
   const leaveTypeOptions = (optionsRes.data?.leaveTypes ?? []).map((type) => ({
     id: type.id,
-    name: type.code ? `${type.code} — ${type.name}` : type.name
+    name: type.code ? `${type.code} — ${type.name}` : type.name,
+    code: type.code,
+    carryForwardAllowed: Boolean(type.carryForwardAllowed),
+    maxDaysPerYear:
+      type.maxDaysPerYear == null ? null : Number(type.maxDaysPerYear),
+    maxCarryForwardDays:
+      type.maxCarryForwardDays == null
+        ? null
+        : Number(type.maxCarryForwardDays)
   }));
 
   const departmentOptions = (optionsRes.data?.departments ?? []).map(
