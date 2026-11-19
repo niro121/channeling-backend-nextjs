@@ -15,6 +15,7 @@ export { PERMISSION_ACTIONS } from '@archmage/shared';
 import type { ResourceWithOptionalActions } from '@archmage/shared';
 
 export const RESOURCES: ResourceWithOptionalActions[] = [
+  { id: 'patient-bills', name: 'Patient Bills' },
   { id: 'doctor-payments', name: 'Doctor Payments' },
   { id: 'payments', name: 'Payments' },
   { id: 'receipts', name: 'Receipts' },

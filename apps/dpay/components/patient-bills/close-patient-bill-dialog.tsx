@@ -12,20 +12,21 @@ import {
   DialogTitle,
   useToast,
 } from '@archmage/ui';
+import type { PatientBillDetail } from '@/types/patient-bill';
 import { closePatientBillAction } from '@/app/actions/patient-bills/patient-bills.actions';
+import { getReceiptLetterheadAction } from '@/app/actions/receipts/receipts.actions';
+import { printFinalBill } from '@/lib/patient-bills/print-final-bill';
 
 type ClosePatientBillDialogProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  billId: string;
-  billNumber: string;
+  bill: PatientBillDetail;
 };
 
 export function ClosePatientBillDialog({
   open,
   onOpenChange,
-  billId,
-  billNumber,
+  bill,
 }: ClosePatientBillDialogProps) {
   const router = useRouter();
   const { toast } = useToast();
@@ -34,13 +35,22 @@ export function ClosePatientBillDialog({
   const handleClose = async () => {
     setLoading(true);
     try {
-      const result = await closePatientBillAction(billId);
+      const result = await closePatientBillAction(bill.id);
       if (result.success) {
         toast({
           title: 'Patient bill closed',
-          description: `${billNumber} has been closed and can no longer be edited. Excess payment can still be refunded from the closed bill, and Cancel Bill remains available to void it.`,
+          description: `${bill.billNumber} has been closed and can no longer be edited or cancelled. Excess payment can still be refunded from the closed bill.`,
         });
         onOpenChange(false);
+        const receiptLocationId =
+          bill.receipts.find((r) => (r.status ?? 'active') === 'active')?.locationId ??
+          bill.receipts[0]?.locationId ??
+          null;
+        const letterhead = await getReceiptLetterheadAction(receiptLocationId);
+        printFinalBill(bill, {
+          locationName: letterhead.locationName,
+          addressLine: letterhead.addressLine,
+        });
         router.refresh();
       } else {
         toast({
@@ -72,11 +82,10 @@ export function ClosePatientBillDialog({
           <DialogTitle>Close patient bill</DialogTitle>
         </DialogHeader>
         <p className="text-sm text-muted-foreground">
-          Are you sure you want to close this bill? Once closed, it cannot be edited or
-          have payments/receipts changed individually. Closing does not refund excess
-          payment — you can refund excess later from this closed bill. You can also cancel
-          the bill later to void it and issue refund receipts. Paid and over-paid bills can
-          be closed.
+          Are you sure you want to close this bill? Once closed, it cannot be edited,
+          cancelled, or have payments/receipts changed individually. Closing does not
+          refund excess payment — you can refund excess later from this closed bill. Paid
+          and over-paid bills can be closed.
         </p>
         <DialogFooter>
           <Button

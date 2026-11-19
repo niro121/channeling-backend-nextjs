@@ -90,15 +90,16 @@ export function isDischargeBeforeAdmission(
   const admission = new Date(admissionDate);
   const discharge = new Date(dischargeDate);
   if (Number.isNaN(admission.getTime()) || Number.isNaN(discharge.getTime())) return false;
+  // Local calendar days — UTC getters falsely reject same-day in positive offsets.
   const admissionDay = Date.UTC(
-    admission.getUTCFullYear(),
-    admission.getUTCMonth(),
-    admission.getUTCDate()
+    admission.getFullYear(),
+    admission.getMonth(),
+    admission.getDate()
   );
   const dischargeDay = Date.UTC(
-    discharge.getUTCFullYear(),
-    discharge.getUTCMonth(),
-    discharge.getUTCDate()
+    discharge.getFullYear(),
+    discharge.getMonth(),
+    discharge.getDate()
   );
   return dischargeDay < admissionDay;
 }
