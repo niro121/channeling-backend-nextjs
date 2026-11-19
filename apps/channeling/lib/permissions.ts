@@ -19,6 +19,8 @@ export const ROUTE_TO_RESOURCE: Record<string, string> = {
   "/tags": "tags",
   "/zones": "zones",
   "/rooms": "rooms",
+  "/inventory": "inventory",
+  "/room-inventory": "room-inventory",
   "/specialities": "specialities",
   "/locations": "locations",
   "/agency-books": "agency-books",
