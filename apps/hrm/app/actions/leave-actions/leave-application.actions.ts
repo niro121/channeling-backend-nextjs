@@ -87,7 +87,19 @@ export async function getLeaveApplicationsAction(
 
 export async function getLeaveApplicationByIdAction(id: string) {
   try {
-    await requirePermission('leave-application', 'view');
+    const canViewApplication = await checkPermission(
+      'leave-application',
+      'view'
+    );
+    const canViewManagement = await checkPermission(
+      'leave-management',
+      'view'
+    );
+    if (!canViewApplication && !canViewManagement) {
+      throw new Error(
+        "Access denied: You don't have permission to view leave applications"
+      );
+    }
     const result = await getLeaveApplicationById(id);
     if (!result.success || !result.data) {
       throw new Error(result.error?.message ?? 'Leave application not found');
