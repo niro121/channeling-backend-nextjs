@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { CheckCircle2, XCircle } from 'lucide-react';
 import {
   Avatar,
@@ -12,6 +12,7 @@ import {
   CardContent,
   CardHeader,
   CardTitle,
+  CustomAlertDialog,
   useToast
 } from '@archmage/ui';
 import { usePermissions } from '@/components/hooks/use-permissions';
@@ -52,36 +53,50 @@ export default function SectionPendingApprovals({
   const canDecide =
     has('leave-management', 'edit') || has('leave-application', 'edit');
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [softWarnOpen, setSoftWarnOpen] = useState(false);
+  const [softWarnMessage, setSoftWarnMessage] = useState('');
+  const softWarnIdRef = useRef<string | null>(null);
 
-  const handleDecide = async (
-    id: string,
-    action: 'approve' | 'reject'
-  ) => {
+  const runApprove = async (id: string, acknowledgedWarnings = false) => {
+    setBusyId(id);
     try {
-      setBusyId(id);
-      const result =
-        action === 'approve'
-          ? await approveLeaveApplicationAction(id)
-          : await rejectLeaveApplicationAction(id);
+      const result = await approveLeaveApplicationAction(id, {
+        acknowledgedWarnings
+      });
 
       if (result.isError) {
+        const errors = result.errors as Record<string, unknown> | undefined;
+        if (errors?.requiresAck) {
+          const warnings = Array.isArray(errors.softWarnings)
+            ? (errors.softWarnings as string[])
+            : [];
+          softWarnIdRef.current = id;
+          setSoftWarnMessage(
+            warnings[0] ||
+              (typeof errors.message === 'string'
+                ? errors.message
+                : 'Published duties overlap this leave. Continue anyway?')
+          );
+          setSoftWarnOpen(true);
+          return;
+        }
+
         toast({
           variant: 'destructive',
           title: 'Error',
           description:
-            result.errors?.message ??
-            `Failed to ${action} leave application.`
+            (typeof errors?.message === 'string'
+              ? errors.message
+              : null) ?? 'Failed to approve leave application.'
         });
         return;
       }
 
+      softWarnIdRef.current = null;
       toast({
         variant: 'success',
         title: 'Success',
-        description:
-          action === 'approve'
-            ? 'Leave application approved.'
-            : 'Leave application rejected.'
+        description: 'Leave application approved.'
       });
       router.refresh();
     } catch (error: unknown) {
@@ -91,11 +106,61 @@ export default function SectionPendingApprovals({
         description:
           error instanceof Error
             ? error.message
-            : `Failed to ${action} leave application.`
+            : 'Failed to approve leave application.'
       });
     } finally {
       setBusyId(null);
     }
+  };
+
+  const handleDecide = async (
+    id: string,
+    action: 'approve' | 'reject'
+  ) => {
+    if (action === 'approve') {
+      await runApprove(id, false);
+      return;
+    }
+
+    try {
+      setBusyId(id);
+      const result = await rejectLeaveApplicationAction(id);
+
+      if (result.isError) {
+        toast({
+          variant: 'destructive',
+          title: 'Error',
+          description:
+            result.errors?.message ?? 'Failed to reject leave application.'
+        });
+        return;
+      }
+
+      toast({
+        variant: 'success',
+        title: 'Success',
+        description: 'Leave application rejected.'
+      });
+      router.refresh();
+    } catch (error: unknown) {
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description:
+          error instanceof Error
+            ? error.message
+            : 'Failed to reject leave application.'
+      });
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const handleSoftWarnContinue = async () => {
+    const id = softWarnIdRef.current;
+    setSoftWarnOpen(false);
+    if (!id) return;
+    await runApprove(id, true);
   };
 
   return (
@@ -165,7 +230,7 @@ export default function SectionPendingApprovals({
                       size="sm"
                       className="h-8 gap-1.5"
                       disabled={busyId === item.id}
-                      onClick={() => handleDecide(item.id, 'reject')}
+                      onClick={() => void handleDecide(item.id, 'reject')}
                     >
                       <XCircle className="h-4 w-4" />
                       Reject
@@ -175,7 +240,7 @@ export default function SectionPendingApprovals({
                       size="sm"
                       className="h-8 gap-1.5 bg-emerald-700 text-white hover:bg-emerald-800"
                       disabled={busyId === item.id}
-                      onClick={() => handleDecide(item.id, 'approve')}
+                      onClick={() => void handleDecide(item.id, 'approve')}
                     >
                       <CheckCircle2 className="h-4 w-4" />
                       Approve
@@ -208,6 +273,22 @@ export default function SectionPendingApprovals({
           </CardContent>
         </Card>
       </CardContent>
+
+      <CustomAlertDialog
+        open={softWarnOpen}
+        handleVisibilityChange={(open) => {
+          setSoftWarnOpen(open);
+          if (!open) softWarnIdRef.current = null;
+        }}
+        loading={Boolean(busyId)}
+        title="Published duties overlap leave"
+        description={softWarnMessage}
+        handleContinue={handleSoftWarnContinue}
+        className={{
+          cancelButton: 'h-9',
+          actionButton: 'h-9'
+        }}
+      />
     </Card>
   );
 }

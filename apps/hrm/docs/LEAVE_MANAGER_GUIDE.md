@@ -4,7 +4,7 @@ Guidance for building and extending leave features in `apps/hrm`.
 Use with `HRM_DEVELOPMENT_GUIDELINES.md` (layered architecture) and `PERMISSION_FLOW.md` (Auth User Group grants).
 
 **Status:** Types, Entitlements, Application, Management, Process Shift, and Process Lieu Shift Phase A+B live. In-app Guide at `/leave`.  
-**Next:** Phase 5b done (delete policy, auto-approve, duty soft-warn, Recalculate). Remaining checklist: **§11** (export / smoke / permissions).  
+**Next:** Phase 5b + export columns done. Remaining checklist: **§11** (smoke / permissions).  
 **Build path:** Follow **§6 Development phases** (Phase 0 → 7 for v1; Phase 8 optional).
 
 ---
@@ -403,7 +403,7 @@ Push schema to Mongo when starting Phase 0 if collections are not live yet: `npx
 
 | Work |
 |------|
-| [ ] Export columns match live fields |
+| [x] Export columns match live fields (application + leave types; entitlement already aligned) |
 | [ ] Smoke: type (approval Yes/No) → entitlement → apply → approve/auto-approve → cancel → delete pending |
 | [ ] Permission matrix: view-only vs full CRUD on `leave-application` |
 
@@ -430,7 +430,7 @@ Push schema to Mongo when starting Phase 0 if collections are not live yet: `npx
 | Work |
 |------|
 | [x] Bulk delete applications — policy from Phase 5b (`pending` \| `rejected` \| `cancelled` only) |
-| [ ] Export columns match live fields |
+| [x] Export columns match live fields (application: half-day + lieu + datetimes; leave types: Lieu + audit) |
 | [ ] Auth User Group can grant all leave resources (HRM matrix or extended Channeling RESOURCES) |
 | [ ] Smoke: create type → entitlement → apply → approve / auto-approve → cancel → balances |
 | [ ] Non-admin permission matrix test (view-only vs full CRUD) |
@@ -535,13 +535,12 @@ Types, Entitlement, Application (incl. Phase 5b A+B), Management, and Lieu grant
 
 | # | Task | Where |
 |---|------|--------|
-| 1 | **Export columns** match live fields | Application (+ any leave exports that are off) |
-| 2 | **Smoke** — type (approval Yes/No) → entitlement → apply → approve / auto-approve → cancel → delete pending → balances correct | Cross-module |
-| 3 | **Lieu smoke** — Add Lieu type → PH Grant Lieu → bank +1 → Process Lieu Shift apply → approve → bank −1; reverse grant paths | Lieu + PH + Application |
-| 4 | **Permission matrix** — view-only vs full CRUD for leave resources | Types / Entitlement / Application / Management |
-| 5 | **Auth User Group** can grant all leave resources (`leave-types`, `leave-entitlement`, `leave-application`, `leave-management`) | Permissions |
+| 1 | **Smoke** — type (approval Yes/No) → entitlement → apply → approve / auto-approve → cancel → delete pending → balances correct | Cross-module |
+| 2 | **Lieu smoke** — Add Lieu type → PH Grant Lieu → bank +1 → Process Lieu Shift apply → approve → bank −1; reverse grant paths | Lieu + PH + Application |
+| 3 | **Permission matrix** — view-only vs full CRUD for leave resources | Types / Entitlement / Application / Management |
+| 4 | **Auth User Group** can grant all leave resources (`leave-types`, `leave-entitlement`, `leave-application`, `leave-management`) | Permissions |
 
-**Done this close-out:** Recalculate = auto-sync + thin Leave Balance card button. Remaining is Phase 7 hardening (export / smoke / permissions).
+**Done this close-out:** Recalculate; export columns aligned to live fields. Remaining is smoke + permissions.
 
 ### 11.2 Next phase (after v1 / deferred)
 

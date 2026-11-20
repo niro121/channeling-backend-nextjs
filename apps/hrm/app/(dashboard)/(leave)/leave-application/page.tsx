@@ -4,7 +4,8 @@ import { CommonManagerHeader } from '@/components/common/common-manager-header';
 import { authOptions } from '@/lib/auth';
 import { logActivityNonBlocking } from '@/lib/activity-log';
 import { checkRouteAccess } from '@/lib/server-permissions';
-import { formatDate } from '@/lib/utils/date';
+import { formatHalfDaySessionLabel } from '@/lib/helpers/leave-application-days.helper';
+import { formatDateTime } from '@/lib/utils/date';
 import {
   bulkDeleteLeaveApplicationsAction,
   getLeaveApplicationFormOptionsAction,
@@ -138,15 +139,17 @@ export default async function LeaveApplicationPage({
         fromDate: row.fromDate,
         toDate: row.toDate,
         days: row.days,
-        approverName: row.approverName,
-        approvedAt: row.approvedAt ?? '',
+        halfDaySession: formatHalfDaySessionLabel(row.halfDaySession) || '',
+        approverName: row.approverName || '',
+        approvedAt: row.approvedAt ? formatDateTime(row.approvedAt) : '',
         status: row.status,
         outWithCancel: row.outWithCancel ? 'Yes' : 'No',
-        shiftDate: row.shiftDate,
+        shiftDate: row.shiftDate || '',
+        lieuShift: row.lieuShiftLabel?.trim() || '',
         updatedBy: row.updatedUser?.name ?? '',
-        updatedAt: formatDate(row.updatedAt),
+        updatedAt: formatDateTime(row.updatedAt),
         createdBy: row.createdUser?.name ?? '',
-        createdAt: formatDate(row.createdAt)
+        createdAt: formatDateTime(row.createdAt)
       }))
     };
   };

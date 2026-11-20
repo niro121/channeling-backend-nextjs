@@ -12,6 +12,8 @@ import Loading from '../../loading';
 import { authOptions } from '@/lib/auth';
 import { checkPermission, checkRouteAccess } from '@/lib/server-permissions';
 import { logActivityNonBlocking } from '@/lib/activity-log';
+import { formatDateTime } from '@/lib/utils/date';
+import type { LeaveTypeRecord } from '@/types/leave';
 import { ExportWrapper } from '../../export-wrapper';
 import LeaveTypeFilterSection from './filter-section';
 import { leaveTypeColumns } from './columns';
@@ -92,14 +94,19 @@ export default async function LeaveTypesPage({ searchParams }: SearchParams) {
 
     return {
       success: true,
-      data: exportResponse.data.map((row: any) => ({
+      data: exportResponse.data.map((row: LeaveTypeRecord) => ({
         code: row.code,
         name: row.name,
         status: row.status === 1 ? 'Published' : 'Unpublished',
         paidType: row.isPaid ? 'Paid' : 'Unpaid',
         approvalRequired: row.requiresApproval ? 'Yes' : 'No',
         halfDayAllowed: row.allowHalfDay ? 'Yes' : 'No',
-        carryForwardAllowed: row.carryForwardAllowed ? 'Yes' : 'No'
+        isLieuLeave: row.isLieuLeave ? 'Yes' : 'No',
+        carryForwardAllowed: row.carryForwardAllowed ? 'Yes' : 'No',
+        updatedBy: row.updatedUser?.name ?? '',
+        updatedAt: formatDateTime(row.updatedAt),
+        createdBy: row.createdUser?.name ?? '',
+        createdAt: formatDateTime(row.createdAt)
       }))
     };
   };
@@ -185,7 +192,12 @@ export default async function LeaveTypesPage({ searchParams }: SearchParams) {
                     'Paid Type',
                     'Approval Required',
                     'Half-day Allowed',
-                    'Carry Forward Allowed'
+                    'Lieu',
+                    'Carry Forward Allowed',
+                    'Updated By',
+                    'Updated At',
+                    'Created By',
+                    'Created At'
                   ]}
                   keys={[
                     'code',
@@ -194,7 +206,12 @@ export default async function LeaveTypesPage({ searchParams }: SearchParams) {
                     'paidType',
                     'approvalRequired',
                     'halfDayAllowed',
-                    'carryForwardAllowed'
+                    'isLieuLeave',
+                    'carryForwardAllowed',
+                    'updatedBy',
+                    'updatedAt',
+                    'createdBy',
+                    'createdAt'
                   ]}
                   title="Leave Types"
                   fileName="leave-types"
