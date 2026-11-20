@@ -192,7 +192,7 @@ function sheetCopy(mode: PublicHolidayFormSheetMode) {
       title: 'Edit Holiday Shift',
       description:
         'Update the record. All changes are captured in the audit trail.',
-      saveLabel: 'Save Changes'
+      saveLabel: 'Update'
     };
   }
   if (mode === 'bulk') {
@@ -913,7 +913,11 @@ export default function SheetHolidayForm({
                       }
                       className={buttonStyles.save}
                     >
-                      {copy.saveLabel}
+                      {loading
+                        ? isEdit
+                          ? 'Updating...'
+                          : 'Saving...'
+                        : copy.saveLabel}
                     </Button>
                   </SheetFooter>
                 </Form>

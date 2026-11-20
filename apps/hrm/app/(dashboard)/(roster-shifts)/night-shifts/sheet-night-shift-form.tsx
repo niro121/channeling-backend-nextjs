@@ -616,7 +616,13 @@ export default function SheetNightShiftForm({
                       disabled={loading || Boolean(conflictPreview?.blocksSave)}
                       className={buttonStyles.save}
                     >
-                      {isEdit ? 'Save Changes' : 'Save Night Shift'}
+                      {loading
+                        ? isEdit
+                          ? 'Updating...'
+                          : 'Saving...'
+                        : isEdit
+                          ? 'Update'
+                          : 'Save Night Shift'}
                     </Button>
                   </SheetFooter>
                 </Form>

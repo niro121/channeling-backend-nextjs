@@ -23,6 +23,11 @@ function formatDisplayDate(value: string | null): string {
   return format(parsed, 'dd MMM yyyy');
 }
 
+function displayText(value: string | null | undefined): string {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : '—';
+}
+
 const STATUS_STYLES: Record<PublicHolidayShiftStatus, string> = {
   pending_approval: 'bg-orange-100 text-orange-700 hover:bg-orange-100',
   approved: 'bg-emerald-100 text-emerald-700 hover:bg-emerald-100',
@@ -80,48 +85,60 @@ export const holidayShiftColumns: ColumnDef<PublicHolidayShiftRecord>[] = [
     accessorKey: 'staffCode',
     header: () => <span className="whitespace-nowrap">Staff ID</span>,
     cell: ({ row }) => (
-      <span className="font-medium tabular-nums whitespace-nowrap">{row.original.staffCode}</span>
+      <span className="whitespace-nowrap font-medium tabular-nums">
+        {displayText(row.original.staffCode)}
+      </span>
     )
   },
   {
     accessorKey: 'staffName',
     header: 'Staff Name',
-    cell: ({ row }) => <span>{row.original.staffName}</span>
+    cell: ({ row }) => <span>{displayText(row.original.staffName)}</span>
   },
   {
     accessorKey: 'department',
     header: 'Department',
     cell: ({ row }) => (
-      <span className="text-muted-foreground">{row.original.department}</span>
+      <span className="text-muted-foreground">
+        {displayText(row.original.department)}
+      </span>
     )
   },
   {
     accessorKey: 'unit',
     header: 'Unit',
     cell: ({ row }) => (
-      <span className="text-muted-foreground">{row.original.unit}</span>
+      <span className="text-muted-foreground">
+        {displayText(row.original.unit)}
+      </span>
     )
   },
   {
     accessorKey: 'holidayName',
     header: 'Holiday',
-    cell: ({ row }) => <span>{row.original.holidayName}</span>
+    cell: ({ row }) => <span>{displayText(row.original.holidayName)}</span>
   },
   {
     accessorKey: 'holidayType',
     header: () => <span className="whitespace-nowrap">Holiday Type</span>,
-    cell: ({ row }) => (
-      <Badge
-        variant="secondary"
-        className={cn(
-          'rounded-full border-0 font-medium',
-          HOLIDAY_TYPE_STYLES[row.original.holidayTypeId] ??
-            'bg-muted text-muted-foreground hover:bg-muted'
-        )}
-      >
-        {row.original.holidayType}
-      </Badge>
-    )
+    cell: ({ row }) => {
+      const label = displayText(row.original.holidayType);
+      if (label === '—') {
+        return <span className="text-muted-foreground">—</span>;
+      }
+      return (
+        <Badge
+          variant="secondary"
+          className={cn(
+            'rounded-full border-0 font-medium',
+            HOLIDAY_TYPE_STYLES[row.original.holidayTypeId] ??
+              'bg-muted text-muted-foreground hover:bg-muted'
+          )}
+        >
+          {label}
+        </Badge>
+      );
+    }
   },
   {
     accessorKey: 'dutyDate',
@@ -136,7 +153,9 @@ export const holidayShiftColumns: ColumnDef<PublicHolidayShiftRecord>[] = [
     accessorKey: 'shiftLabel',
     header: 'Shift',
     cell: ({ row }) => (
-      <span className="whitespace-nowrap">{row.original.shiftLabel}</span>
+      <span className="whitespace-nowrap">
+        {displayText(row.original.shiftLabel)}
+      </span>
     )
   },
   {
@@ -144,31 +163,42 @@ export const holidayShiftColumns: ColumnDef<PublicHolidayShiftRecord>[] = [
     header: () => <span className="whitespace-nowrap">Worked Hours</span>,
     cell: ({ row }) => (
       <span className="tabular-nums">
-        {formatHolidayHours(row.original.workedHours)}
+        {row.original.workedHours == null
+          ? '—'
+          : formatHolidayHours(row.original.workedHours)}
       </span>
     )
   },
   {
     accessorKey: 'payRate',
     header: () => <span className="whitespace-nowrap">Pay Rate</span>,
-    cell: ({ row }) => (
-      <Badge
-        variant="secondary"
-        className={cn(
-          'rounded-full border-0 font-medium',
-          PAY_RATE_STYLES[row.original.payRate]
-        )}
-      >
-        {formatPayRate(row.original.payRate)}
-      </Badge>
-    )
+    cell: ({ row }) => {
+      const rate = displayText(row.original.payRate);
+      if (rate === '—') {
+        return <span className="text-muted-foreground">—</span>;
+      }
+      return (
+        <Badge
+          variant="secondary"
+          className={cn(
+            'rounded-full border-0 font-medium',
+            PAY_RATE_STYLES[row.original.payRate] ??
+              'bg-muted text-muted-foreground hover:bg-muted'
+          )}
+        >
+          {formatPayRate(row.original.payRate)}
+        </Badge>
+      );
+    }
   },
   {
     accessorKey: 'holidayAllowance',
     header: () => <span className="whitespace-nowrap">Holiday Allowance</span>,
     cell: ({ row }) => (
       <span className="tabular-nums">
-        {formatHolidayMoney(row.original.holidayAllowance)}
+        {row.original.holidayAllowance == null
+          ? '—'
+          : formatHolidayMoney(row.original.holidayAllowance)}
       </span>
     )
   },
@@ -176,7 +206,9 @@ export const holidayShiftColumns: ColumnDef<PublicHolidayShiftRecord>[] = [
     accessorKey: 'dutyLocation',
     header: () => <span className="whitespace-nowrap">Duty Location</span>,
     cell: ({ row }) => (
-      <span className="text-muted-foreground">{row.original.dutyLocation}</span>
+      <span className="text-muted-foreground">
+        {displayText(row.original.dutyLocation)}
+      </span>
     )
   },
   {

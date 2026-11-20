@@ -582,7 +582,7 @@ export default function SheetRosterAllocationForm({
     : mode === 'edit'
       ? 'Update the record. All changes are captured in the audit trail.'
       : 'Allocate from a standing shift assignment, or use ad-hoc when none exists.';
-  const saveLabel = 'Save Draft';
+  const saveLabel = mode === 'edit' ? 'Update' : 'Save Draft';
 
   const validationSchema = useMemo(
     () =>
@@ -1280,7 +1280,11 @@ export default function SheetRosterAllocationForm({
                       disabled={loading || isLocked}
                       className={buttonStyles.save}
                     >
-                      {saveLabel}
+                      {loading
+                        ? mode === 'edit'
+                          ? 'Updating...'
+                          : 'Saving...'
+                        : saveLabel}
                     </Button>
                   </SheetFooter>
                 </Form>
