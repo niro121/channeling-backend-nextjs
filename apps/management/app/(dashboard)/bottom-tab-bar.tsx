@@ -3,18 +3,23 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
-import { NAV_ITEMS, isNavActive } from './nav-items';
+import { isNavActive, navItemsFor } from './nav-items';
+import { useFeatures } from './features-context';
+import { isInnerPath } from './page-header-context';
 
 /** App-style tab bar for phones and iPad portrait, clear of the home indicator. */
 export function BottomTabBar() {
   const pathname = usePathname();
+  const items = navItemsFor(useFeatures());
+  // Inner pages have a back button in the top bar instead; the tabs would only lead away mid-task.
+  if (isInnerPath(pathname)) return null;
   return (
     <nav
       className="fixed inset-x-0 bottom-0 z-40 border-t border-border/60 bg-background/95 pb-safe backdrop-blur supports-[backdrop-filter]:bg-background/80 lg:hidden"
       aria-label="Main"
     >
       <div className="mx-auto flex h-16 max-w-xl items-stretch">
-        {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
+        {items.map(({ href, label, icon: Icon }) => {
           const active = isNavActive(pathname, href);
           return (
             <Link

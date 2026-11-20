@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic"
 
 /**
  * POST /api/management/room-inventory/condition
- * Body: { unitIds: string[], condition: 0|1|2|3, note?: string }
+ * Body: { unitIds: string[], condition: 0|1|2|3|4, note?: string }
  * Needs room-inventory.assign or inventory.edit.
  */
 export async function POST(request: Request) {

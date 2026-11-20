@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { requireManagementActor } from "@/lib/management-api-route"
 import { roomInventoryCan } from "@/lib/room-inventory-access"
+import { roomStaysCan } from "@/lib/room-checklist-access"
 
 export const dynamic = "force-dynamic"
 
@@ -13,11 +14,19 @@ export async function GET(request: Request) {
   if ("response" in auth) return auth.response
   const { actor } = auth
   const roomInventory = roomInventoryCan(actor.permissions, actor.isAdmin)
+  const roomStays = roomStaysCan(actor.permissions, actor.isAdmin)
   return NextResponse.json({
     success: true,
     isAdmin: actor.isAdmin,
     features: {
       roomInventory: { view: roomInventory.view, assign: roomInventory.assign, condition: roomInventory.condition },
+      roomStays: {
+        view: roomStays.view,
+        checkIn: roomStays.checkIn,
+        checkOut: roomStays.checkOut,
+        contacts: roomStays.contacts,
+        override: roomStays.override,
+      },
     },
   })
 }

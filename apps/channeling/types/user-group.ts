@@ -93,6 +93,29 @@ export const RESOURCES: ResourceWithOptionalActions[] = [
       { id: "assign", name: "Assign / move items" },
     ],
   },
+  {
+    // Check-in / check-out forms, built on /room-checklists.
+    id: "room-checklist-forms",
+    name: "Room Checklist Forms",
+    customActions: [
+      { id: "view", name: "View" },
+      { id: "edit", name: "Create / edit forms" },
+      { id: "publish", name: "Publish / archive / delete forms" },
+    ],
+  },
+  {
+    // Patient room stays: check-in and check-out checklists, filled on the Management app.
+    id: "room-stays",
+    name: "Room Check-in / Check-out",
+    customActions: [
+      { id: "view", name: "View rooms, stays and checklists" },
+      { id: "check-in", name: "Check patients in" },
+      { id: "check-out", name: "Check patients out" },
+      { id: "contacts", name: "Edit patient contacts" },
+      { id: "override", name: "Override failed items / cancel a check-in" },
+      { id: "alerts", name: "Get alerts for checklist issues" },
+    ],
+  },
   { id: "specialities", name: "Specialities" },
   { id: "locations", name: "Locations" },
   { id: "agency-books", name: "Agency Books" },

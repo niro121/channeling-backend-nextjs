@@ -14,6 +14,7 @@ export function useFeatures(): ManagementFeatures {
   return (
     useContext(FeaturesContext) ?? {
       roomInventory: { view: false, assign: false, condition: false },
+      roomStays: { view: false, checkIn: false, checkOut: false, contacts: false, override: false },
     }
   );
 }

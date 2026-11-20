@@ -55,7 +55,8 @@ export async function channelingUserFetch(path: string, init: RequestInit = {}):
   const token = await signUserToken(userId, session.user?.email, config.secret);
   const headers = new Headers(init.headers);
   headers.set('Authorization', `Bearer ${token}`);
-  if (init.body && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json');
+  // JSON bodies only; FormData sets its own multipart boundary.
+  if (typeof init.body === 'string' && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json');
 
   const timeout = AbortSignal.timeout(REQUEST_TIMEOUT_MS);
   const signal = init.signal ? AbortSignal.any([init.signal, timeout]) : timeout;

@@ -12,10 +12,12 @@ export type ManagementAccess = 'allowed' | 'denied' | 'unavailable';
 /** Optional sections (☰ menu). Channeling's APIs check the same privileges again. */
 export type ManagementFeatures = {
   roomInventory: { view: boolean; assign: boolean; condition: boolean };
+  roomStays: { view: boolean; checkIn: boolean; checkOut: boolean; contacts: boolean; override: boolean };
 };
 
 export const NO_FEATURES: ManagementFeatures = {
   roomInventory: { view: false, assign: false, condition: false },
+  roomStays: { view: false, checkIn: false, checkOut: false, contacts: false, override: false },
 };
 
 const loadMe = cache(async (): Promise<{ access: ManagementAccess; features: ManagementFeatures }> => {

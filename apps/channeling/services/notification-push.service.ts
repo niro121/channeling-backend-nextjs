@@ -12,6 +12,9 @@ function managementUrlFor(input: NotificationCreateInput): string | null {
   if (input.referenceType === REFERENCE_TYPES.ApprovalRequest && input.referenceId) {
     return `/approvals?id=${input.referenceId}`
   }
+  if (input.referenceType === REFERENCE_TYPES.RoomStay && input.referenceId) {
+    return `/stays/${input.referenceId}`
+  }
   return null
 }
 

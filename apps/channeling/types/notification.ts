@@ -25,6 +25,7 @@ export const REFERENCE_TYPES = {
   FloatRequest: 'FloatRequest',
   ShiftHandover: 'ShiftHandover',
   ApprovalRequest: 'ApprovalRequest',
+  RoomStay: 'RoomStay',
 } as const;
 
 export type Notification = {

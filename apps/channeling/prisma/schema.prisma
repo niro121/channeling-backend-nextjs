@@ -19,8 +19,8 @@ model User {
   name                   String
   email                  String   @unique()
   // == username optional; unique when set. Prisma @unique would allow only one null in MongoDB, so we use a partial unique index via scripts/fix-user-username-partial-unique.ts == //
-  username               String?  // == Optional; login can use email or username == //
-  phone                  String?  // == Mobile number for SMS etc. (e.g. 07XXXXXXXX): 2FA == //
+  username               String? // == Optional; login can use email or username == //
+  phone                  String? // == Mobile number for SMS etc. (e.g. 07XXXXXXXX): 2FA == //
   userType               Int // 1 = admin, 2 = staff, 3 = doctor, 4 = api user
   password               String
   createdAt              DateTime @default(now())
@@ -28,85 +28,85 @@ model User {
   status                 Int
   checkedDefaultLocation Boolean  @default(false)
   defaultLocation        String?
-  defaultBookingMethod   Int?     // 0=Cash, 1=OnCall, 2=Agent, 3=Staff, 4=Card, 5=Slip (channel booking PAYMENT_METHODS id)
+  defaultBookingMethod   Int? // 0=Cash, 1=OnCall, 2=Agent, 3=Staff, 4=Card, 5=Slip (channel booking PAYMENT_METHODS id)
 
   // == 2FA STATE == //
-  twoFactorEnabled       Boolean @default(false) // == User turned on 2FA in Settings; only then is 2FA required at login == //
+  twoFactorEnabled       Boolean   @default(false) // == User turned on 2FA in Settings; only then is 2FA required at login == //
   twoFactorMethod        String?
   twoFactorSecret        String?
   twoFactorPendingSecret String? // Temporary secret during "setup at login"; moved to twoFactorSecret only after user verifies code
   twoFactorTempCode      String?
   twoFactorExpires       DateTime?
-  twoFactorVerified      Boolean @default(false)
-  twoFactorSkipped       Boolean @default(false) // == Legacy: when true, user can log in without 2FA == //
-  mustChangePassword     Boolean @default(false) // == When true, user must set a new password on first login (admin-created account) == //
+  twoFactorVerified      Boolean   @default(false)
+  twoFactorSkipped       Boolean   @default(false) // == Legacy: when true, user can log in without 2FA == //
+  mustChangePassword     Boolean   @default(false) // == When true, user must set a new password on first login (admin-created account) == //
   /// Bumped on each successful login; JWT must match or session is invalidated (single active session).
-  sessionVersion         Int     @default(0)
+  sessionVersion         Int       @default(0)
 
   // ==== RELATIONS ==== //
-  createdSpecialities     Speciality[]                   @relation("UserCreatedSpecialities")
-  updatedSpecialities     Speciality[]                   @relation("UserUpdatedSpecialities")
-  createdDoctors          Doctor[]                       @relation("UserCreatedDoctors")
-  updatedDoctors          Doctor[]                       @relation("UserUpdatedDoctors")
-  createdDoctorSessions   DoctorSession[]                @relation("UserCreatedDoctorSessions")
-  updatedDoctorSessions   DoctorSession[]                @relation("UserUpdatedDoctorSessions")
-  createdLocations        Location[]                     @relation("UserCreatedLocations")
-  updatedLocations        Location[]                     @relation("UserUpdatedLocations")
-  createdRooms            Room[]                         @relation("UserCreatedRooms")
-  updatedRooms            Room[]                         @relation("UserUpdatedRooms")
-  createdDiscounts        Discount[]                     @relation("UserCreatedDiscounts")
-  updatedDiscounts        Discount[]                     @relation("UserUpdatedDiscounts")
-  createdVoucherCodes     VoucherCode[]                  @relation("UserCreatedVouchers")
-  updatedVoucherCodes     VoucherCode[]                  @relation("UserUpdatedVouchers")
-  agencies                Agency[]                       @relation("AgencyUser")
-  createdAgencies         Agency[]                       @relation("UserCreatedAgencies")
-  updatedAgencies         Agency[]                       @relation("UserUpdatedAgencies")
-  createdCreditCustomers  CreditCustomer[]              @relation("UserCreatedCreditCustomers")
-  updatedCreditCustomers  CreditCustomer[]              @relation("UserUpdatedCreditCustomers")
-  createdSessions         Session[]                      @relation("UserCreatedSessions")
-  updatedSessions         Session[]                      @relation("UserUpdatedSessions")
-  createdLogs             Log[]                          @relation("UserCreatedLogs")
-  updatedLogs             Log[]                          @relation("UserUpdatedLogs")
-  createdAgencyBooks      AgencyBook[]                   @relation("UserCreatedAgencyBooks")
-  updatedAgencyBooks      AgencyBook[]                   @relation("UserUpdatedAgencyBooks")
-  createdBookings         Booking[]                      @relation("UserCreatedBookings")
-  updatedBookings         Booking[]                      @relation("UserUpdatedBookings")
-  createdTags             Tag[]                          @relation("UserCreatedTags")
-  updatedTags             Tag[]                          @relation("UserUpdatedTags")
-  createdZones            Zone[]                         @relation("UserCreatedZones")
-  updatedZones            Zone[]                         @relation("UserUpdatedZones")
-  createdDepartments      Department[]                   @relation("UserCreatedDepartments")
-  updatedDepartments      Department[]                   @relation("UserUpdatedDepartments")
-  createdUserGroups       UserGroup[]                    @relation("UserCreatedUserGroups")
-  updatedUserGroups       UserGroup[]                    @relation("UserUpdatedUserGroups")
-  userGroupId             String?                        @db.ObjectId
-  userGroup               UserGroup?                     @relation("UserToUserGroup", fields: [userGroupId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  shifts                  Shift[]                        @relation("UserShifts")
-  shiftsCreatedBy         Shift[]                        @relation("ShiftCreatedBy")
-  shiftsPausedBy          Shift[]                        @relation("ShiftPausedBy")
-  shiftsEndedBy           Shift[]                        @relation("ShiftEndedBy")
-  activityLogs            ActivityLog[]                  @relation("UserActivityLogs")
-  apiClientsAsActingUser    ApiClient[]                    @relation("ApiClientActingUser")
-  createdDoctorLeaves     DoctorLeave[]                  @relation("UserCreatedLeaves")
-  updatedDoctorLeaves     DoctorLeave[]                  @relation("UserUpdatedLeaves")
-  createdBulkPriceChanges DoctorSessionBulkPriceChange[] @relation("UserCreatedBulkPriceChanges")
-  userLocationId          String?                        @db.ObjectId
-  userLocation            Location?                      @relation("LocationToUser", fields: [userLocationId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  createdSpecialities        Speciality[]                   @relation("UserCreatedSpecialities")
+  updatedSpecialities        Speciality[]                   @relation("UserUpdatedSpecialities")
+  createdDoctors             Doctor[]                       @relation("UserCreatedDoctors")
+  updatedDoctors             Doctor[]                       @relation("UserUpdatedDoctors")
+  createdDoctorSessions      DoctorSession[]                @relation("UserCreatedDoctorSessions")
+  updatedDoctorSessions      DoctorSession[]                @relation("UserUpdatedDoctorSessions")
+  createdLocations           Location[]                     @relation("UserCreatedLocations")
+  updatedLocations           Location[]                     @relation("UserUpdatedLocations")
+  createdRooms               Room[]                         @relation("UserCreatedRooms")
+  updatedRooms               Room[]                         @relation("UserUpdatedRooms")
+  createdDiscounts           Discount[]                     @relation("UserCreatedDiscounts")
+  updatedDiscounts           Discount[]                     @relation("UserUpdatedDiscounts")
+  createdVoucherCodes        VoucherCode[]                  @relation("UserCreatedVouchers")
+  updatedVoucherCodes        VoucherCode[]                  @relation("UserUpdatedVouchers")
+  agencies                   Agency[]                       @relation("AgencyUser")
+  createdAgencies            Agency[]                       @relation("UserCreatedAgencies")
+  updatedAgencies            Agency[]                       @relation("UserUpdatedAgencies")
+  createdCreditCustomers     CreditCustomer[]               @relation("UserCreatedCreditCustomers")
+  updatedCreditCustomers     CreditCustomer[]               @relation("UserUpdatedCreditCustomers")
+  createdSessions            Session[]                      @relation("UserCreatedSessions")
+  updatedSessions            Session[]                      @relation("UserUpdatedSessions")
+  createdLogs                Log[]                          @relation("UserCreatedLogs")
+  updatedLogs                Log[]                          @relation("UserUpdatedLogs")
+  createdAgencyBooks         AgencyBook[]                   @relation("UserCreatedAgencyBooks")
+  updatedAgencyBooks         AgencyBook[]                   @relation("UserUpdatedAgencyBooks")
+  createdBookings            Booking[]                      @relation("UserCreatedBookings")
+  updatedBookings            Booking[]                      @relation("UserUpdatedBookings")
+  createdTags                Tag[]                          @relation("UserCreatedTags")
+  updatedTags                Tag[]                          @relation("UserUpdatedTags")
+  createdZones               Zone[]                         @relation("UserCreatedZones")
+  updatedZones               Zone[]                         @relation("UserUpdatedZones")
+  createdDepartments         Department[]                   @relation("UserCreatedDepartments")
+  updatedDepartments         Department[]                   @relation("UserUpdatedDepartments")
+  createdUserGroups          UserGroup[]                    @relation("UserCreatedUserGroups")
+  updatedUserGroups          UserGroup[]                    @relation("UserUpdatedUserGroups")
+  userGroupId                String?                        @db.ObjectId
+  userGroup                  UserGroup?                     @relation("UserToUserGroup", fields: [userGroupId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  shifts                     Shift[]                        @relation("UserShifts")
+  shiftsCreatedBy            Shift[]                        @relation("ShiftCreatedBy")
+  shiftsPausedBy             Shift[]                        @relation("ShiftPausedBy")
+  shiftsEndedBy              Shift[]                        @relation("ShiftEndedBy")
+  activityLogs               ActivityLog[]                  @relation("UserActivityLogs")
+  apiClientsAsActingUser     ApiClient[]                    @relation("ApiClientActingUser")
+  createdDoctorLeaves        DoctorLeave[]                  @relation("UserCreatedLeaves")
+  updatedDoctorLeaves        DoctorLeave[]                  @relation("UserUpdatedLeaves")
+  createdBulkPriceChanges    DoctorSessionBulkPriceChange[] @relation("UserCreatedBulkPriceChanges")
+  userLocationId             String?                        @db.ObjectId
+  userLocation               Location?                      @relation("LocationToUser", fields: [userLocationId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   // staffId optional; unique when set. Prisma @unique would allow only one null in MongoDB, so we use a partial unique index via scripts/fix-user-staffid-partial-unique.ts
-  staffId                 String?                        @db.ObjectId
-  staff                   Staff?                         @relation("UserToStaff", fields: [staffId], references: [id], onDelete: SetNull, onUpdate: NoAction)
-  bookingLocations        UserBookingLocation[]
-  accounts                Account[]                     @relation("UserToAccount")
-  tills                   Till[]                        @relation("UserToTill")
-  floatRequestsRequested  FloatRequest[]                @relation("FloatRequestRequestedBy")
-  floatRequestsAsBulkCashier FloatRequest[]             @relation("FloatRequestBulkCashier")
-  floatRequestsReceived  FloatRequest[]                @relation("FloatRequestReceivedBy")
-  handoversFrom          ShiftHandover[]                @relation("ShiftHandoverFrom")
-  handoversTo            ShiftHandover[]                @relation("ShiftHandoverTo")
-  notifications          Notification[]                 @relation("UserNotifications")
-  approvalRequestsRequested ApprovalRequest[]           @relation("ApprovalRequestRequestedBy")
-  approvalRequestsApproved  ApprovalRequest[]           @relation("ApprovalRequestApprovedBy")
-  approvalRequestsRejected  ApprovalRequest[]           @relation("ApprovalRequestRejectedBy")
+  staffId                    String?                        @db.ObjectId
+  staff                      Staff?                         @relation("UserToStaff", fields: [staffId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  bookingLocations           UserBookingLocation[]
+  accounts                   Account[]                      @relation("UserToAccount")
+  tills                      Till[]                         @relation("UserToTill")
+  floatRequestsRequested     FloatRequest[]                 @relation("FloatRequestRequestedBy")
+  floatRequestsAsBulkCashier FloatRequest[]                 @relation("FloatRequestBulkCashier")
+  floatRequestsReceived      FloatRequest[]                 @relation("FloatRequestReceivedBy")
+  handoversFrom              ShiftHandover[]                @relation("ShiftHandoverFrom")
+  handoversTo                ShiftHandover[]                @relation("ShiftHandoverTo")
+  notifications              Notification[]                 @relation("UserNotifications")
+  approvalRequestsRequested  ApprovalRequest[]              @relation("ApprovalRequestRequestedBy")
+  approvalRequestsApproved   ApprovalRequest[]              @relation("ApprovalRequestApprovedBy")
+  approvalRequestsRejected   ApprovalRequest[]              @relation("ApprovalRequestRejectedBy")
 }
 
 model UserGroup {
@@ -121,7 +121,7 @@ model UserGroup {
   updatedBy   String?  @db.ObjectId
 
   // == 2FA CONFIG == //
-  twoFactorEnabled Boolean @default(false)
+  twoFactorEnabled Boolean  @default(false)
   twoFactorMethods String[] // == 1: AUTH-APP, 2: "SMS", 3: "EMAIL" == //
 
   // ==== RELATIONS ==== //
@@ -152,9 +152,9 @@ model DoctorLocation {
   updatedAt DateTime @default(now())
 
   // ==== RELATIONS ==== //
-  doctorId   String @db.ObjectId
+  doctorId   String   @db.ObjectId
   doctor     Doctor   @relation(fields: [doctorId], references: [id], onDelete: Cascade)
-  locationId String @db.ObjectId
+  locationId String   @db.ObjectId
   location   Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
 
   @@unique([doctorId, locationId])
@@ -164,15 +164,15 @@ model Department {
   id              String   @id @default(auto()) @map("_id") @db.ObjectId
   name            String
   description     String?
-  institution     Int?     // 0=RH, 1=RHD, 2=RHT, 3=RPS (align with DoctorSession/Session)
+  institution     Int? // 0=RH, 1=RHD, 2=RHT, 3=RPS (align with DoctorSession/Session)
   status          Int // 0 = unpublish, 1 = publish
-  migrateSourceId String?   // Source system id (e.g. Sails) for migrate import lookup
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @default(now())
-  createdBy       String?   @db.ObjectId
-  updatedBy       String?   @db.ObjectId
-  createdUser     User?     @relation("UserCreatedDepartments", fields: [createdBy], references: [id], onDelete: SetNull)
-  updatedUser     User?     @relation("UserUpdatedDepartments", fields: [updatedBy], references: [id], onDelete: SetNull)
+  migrateSourceId String? // Source system id (e.g. Sails) for migrate import lookup
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @default(now())
+  createdBy       String?  @db.ObjectId
+  updatedBy       String?  @db.ObjectId
+  createdUser     User?    @relation("UserCreatedDepartments", fields: [createdBy], references: [id], onDelete: SetNull)
+  updatedUser     User?    @relation("UserUpdatedDepartments", fields: [updatedBy], references: [id], onDelete: SetNull)
 
   // ==== RELATIONS ==== //
   doctorSessions DoctorSession[] @relation("SessionToDepartment")
@@ -190,7 +190,7 @@ model Speciality {
   code            String   @unique()
   description     String
   status          Int // == 0: unpublish, 1: publish == //
-  migrateSourceId String?   // Source system id (e.g. Sails) for migrate import lookup
+  migrateSourceId String? // Source system id (e.g. Sails) for migrate import lookup
   createdBy       String?  @db.ObjectId
   updatedBy       String?  @db.ObjectId
   createdAt       DateTime @default(now())
@@ -223,49 +223,49 @@ model Doctor {
   referralCharge     Float
   sessionNoPrefix    String?
   status             Int // == 0: unpublish, 1: publish == //
-  migrateSourceId    String?   // Source system id (e.g. Sails) for migrate import lookup
+  migrateSourceId    String? // Source system id (e.g. Sails) for migrate import lookup
   createdBy          String?  @db.ObjectId
   updatedBy          String?  @db.ObjectId
   createdAt          DateTime @default(now())
   updatedAt          DateTime @default(now())
 
   // ==== RELATIONS ==== //
-  specialityId   String?         @db.ObjectId
-  speciality     Speciality?     @relation("SpecialityToDoctor", fields: [specialityId], references: [id], onDelete: SetNull)
-  doctorSessions DoctorSession[] @relation("SessionToDoctor")
-  sessions       Session[]       @relation("DoctorToSession")
-  bookings       Booking[]       @relation("DoctorToBooking")
-  receipts       Receipt[]       @relation("DoctorToReceipt")
-  doctorLeaves   DoctorLeave[]   @relation("DoctorToLeaves")
+  specialityId    String?          @db.ObjectId
+  speciality      Speciality?      @relation("SpecialityToDoctor", fields: [specialityId], references: [id], onDelete: SetNull)
+  doctorSessions  DoctorSession[]  @relation("SessionToDoctor")
+  sessions        Session[]        @relation("DoctorToSession")
+  bookings        Booking[]        @relation("DoctorToBooking")
+  receipts        Receipt[]        @relation("DoctorToReceipt")
+  doctorLeaves    DoctorLeave[]    @relation("DoctorToLeaves")
   doctorLocations DoctorLocation[]
-  createdUser    User?           @relation("UserCreatedDoctors", fields: [createdBy], references: [id], onDelete: SetNull)
-  updatedUser    User?           @relation("UserUpdatedDoctors", fields: [updatedBy], references: [id], onDelete: SetNull)
-  accounts       Account[]       @relation("DoctorToAccount")
+  createdUser     User?            @relation("UserCreatedDoctors", fields: [createdBy], references: [id], onDelete: SetNull)
+  updatedUser     User?            @relation("UserUpdatedDoctors", fields: [updatedBy], references: [id], onDelete: SetNull)
+  accounts        Account[]        @relation("DoctorToAccount")
 }
 
 model DoctorSession {
-  id                    String    @id @default(auto()) @map("_id") @db.ObjectId
-  name                  String
-  institution           Int
-  startTime             DateTime
-  endTime               DateTime
-  durationMinutes       Int?
-  scheduleId            Int?
-  migrateSourceId      String?   // Source system id (e.g. legacy doctor_session_id) for migrate import lookup
-  startingPatientNumber Int
-  maxPatientNumber      Int
-  refundable            Int // == 0: No, 1: Yes == //
-  advancedBookingEnabled Boolean @default(false) // true = On-Call unpaid public bookings allowed
-  fees                  Json
-  amountLocal           Float?
-  amountForeign         Float?
-  applyTo               DateTime?
-  dayType               Int // == 1: Sunday, 2: Monday, 3: Tuesday, 4: Wednesday, 5: Thursday, 6: Friday, 7: Saturday, 8: Specific day(eg: poya day) == //
-  status                Int // == 0: unpublish, 1: publish == //
-  createdBy             String?   @db.ObjectId
-  updatedBy             String?   @db.ObjectId
-  createdAt             DateTime  @default(now())
-  updatedAt             DateTime  @default(now())
+  id                     String    @id @default(auto()) @map("_id") @db.ObjectId
+  name                   String
+  institution            Int
+  startTime              DateTime
+  endTime                DateTime
+  durationMinutes        Int?
+  scheduleId             Int?
+  migrateSourceId        String? // Source system id (e.g. legacy doctor_session_id) for migrate import lookup
+  startingPatientNumber  Int
+  maxPatientNumber       Int
+  refundable             Int // == 0: No, 1: Yes == //
+  advancedBookingEnabled Boolean   @default(false) // true = On-Call unpaid public bookings allowed
+  fees                   Json
+  amountLocal            Float?
+  amountForeign          Float?
+  applyTo                DateTime?
+  dayType                Int // == 1: Sunday, 2: Monday, 3: Tuesday, 4: Wednesday, 5: Thursday, 6: Friday, 7: Saturday, 8: Specific day(eg: poya day) == //
+  status                 Int // == 0: unpublish, 1: publish == //
+  createdBy              String?   @db.ObjectId
+  updatedBy              String?   @db.ObjectId
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @default(now())
 
   // ==== RELATIONS ==== //
   doctorId          String?         @db.ObjectId
@@ -330,36 +330,36 @@ model DoctorSessionBulkPriceChangeResult {
 }
 
 model Session {
-  id                    String   @id @default(auto()) @map("_id") @db.ObjectId
-  institution           Int
-  date                  DateTime
-  doctorSessionId       String
-  previousDoctorSession String?
-  startTime             DateTime
-  endTime               DateTime
-  durationMinutes       Int?
-  startingPatientNumber Int
-  maxPatientNumber      Int
-  refundable            Int
-  fees                  Json
-  amountLocal           Int?
-  amountForeign         Int?
-  doctorArrivalTime     Json?
-  doctorDepatureTime    Json?
-  doctorLeaveRemark     String?
-  doctorLeaveCreator    String?
-  doctorLeaveCreatedAt  Int?
-  status                Int // == 1: ACTIVE. 0: Session unavailable | LEAVE: Doctor leave (DoctorSession status) == //
-  remarks               String?
-  appointmentNo         Int      @default(0)
+  id                          String   @id @default(auto()) @map("_id") @db.ObjectId
+  institution                 Int
+  date                        DateTime
+  doctorSessionId             String
+  previousDoctorSession       String?
+  startTime                   DateTime
+  endTime                     DateTime
+  durationMinutes             Int?
+  startingPatientNumber       Int
+  maxPatientNumber            Int
+  refundable                  Int
+  fees                        Json
+  amountLocal                 Int?
+  amountForeign               Int?
+  doctorArrivalTime           Json?
+  doctorDepatureTime          Json?
+  doctorLeaveRemark           String?
+  doctorLeaveCreator          String?
+  doctorLeaveCreatedAt        Int?
+  status                      Int // == 1: ACTIVE. 0: Session unavailable | LEAVE: Doctor leave (DoctorSession status) == //
+  remarks                     String?
+  appointmentNo               Int      @default(0)
   /// Auto-allocation skips these numbers; unblock only when n > appointment sequence lastValue (see Sequence scope appointment:sessionId).
-  blockedAppointmentNumbers Int[] @default([])
+  blockedAppointmentNumbers   Int[]    @default([])
   /// Channel room board: monotonic max of completed appointment numbers (Show/No-show); not the same as appointmentNo issuance.
-  channelCurrentPatientNumber Int @default(0)
-  isScan                Boolean  @default(false)
+  channelCurrentPatientNumber Int      @default(0)
+  isScan                      Boolean  @default(false)
   /// Non-WHT doctor-payment bookings are moved here. Channel booking hides these unless the user can see hidden sessions.
-  hidden                Boolean  @default(false)
-  migrateSourceId       String?  // Legacy session_id (Sails) for migrate import lookup
+  hidden                      Boolean  @default(false)
+  migrateSourceId             String? // Legacy session_id (Sails) for migrate import lookup
 
   createdBy String?  @db.ObjectId
   updatedBy String?  @db.ObjectId
@@ -367,19 +367,19 @@ model Session {
   updatedAt DateTime @default(now())
 
   // ==== RELATIONS ==== //
-  doctorId     String?     @db.ObjectId
-  doctor       Doctor?     @relation("DoctorToSession", fields: [doctorId], references: [id], onDelete: SetNull)
-  departmentId String?     @db.ObjectId
-  department   Department? @relation("DepartmentToSession", fields: [departmentId], references: [id], onDelete: SetNull)
-  locationId   String?     @db.ObjectId
-  location     Location?   @relation("LocationToSession", fields: [locationId], references: [id], onDelete: SetNull)
-  roomId       String?     @db.ObjectId
-  room         Room?       @relation("RoomToSession", fields: [roomId], references: [id], onDelete: SetNull)
-  bookings         Booking[]   @relation("SessionToBooking")
+  doctorId          String?     @db.ObjectId
+  doctor            Doctor?     @relation("DoctorToSession", fields: [doctorId], references: [id], onDelete: SetNull)
+  departmentId      String?     @db.ObjectId
+  department        Department? @relation("DepartmentToSession", fields: [departmentId], references: [id], onDelete: SetNull)
+  locationId        String?     @db.ObjectId
+  location          Location?   @relation("LocationToSession", fields: [locationId], references: [id], onDelete: SetNull)
+  roomId            String?     @db.ObjectId
+  room              Room?       @relation("RoomToSession", fields: [roomId], references: [id], onDelete: SetNull)
+  bookings          Booking[]   @relation("SessionToBooking")
   movedFromBookings Booking[]   @relation("BookingMovedFromSession")
-  history          Log[]       @relation("SessionToLog")
-  createdUser      User?       @relation("UserCreatedSessions", fields: [createdBy], references: [id], onDelete: SetNull)
-  updatedUser      User?       @relation("UserUpdatedSessions", fields: [updatedBy], references: [id], onDelete: SetNull)
+  history           Log[]       @relation("SessionToLog")
+  createdUser       User?       @relation("UserCreatedSessions", fields: [createdBy], references: [id], onDelete: SetNull)
+  updatedUser       User?       @relation("UserUpdatedSessions", fields: [updatedBy], references: [id], onDelete: SetNull)
 
   @@index([doctorId, date, status])
   @@index([migrateSourceId])
@@ -401,13 +401,15 @@ model DoctorLeave {
   updatedAt DateTime @default(now())
 
   // ==== RELATIONS ==== //
-  doctorId    String @db.ObjectId
-  doctor      Doctor @relation("DoctorToLeaves", fields: [doctorId], references: [id], onDelete: Cascade)
-  /** Branch this leave applies to. One leave covers sessions at a single location. */
+  doctorId    String    @db.ObjectId
+  doctor      Doctor    @relation("DoctorToLeaves", fields: [doctorId], references: [id], onDelete: Cascade)
+  /**
+   * Branch this leave applies to. One leave covers sessions at a single location.
+   */
   locationId  String?   @db.ObjectId
   location    Location? @relation("LocationToDoctorLeave", fields: [locationId], references: [id], onDelete: SetNull)
-  createdUser User?  @relation("UserCreatedLeaves", fields: [createdBy], references: [id], onDelete: SetNull)
-  updatedUser User?  @relation("UserUpdatedLeaves", fields: [updatedBy], references: [id], onDelete: SetNull)
+  createdUser User?     @relation("UserCreatedLeaves", fields: [createdBy], references: [id], onDelete: SetNull)
+  updatedUser User?     @relation("UserUpdatedLeaves", fields: [updatedBy], references: [id], onDelete: SetNull)
 }
 
 model Location {
@@ -419,11 +421,15 @@ model Location {
   branchType      Int
   status          Int // == 0: unpublish, 1: publish == //
   code            String   @unique()
-  /** Display order in branch dropdowns (lower first). */
+  /**
+   * Display order in branch dropdowns (lower first).
+   */
   order           Int      @default(0)
-  /** Hex color for branch UI (e.g. #22c55e). Optional. */
+  /**
+   * Hex color for branch UI (e.g. #22c55e). Optional.
+   */
   color           String?
-  migrateSourceId String?   // Source system id (e.g. Sails) for migrate import lookup
+  migrateSourceId String? // Source system id (e.g. Sails) for migrate import lookup
   createdBy       String?  @db.ObjectId
   updatedBy       String?  @db.ObjectId
   createdAt       DateTime @default(now())
@@ -455,39 +461,39 @@ model Location {
 }
 
 model BankAccount {
-  id            String   @id @default(auto()) @map("_id") @db.ObjectId
-  name          String
-  accountNumber String
-  bankId        String   @db.ObjectId
-  bank          Tag      @relation("BankToTag", fields: [bankId], references: [id], onDelete: Restrict)
-  institution   Int
-  accountId     String?  @db.ObjectId
-  account       Account? @relation("BankAccountToAccount", fields: [accountId], references: [id], onDelete: SetNull)
-  status        Int      @default(1) // 0 = inactive, 1 = active
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-  createdBy     String?  @db.ObjectId
-  updatedBy     String?  @db.ObjectId
+  id               String            @id @default(auto()) @map("_id") @db.ObjectId
+  name             String
+  accountNumber    String
+  bankId           String            @db.ObjectId
+  bank             Tag               @relation("BankToTag", fields: [bankId], references: [id], onDelete: Restrict)
+  institution      Int
+  accountId        String?           @db.ObjectId
+  account          Account?          @relation("BankAccountToAccount", fields: [accountId], references: [id], onDelete: SetNull)
+  status           Int               @default(1) // 0 = inactive, 1 = active
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  createdBy        String?           @db.ObjectId
+  updatedBy        String?           @db.ObjectId
+  approvalRequests ApprovalRequest[] @relation("ApprovalRequestBankAccount")
 
   @@index([bankId])
   @@index([institution])
   @@index([accountId])
   @@index([status])
-  approvalRequests ApprovalRequest[] @relation("ApprovalRequestBankAccount")
 }
 
 model Room {
-  id              String   @id @default(auto()) @map("_id") @db.ObjectId
-  number          String
-  description     String
-  status          Int // == 0: unpublish, 1: publish == //
+  id                       String   @id @default(auto()) @map("_id") @db.ObjectId
+  number                   String
+  description              String
+  status                   Int // == 0: unpublish, 1: publish == //
   /// Occupancy lock owner session id (nullable). Set on arrival and released on departure/force-release.
-  currentOccupiedSessionId String? @db.ObjectId
-  migrateSourceId String?   // Source system id (e.g. Sails) for migrate import lookup
-  createdBy       String?  @db.ObjectId
-  updatedBy       String?  @db.ObjectId
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @default(now())
+  currentOccupiedSessionId String?  @db.ObjectId
+  migrateSourceId          String? // Source system id (e.g. Sails) for migrate import lookup
+  createdBy                String?  @db.ObjectId
+  updatedBy                String?  @db.ObjectId
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @default(now())
 
   // ==== RELATIONS ==== //
   zoneId         String?         @db.ObjectId
@@ -499,6 +505,7 @@ model Room {
   doctorSessions DoctorSession[] @relation("SessionToRoom")
   sessions       Session[]       @relation("RoomToSession")
   inventoryUnits InventoryUnit[] @relation("RoomToInventoryUnit")
+  roomStays      RoomStay[]      @relation("RoomToRoomStay")
   createdUser    User?           @relation("UserCreatedRooms", fields: [createdBy], references: [id], onDelete: SetNull)
   updatedUser    User?           @relation("UserUpdatedRooms", fields: [updatedBy], references: [id], onDelete: SetNull)
 }
@@ -534,12 +541,12 @@ model Shift {
   endedByUser   User?     @relation("ShiftEndedBy", fields: [endedBy], references: [id], onDelete: SetNull)
   updatedAt     DateTime  @updatedAt
 
-  floatRequests FloatRequest[]
-  handovers    ShiftHandover[]
-  handoversReceived ShiftHandover[] @relation("HandoversReceivedByShift")
-  receipts     Receipt[]
-  approvalRequests ApprovalRequest[]
-  billAttachments ShiftBillAttachment[]
+  floatRequests     FloatRequest[]
+  handovers         ShiftHandover[]
+  handoversReceived ShiftHandover[]       @relation("HandoversReceivedByShift")
+  receipts          Receipt[]
+  approvalRequests  ApprovalRequest[]
+  billAttachments   ShiftBillAttachment[]
 
   @@index([userId, status])
   @@index([locationId])
@@ -548,42 +555,42 @@ model Shift {
 // Float request: cashier requests float at shift start; bulk cashier approves/rejects
 // status: 0 = PENDING, 1 = APPROVED, 2 = RECEIVED, 3 = REJECTED, 4 = CANCELLED (aligned with rest of schema)
 model FloatRequest {
-  id                    String             @id @default(auto()) @map("_id") @db.ObjectId
-  requestedById          String             @db.ObjectId
-  requestedBy            User               @relation("FloatRequestRequestedBy", fields: [requestedById], references: [id], onDelete: Cascade)
-  bulkCashierId          String             @db.ObjectId
-  bulkCashier            User               @relation("FloatRequestBulkCashier", fields: [bulkCashierId], references: [id], onDelete: Cascade)
-  status                Int                 @default(0) // 0=PENDING, 1=APPROVED, 2=RECEIVED, 3=REJECTED, 4=CANCELLED
-  amountRequested       Int                 // In smallest unit (e.g. cents)
-  denominationsRequested Json               // [{ "value": 5000, "count": 10 }, ...] LKR
-  denominationsApproved Json?              // Set on approve; bulk cashier can change (cannot give less total)
-  fromAccountId         String?             @db.ObjectId
-  fromAccount           Account?            @relation("FloatRequestFromAccount", fields: [fromAccountId], references: [id], onDelete: SetNull)
-  toAccountId           String?             @db.ObjectId
-  toAccount             Account?            @relation("FloatRequestToAccount", fields: [toAccountId], references: [id], onDelete: SetNull)
-  toTillId              String?             @db.ObjectId
-  toTill                Till?               @relation("FloatRequestToTill", fields: [toTillId], references: [id], onDelete: SetNull)
-  shiftId               String?             @db.ObjectId
-  shift                 Shift?              @relation(fields: [shiftId], references: [id], onDelete: SetNull)
-  approvedAt             DateTime?
-  approvedBy             String?             @db.ObjectId
-  rejectedAt             DateTime?
-  rejectedBy             String?             @db.ObjectId
-  cancelledAt            DateTime?
-  cancelledBy            String?             @db.ObjectId
-  rejectReason           String?
-  cancelReason           String?
-  reasonForLessThanRequested String?         // Required when approved amount < requested
-  receiveCode            String?             // 4-digit code for cashier to confirm receipt; set on approve
-  receivedAt             DateTime?
-  receivedById           String?             @db.ObjectId
-  receivedBy             User?               @relation("FloatRequestReceivedBy", fields: [receivedById], references: [id], onDelete: SetNull)
-  journalId              String?             @db.ObjectId
-  journal                Journal?            @relation(fields: [journalId], references: [id], onDelete: SetNull)
-  createdAt              DateTime            @default(now())
-  updatedAt              DateTime            @updatedAt
-  floatNo                Int?
-  floatNoString          String?
+  id                         String    @id @default(auto()) @map("_id") @db.ObjectId
+  requestedById              String    @db.ObjectId
+  requestedBy                User      @relation("FloatRequestRequestedBy", fields: [requestedById], references: [id], onDelete: Cascade)
+  bulkCashierId              String    @db.ObjectId
+  bulkCashier                User      @relation("FloatRequestBulkCashier", fields: [bulkCashierId], references: [id], onDelete: Cascade)
+  status                     Int       @default(0) // 0=PENDING, 1=APPROVED, 2=RECEIVED, 3=REJECTED, 4=CANCELLED
+  amountRequested            Int // In smallest unit (e.g. cents)
+  denominationsRequested     Json // [{ "value": 5000, "count": 10 }, ...] LKR
+  denominationsApproved      Json? // Set on approve; bulk cashier can change (cannot give less total)
+  fromAccountId              String?   @db.ObjectId
+  fromAccount                Account?  @relation("FloatRequestFromAccount", fields: [fromAccountId], references: [id], onDelete: SetNull)
+  toAccountId                String?   @db.ObjectId
+  toAccount                  Account?  @relation("FloatRequestToAccount", fields: [toAccountId], references: [id], onDelete: SetNull)
+  toTillId                   String?   @db.ObjectId
+  toTill                     Till?     @relation("FloatRequestToTill", fields: [toTillId], references: [id], onDelete: SetNull)
+  shiftId                    String?   @db.ObjectId
+  shift                      Shift?    @relation(fields: [shiftId], references: [id], onDelete: SetNull)
+  approvedAt                 DateTime?
+  approvedBy                 String?   @db.ObjectId
+  rejectedAt                 DateTime?
+  rejectedBy                 String?   @db.ObjectId
+  cancelledAt                DateTime?
+  cancelledBy                String?   @db.ObjectId
+  rejectReason               String?
+  cancelReason               String?
+  reasonForLessThanRequested String? // Required when approved amount < requested
+  receiveCode                String? // 4-digit code for cashier to confirm receipt; set on approve
+  receivedAt                 DateTime?
+  receivedById               String?   @db.ObjectId
+  receivedBy                 User?     @relation("FloatRequestReceivedBy", fields: [receivedById], references: [id], onDelete: SetNull)
+  journalId                  String?   @db.ObjectId
+  journal                    Journal?  @relation(fields: [journalId], references: [id], onDelete: SetNull)
+  createdAt                  DateTime  @default(now())
+  updatedAt                  DateTime  @updatedAt
+  floatNo                    Int?
+  floatNoString              String?
 
   @@index([bulkCashierId, status])
   @@index([requestedById])
@@ -597,40 +604,40 @@ model FloatRequest {
 /// status: 0=PENDING, 1=APPROVED, 2=REJECTED, 3=WITHDRAWN, 4=COMPLETED
 /// type: channel_cancel | channel_refund | bank_deposit | cash_voucher
 model ApprovalRequest {
-  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  id              String       @id @default(auto()) @map("_id") @db.ObjectId
   type            String
-  status          Int      @default(0) // 0=PENDING, 1=APPROVED, 2=REJECTED, 3=WITHDRAWN, 4=COMPLETED
-  bookingId       String?  @db.ObjectId
-  booking         Booking? @relation(fields: [bookingId], references: [id], onDelete: Cascade)
-  requestedById   String   @db.ObjectId
-  requestedBy     User     @relation("ApprovalRequestRequestedBy", fields: [requestedById], references: [id], onDelete: Cascade)
-  shiftId         String?  @db.ObjectId
-  shift           Shift?   @relation(fields: [shiftId], references: [id], onDelete: SetNull)
+  status          Int          @default(0) // 0=PENDING, 1=APPROVED, 2=REJECTED, 3=WITHDRAWN, 4=COMPLETED
+  bookingId       String?      @db.ObjectId
+  booking         Booking?     @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  requestedById   String       @db.ObjectId
+  requestedBy     User         @relation("ApprovalRequestRequestedBy", fields: [requestedById], references: [id], onDelete: Cascade)
+  shiftId         String?      @db.ObjectId
+  shift           Shift?       @relation(fields: [shiftId], references: [id], onDelete: SetNull)
   amount          Float
   remarks         String
   refundTo        Int?
-  professionalFee Float    @default(0)
-  hospitalFee     Float    @default(0)
+  professionalFee Float        @default(0)
+  hospitalFee     Float        @default(0)
   paymentLines    Json?
   /// Channel cancel/refund checklist ticked by the requester before approval.
   confirmations   Json?
-  bankAccountId   String?  @db.ObjectId
+  bankAccountId   String?      @db.ObjectId
   bankAccount     BankAccount? @relation("ApprovalRequestBankAccount", fields: [bankAccountId], references: [id], onDelete: SetNull)
-  locationId      String?  @db.ObjectId
-  location        Location? @relation("ApprovalRequestLocation", fields: [locationId], references: [id], onDelete: SetNull)
-  receiptId       String?  @db.ObjectId
-  receipt         Receipt? @relation("ApprovalRequestReceipt", fields: [receiptId], references: [id], onDelete: SetNull)
+  locationId      String?      @db.ObjectId
+  location        Location?    @relation("ApprovalRequestLocation", fields: [locationId], references: [id], onDelete: SetNull)
+  receiptId       String?      @db.ObjectId
+  receipt         Receipt?     @relation("ApprovalRequestReceipt", fields: [receiptId], references: [id], onDelete: SetNull)
   approvedAt      DateTime?
-  approvedById    String?  @db.ObjectId
-  approvedBy      User?    @relation("ApprovalRequestApprovedBy", fields: [approvedById], references: [id], onDelete: SetNull)
+  approvedById    String?      @db.ObjectId
+  approvedBy      User?        @relation("ApprovalRequestApprovedBy", fields: [approvedById], references: [id], onDelete: SetNull)
   rejectedAt      DateTime?
-  rejectedById    String?  @db.ObjectId
-  rejectedBy      User?    @relation("ApprovalRequestRejectedBy", fields: [rejectedById], references: [id], onDelete: SetNull)
+  rejectedById    String?      @db.ObjectId
+  rejectedBy      User?        @relation("ApprovalRequestRejectedBy", fields: [rejectedById], references: [id], onDelete: SetNull)
   rejectReason    String?
   withdrawnAt     DateTime?
   completedAt     DateTime?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
 
   @@index([bookingId, status])
   @@index([requestedById, status])
@@ -640,49 +647,49 @@ model ApprovalRequest {
 // Shift handover: when ending a shift, cashier confirms till counts per method and hands over to another user
 // status: 0 = PENDING, 1 = APPROVED, 2 = REJECTED, 3 = CANCELLED
 model ShiftHandover {
-  id                     String         @id @default(auto()) @map("_id") @db.ObjectId
-  shiftId                String         @db.ObjectId
-  shift                  Shift          @relation(fields: [shiftId], references: [id], onDelete: Cascade)
-  fromUserId             String         @db.ObjectId
-  fromUser               User           @relation("ShiftHandoverFrom", fields: [fromUserId], references: [id], onDelete: Cascade)
-  toUserId               String         @db.ObjectId
-  toUser                 User           @relation("ShiftHandoverTo", fields: [toUserId], references: [id], onDelete: Cascade)
-  toShiftId              String?        @db.ObjectId // Recipient's shift when they approved; set on approve
-  toShift                Shift?         @relation("HandoversReceivedByShift", fields: [toShiftId], references: [id], onDelete: SetNull)
-  status                 Int            @default(0) // 0=PENDING, 1=APPROVED, 2=REJECTED, 3=CANCELLED
-  journalId              String?        @db.ObjectId
-  journal                Journal?       @relation(fields: [journalId], references: [id], onDelete: SetNull)
-  cashCents              Int            @default(0)
-  cardCents              Int            @default(0)
-  slipCents              Int            @default(0)
-  checkCents             Int            @default(0)
-  creditCents            Int            @default(0)
-  eWalletCents           Int            @default(0)
-  totalCents             Int            @default(0)
+  id                     String                @id @default(auto()) @map("_id") @db.ObjectId
+  shiftId                String                @db.ObjectId
+  shift                  Shift                 @relation(fields: [shiftId], references: [id], onDelete: Cascade)
+  fromUserId             String                @db.ObjectId
+  fromUser               User                  @relation("ShiftHandoverFrom", fields: [fromUserId], references: [id], onDelete: Cascade)
+  toUserId               String                @db.ObjectId
+  toUser                 User                  @relation("ShiftHandoverTo", fields: [toUserId], references: [id], onDelete: Cascade)
+  toShiftId              String?               @db.ObjectId // Recipient's shift when they approved; set on approve
+  toShift                Shift?                @relation("HandoversReceivedByShift", fields: [toShiftId], references: [id], onDelete: SetNull)
+  status                 Int                   @default(0) // 0=PENDING, 1=APPROVED, 2=REJECTED, 3=CANCELLED
+  journalId              String?               @db.ObjectId
+  journal                Journal?              @relation(fields: [journalId], references: [id], onDelete: SetNull)
+  cashCents              Int                   @default(0)
+  cardCents              Int                   @default(0)
+  slipCents              Int                   @default(0)
+  checkCents             Int                   @default(0)
+  creditCents            Int                   @default(0)
+  eWalletCents           Int                   @default(0)
+  totalCents             Int                   @default(0)
   /// Missing money moved off the till onto the branch short receivable when the handover is approved.
-  shortCashCents         Int            @default(0)
-  shortCardCents         Int            @default(0)
-  shortSlipCents         Int            @default(0)
-  shortCheckCents        Int            @default(0)
-  shortCreditCents       Int            @default(0)
-  shortEWalletCents      Int            @default(0)
+  shortCashCents         Int                   @default(0)
+  shortCardCents         Int                   @default(0)
+  shortSlipCents         Int                   @default(0)
+  shortCheckCents        Int                   @default(0)
+  shortCreditCents       Int                   @default(0)
+  shortEWalletCents      Int                   @default(0)
   /// Cash brought in on this handover to pay down the existing branch short. Not part of the till.
-  settlementCents        Int            @default(0)
-  discrepancyReason      String?        // Reason for discrepancy (required when there is a short or over > 100 cents)
-  enteredBreakdown       Json?          // Cashier-entered denominations and references: { cashDenominations, cardEntries, slipEntries, ... }
-  includedHandoverIds    Json?          // Array of handover ids ["id1","id2"] that the sender is passing on (chain)
-  forwardedToHandoverId  String?        @db.ObjectId // Set when this handover is included in another; where the money went
-  forwardedToHandover    ShiftHandover? @relation("ForwardedTo", fields: [forwardedToHandoverId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  forwardedHandovers     ShiftHandover[] @relation("ForwardedTo")
+  settlementCents        Int                   @default(0)
+  discrepancyReason      String? // Reason for discrepancy (required when there is a short or over > 100 cents)
+  enteredBreakdown       Json? // Cashier-entered denominations and references: { cashDenominations, cardEntries, slipEntries, ... }
+  includedHandoverIds    Json? // Array of handover ids ["id1","id2"] that the sender is passing on (chain)
+  forwardedToHandoverId  String?               @db.ObjectId // Set when this handover is included in another; where the money went
+  forwardedToHandover    ShiftHandover?        @relation("ForwardedTo", fields: [forwardedToHandoverId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  forwardedHandovers     ShiftHandover[]       @relation("ForwardedTo")
   approvedAt             DateTime?
-  approvedBy             String?        @db.ObjectId
-  approvalComments       String?        // Optional comments when bulk cashier approves and receives
+  approvedBy             String?               @db.ObjectId
+  approvalComments       String? // Optional comments when bulk cashier approves and receives
   rejectedAt             DateTime?
-  rejectedBy             String?        @db.ObjectId
+  rejectedBy             String?               @db.ObjectId
   rejectReason           String?
   cancelledAt            DateTime?
-  cancelledBy            String?        @db.ObjectId
-  createdAt              DateTime       @default(now())
+  cancelledBy            String?               @db.ObjectId
+  createdAt              DateTime              @default(now())
   handoverNo             Int?
   handoverNoString       String?
   /// Assigned when the handover is sent to reconciliation. Kept for the sender's printed record.
@@ -692,16 +699,16 @@ model ShiftHandover {
 
   // Back-office reconciliation lifecycle: status + approved/rejected details
   // reconciliationStatus: 0=PENDING, 1=IN_RECONCILIATION, 2=RECONCILED_APPROVED, 3=RECONCILED_REJECTED
-  reconciliationStatus       Int?           @default(0)
-  reconciliationRequestedAt DateTime?      // When bulk cashier sent to reconciliation
-  reconciliationRequestedBy  String?       @db.ObjectId // Who sent; whose till is deducted on submit
+  reconciliationStatus           Int?      @default(0)
+  reconciliationRequestedAt      DateTime? // When bulk cashier sent to reconciliation
+  reconciliationRequestedBy      String?   @db.ObjectId // Who sent; whose till is deducted on submit
   reconciliationAssignedToUserId String?   @db.ObjectId // Who may submit/reject reconciliation (changeable until reconciled)
-  nonCashReconciledAt        DateTime?      // Set when status = RECONCILED_APPROVED
-  nonCashReconciledBy        String?        @db.ObjectId
-  reconciliationRejectedAt  DateTime?
-  reconciliationRejectedBy   String?        @db.ObjectId
-  reconciliationRejectReason String?
-  hasReconciliationIssues    Boolean?      @default(false)
+  nonCashReconciledAt            DateTime? // Set when status = RECONCILED_APPROVED
+  nonCashReconciledBy            String?   @db.ObjectId
+  reconciliationRejectedAt       DateTime?
+  reconciliationRejectedBy       String?   @db.ObjectId
+  reconciliationRejectReason     String?
+  hasReconciliationIssues        Boolean?  @default(false)
 
   @@index([shiftId])
   @@index([fromUserId])
@@ -724,22 +731,22 @@ model ShiftHandover {
 /// Cashier-captured bill photos for a shift; linked to a handover on submit.
 /// Files live in a private S3 bucket; this record is metadata only.
 model ShiftBillAttachment {
-  id           String   @id @default(auto()) @map("_id") @db.ObjectId
-  shiftId      String   @db.ObjectId
-  shift        Shift    @relation(fields: [shiftId], references: [id], onDelete: Cascade)
-  handoverId   String?  @db.ObjectId
-  handover     ShiftHandover? @relation(fields: [handoverId], references: [id], onDelete: SetNull)
-  s3Key        String
-  thumbS3Key   String?
-  contentType  String
-  sizeBytes    Int
-  kind         String?
-  note         String?
-  uploadedById String   @db.ObjectId
-  uploadedAt   DateTime?
-  createdAt    DateTime @default(now())
+  id                 String         @id @default(auto()) @map("_id") @db.ObjectId
+  shiftId            String         @db.ObjectId
+  shift              Shift          @relation(fields: [shiftId], references: [id], onDelete: Cascade)
+  handoverId         String?        @db.ObjectId
+  handover           ShiftHandover? @relation(fields: [handoverId], references: [id], onDelete: SetNull)
+  s3Key              String
+  thumbS3Key         String?
+  contentType        String
+  sizeBytes          Int
+  kind               String?
+  note               String?
+  uploadedById       String         @db.ObjectId
+  uploadedAt         DateTime?
+  createdAt          DateTime       @default(now())
   /// Set when this row was copied onto a receiving shift from a previous handover.
-  sourceAttachmentId String? @db.ObjectId
+  sourceAttachmentId String?        @db.ObjectId
 
   @@index([shiftId, createdAt])
   @@index([handoverId])
@@ -752,10 +759,10 @@ model Notification {
   id            String    @id @default(auto()) @map("_id") @db.ObjectId
   userId        String    @db.ObjectId
   user          User      @relation("UserNotifications", fields: [userId], references: [id], onDelete: Cascade)
-  type          String    // e.g. float_approved, float_rejected, handover_approved, handover_rejected
+  type          String // e.g. float_approved, float_rejected, handover_approved, handover_rejected
   title         String
-  message       String?   // optional detail
-  referenceType String?   // e.g. FloatRequest, ShiftHandover
+  message       String? // optional detail
+  referenceType String? // e.g. FloatRequest, ShiftHandover
   referenceId   String?   @db.ObjectId // id of the related entity for deep link
   readAt        DateTime? // null = unread
   /// Set by the push worker (services/push-worker.service.ts) when it claims this row; unset = not pushed yet.
@@ -776,7 +783,7 @@ model WebPushSubscription {
   p256dh     String
   auth       String
   userAgent  String?
-  platform   String?   // ios | android | desktop
+  platform   String? // ios | android | desktop
   createdAt  DateTime  @default(now())
   lastUsedAt DateTime?
 
@@ -805,8 +812,8 @@ model ActivityLog {
 model ApiClient {
   id               String   @id @default(auto()) @map("_id") @db.ObjectId
   clientId         String   @unique // e.g. UUID, used as client_id in OAuth2
-  clientSecretHash String   // hashed secret; plain secret returned only once on create
-  name             String   // application name
+  clientSecretHash String // hashed secret; plain secret returned only once on create
+  name             String // application name
   isBlocked        Boolean  @default(false)
   /// User attributed as createdBy on bookings made via this API client (public API). Required.
   actingUserId     String   @db.ObjectId
@@ -842,22 +849,22 @@ model Patient {
 }
 
 model Staff {
-  id            String    @id @default(auto()) @map("_id") @db.ObjectId
-  code          String    @unique()
-  title         String    @default("")
-  name          String
-  nic           String
-  dateOfBirth   DateTime?
-  gender        String    @default("")
-  contactMobile String
-  address       String    @default("")
-  dateJoined    DateTime?
-  status        Int       @default(1) // 0 = Inactive, 1 = Active
+  id              String    @id @default(auto()) @map("_id") @db.ObjectId
+  code            String    @unique()
+  title           String    @default("")
+  name            String
+  nic             String
+  dateOfBirth     DateTime?
+  gender          String    @default("")
+  contactMobile   String
+  address         String    @default("")
+  dateJoined      DateTime?
+  status          Int       @default(1) // 0 = Inactive, 1 = Active
   migrateSourceId String? // Legacy staff Mongo id (Sails) for migrate import lookup
 
-  bookingsAsStaff     Booking[] @relation("BookingStaff")
-  bookingsReferred    Booking[] @relation("BookingReferredStaff")
-  users               User[]    @relation("UserToStaff") // at most one in practice; partial unique index on User.staffId
+  bookingsAsStaff  Booking[] @relation("BookingStaff")
+  bookingsReferred Booking[] @relation("BookingReferredStaff")
+  users            User[]    @relation("UserToStaff") // at most one in practice; partial unique index on User.staffId
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -872,17 +879,17 @@ model Tag {
   name            String?
   type            Int?
   status          Int?
-  migrateSourceId String?   // Source system id (e.g. Sails) for migrate import lookup
+  migrateSourceId String? // Source system id (e.g. Sails) for migrate import lookup
 
   patients     Patient[]     @relation("PatientArea")
   bankAccounts BankAccount[] @relation("BankToTag")
 
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  createdBy String?   @db.ObjectId
-  updatedBy String?   @db.ObjectId
-  createdUser User?   @relation("UserCreatedTags", fields: [createdBy], references: [id], onDelete: SetNull)
-  updatedUser User?   @relation("UserUpdatedTags", fields: [updatedBy], references: [id], onDelete: SetNull)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  createdBy   String?  @db.ObjectId
+  updatedBy   String?  @db.ObjectId
+  createdUser User?    @relation("UserCreatedTags", fields: [createdBy], references: [id], onDelete: SetNull)
+  updatedUser User?    @relation("UserUpdatedTags", fields: [updatedBy], references: [id], onDelete: SetNull)
 }
 
 model Zone {
@@ -890,18 +897,18 @@ model Zone {
   name            String
   description     String?
   status          Int // 0 = unpublish, 1 = publish
-  migrateSourceId String?  // Source system id (e.g. Sails) for migrate import lookup
+  migrateSourceId String? // Source system id (e.g. Sails) for migrate import lookup
 
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  createdBy   String?   @db.ObjectId
-  updatedBy   String?   @db.ObjectId
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  createdBy   String?  @db.ObjectId
+  updatedBy   String?  @db.ObjectId
   createdUser User?    @relation("UserCreatedZones", fields: [createdBy], references: [id], onDelete: SetNull)
   updatedUser User?    @relation("UserUpdatedZones", fields: [updatedBy], references: [id], onDelete: SetNull)
 
   // ==== RELATIONS ==== //
-  rooms      Room[]   @relation("ZoneToRoom")
-  locationId String?  @db.ObjectId
+  rooms      Room[]    @relation("ZoneToRoom")
+  locationId String?   @db.ObjectId
   location   Location? @relation("LocationToZone", fields: [locationId], references: [id], onDelete: SetNull)
 }
 
@@ -919,7 +926,7 @@ model Discount {
   autoApply            Boolean          @default(false)
   status               Int // 0 = unpublish, 1 = publish
   applyTo              Int              @default(0) // 0 = hospital-fee, 1 = professional-fee
-  migrateSourceId      String?    // Source system id (e.g. Sails) for migrate import lookup
+  migrateSourceId      String? // Source system id (e.g. Sails) for migrate import lookup
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -957,17 +964,15 @@ model AgencyBook {
   id String @id @default(auto()) @map("_id") @db.ObjectId
 
   // ==== BASIC FIELDS ==== //
-  bookNumber  String @unique
-  startNumber String
-  endNumber   String
-  status      Int?
+  bookNumber      String  @unique
+  startNumber     String
+  endNumber       String
+  status          Int?
   migrateSourceId String? // Legacy Agencybook Mongo id (Sails) for migrate import lookup
 
   // ==== RELATIONS ==== //
   agencyId String? @db.ObjectId
   agency   Agency? @relation("AgencyToAgencyBook", fields: [agencyId], references: [id], onDelete: SetNull, onUpdate: NoAction)
-
-  @@index([migrateSourceId])
 
   // ==== AUDIT FIELDS ==== //
   createdAt DateTime @default(now())
@@ -978,6 +983,8 @@ model AgencyBook {
   // ==== USER RELATIONS ==== //
   createdUser User? @relation("UserCreatedAgencyBooks", fields: [createdBy], references: [id], onDelete: SetNull)
   updatedUser User? @relation("UserUpdatedAgencyBooks", fields: [updatedBy], references: [id], onDelete: SetNull)
+
+  @@index([migrateSourceId])
 }
 
 model Agency {
@@ -990,10 +997,10 @@ model Agency {
   parentAgencyId     String? @db.ObjectId
 
   // ==== CREDIT FIELDS ==== //
-  allowedCreditLimit Float @default(0) // Soft limit for bookings; hard limit is linked RECEIVABLE account maxBalanceAllowed
-  creditLimit        Float @default(0) // Default credit limit threshold used for violation clearance
-  isCreditLimitViolation Boolean @default(false)
-  creditLimitViolationAt DateTime?
+  allowedCreditLimit         Float     @default(0) // Soft limit for bookings; hard limit is linked RECEIVABLE account maxBalanceAllowed
+  creditLimit                Float     @default(0) // Default credit limit threshold used for violation clearance
+  isCreditLimitViolation     Boolean   @default(false)
+  creditLimitViolationAt     DateTime?
   creditLimitViolationReason String?
   // balance is derived from linked PAYABLE account (getAccountBalance)
 
@@ -1019,7 +1026,7 @@ model Agency {
   // ==== SETTINGS ==== //
   sendSms         Int?    @default(0) // 0 = No, 1 = Yes
   status          Int?    @default(1) // 0 = Unpublish, 1 = Publish
-  migrateSourceId String?  // Source system id (e.g. Sails) for migrate import lookup
+  migrateSourceId String? // Source system id (e.g. Sails) for migrate import lookup
 
   // ==== RELATIONS ==== //
   parentAgency  Agency?      @relation("AgencyParent", fields: [parentAgencyId], references: [id], onDelete: NoAction, onUpdate: NoAction)
@@ -1045,7 +1052,7 @@ model Agency {
 
 /// Credit customers (companies) for payment method Credit — basic details; balance via linked RECEIVABLE account.
 model CreditCustomer {
-  id   String @id @default(auto()) @map("_id") @db.ObjectId
+  id   String  @id @default(auto()) @map("_id") @db.ObjectId
   name String
   code String? @unique
 
@@ -1060,118 +1067,118 @@ model CreditCustomer {
   city         String?
 
   // ==== CONTACT PERSON ==== //
-  contactPersonName   String
-  contactPersonPhone  String?
-  contactPersonEmail  String?
+  contactPersonName  String
+  contactPersonPhone String?
+  contactPersonEmail String?
 
   // ==== SETTINGS ==== //
   status Int? @default(1) // 0 = Unpublished, 1 = Published
 
   // ==== AUDIT ==== //
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  createdBy   String?   @db.ObjectId
-  updatedBy   String?   @db.ObjectId
-  createdUser User?     @relation("UserCreatedCreditCustomers", fields: [createdBy], references: [id], onDelete: SetNull)
-  updatedUser User?     @relation("UserUpdatedCreditCustomers", fields: [updatedBy], references: [id], onDelete: SetNull)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  createdBy   String?  @db.ObjectId
+  updatedBy   String?  @db.ObjectId
+  createdUser User?    @relation("UserCreatedCreditCustomers", fields: [createdBy], references: [id], onDelete: SetNull)
+  updatedUser User?    @relation("UserUpdatedCreditCustomers", fields: [updatedBy], references: [id], onDelete: SetNull)
 
-  accounts   Account[]  @relation("CreditCustomerToAccount")
-  bookings   Booking[]  @relation("CreditCustomerToBooking")
-  receipts   Receipt[]  @relation("CreditCustomerToReceipt")
+  accounts Account[] @relation("CreditCustomerToAccount")
+  bookings Booking[] @relation("CreditCustomerToBooking")
+  receipts Receipt[] @relation("CreditCustomerToReceipt")
 }
 
 model Booking {
-  id                      String   @id @default(auto()) @map("_id") @db.ObjectId
-  title                   String
-  name                    String
-  phone                   String
-  sex                     String
-  area                    String
-  remarks                 String   @default("")
-  method                  Int
-  sessionId               String?  @db.ObjectId
-  session                 Session? @relation("SessionToBooking", fields: [sessionId], references: [id], onDelete: SetNull)
-  doctorId                String   @db.ObjectId
-  doctor                  Doctor   @relation("DoctorToBooking", fields: [doctorId], references: [id], onDelete: Restrict)
-  amount                  Float
-  discount                Int      @default(0)
-  foriegner               Boolean  @default(false)
-  status                  Int      @default(0)
-  createdBy               String?  @db.ObjectId
-  createdUser             User?    @relation("UserCreatedBookings", fields: [createdBy], references: [id], onDelete: SetNull)
-  updatedBy               String?  @db.ObjectId
-  updatedUser             User?    @relation("UserUpdatedBookings", fields: [updatedBy], references: [id], onDelete: SetNull)
-  fees                    Json
-  refund                  Int      @default(0) // 0 none, 1 prof only, 2 hosp only, 3 full
-  refundAmount            Int      @default(0)
-  refundReason            String?
-  refundAmountProfessionalFee Int  @default(0) // Amount refunded for professional fee (positive, in Rs)
-  refundAmountHospitalFee Int      @default(0) // Amount refunded for hospital fee (positive, in Rs)
-  refundReceiptId         String?  @db.ObjectId
-  refundReceiptNoString   String?
-  refundReceiptCreatedAt  DateTime?
-  canceledAt              DateTime?
-  canceledBy              String?  @db.ObjectId
-  agencyRef               String?  @default("")
-  agencyId                String?  @db.ObjectId
-  agency                  Agency?  @relation("AgencyToBooking", fields: [agencyId], references: [id], onDelete: SetNull)
-  creditCustomerId        String?  @db.ObjectId
-  creditCustomer          CreditCustomer? @relation("CreditCustomerToBooking", fields: [creditCustomerId], references: [id], onDelete: SetNull)
-  staffId                 String?  @db.ObjectId
-  staff                   Staff?   @relation("BookingStaff", fields: [staffId], references: [id], onDelete: SetNull)
-  discountDivision        Json?
-  hospitalFeeDiscount     Int      @default(0)
-  professionsalFeeDiscount Int     @default(0)
-  professionalFee         Int      @default(0)
-  hospitalFee             Int      @default(0)
-  referredDoctorId        String?  @db.ObjectId
-  referredAgencyId        String?  @db.ObjectId
-  referredStaffId         String?  @db.ObjectId
-  referredStaff           Staff?   @relation("BookingReferredStaff", fields: [referredStaffId], references: [id], onDelete: SetNull)
-  sessionStartTime        Int
-  sessionEndTime          Int
-  isScan                  Boolean  @default(false)
-  locationId              String?  @db.ObjectId
-  location                Location? @relation("LocationToBooking", fields: [locationId], references: [id], onDelete: SetNull)
-  bookingid               Int?
-  bookingid_string        String?
-  appointmentNo           Int
+  id                          String          @id @default(auto()) @map("_id") @db.ObjectId
+  title                       String
+  name                        String
+  phone                       String
+  sex                         String
+  area                        String
+  remarks                     String          @default("")
+  method                      Int
+  sessionId                   String?         @db.ObjectId
+  session                     Session?        @relation("SessionToBooking", fields: [sessionId], references: [id], onDelete: SetNull)
+  doctorId                    String          @db.ObjectId
+  doctor                      Doctor          @relation("DoctorToBooking", fields: [doctorId], references: [id], onDelete: Restrict)
+  amount                      Float
+  discount                    Int             @default(0)
+  foriegner                   Boolean         @default(false)
+  status                      Int             @default(0)
+  createdBy                   String?         @db.ObjectId
+  createdUser                 User?           @relation("UserCreatedBookings", fields: [createdBy], references: [id], onDelete: SetNull)
+  updatedBy                   String?         @db.ObjectId
+  updatedUser                 User?           @relation("UserUpdatedBookings", fields: [updatedBy], references: [id], onDelete: SetNull)
+  fees                        Json
+  refund                      Int             @default(0) // 0 none, 1 prof only, 2 hosp only, 3 full
+  refundAmount                Int             @default(0)
+  refundReason                String?
+  refundAmountProfessionalFee Int             @default(0) // Amount refunded for professional fee (positive, in Rs)
+  refundAmountHospitalFee     Int             @default(0) // Amount refunded for hospital fee (positive, in Rs)
+  refundReceiptId             String?         @db.ObjectId
+  refundReceiptNoString       String?
+  refundReceiptCreatedAt      DateTime?
+  canceledAt                  DateTime?
+  canceledBy                  String?         @db.ObjectId
+  agencyRef                   String?         @default("")
+  agencyId                    String?         @db.ObjectId
+  agency                      Agency?         @relation("AgencyToBooking", fields: [agencyId], references: [id], onDelete: SetNull)
+  creditCustomerId            String?         @db.ObjectId
+  creditCustomer              CreditCustomer? @relation("CreditCustomerToBooking", fields: [creditCustomerId], references: [id], onDelete: SetNull)
+  staffId                     String?         @db.ObjectId
+  staff                       Staff?          @relation("BookingStaff", fields: [staffId], references: [id], onDelete: SetNull)
+  discountDivision            Json?
+  hospitalFeeDiscount         Int             @default(0)
+  professionsalFeeDiscount    Int             @default(0)
+  professionalFee             Int             @default(0)
+  hospitalFee                 Int             @default(0)
+  referredDoctorId            String?         @db.ObjectId
+  referredAgencyId            String?         @db.ObjectId
+  referredStaffId             String?         @db.ObjectId
+  referredStaff               Staff?          @relation("BookingReferredStaff", fields: [referredStaffId], references: [id], onDelete: SetNull)
+  sessionStartTime            Int
+  sessionEndTime              Int
+  isScan                      Boolean         @default(false)
+  locationId                  String?         @db.ObjectId
+  location                    Location?       @relation("LocationToBooking", fields: [locationId], references: [id], onDelete: SetNull)
+  bookingid                   Int?
+  bookingid_string            String?
+  appointmentNo               Int
   /// Null on a normal session, so one number can exist once. Set on a hidden session so the same number from two sessions can sit together.
-  appointmentNoTieBreaker String?
-  discountId              String?  @db.ObjectId
-  autoDiscountId          String?  @db.ObjectId
-  receiptNo               Int?
-  receiptNoString         String?
-  receiptPaymentMethod    Int?
-  receiptNoCreatedAt      DateTime?
-  receiptNoId             String?  @db.ObjectId
-  receipts                Receipt[] @relation("ReceiptToBooking")
+  appointmentNoTieBreaker     String?
+  discountId                  String?         @db.ObjectId
+  autoDiscountId              String?         @db.ObjectId
+  receiptNo                   Int?
+  receiptNoString             String?
+  receiptPaymentMethod        Int?
+  receiptNoCreatedAt          DateTime?
+  receiptNoId                 String?         @db.ObjectId
+  receipts                    Receipt[]       @relation("ReceiptToBooking")
 
   // Doctor payment: batch receipt and date when doctor was paid for this booking
-  doctorPayment           Boolean   @default(false)
-  doctorPaymentAt         DateTime?
-  doctorPaymentReceiptId  String?   @db.ObjectId
+  doctorPayment              Boolean   @default(false)
+  doctorPaymentAt            DateTime?
+  doctorPaymentReceiptId     String?   @db.ObjectId
   doctorPaymentReceiptString String?
 
   // Transfer: when booking was moved to another session/doctor
   movedFromSessionId        String?   @db.ObjectId
   movedFromSession          Session?  @relation("BookingMovedFromSession", fields: [movedFromSessionId], references: [id], onDelete: SetNull)
-  movedFromSessionStartTime Int?      // Original session start time (Unix sec)
+  movedFromSessionStartTime Int? // Original session start time (Unix sec)
   movedBy                   String?   @db.ObjectId
   movedAt                   DateTime?
   movedRemarks              String?
 
   /// Channel room: null = not marked; 1 = showed; 2 = no-show
-  channelRoomAttendance     Int?
-  channelRoomAttendanceAt   DateTime?
-  channelRoomAttendanceBy   String?   @db.ObjectId
+  channelRoomAttendance        Int?
+  channelRoomAttendanceAt      DateTime?
+  channelRoomAttendanceBy      String?   @db.ObjectId
   /// Channel room attendance activity log: [{ from, to, at, by }]
   channelRoomAttendanceHistory Json?
-  migrateSourceId            String?  // Legacy booking_id (Sails) for migrate import lookup
+  migrateSourceId              String? // Legacy booking_id (Sails) for migrate import lookup
   /// HMIS FHIR Patient id when booking was tagged from HMIS search
-  hmisPatientId              String?
+  hmisPatientId                String?
   /// HMIS Medical Record Number (urn:hmis:mrn) when available
-  hmisMrn                    String?
+  hmisMrn                      String?
 
   approvalRequests ApprovalRequest[]
 
@@ -1185,66 +1192,66 @@ model Booking {
 
 /// Receipt: payment/refund/doctor-payment etc. type=0 CREDIT, 1 DEBIT; method=0 REFUND, 1 PAYMENT, 2 DEBIT NOTES, 3 CREDIT NOTES, 4 DOCTOR PAYMENTS, 5 DOCTOR CANCELS
 model Receipt {
-  id              String  @id @default(auto()) @map("_id") @db.ObjectId
+  id              String    @id @default(auto()) @map("_id") @db.ObjectId
   receiptNo       Int
   receiptNoString String
   paymentMethod   Int // 0 Cash, 1 Credit Card, 2 Slip, 3 Check, 4 Agent, 5 Credit
   amount          Float
-  bank            String  @default("")
-  bankId          String? @db.ObjectId
-  cardReference   String  @default("")
-  slipReference   String  @default("")
+  bank            String    @default("")
+  bankId          String?   @db.ObjectId
+  cardReference   String    @default("")
+  slipReference   String    @default("")
   /// Bank slip date (date-only; time ignored). Required for slip payments going forward.
   slipDate        DateTime?
-  remarks         String  @default("")
+  remarks         String    @default("")
   type            Int // 0 CREDIT (decrease), 1 DEBIT (increase)
-  method          Int     @default(1) // 0 REFUND, 1 PAYMENT, 2 DEBIT NOTES, 3 CREDIT NOTES, 4 DOCTOR PAYMENTS, 5 DOCTOR CANCELS
-  whd             Int     @default(0)
-  whdPercentage   Float   @default(0)
+  method          Int       @default(1) // 0 REFUND, 1 PAYMENT, 2 DEBIT NOTES, 3 CREDIT NOTES, 4 DOCTOR PAYMENTS, 5 DOCTOR CANCELS
+  whd             Int       @default(0)
+  whdPercentage   Float     @default(0)
 
-  bookingId         String?   @db.ObjectId
-  booking           Booking?  @relation("ReceiptToBooking", fields: [bookingId], references: [id], onDelete: SetNull)
-  agencyId          String?   @db.ObjectId
-  agency            Agency?   @relation("AgencyToReceipt", fields: [agencyId], references: [id], onDelete: SetNull)
-  creditCustomerId  String?   @db.ObjectId
-  creditCustomer    CreditCustomer? @relation("CreditCustomerToReceipt", fields: [creditCustomerId], references: [id], onDelete: SetNull)
+  bookingId            String?              @db.ObjectId
+  booking              Booking?             @relation("ReceiptToBooking", fields: [bookingId], references: [id], onDelete: SetNull)
+  agencyId             String?              @db.ObjectId
+  agency               Agency?              @relation("AgencyToReceipt", fields: [agencyId], references: [id], onDelete: SetNull)
+  creditCustomerId     String?              @db.ObjectId
+  creditCustomer       CreditCustomer?      @relation("CreditCustomerToReceipt", fields: [creditCustomerId], references: [id], onDelete: SetNull)
   /// Doctor paid (or payment canceled) on this receipt — method 4 / 5
-  doctorId          String?   @db.ObjectId
-  doctor            Doctor?   @relation("DoctorToReceipt", fields: [doctorId], references: [id], onDelete: SetNull)
+  doctorId             String?              @db.ObjectId
+  doctor               Doctor?              @relation("DoctorToReceipt", fields: [doctorId], references: [id], onDelete: SetNull)
   /// Links the WHT and non-WHT receipts of one split doctor payment.
-  doctorPaymentGroupId String? @db.ObjectId
-  createdBy         String?   @db.ObjectId
-  shiftId           String?   @db.ObjectId
-  shift             Shift?    @relation(fields: [shiftId], references: [id], onDelete: SetNull)
-  locationId     String?   @db.ObjectId
-  location       Location? @relation("ReceiptBillingLocation", fields: [locationId], references: [id], onDelete: SetNull)
-  userLocationId String?   @db.ObjectId
-  userLocation   Location? @relation("ReceiptUserLocation", fields: [userLocationId], references: [id], onDelete: SetNull)
-  paymentLines   ReceiptPaymentLine[]
-  approvalRequest ApprovalRequest[] @relation("ApprovalRequestReceipt")
+  doctorPaymentGroupId String?              @db.ObjectId
+  createdBy            String?              @db.ObjectId
+  shiftId              String?              @db.ObjectId
+  shift                Shift?               @relation(fields: [shiftId], references: [id], onDelete: SetNull)
+  locationId           String?              @db.ObjectId
+  location             Location?            @relation("ReceiptBillingLocation", fields: [locationId], references: [id], onDelete: SetNull)
+  userLocationId       String?              @db.ObjectId
+  userLocation         Location?            @relation("ReceiptUserLocation", fields: [userLocationId], references: [id], onDelete: SetNull)
+  paymentLines         ReceiptPaymentLine[]
+  approvalRequest      ApprovalRequest[]    @relation("ApprovalRequestReceipt")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   // Ledger cancel: when this receipt is canceled, the reversal receipt id; null if not canceled
   canceledAt        DateTime?
-  canceledBy       String?   @db.ObjectId
-  cancelReason     String?
+  canceledBy        String?   @db.ObjectId
+  cancelReason      String?
   reverseReceiptId  String?   @db.ObjectId
   reversedReceiptId String?   @db.ObjectId
 
   // Back-office handover reconciliation: set when this receipt was ticked and reconciliation submitted
-  reconciledAt         DateTime?
-  reconciledBy         String?   @db.ObjectId
-  reconciledHandoverId String?   @db.ObjectId
-  cannotReconcileAt    DateTime?
-  cannotReconcileBy    String?   @db.ObjectId
+  reconciledAt          DateTime?
+  reconciledBy          String?   @db.ObjectId
+  reconciledHandoverId  String?   @db.ObjectId
+  cannotReconcileAt     DateTime?
+  cannotReconcileBy     String?   @db.ObjectId
   cannotReconcileReason String?
 
   /// First time this receipt was sent to print. Null until printed.
-  printedAt  DateTime?
+  printedAt          DateTime?
   /// Number of times Print Receipt was invoked. 0 = never printed (next print is original).
-  printCount Int      @default(0)
+  printCount         Int       @default(0)
   /// printCount at cancel. Prints at or below this are the live slip, not reprints of the canceled slip.
   printCountAtCancel Int?
 
@@ -1256,19 +1263,19 @@ model Receipt {
 }
 
 model ReceiptPaymentLine {
-  id            String  @id @default(auto()) @map("_id") @db.ObjectId
-  receiptId     String  @db.ObjectId
-  receipt       Receipt @relation(fields: [receiptId], references: [id], onDelete: Cascade)
-  paymentMethod Int
-  amount        Float
-  bank          String  @default("")
-  bankId        String? @db.ObjectId
-  cardReference String  @default("")
-  slipReference String  @default("")
+  id                    String    @id @default(auto()) @map("_id") @db.ObjectId
+  receiptId             String    @db.ObjectId
+  receipt               Receipt   @relation(fields: [receiptId], references: [id], onDelete: Cascade)
+  paymentMethod         Int
+  amount                Float
+  bank                  String    @default("")
+  bankId                String?   @db.ObjectId
+  cardReference         String    @default("")
+  slipReference         String    @default("")
   /// Bank slip date (date-only; time ignored). Required for slip payment lines going forward.
-  slipDate      DateTime?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  slipDate              DateTime?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
   reconciledAt          DateTime?
   reconciledBy          String?   @db.ObjectId
   cannotReconcileAt     DateTime?
@@ -1288,49 +1295,49 @@ enum AccountType {
 }
 
 model Account {
-  id                  String       @id @default(auto()) @map("_id") @db.ObjectId
-  code                String?      @unique
-  name                String
-  type                AccountType
-  parentAccountId     String?      @db.ObjectId
-  parentAccount       Account?     @relation("AccountParent", fields: [parentAccountId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  childAccounts       Account[]    @relation("AccountParent")
-  locationId          String?      @db.ObjectId
-  location            Location?    @relation("LocationToAccount", fields: [locationId], references: [id], onDelete: SetNull)
-  doctorId            String?      @db.ObjectId
-  doctor              Doctor?      @relation("DoctorToAccount", fields: [doctorId], references: [id], onDelete: SetNull)
-  agencyId            String?      @db.ObjectId
-  agency              Agency?      @relation("AgencyToAccount", fields: [agencyId], references: [id], onDelete: SetNull)
-  creditCustomerId    String?      @db.ObjectId
-  creditCustomer      CreditCustomer? @relation("CreditCustomerToAccount", fields: [creditCustomerId], references: [id], onDelete: SetNull)
-  userId              String?      @db.ObjectId
-  user                User?        @relation("UserToAccount", fields: [userId], references: [id], onDelete: SetNull)
-  minBalanceAllowed   Int?         // When set, posting rejected if balance would go below this (e.g. 0 = no negative; -5000 = allowed to -50.00)
-  maxBalanceAllowed   Int?         // When set, posting rejected if balance would go above this (e.g. RECEIVABLE: hard credit limit in cents)
-  isActive            Boolean      @default(true)
-  createdAt           DateTime     @default(now())
-  updatedAt           DateTime     @updatedAt
+  id                String          @id @default(auto()) @map("_id") @db.ObjectId
+  code              String?         @unique
+  name              String
+  type              AccountType
+  parentAccountId   String?         @db.ObjectId
+  parentAccount     Account?        @relation("AccountParent", fields: [parentAccountId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  childAccounts     Account[]       @relation("AccountParent")
+  locationId        String?         @db.ObjectId
+  location          Location?       @relation("LocationToAccount", fields: [locationId], references: [id], onDelete: SetNull)
+  doctorId          String?         @db.ObjectId
+  doctor            Doctor?         @relation("DoctorToAccount", fields: [doctorId], references: [id], onDelete: SetNull)
+  agencyId          String?         @db.ObjectId
+  agency            Agency?         @relation("AgencyToAccount", fields: [agencyId], references: [id], onDelete: SetNull)
+  creditCustomerId  String?         @db.ObjectId
+  creditCustomer    CreditCustomer? @relation("CreditCustomerToAccount", fields: [creditCustomerId], references: [id], onDelete: SetNull)
+  userId            String?         @db.ObjectId
+  user              User?           @relation("UserToAccount", fields: [userId], references: [id], onDelete: SetNull)
+  minBalanceAllowed Int? // When set, posting rejected if balance would go below this (e.g. 0 = no negative; -5000 = allowed to -50.00)
+  maxBalanceAllowed Int? // When set, posting rejected if balance would go above this (e.g. RECEIVABLE: hard credit limit in cents)
+  isActive          Boolean         @default(true)
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
 
-  journalLines    JournalLine[]
-  tills           Till[] @relation("TillToAccount")
+  journalLines      JournalLine[]
+  tills             Till[]         @relation("TillToAccount")
   floatRequestsFrom FloatRequest[] @relation("FloatRequestFromAccount")
   floatRequestsTo   FloatRequest[] @relation("FloatRequestToAccount")
   bankAccounts      BankAccount[]  @relation("BankAccountToAccount")
 }
 
 model Till {
-  id          String   @id @default(auto()) @map("_id") @db.ObjectId
-  accountId   String   @db.ObjectId
-  account     Account  @relation("TillToAccount", fields: [accountId], references: [id], onDelete: Cascade)
-  userId      String   @db.ObjectId
-  user        User     @relation("UserToTill", fields: [userId], references: [id], onDelete: Cascade)
-  locationId  String   @db.ObjectId
-  location    Location @relation("LocationToTill", fields: [locationId], references: [id], onDelete: Cascade)
-  isActive    Boolean  @default(true)
-  openedAt    DateTime @default(now())
-  closedAt    DateTime?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id         String    @id @default(auto()) @map("_id") @db.ObjectId
+  accountId  String    @db.ObjectId
+  account    Account   @relation("TillToAccount", fields: [accountId], references: [id], onDelete: Cascade)
+  userId     String    @db.ObjectId
+  user       User      @relation("UserToTill", fields: [userId], references: [id], onDelete: Cascade)
+  locationId String    @db.ObjectId
+  location   Location  @relation("LocationToTill", fields: [locationId], references: [id], onDelete: Cascade)
+  isActive   Boolean   @default(true)
+  openedAt   DateTime  @default(now())
+  closedAt   DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
 
   floatRequests FloatRequest[] @relation("FloatRequestToTill")
 
@@ -1340,33 +1347,33 @@ model Till {
 }
 
 model Journal {
-  id             String    @id @default(auto()) @map("_id") @db.ObjectId
-  journalNumber  Int?       // Optional display number from sequence
+  id            String    @id @default(auto()) @map("_id") @db.ObjectId
+  journalNumber Int? // Optional display number from sequence
   date          DateTime
-  description   String     @default("")
-  referenceType String?    // e.g. Receipt, Booking, Manual
-  referenceId    String?    @db.ObjectId
-  locationId     String?   @db.ObjectId
-  location       Location? @relation("LocationToJournal", fields: [locationId], references: [id], onDelete: SetNull)
-  createdBy      String?   @db.ObjectId
-  createdAt      DateTime  @default(now())
+  description   String    @default("")
+  referenceType String? // e.g. Receipt, Booking, Manual
+  referenceId   String?   @db.ObjectId
+  locationId    String?   @db.ObjectId
+  location      Location? @relation("LocationToJournal", fields: [locationId], references: [id], onDelete: SetNull)
+  createdBy     String?   @db.ObjectId
+  createdAt     DateTime  @default(now())
 
   journalLines   JournalLine[]
-  floatRequests FloatRequest[]
+  floatRequests  FloatRequest[]
   shiftHandovers ShiftHandover[]
 
   @@index([date])
 }
 
 model JournalLine {
-  id            String   @id @default(auto()) @map("_id") @db.ObjectId
-  journalId     String   @db.ObjectId
-  journal       Journal  @relation(fields: [journalId], references: [id], onDelete: Cascade)
-  accountId     String   @db.ObjectId
-  account       Account  @relation(fields: [accountId], references: [id], onDelete: Restrict)
-  debitAmount   Int      @default(0) // In smallest unit (e.g. cents)
-  creditAmount  Int      @default(0)
-  memo          String?  @default("")
+  id            String  @id @default(auto()) @map("_id") @db.ObjectId
+  journalId     String  @db.ObjectId
+  journal       Journal @relation(fields: [journalId], references: [id], onDelete: Cascade)
+  accountId     String  @db.ObjectId
+  account       Account @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  debitAmount   Int     @default(0) // In smallest unit (e.g. cents)
+  creditAmount  Int     @default(0)
+  memo          String? @default("")
   /// Till breakdown: 0 = cash, 1 = card, 2 = slip (null = not a till line or legacy)
   paymentMethod Int?
 
@@ -1399,22 +1406,22 @@ model ApiLog {
 
 /// Tick state for a DPAY non-cash receipt on a reconciliation. The receipt stays in DPAY.
 model DpayReconciliationLine {
-  id                     String    @id @default(auto()) @map("_id") @db.ObjectId
+  id                    String    @id @default(auto()) @map("_id") @db.ObjectId
   /// dpay:{shiftId}:{kind}:{receiptNumber}
-  lineKey                String    @unique
+  lineKey               String    @unique
   /// Top-level handover document this tick was posted on.
-  handoverId             String    @db.ObjectId
-  shiftId                String
-  receiptNumber          String
-  kind                   String
-  paymentMethod          Int
-  amountRupees           Float
-  reconciledAt           DateTime?
-  reconciledBy           String?   @db.ObjectId
-  cannotReconcileAt      DateTime?
-  cannotReconcileBy      String?   @db.ObjectId
-  cannotReconcileReason  String?
-  createdAt              DateTime  @default(now())
+  handoverId            String    @db.ObjectId
+  shiftId               String
+  receiptNumber         String
+  kind                  String
+  paymentMethod         Int
+  amountRupees          Float
+  reconciledAt          DateTime?
+  reconciledBy          String?   @db.ObjectId
+  cannotReconcileAt     DateTime?
+  cannotReconcileBy     String?   @db.ObjectId
+  cannotReconcileReason String?
+  createdAt             DateTime  @default(now())
 
   @@index([handoverId])
   @@index([shiftId])
@@ -1492,14 +1499,15 @@ enum LogStatus {
   INFO
   ERROR
 }
+
 // UAT (User Acceptance Testing) – results per tester, shared so anyone can see
 model UatCaseResult {
-  id          String   @id @default(auto()) @map("_id") @db.ObjectId
-  testerName  String
-  testCaseId  String
-  status      String   // "pass" | "fail"
-  comment     String?  // issue or note
-  updatedAt   DateTime @default(now())
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  testerName String
+  testCaseId String
+  status     String // "pass" | "fail"
+  comment    String? // issue or note
+  updatedAt  DateTime @default(now())
 
   @@unique([testerName, testCaseId])
   @@index([testerName])
@@ -1518,16 +1526,16 @@ model UatSectionComplete {
 model SmsTemplate {
   id        String   @id @default(auto()) @map("_id") @db.ObjectId
   name      String
-  type      Int?     // 0=Channel Doctor Arrival, 1=Channel Doctor Departure, 2=Channel Doctor Leave/Absent, 3=Appointment Reschedule, 4=Agent Balance, 5=Appointments count (Block wise)
+  type      Int? // 0=Channel Doctor Arrival, 1=Channel Doctor Departure, 2=Channel Doctor Leave/Absent, 3=Appointment Reschedule, 4=Agent Balance, 5=Appointments count (Block wise)
   message   String
-  status    Int?     // 0 = inactive, 1 = active
+  status    Int? // 0 = inactive, 1 = active
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
 
 model SmsLog {
   id          String   @id @default(auto()) @map("_id") @db.ObjectId
-  status      Int      // == 0 = sent, 1 = failed == //
+  status      Int // == 0 = sent, 1 = failed == //
   name        String
   description String?
   phone       String
@@ -1537,33 +1545,33 @@ model SmsLog {
 
 // Receipt templates: header/footer designed separately; main template has body + printer/size settings. Placeholders: {{name}}
 model ReceiptHeaderTemplate {
-  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  id        String            @id @default(auto()) @map("_id") @db.ObjectId
   name      String
-  content   String   // Text with placeholders: {{company_name}}, {{location_name}}, {{tel}}, {{email}}, {{web}}
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  content   String // Text with placeholders: {{company_name}}, {{location_name}}, {{tel}}, {{email}}, {{web}}
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
   receipts  ReceiptTemplate[]
 }
 
 model ReceiptFooterTemplate {
-  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  id        String            @id @default(auto()) @map("_id") @db.ObjectId
   name      String
-  content   String   // Text with placeholders: {{generated_by}}, {{generated_at}}
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  content   String // Text with placeholders: {{generated_by}}, {{generated_at}}
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
   receipts  ReceiptTemplate[]
 }
 
 model ReceiptTemplate {
   id               String   @id @default(auto()) @map("_id") @db.ObjectId
-  name             String   // e.g. "Ledger Receipt - Slip"
-  type             String   // ledger, agent_receipt, expenses_note, debit_note
-  variant          String   // slip_printer | custom_size
+  name             String // e.g. "Ledger Receipt - Slip"
+  type             String // ledger, agent_receipt, expenses_note, debit_note
+  variant          String // slip_printer | custom_size
   headerTemplateId String?  @db.ObjectId
   footerTemplateId String?  @db.ObjectId
-  bodyContent      String   // Main body with placeholders
-  paperWidthMm     Int?     // For slip_printer or custom_size (mm)
-  paperHeightMm    Int?     // Optional; null = continuous roll for slip
+  bodyContent      String // Main body with placeholders
+  paperWidthMm     Int? // For slip_printer or custom_size (mm)
+  paperHeightMm    Int? // Optional; null = continuous roll for slip
   status           Int      @default(1) // 0 = inactive, 1 = active. One active per (type, variant) used at runtime
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
@@ -1576,25 +1584,26 @@ model ReceiptTemplate {
 
 /// E2E test scenarios: container for ordered steps (each step = one test, e.g. booking).
 model E2EScenario {
-  id              String   @id @default(auto()) @map("_id") @db.ObjectId
-  name            String
-  paymentMethods  String?  // Legacy: JSON array; use steps instead for new scenarios
-  bookingExtras   String?  // Legacy: JSON object; use steps instead
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  steps           E2EScenarioStep[]
+  id             String            @id @default(auto()) @map("_id") @db.ObjectId
+  name           String
+  paymentMethods String? // Legacy: JSON array; use steps instead for new scenarios
+  bookingExtras  String? // Legacy: JSON object; use steps instead
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+  steps          E2EScenarioStep[]
 }
 
 /// One step in a scenario (e.g. "booking" test). Steps run sequentially.
 model E2EScenarioStep {
-  id          String       @id @default(auto()) @map("_id") @db.ObjectId
-  scenarioId  String       @db.ObjectId
-  order       Int          // 0-based; run in this order
-  type        String       // "booking" | future types
-  config      String       // JSON: for booking { paymentMethods, bookingExtras }
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
-  scenario    E2EScenario  @relation(fields: [scenarioId], references: [id], onDelete: Cascade)
+  id         String      @id @default(auto()) @map("_id") @db.ObjectId
+  scenarioId String      @db.ObjectId
+  order      Int // 0-based; run in this order
+  type       String // "booking" | future types
+  config     String // JSON: for booking { paymentMethods, bookingExtras }
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+  scenario   E2EScenario @relation(fields: [scenarioId], references: [id], onDelete: Cascade)
+
   @@index([scenarioId])
 }
 
@@ -1602,14 +1611,14 @@ model E2EScenarioStep {
 
 /// Optional grouping for inventory item types (Electronics, Furniture, Medical...).
 model InventoryCategory {
-  id          String   @id @default(auto()) @map("_id") @db.ObjectId
-  name        String
-  icon        String?  // lucide icon name
-  status      Int      @default(1) // 0 = unpublish, 1 = publish
-  createdBy   String?  @db.ObjectId
-  updatedBy   String?  @db.ObjectId
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  name      String
+  icon      String? // lucide icon name
+  status    Int      @default(1) // 0 = unpublish, 1 = publish
+  createdBy String?  @db.ObjectId
+  updatedBy String?  @db.ObjectId
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   items InventoryItem[] @relation("InventoryCategoryToItem")
 
@@ -1622,7 +1631,7 @@ model InventoryItem {
   name            String
   sku             String   @unique
   description     String?
-  icon            String?  // lucide icon name, e.g. "tv", "flask-conical"
+  icon            String? // lucide icon name, e.g. "tv", "flask-conical"
   imageS3Key      String?
   imageThumbS3Key String?
   status          Int      @default(1) // 0 = unpublish, 1 = publish
@@ -1645,7 +1654,7 @@ model InventoryUnit {
   assetTag   String    @unique
   serialNo   String?
   notes      String?
-  /// 0 Available, 1 Under repair, 2 Broken, 3 Disposed (see types/inventory.ts)
+  /// 0 Available, 1 Under repair, 2 Broken, 3 Disposed, 4 Missing (see types/inventory.ts)
   condition  Int       @default(0)
   assignedAt DateTime?
   createdBy  String?   @db.ObjectId
@@ -1653,12 +1662,12 @@ model InventoryUnit {
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
 
-  itemId     String    @db.ObjectId
-  item       InventoryItem @relation("InventoryItemToUnit", fields: [itemId], references: [id], onDelete: Cascade)
-  roomId     String?   @db.ObjectId
-  room       Room?     @relation("RoomToInventoryUnit", fields: [roomId], references: [id], onDelete: SetNull)
-  locationId String?   @db.ObjectId
-  location   Location? @relation("LocationToInventoryUnit", fields: [locationId], references: [id], onDelete: SetNull)
+  itemId     String              @db.ObjectId
+  item       InventoryItem       @relation("InventoryItemToUnit", fields: [itemId], references: [id], onDelete: Cascade)
+  roomId     String?             @db.ObjectId
+  room       Room?               @relation("RoomToInventoryUnit", fields: [roomId], references: [id], onDelete: SetNull)
+  locationId String?             @db.ObjectId
+  location   Location?           @relation("LocationToInventoryUnit", fields: [locationId], references: [id], onDelete: SetNull)
   movements  InventoryMovement[] @relation("InventoryUnitToMovement")
 
   @@index([itemId])
@@ -1682,4 +1691,108 @@ model InventoryMovement {
   unit   InventoryUnit @relation("InventoryUnitToMovement", fields: [unitId], references: [id], onDelete: Cascade)
 
   @@index([unitId, createdAt(sort: Desc)])
+}
+
+// ==== ROOM CHECK-IN / CHECK-OUT CHECKLISTS ==== //
+
+/// A customisable check-in or check-out form. Built on the channeling desktop, filled on the management PWA.
+model ChecklistTemplate {
+  id            String   @id @default(auto()) @map("_id") @db.ObjectId
+  name          String
+  /// "check_in" | "check_out" (see types/room-checklist.ts)
+  kind          String
+  /// "draft" | "published" | "archived"
+  status        String   @default("draft")
+  /// Bumped on every save, copied into each submission.
+  version       Int      @default(1)
+  /// Which rooms use it. All empty and appliesToAll false = no rooms.
+  appliesToAll  Boolean  @default(false)
+  zoneIds       String[] @db.ObjectId
+  departmentIds String[] @db.ObjectId
+  roomIds       String[] @db.ObjectId
+  /// ChecklistSection[] (see types/room-checklist.ts)
+  sections      Json
+  createdBy     String?  @db.ObjectId
+  updatedBy     String?  @db.ObjectId
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([kind, status])
+}
+
+/// One patient's stay in a room, from check-in to check-out.
+model RoomStay {
+  id               String    @id @default(auto()) @map("_id") @db.ObjectId
+  patientName      String
+  bhtNumber        String
+  patientPhone     String?
+  /// When true the patient is the primary contact (patientPhone required); else exactly one contact has isPrimary.
+  primaryIsPatient Boolean   @default(false)
+  /// "occupied" | "closed" | "cancelled"
+  status           String    @default("occupied")
+  checkedInAt      DateTime  @default(now())
+  checkedInBy      String?   @db.ObjectId
+  checkedOutAt     DateTime?
+  checkedOutBy     String?   @db.ObjectId
+  cancelReason     String?
+  /// True when either checklist recorded an issue (failed item, missing or damaged unit, short return).
+  hasIssues        Boolean   @default(false)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  roomId      String                @db.ObjectId
+  room        Room                  @relation("RoomToRoomStay", fields: [roomId], references: [id], onDelete: Cascade)
+  contacts    RoomStayContact[]     @relation("RoomStayToContact")
+  submissions ChecklistSubmission[] @relation("RoomStayToSubmission")
+
+  @@index([roomId, status])
+  @@index([status, checkedInAt(sort: Desc)])
+  @@index([bhtNumber])
+}
+
+/// People allowed to be contacted about the patient (e.g. by Ayu).
+model RoomStayContact {
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  name         String
+  phone        String
+  relationship String?
+  isPrimary    Boolean  @default(false)
+  sortOrder    Int      @default(0)
+  createdAt    DateTime @default(now())
+
+  stayId String   @db.ObjectId
+  stay   RoomStay @relation("RoomStayToContact", fields: [stayId], references: [id], onDelete: Cascade)
+
+  @@index([stayId])
+  @@index([phone])
+}
+
+/// A filled check-in or check-out checklist. Keeps a copy of the form as it was filled.
+model ChecklistSubmission {
+  id               String   @id @default(auto()) @map("_id") @db.ObjectId
+  kind             String
+  templateId       String?  @db.ObjectId
+  templateName     String
+  templateVersion  Int
+  /// ChecklistSection[] as filled (inventory rows already expanded)
+  templateSnapshot Json
+  /// ChecklistAnswer[]
+  answers          Json
+  hasIssues        Boolean  @default(false)
+  issueCount       Int      @default(0)
+  /// SubmissionIssue[] worked out when it was submitted
+  issues           Json?
+  overrideReason   String?
+  overrideBy       String?  @db.ObjectId
+  submittedBy      String?  @db.ObjectId
+  submittedByName  String?
+  submittedAt      DateTime @default(now())
+
+  roomId String   @db.ObjectId
+  stayId String   @db.ObjectId
+  stay   RoomStay @relation("RoomStayToSubmission", fields: [stayId], references: [id], onDelete: Cascade)
+
+  @@index([stayId])
+  @@index([roomId, submittedAt(sort: Desc)])
+  @@index([hasIssues, submittedAt(sort: Desc)])
 }

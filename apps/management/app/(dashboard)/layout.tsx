@@ -5,6 +5,7 @@ import { AppHeader } from './app-header';
 import { PushSync } from '@/components/pwa/notifications';
 import { NoAccessScreen } from '@/components/no-access-screen';
 import { getManagementAccess, getManagementFeatures } from '@/lib/management-access';
+import { PageHeaderProvider } from './page-header-context';
 import { FeaturesProvider } from './features-context';
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -29,6 +30,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
   return (
     <Providers session={session}>
       <FeaturesProvider features={features}>
+      <PageHeaderProvider>
       <PushSync />
       <div className="flex min-h-dvh w-full flex-col bg-background">
         <SidebarLayoutClient>
@@ -39,6 +41,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
           </main>
         </SidebarLayoutClient>
       </div>
+      </PageHeaderProvider>
       </FeaturesProvider>
     </Providers>
   );
