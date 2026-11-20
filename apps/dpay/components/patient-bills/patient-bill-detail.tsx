@@ -35,9 +35,10 @@ export function PatientBillDetailView({ bill }: PatientBillDetailViewProps) {
   const canClose = bill.status === 'paid' || bill.status === 'over_paid';
   const canPay = !isLocked && !isDraft && bill.outstandingAmount > 0;
   const overpaidAmount = Math.max(0, bill.paidAmount - bill.totalAmount);
-  const canRefundOverpayment = !isLocked && overpaidAmount > 0;
-  /** Closed bills stay non-editable; cancel voids the bill + active receipts. */
-  const canCancelBill = !isCancelled;
+  /** Excess refund stays available after close; blocked only for cancelled/draft. */
+  const canRefundOverpayment = !isCancelled && !isDraft && overpaidAmount > 0;
+  /** Closed bills cannot be cancelled (including after excess refund). */
+  const canCancelBill = !isCancelled && !isClosed;
 
   return (
     <div className="space-y-6">
@@ -65,11 +66,13 @@ export function PatientBillDetailView({ bill }: PatientBillDetailViewProps) {
             ) : null}
             {isClosed ? (
               <p className="text-sm text-indigo-800">
-                This bill is closed and can no longer be edited. Use Cancel Bill to void it
-                and refund linked receipts.
+                This bill is closed and can no longer be edited or cancelled.
+                {overpaidAmount > 0
+                  ? ' Excess payment can still be refunded separately below.'
+                  : ''}
               </p>
             ) : null}
-            {bill.status === 'over_paid' ? (
+            {overpaidAmount > 0 && !isCancelled ? (
               <p className="text-sm text-teal-800">
                 This bill is over-paid by {formatLkr(overpaidAmount)}. Use Refund to settle the
                 excess and generate a separate refund receipt.
@@ -204,8 +207,7 @@ export function PatientBillDetailView({ bill }: PatientBillDetailViewProps) {
       <ClosePatientBillDialog
         open={closeOpen}
         onOpenChange={setCloseOpen}
-        billId={bill.id}
-        billNumber={bill.billNumber}
+        bill={bill}
       />
       <RefundOverpaymentDialog
         open={refundOpen}

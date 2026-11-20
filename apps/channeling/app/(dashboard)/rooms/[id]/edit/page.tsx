@@ -4,7 +4,12 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import RoomForm from '../../room-form';
 import { getRoomById, getAllLocations, getAllZonesByLocaionID } from '@/app/actions/room.actions';
+import { getDepartmentOptions } from '@/app/actions/doctor.sessions.action';
 import { BackButton } from '@/components/common/back-button';
+import Link from 'next/link';
+import { Boxes } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { checkRouteAccess } from '@/lib/server-permissions';
 
 type PageProps = {
   params: Promise<{
@@ -24,13 +29,31 @@ export default async function EditRoomPage({ params }: PageProps) {
     notFound();
   }
 
-  const [locationRes, zonesRes] = await Promise.all([
+  const [locationRes, zonesRes, departmentRes, canViewInventory] = await Promise.all([
     getAllLocations(),
-    data.locationId ? getAllZonesByLocaionID(data.locationId) : Promise.resolve({ success: false, data: [] })
+    data.locationId ? getAllZonesByLocaionID(data.locationId) : Promise.resolve({ success: false, data: [] }),
+    getDepartmentOptions(),
+    checkRouteAccess('/room-inventory')
   ]);
 
   const locationOptions =
     locationRes?.data?.map((l) => ({ id: l.id as string, name: l.name })) ?? [];
+
+  const departmentOptions =
+    departmentRes?.success && departmentRes.data
+      ? departmentRes.data.map((d) => ({ id: d.id, name: d.name }))
+      : [];
+
+  if (
+    data.departmentId &&
+    data.department?.name &&
+    !departmentOptions.some((d) => d.id === data.departmentId)
+  ) {
+    departmentOptions.unshift({
+      id: data.departmentId,
+      name: data.department.name
+    });
+  }
 
   const initialZoneOptions =
     zonesRes?.success && zonesRes?.data?.length
@@ -42,11 +65,23 @@ export default async function EditRoomPage({ params }: PageProps) {
       <div className="w-full">
         <div className="flex items-center justify-between mb-6">
           <h1 className="text-2xl font-bold">Edit Room</h1>
-          <BackButton href="/rooms" />
+          <div className="flex items-center gap-2">
+            {canViewInventory && (
+              <Button variant="outline" asChild>
+                <Link
+                  href={`/room-inventory?roomId=${id}${data.locationId ? `&locationId=${data.locationId}` : ''}`}
+                >
+                  <Boxes className="size-4" /> View inventory
+                </Link>
+              </Button>
+            )}
+            <BackButton href="/rooms" />
+          </div>
         </div>
         <RoomForm
           room={data}
           locationOptions={locationOptions}
+          departmentOptions={departmentOptions}
           initialZoneOptions={initialZoneOptions}
           isEditPage={true}
           user={{

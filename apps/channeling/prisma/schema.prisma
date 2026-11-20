@@ -177,6 +177,7 @@ model Department {
   // ==== RELATIONS ==== //
   doctorSessions DoctorSession[] @relation("SessionToDepartment")
   departments    Session[]       @relation("DepartmentToSession")
+  rooms          Room[]          @relation("DepartmentToRoom")
 
   // Indexes for list query: orderBy createdAt, filter by name (keyword search)
   @@index([createdAt(sort: Desc)])
@@ -448,6 +449,7 @@ model Location {
   journals             Journal[]             @relation("LocationToJournal")
   shifts               Shift[]               @relation("ShiftToLocation")
   approvalRequests     ApprovalRequest[]     @relation("ApprovalRequestLocation")
+  inventoryUnits       InventoryUnit[]       @relation("LocationToInventoryUnit")
 
   @@index([order])
 }
@@ -492,8 +494,11 @@ model Room {
   zone           Zone?           @relation("ZoneToRoom", fields: [zoneId], references: [id], onDelete: SetNull)
   locationId     String?         @db.ObjectId
   location       Location?       @relation("LocationToRoom", fields: [locationId], references: [id], onDelete: SetNull)
+  departmentId   String?         @db.ObjectId
+  department     Department?     @relation("DepartmentToRoom", fields: [departmentId], references: [id], onDelete: SetNull)
   doctorSessions DoctorSession[] @relation("SessionToRoom")
   sessions       Session[]       @relation("RoomToSession")
+  inventoryUnits InventoryUnit[] @relation("RoomToInventoryUnit")
   createdUser    User?           @relation("UserCreatedRooms", fields: [createdBy], references: [id], onDelete: SetNull)
   updatedUser    User?           @relation("UserUpdatedRooms", fields: [updatedBy], references: [id], onDelete: SetNull)
 }
@@ -1591,4 +1596,90 @@ model E2EScenarioStep {
   updatedAt   DateTime     @updatedAt
   scenario    E2EScenario  @relation(fields: [scenarioId], references: [id], onDelete: Cascade)
   @@index([scenarioId])
+}
+
+// ==== ROOM INVENTORY ==== //
+
+/// Optional grouping for inventory item types (Electronics, Furniture, Medical...).
+model InventoryCategory {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  name        String
+  icon        String?  // lucide icon name
+  status      Int      @default(1) // 0 = unpublish, 1 = publish
+  createdBy   String?  @db.ObjectId
+  updatedBy   String?  @db.ObjectId
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  items InventoryItem[] @relation("InventoryCategoryToItem")
+
+  @@index([name])
+}
+
+/// An item type, e.g. "Flask" or "TV 55 inch". Physical things are InventoryUnit rows.
+model InventoryItem {
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  name            String
+  sku             String   @unique
+  description     String?
+  icon            String?  // lucide icon name, e.g. "tv", "flask-conical"
+  imageS3Key      String?
+  imageThumbS3Key String?
+  status          Int      @default(1) // 0 = unpublish, 1 = publish
+  createdBy       String?  @db.ObjectId
+  updatedBy       String?  @db.ObjectId
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  categoryId String?            @db.ObjectId
+  category   InventoryCategory? @relation("InventoryCategoryToItem", fields: [categoryId], references: [id], onDelete: SetNull)
+  units      InventoryUnit[]    @relation("InventoryItemToUnit")
+
+  @@index([name])
+  @@index([categoryId])
+}
+
+/// One physical thing. roomId null = in store at locationId.
+model InventoryUnit {
+  id         String    @id @default(auto()) @map("_id") @db.ObjectId
+  assetTag   String    @unique
+  serialNo   String?
+  notes      String?
+  /// 0 Available, 1 Under repair, 2 Broken, 3 Disposed (see types/inventory.ts)
+  condition  Int       @default(0)
+  assignedAt DateTime?
+  createdBy  String?   @db.ObjectId
+  updatedBy  String?   @db.ObjectId
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  itemId     String    @db.ObjectId
+  item       InventoryItem @relation("InventoryItemToUnit", fields: [itemId], references: [id], onDelete: Cascade)
+  roomId     String?   @db.ObjectId
+  room       Room?     @relation("RoomToInventoryUnit", fields: [roomId], references: [id], onDelete: SetNull)
+  locationId String?   @db.ObjectId
+  location   Location? @relation("LocationToInventoryUnit", fields: [locationId], references: [id], onDelete: SetNull)
+  movements  InventoryMovement[] @relation("InventoryUnitToMovement")
+
+  @@index([itemId])
+  @@index([roomId])
+  @@index([locationId])
+  @@index([condition])
+}
+
+/// History of room moves and condition changes for a unit.
+model InventoryMovement {
+  id            String   @id @default(auto()) @map("_id") @db.ObjectId
+  fromRoomId    String?  @db.ObjectId
+  toRoomId      String?  @db.ObjectId
+  fromCondition Int?
+  toCondition   Int?
+  note          String?
+  createdBy     String?  @db.ObjectId
+  createdAt     DateTime @default(now())
+
+  unitId String        @db.ObjectId
+  unit   InventoryUnit @relation("InventoryUnitToMovement", fields: [unitId], references: [id], onDelete: Cascade)
+
+  @@index([unitId, createdAt(sort: Desc)])
 }

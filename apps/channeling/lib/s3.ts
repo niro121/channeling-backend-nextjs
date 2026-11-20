@@ -70,6 +70,18 @@ export function getBankDepositSlipObjectKey(userId: string, uploadId: string, ex
   return `${bankDepositSlipKeyPrefixForUser(userId)}${safeUpload}.${safeExt}`
 }
 
+/** S3 key for an inventory item image. Thumbnails use getBillAttachmentThumbKey(key). */
+export function getInventoryImageObjectKey(itemId: string, uploadId: string, ext: string) {
+  const prefix = (process.env.S3_INVENTORY_PREFIX?.trim() || "inventory-items").replace(
+    /^\/+|\/+$/g,
+    ""
+  )
+  const safeExt = ext.replace(/[^a-z0-9]/gi, "") || "webp"
+  const safeItem = itemId.replace(/[^a-zA-Z0-9]/g, "")
+  const safeUpload = uploadId.replace(/[^a-zA-Z0-9-]/g, "")
+  return `${prefix}/${safeItem}/${safeUpload}.${safeExt}`
+}
+
 export async function presignBillAttachmentPut(key: string, contentType: string): Promise<string> {
   const { bucket } = getS3Config()
   return getSignedUrl(

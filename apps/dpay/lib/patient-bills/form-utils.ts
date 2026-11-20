@@ -13,7 +13,7 @@ export function createInitialDraft(): PatientBillDraft {
   return {
     bxtNumber: '',
     billNumber: '',
-    admissionDate: null,
+    admissionDate: new Date().toISOString(),
     dischargeDate: null,
     customerName: '',
     customerNicPhone: '',

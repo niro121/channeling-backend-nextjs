@@ -372,7 +372,12 @@ export async function downloadAgentWiseAppointmentsReportExcel(
           cell.value = cellValue(raw);
         }
         cell.numFmt = '@';
-        cell.font = { size: 8, name: 'Arial', bold: isTotal };
+        cell.font = {
+          size: 8,
+          name: 'Arial',
+          bold: isTotal,
+          ...(c === 4 && compact.isReversal ? { color: { argb: 'FFDC2626' } } : {}),
+        };
         cell.border = thinBorder;
         cell.alignment = {
           vertical: 'top',
