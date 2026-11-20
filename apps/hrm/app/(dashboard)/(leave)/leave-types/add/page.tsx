@@ -25,10 +25,10 @@ export default async function LeaveTypeAddPage() {
     <div className="space-y-6">
       <CommonManagerHeader
         title="Add Leave Type"
-        description="Create a leave type for entitlement and application workflows."
+        description="Create a leave type for entitlement and application workflows. For compensatory leave, use Add Lieu leave type."
         backwordButton
       />
-      <FormLeaveType mode="add" />
+      <FormLeaveType mode="add" variant="normal" />
     </div>
   );
 }

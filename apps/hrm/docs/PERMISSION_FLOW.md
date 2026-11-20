@@ -215,7 +215,7 @@ From `lib/permissions.ts` / `RESOURCES` (keep these in sync when editing).
 | `/hrm-variables` | `hrm-variables` | HRM Variable (EPF/ETF/PAYE) |
 | `/salary-cycles` | `salary-cycles` | Salary Cycle |
 | `/shift-types` | `shift-roster` | Shift Types *(Roster & Shifts template master — not HR Admin; Manage Shifts deferred — HR_ADMINISTRATION_GUIDE section 34)* |
-| `/leave-requests` | `leave-requests` | Leave Requests |
+| `/leave` | `leave-application` | Leave Guide (sidebar also opens with any leave `view`) |
 | `/leave-types` | `leave-types` | Leave Types |
 | `/leave-entitlement` | `leave-entitlement` | Leave Entitlement |
 | `/leave-management` | `leave-management` | Leave Management |

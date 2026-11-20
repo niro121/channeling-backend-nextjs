@@ -737,7 +737,13 @@ export default function SheetOvernightForm({
                     disabled={loading || Boolean(conflictPreview?.blocksSave)}
                     className={buttonStyles.save}
                   >
-                    {isEdit ? 'Save Changes' : 'Save Overnight Shift'}
+                    {loading
+                      ? isEdit
+                        ? 'Updating...'
+                        : 'Saving...'
+                      : isEdit
+                        ? 'Update'
+                        : 'Save Overnight Shift'}
                   </Button>
                 </SheetFooter>
               </Form>

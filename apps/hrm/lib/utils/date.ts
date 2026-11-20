@@ -1,4 +1,4 @@
-import { format, isValid, parseISO } from 'date-fns';
+import { format, isValid, parse, parseISO } from 'date-fns';
 
 /** Table / list audit timestamps — e.g. `04/08/2026 01:30 PM` */
 export const DATE_TIME_DISPLAY_FORMAT = 'dd/MM/yyyy hh:mm a';
@@ -9,17 +9,38 @@ export const DATE_TIME_AUDIT_FORMAT = "MMMM do yyyy, h.mm a";
 /** Date-only display — e.g. `04/08/2026` */
 export const DATE_DISPLAY_FORMAT = 'dd/MM/yyyy';
 
-function toValidDate(date?: Date | string | null): Date | null {
-  if (!date) return null;
+const DISPLAY_DATE_PATTERNS = [
+  DATE_DISPLAY_FORMAT,
+  DATE_TIME_DISPLAY_FORMAT,
+  DATE_TIME_AUDIT_FORMAT
+] as const;
 
-  const parsed =
-    date instanceof Date
-      ? date
-      : /^\d{4}-\d{2}-\d{2}/.test(date)
-        ? parseISO(date)
-        : new Date(date);
+/**
+ * Coerce a Date / ISO / app display-format string into a valid Date.
+ * Returns `null` for empty or unparseable values (including `—`).
+ */
+export function toValidDate(date?: Date | string | null): Date | null {
+  if (!date || date === '—') return null;
 
-  return isValid(parsed) ? parsed : null;
+  if (date instanceof Date) {
+    return isValid(date) ? date : null;
+  }
+
+  const trimmed = date.trim();
+  if (!trimmed || trimmed === '—') return null;
+
+  if (/^\d{4}-\d{2}-\d{2}/.test(trimmed)) {
+    const iso = parseISO(trimmed);
+    if (isValid(iso)) return iso;
+  }
+
+  for (const pattern of DISPLAY_DATE_PATTERNS) {
+    const parsed = parse(trimmed, pattern, new Date());
+    if (isValid(parsed)) return parsed;
+  }
+
+  const fallback = new Date(trimmed);
+  return isValid(fallback) ? fallback : null;
 }
 
 /**

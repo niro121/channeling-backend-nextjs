@@ -4,7 +4,8 @@ import { CommonManagerHeader } from '@/components/common/common-manager-header';
 import { authOptions } from '@/lib/auth';
 import { logActivityNonBlocking } from '@/lib/activity-log';
 import { checkRouteAccess } from '@/lib/server-permissions';
-import { formatDate } from '@/lib/utils/date';
+import { formatHalfDaySessionLabel } from '@/lib/helpers/leave-application-days.helper';
+import { formatDateTime } from '@/lib/utils/date';
 import {
   bulkDeleteLeaveApplicationsAction,
   getLeaveApplicationFormOptionsAction,
@@ -82,7 +83,9 @@ export default async function LeaveApplicationPage({
   const leaveTypeOptions = (optionsRes.data?.leaveTypes ?? []).map((type) => ({
     id: type.id,
     name: type.code ? `${type.code} — ${type.name}` : type.name,
-    allowHalfDay: Boolean((type as { allowHalfDay?: boolean }).allowHalfDay)
+    allowHalfDay: Boolean(type.allowHalfDay),
+    isLieuLeave: Boolean(type.isLieuLeave),
+    requiresApproval: Boolean(type.requiresApproval)
   }));
 
   const filterLeaveTypeOptions = leaveTypeOptions.map(({ id, name }) => ({
@@ -136,15 +139,17 @@ export default async function LeaveApplicationPage({
         fromDate: row.fromDate,
         toDate: row.toDate,
         days: row.days,
-        approverName: row.approverName,
-        approvedAt: row.approvedAt ?? '',
+        halfDaySession: formatHalfDaySessionLabel(row.halfDaySession) || '',
+        approverName: row.approverName || '',
+        approvedAt: row.approvedAt ? formatDateTime(row.approvedAt) : '',
         status: row.status,
         outWithCancel: row.outWithCancel ? 'Yes' : 'No',
-        shiftDate: row.shiftDate,
+        shiftDate: row.shiftDate || '',
+        lieuShift: row.lieuShiftLabel?.trim() || '',
         updatedBy: row.updatedUser?.name ?? '',
-        updatedAt: formatDate(row.updatedAt),
+        updatedAt: formatDateTime(row.updatedAt),
         createdBy: row.createdUser?.name ?? '',
-        createdAt: formatDate(row.createdAt)
+        createdAt: formatDateTime(row.createdAt)
       }))
     };
   };
@@ -156,7 +161,7 @@ export default async function LeaveApplicationPage({
 
   const getBulkDeleteDescription = async (ids: string[]) => {
     'use server';
-    return `This will permanently delete ${ids.length} leave application${ids.length === 1 ? '' : 's'}. This action cannot be undone.`;
+    return `This will permanently delete ${ids.length} leave application${ids.length === 1 ? '' : 's'} with status pending, rejected, or cancelled. Approved leave cannot be deleted — cancel those first. This action cannot be undone.`;
   };
 
   return (

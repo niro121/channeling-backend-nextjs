@@ -1,8 +1,8 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
-import { CheckCircle2, XCircle } from 'lucide-react';
+import { useRef, useState } from 'react';
+import { CheckCircle2, Eye, XCircle } from 'lucide-react';
 import {
   Avatar,
   AvatarFallback,
@@ -12,19 +12,26 @@ import {
   CardContent,
   CardHeader,
   CardTitle,
+  CustomAlertDialog,
   useToast
 } from '@archmage/ui';
 import { usePermissions } from '@/components/hooks/use-permissions';
 import {
   approveLeaveApplicationAction,
+  getLeaveApplicationByIdAction,
   rejectLeaveApplicationAction
 } from '@/app/actions/leave-actions/leave-application.actions';
+import type { LeaveApplicationRecord } from '@/types/leave';
+import { LeaveApplicationViewDialog } from '../leave-application/view-dialog';
 
 export type PendingApprovalItem = {
   id: string;
   name: string;
   initials: string;
+  /** Institution / department / designation */
   department: string;
+  institution?: string;
+  designation?: string;
   leaveType: string;
   dateRange: string;
   duration: string;
@@ -51,37 +58,86 @@ export default function SectionPendingApprovals({
   const { has } = usePermissions();
   const canDecide =
     has('leave-management', 'edit') || has('leave-application', 'edit');
+  const canView =
+    has('leave-management', 'view') || has('leave-application', 'view');
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [viewLoadingId, setViewLoadingId] = useState<string | null>(null);
+  const [viewOpen, setViewOpen] = useState(false);
+  const [viewRecord, setViewRecord] =
+    useState<LeaveApplicationRecord | null>(null);
+  const [softWarnOpen, setSoftWarnOpen] = useState(false);
+  const [softWarnMessage, setSoftWarnMessage] = useState('');
+  const softWarnIdRef = useRef<string | null>(null);
 
-  const handleDecide = async (
-    id: string,
-    action: 'approve' | 'reject'
-  ) => {
+  const openApplicationView = async (id: string) => {
+    setViewLoadingId(id);
     try {
-      setBusyId(id);
-      const result =
-        action === 'approve'
-          ? await approveLeaveApplicationAction(id)
-          : await rejectLeaveApplicationAction(id);
-
-      if (result.isError) {
+      const result = await getLeaveApplicationByIdAction(id);
+      if (result.isError || !result.data) {
         toast({
           variant: 'destructive',
           title: 'Error',
           description:
-            result.errors?.message ??
-            `Failed to ${action} leave application.`
+            result.errors?.message ?? 'Unable to load leave application.'
+        });
+        return;
+      }
+      setViewRecord(result.data);
+      setViewOpen(true);
+    } catch (error: unknown) {
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description:
+          error instanceof Error
+            ? error.message
+            : 'Unable to load leave application.'
+      });
+    } finally {
+      setViewLoadingId(null);
+    }
+  };
+
+  const runApprove = async (id: string, acknowledgedWarnings = false) => {
+    setBusyId(id);
+    try {
+      const result = await approveLeaveApplicationAction(id, {
+        acknowledgedWarnings
+      });
+
+      if (result.isError) {
+        const errors = result.errors as Record<string, unknown> | undefined;
+        if (errors?.requiresAck) {
+          const warnings = Array.isArray(errors.softWarnings)
+            ? (errors.softWarnings as string[])
+            : [];
+          softWarnIdRef.current = id;
+          setSoftWarnMessage(
+            warnings[0] ||
+              (typeof errors.message === 'string'
+                ? errors.message
+                : 'Published duties overlap this leave. Continue anyway?')
+          );
+          setSoftWarnOpen(true);
+          return;
+        }
+
+        toast({
+          variant: 'destructive',
+          title: 'Error',
+          description:
+            (typeof errors?.message === 'string'
+              ? errors.message
+              : null) ?? 'Failed to approve leave application.'
         });
         return;
       }
 
+      softWarnIdRef.current = null;
       toast({
         variant: 'success',
         title: 'Success',
-        description:
-          action === 'approve'
-            ? 'Leave application approved.'
-            : 'Leave application rejected.'
+        description: 'Leave application approved.'
       });
       router.refresh();
     } catch (error: unknown) {
@@ -91,11 +147,61 @@ export default function SectionPendingApprovals({
         description:
           error instanceof Error
             ? error.message
-            : `Failed to ${action} leave application.`
+            : 'Failed to approve leave application.'
       });
     } finally {
       setBusyId(null);
     }
+  };
+
+  const handleDecide = async (
+    id: string,
+    action: 'approve' | 'reject'
+  ) => {
+    if (action === 'approve') {
+      await runApprove(id, false);
+      return;
+    }
+
+    try {
+      setBusyId(id);
+      const result = await rejectLeaveApplicationAction(id);
+
+      if (result.isError) {
+        toast({
+          variant: 'destructive',
+          title: 'Error',
+          description:
+            result.errors?.message ?? 'Failed to reject leave application.'
+        });
+        return;
+      }
+
+      toast({
+        variant: 'success',
+        title: 'Success',
+        description: 'Leave application rejected.'
+      });
+      router.refresh();
+    } catch (error: unknown) {
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description:
+          error instanceof Error
+            ? error.message
+            : 'Failed to reject leave application.'
+      });
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const handleSoftWarnContinue = async () => {
+    const id = softWarnIdRef.current;
+    setSoftWarnOpen(false);
+    if (!id) return;
+    await runApprove(id, true);
   };
 
   return (
@@ -117,71 +223,112 @@ export default function SectionPendingApprovals({
             items.map((item) => (
               <div
                 key={item.id}
-                className="flex flex-col gap-3 rounded-lg border border-border bg-background p-3 sm:flex-row sm:items-center sm:justify-between"
+                className="rounded-lg border border-border bg-background p-3"
               >
-                <div className="flex min-w-0 items-center gap-3">
-                  <Avatar className="h-10 w-10">
-                    <AvatarFallback className="bg-teal-100 text-sm font-semibold text-teal-800">
-                      {item.initials}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-semibold text-foreground">
-                      {item.name}
-                    </p>
-                    <p className="truncate text-xs text-muted-foreground">
-                      {item.department}
-                    </p>
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex min-w-0 flex-1 items-start gap-3">
+                    <Avatar className="mt-0.5 h-10 w-10 shrink-0">
+                      <AvatarFallback className="bg-teal-100 text-sm font-semibold text-teal-800">
+                        {item.initials}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="min-w-0 flex-1 space-y-0.5">
+                      {canView ? (
+                        <Button
+                          type="button"
+                          variant="link"
+                          className="h-auto max-w-full justify-start truncate p-0 text-sm font-semibold text-primary"
+                          disabled={viewLoadingId === item.id}
+                          onClick={() => void openApplicationView(item.id)}
+                        >
+                          {item.name}
+                        </Button>
+                      ) : (
+                        <p className="truncate text-sm font-semibold text-foreground">
+                          {item.name}
+                        </p>
+                      )}
+                      <p
+                        className="line-clamp-2 text-xs leading-snug text-muted-foreground"
+                        title={
+                          item.department !== '—'
+                            ? item.department
+                            : undefined
+                        }
+                      >
+                        {item.department}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+                    {canView ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-8 gap-1.5"
+                        disabled={viewLoadingId === item.id}
+                        onClick={() => void openApplicationView(item.id)}
+                      >
+                        <Eye className="h-4 w-4" />
+                        View
+                      </Button>
+                    ) : null}
+                    {canDecide ? (
+                      <>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="h-8 gap-1.5"
+                          disabled={busyId === item.id}
+                          onClick={() => void handleDecide(item.id, 'reject')}
+                        >
+                          <XCircle className="h-4 w-4" />
+                          Reject
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          className="h-8 gap-1.5 bg-emerald-700 text-white hover:bg-emerald-800"
+                          disabled={busyId === item.id}
+                          onClick={() => void handleDecide(item.id, 'approve')}
+                        >
+                          <CheckCircle2 className="h-4 w-4" />
+                          Approve
+                        </Button>
+                      </>
+                    ) : null}
                   </div>
                 </div>
 
-                <div className="flex min-w-0 flex-1 flex-wrap items-center gap-3 sm:justify-center">
-                  <Badge
-                    variant="secondary"
-                    className="border-0 bg-slate-200/80 text-slate-700 hover:bg-slate-200/80"
-                  >
-                    {item.leaveType}
-                  </Badge>
-                  {item.halfDaySession === 'AM' ||
-                  item.halfDaySession === 'PM' ||
-                  item.days === 0.5 ? (
-                    <Badge className="border-0 bg-sky-50 text-sky-800 hover:bg-sky-50">
-                      Half day
+                <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-border/70 pt-3 sm:pl-13">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge
+                      variant="secondary"
+                      className="border-0 bg-slate-200/80 text-slate-700 hover:bg-slate-200/80"
+                    >
+                      {item.leaveType}
                     </Badge>
-                  ) : null}
-                  <div>
-                    <p className="text-sm font-semibold">{item.dateRange}</p>
-                    <p className="text-xs text-muted-foreground">
+                    {item.halfDaySession === 'AM' ||
+                    item.halfDaySession === 'PM' ||
+                    item.days === 0.5 ? (
+                      <Badge className="border-0 bg-sky-50 text-sky-800 hover:bg-sky-50">
+                        Half day
+                      </Badge>
+                    ) : null}
+                  </div>
+                  <div className="flex min-w-0 items-baseline gap-2 text-sm">
+                    <span className="font-semibold text-foreground">
+                      {item.dateRange}
+                    </span>
+                    <span className="text-muted-foreground">·</span>
+                    <span className="text-muted-foreground">
                       {item.duration}
-                    </p>
+                    </span>
                   </div>
                 </div>
-
-                {canDecide ? (
-                  <div className="flex shrink-0 flex-wrap items-center gap-2 sm:justify-end">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="h-8 gap-1.5"
-                      disabled={busyId === item.id}
-                      onClick={() => handleDecide(item.id, 'reject')}
-                    >
-                      <XCircle className="h-4 w-4" />
-                      Reject
-                    </Button>
-                    <Button
-                      type="button"
-                      size="sm"
-                      className="h-8 gap-1.5 bg-emerald-700 text-white hover:bg-emerald-800"
-                      disabled={busyId === item.id}
-                      onClick={() => handleDecide(item.id, 'approve')}
-                    >
-                      <CheckCircle2 className="h-4 w-4" />
-                      Approve
-                    </Button>
-                  </div>
-                ) : null}
               </div>
             ))
           )}
@@ -208,6 +355,31 @@ export default function SectionPendingApprovals({
           </CardContent>
         </Card>
       </CardContent>
+
+      <LeaveApplicationViewDialog
+        open={viewOpen}
+        onOpenChange={(open) => {
+          setViewOpen(open);
+          if (!open) setViewRecord(null);
+        }}
+        record={viewRecord}
+      />
+
+      <CustomAlertDialog
+        open={softWarnOpen}
+        handleVisibilityChange={(open) => {
+          setSoftWarnOpen(open);
+          if (!open) softWarnIdRef.current = null;
+        }}
+        loading={Boolean(busyId)}
+        title="Published duties overlap leave"
+        description={softWarnMessage}
+        handleContinue={handleSoftWarnContinue}
+        className={{
+          cancelButton: 'h-9',
+          actionButton: 'h-9'
+        }}
+      />
     </Card>
   );
 }

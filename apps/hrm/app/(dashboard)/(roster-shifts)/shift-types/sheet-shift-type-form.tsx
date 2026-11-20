@@ -126,7 +126,7 @@ function sheetCopy(mode: ShiftTypeFormSheetMode) {
     return {
       title: 'Edit Shift Type',
       description: 'Update shift timings, thresholds and allowance rules.',
-      saveLabel: 'Update Shift Type'
+      saveLabel: 'Update'
     };
   }
   if (mode === 'duplicate') {
@@ -508,7 +508,11 @@ export default function SheetShiftTypeForm({
                   variant="outline"
                   className={buttonStyles.save}
                 >
-                  {copy.saveLabel}
+                  {loading
+                    ? mode === 'edit'
+                      ? 'Updating...'
+                      : 'Saving...'
+                    : copy.saveLabel}
                 </Button>
               </SheetFooter>
             </Form>

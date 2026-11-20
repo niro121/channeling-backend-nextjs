@@ -7,6 +7,7 @@ import * as Yup from 'yup';
 import {
   Card,
   CardContent,
+  CardDescription,
   CardHeader,
   CardTitle,
   CustomFormField,
@@ -18,12 +19,12 @@ import {
   createLeaveTypeAction,
   updateLeaveTypeAction
 } from '@/app/actions/leave-actions/leave-type.actions';
-import {
-  leaveTypeFormValuesToPayload
-} from '@/lib/mappers/leave-type-form.mapper';
+import { leaveTypeFormValuesToPayload } from '@/lib/mappers/leave-type-form.mapper';
 import type { LeaveTypeFormValues } from '@/types/leave';
 
 export type { LeaveTypeFormValues };
+
+export type LeaveTypeFormVariant = 'normal' | 'lieu';
 
 type SelectOption = {
   id: string;
@@ -34,6 +35,8 @@ type FormLeaveTypeProps = {
   initialValues?: Partial<LeaveTypeFormValues>;
   mode?: 'add' | 'edit';
   leaveTypeId?: string;
+  /** Normal types have no Lieu switch. Lieu path locks paid / half-day / CF policy. */
+  variant?: LeaveTypeFormVariant;
 };
 
 const YES_NO_OPTIONS: SelectOption[] = [
@@ -52,20 +55,35 @@ const fieldStyleClasses = {
   inputClassName: 'w-full'
 };
 
-const emptyValues: LeaveTypeFormValues = {
+const emptyNormalValues: LeaveTypeFormValues = {
   code: '',
   name: '',
   description: '',
   isPaid: 'yes',
   requiresApproval: 'yes',
   allowHalfDay: 'yes',
+  isLieuLeave: false,
   carryForwardAllowed: 'no',
   maxDaysPerYear: '',
   maxCarryForwardDays: '',
   status: '1'
 };
 
-const validationSchema = Yup.object({
+const emptyLieuValues: LeaveTypeFormValues = {
+  code: '',
+  name: 'Lieu',
+  description: 'Compensatory leave bank for Public Holiday Grant Lieu Leave.',
+  isPaid: 'yes',
+  requiresApproval: 'yes',
+  allowHalfDay: 'no',
+  isLieuLeave: true,
+  carryForwardAllowed: 'no',
+  maxDaysPerYear: '',
+  maxCarryForwardDays: '',
+  status: '1'
+};
+
+const baseValidationSchema = Yup.object({
   code: Yup.string().max(50, 'Must be less than 50 characters'),
   name: Yup.string()
     .required('Name is required')
@@ -97,17 +115,29 @@ const validationSchema = Yup.object({
 export default function FormLeaveType({
   initialValues,
   mode = 'add',
-  leaveTypeId
+  leaveTypeId,
+  variant = 'normal'
 }: FormLeaveTypeProps) {
   const router = useRouter();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const saveAndCloseRef = useRef(false);
   const submitFormRef = useRef<(() => Promise<void>) | null>(null);
+  const isLieu = variant === 'lieu';
 
   const formInitialValues: LeaveTypeFormValues = {
-    ...emptyValues,
-    ...initialValues
+    ...(isLieu ? emptyLieuValues : emptyNormalValues),
+    ...initialValues,
+    ...(isLieu
+      ? {
+          isLieuLeave: true,
+          isPaid: 'yes',
+          allowHalfDay: 'no',
+          carryForwardAllowed: 'no',
+          maxDaysPerYear: '',
+          maxCarryForwardDays: ''
+        }
+      : { isLieuLeave: false })
   };
 
   const handleSubmit = async (
@@ -117,7 +147,9 @@ export default function FormLeaveType({
     const saveAndClose = saveAndCloseRef.current;
     try {
       setLoading(true);
-      const payload = leaveTypeFormValuesToPayload(values);
+      const payload = leaveTypeFormValuesToPayload(values, {
+        variant: isLieu ? 'lieu' : 'normal'
+      });
 
       const respond =
         mode === 'edit' && leaveTypeId
@@ -174,8 +206,12 @@ export default function FormLeaveType({
         title: 'Success',
         description:
           mode === 'edit'
-            ? 'Leave type updated successfully.'
-            : 'Leave type created successfully.'
+            ? isLieu
+              ? 'Lieu leave type updated successfully.'
+              : 'Leave type updated successfully.'
+            : isLieu
+              ? 'Lieu leave type created successfully.'
+              : 'Leave type created successfully.'
       });
 
       if (saveAndClose) {
@@ -210,14 +246,26 @@ export default function FormLeaveType({
       <Card className="rounded-lg border border-border shadow-sm">
         <CardHeader className="space-y-1.5">
           <CardTitle className="text-lg font-semibold">
-            {mode === 'edit' ? 'Edit Leave Type' : 'Leave Type Details'}
+            {mode === 'edit'
+              ? isLieu
+                ? 'Edit Lieu Leave Type'
+                : 'Edit Leave Type'
+              : isLieu
+                ? 'Lieu Leave Type Details'
+                : 'Leave Type Details'}
           </CardTitle>
+          {isLieu ? (
+            <CardDescription>
+              Compensatory leave bank for Public Holiday Grant Lieu Leave. Only
+              one Lieu leave type is allowed.
+            </CardDescription>
+          ) : null}
         </CardHeader>
         <CardContent>
           <Formik
             initialValues={formInitialValues}
             enableReinitialize
-            validationSchema={validationSchema}
+            validationSchema={baseValidationSchema}
             onSubmit={handleSubmit}
           >
             {(formik) => {
@@ -260,75 +308,110 @@ export default function FormLeaveType({
                   />
 
                   <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                    <CustomSelectField
-                      id="isPaid"
-                      placeholder="Paid Type"
-                      value={formik.values.isPaid}
-                      onChange={(value) => formik.setFieldValue('isPaid', value)}
-                      required
-                      options={YES_NO_OPTIONS}
-                      styleClasses={fieldStyleClasses}
-                    />
-                    <CustomSelectField
-                      id="requiresApproval"
-                      placeholder="Approval Required"
-                      value={formik.values.requiresApproval}
-                      onChange={(value) =>
-                        formik.setFieldValue('requiresApproval', value)
-                      }
-                      required
-                      options={YES_NO_OPTIONS}
-                      styleClasses={fieldStyleClasses}
-                    />
-                    <CustomSelectField
-                      id="allowHalfDay"
-                      placeholder="Half-day Allowed"
-                      value={formik.values.allowHalfDay}
-                      onChange={(value) =>
-                        formik.setFieldValue('allowHalfDay', value)
-                      }
-                      required
-                      options={YES_NO_OPTIONS}
-                      styleClasses={fieldStyleClasses}
-                    />
-                    <CustomSelectField
-                      id="carryForwardAllowed"
-                      placeholder="Carry Forward Allowed"
-                      value={formik.values.carryForwardAllowed}
-                      onChange={(value) => {
-                        formik.setFieldValue('carryForwardAllowed', value);
-                        if (value !== 'yes') {
-                          formik.setFieldValue('maxCarryForwardDays', '');
-                        }
-                      }}
-                      required
-                      options={YES_NO_OPTIONS}
-                      styleClasses={fieldStyleClasses}
-                    />
-                    <CustomFormField
-                      id="maxDaysPerYear"
-                      type="number"
-                      placeholder="Max Days Per Year"
-                      value={formik.values.maxDaysPerYear}
-                      onChange={formik.handleChange}
-                      onBlur={formik.handleBlur}
-                      required={false}
-                      min={0}
-                      styleClasses={fieldStyleClasses}
-                    />
-                    {formik.values.carryForwardAllowed === 'yes' ? (
-                      <CustomFormField
-                        id="maxCarryForwardDays"
-                        type="number"
-                        placeholder="Max Carry Forward Days"
-                        value={formik.values.maxCarryForwardDays}
-                        onChange={formik.handleChange}
-                        onBlur={formik.handleBlur}
-                        required={false}
-                        min={0}
-                        styleClasses={fieldStyleClasses}
-                      />
-                    ) : null}
+                    {isLieu ? (
+                      <>
+                        <CustomSelectField
+                          id="isPaid"
+                          placeholder="Paid Type"
+                          value="yes"
+                          onChange={() => undefined}
+                          required
+                          options={YES_NO_OPTIONS}
+                          styleClasses={fieldStyleClasses}
+                          disabled
+                        />
+                        <CustomSelectField
+                          id="requiresApproval"
+                          placeholder="Approval Required"
+                          value={formik.values.requiresApproval}
+                          onChange={(value) =>
+                            formik.setFieldValue('requiresApproval', value)
+                          }
+                          required
+                          options={YES_NO_OPTIONS}
+                          styleClasses={fieldStyleClasses}
+                        />
+                        <p className="text-xs text-muted-foreground md:col-span-2">
+                          Paid is fixed to Yes. Half-day and carry forward are
+                          not used for Lieu — balance comes from Public Holiday
+                          Grant Lieu Leave (+1 per grant).
+                        </p>
+                      </>
+                    ) : (
+                      <>
+                        <CustomSelectField
+                          id="isPaid"
+                          placeholder="Paid Type"
+                          value={formik.values.isPaid}
+                          onChange={(value) =>
+                            formik.setFieldValue('isPaid', value)
+                          }
+                          required
+                          options={YES_NO_OPTIONS}
+                          styleClasses={fieldStyleClasses}
+                        />
+                        <CustomSelectField
+                          id="requiresApproval"
+                          placeholder="Approval Required"
+                          value={formik.values.requiresApproval}
+                          onChange={(value) =>
+                            formik.setFieldValue('requiresApproval', value)
+                          }
+                          required
+                          options={YES_NO_OPTIONS}
+                          styleClasses={fieldStyleClasses}
+                        />
+                        <CustomSelectField
+                          id="allowHalfDay"
+                          placeholder="Half-day Allowed"
+                          value={formik.values.allowHalfDay}
+                          onChange={(value) =>
+                            formik.setFieldValue('allowHalfDay', value)
+                          }
+                          required
+                          options={YES_NO_OPTIONS}
+                          styleClasses={fieldStyleClasses}
+                        />
+                        <CustomSelectField
+                          id="carryForwardAllowed"
+                          placeholder="Carry Forward Allowed"
+                          value={formik.values.carryForwardAllowed}
+                          onChange={(value) => {
+                            formik.setFieldValue('carryForwardAllowed', value);
+                            if (value !== 'yes') {
+                              formik.setFieldValue('maxCarryForwardDays', '');
+                            }
+                          }}
+                          required
+                          options={YES_NO_OPTIONS}
+                          styleClasses={fieldStyleClasses}
+                        />
+                        <CustomFormField
+                          id="maxDaysPerYear"
+                          type="number"
+                          placeholder="Max Entitled Days"
+                          value={formik.values.maxDaysPerYear}
+                          onChange={formik.handleChange}
+                          onBlur={formik.handleBlur}
+                          required={false}
+                          min={0}
+                          styleClasses={fieldStyleClasses}
+                        />
+                        {formik.values.carryForwardAllowed === 'yes' ? (
+                          <CustomFormField
+                            id="maxCarryForwardDays"
+                            type="number"
+                            placeholder="Max Carry Forward Days"
+                            value={formik.values.maxCarryForwardDays}
+                            onChange={formik.handleChange}
+                            onBlur={formik.handleBlur}
+                            required={false}
+                            min={0}
+                            styleClasses={fieldStyleClasses}
+                          />
+                        ) : null}
+                      </>
+                    )}
                   </div>
 
                   <CustomSelectField
