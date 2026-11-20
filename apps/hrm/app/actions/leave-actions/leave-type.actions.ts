@@ -12,6 +12,7 @@ import {
   getLeaveTypeOptions,
   getLeaveTypes,
   getLeaveTypesForExport,
+  getLieuLeaveType,
   updateLeaveType
 } from '@/services/leave-services/leave-type.service';
 import type { GetLeaveTypesParams, LeaveTypePayload } from '@/types/leave';
@@ -85,6 +86,29 @@ export async function getLeaveTypeByIdAction(id: string) {
       isError: true,
       data: null,
       errors: { message: error.message ?? 'Unable to fetch leave type.' }
+    };
+  }
+}
+
+/** Existing Lieu leave type (at most one), for list CTA / add-lieu redirect. */
+export async function getLieuLeaveTypeAction() {
+  try {
+    await requirePermission('leave-types', 'view');
+    const result = await getLieuLeaveType();
+    if (!result.success) {
+      throw new Error(result.error?.message ?? 'Failed to load Lieu leave type');
+    }
+    return {
+      isError: false,
+      data: result.data ?? null,
+      errors: {}
+    };
+  } catch (error: any) {
+    console.error('getLieuLeaveTypeAction error:', error);
+    return {
+      isError: true,
+      data: null,
+      errors: { message: error.message ?? 'Unable to fetch Lieu leave type.' }
     };
   }
 }

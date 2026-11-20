@@ -93,7 +93,7 @@ function sheetCopy(mode: DutyRosterFormSheetMode) {
       title: 'Edit Duty Assignment',
       description:
         'Update the record. All changes are captured in the audit trail.',
-      saveLabel: 'Save Changes',
+      saveLabel: 'Update',
       staffLabel: 'Staff Member',
       otherLabel: ''
     };
@@ -1256,7 +1256,11 @@ export default function SheetDutyForm({
                       disabled={loading || isLocked}
                       className={buttonStyles.save}
                     >
-                      {copy.saveLabel}
+                      {loading
+                        ? mode === 'edit'
+                          ? 'Updating...'
+                          : 'Saving...'
+                        : copy.saveLabel}
                     </Button>
                   </SheetFooter>
                 </Form>

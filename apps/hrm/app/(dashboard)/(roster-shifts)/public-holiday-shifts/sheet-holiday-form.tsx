@@ -44,6 +44,8 @@ import {
 } from '@/types/roster';
 import type { PublicHolidayFormSheetMode } from './public-holiday-shifts-ui-context';
 import { buttonStyles } from '@/lib/utils/common-styles';
+import { LIEU_GRANT_DAYS } from '@/types/leave';
+import { LieuGrantPreviewCard } from './lieu-grant-preview-card';
 
 type SheetHolidayFormProps = {
   open: boolean;
@@ -190,7 +192,7 @@ function sheetCopy(mode: PublicHolidayFormSheetMode) {
       title: 'Edit Holiday Shift',
       description:
         'Update the record. All changes are captured in the audit trail.',
-      saveLabel: 'Save Changes'
+      saveLabel: 'Update'
     };
   }
   if (mode === 'bulk') {
@@ -239,7 +241,6 @@ export default function SheetHolidayForm({
 
   const holidays = formOptions?.holidays ?? [];
   const holidayTypes = formOptions?.holidayTypes ?? [];
-  const shifts = formOptions?.shifts ?? [];
   const staffList = formOptions?.staff ?? [];
   const departments = formOptions?.departments ?? [];
   const locations = formOptions?.locations ?? [];
@@ -247,6 +248,26 @@ export default function SheetHolidayForm({
   const rooms = formOptions?.rooms ?? [];
   const payRates = formOptions?.payRates ?? [];
   const statuses = formOptions?.statuses ?? [];
+
+  /** Active + holidayEligible; on edit, keep the current shift even if the flag was later cleared. */
+  const shifts = useMemo(() => {
+    const base = formOptions?.shifts ?? [];
+    if (
+      !isEdit ||
+      !record?.shiftTypeId ||
+      base.some((s) => s.id === record.shiftTypeId)
+    ) {
+      return base;
+    }
+    return [
+      {
+        id: record.shiftTypeId,
+        name: record.shiftLabel || 'Current shift (not PH eligible)',
+        workedHours: String(record.workedHours ?? '')
+      },
+      ...base
+    ];
+  }, [formOptions?.shifts, isEdit, record]);
 
   const holidayOptions = holidays.map((h) => ({ id: h.id, name: h.name }));
 
@@ -599,17 +620,39 @@ export default function SheetHolidayForm({
                           ) : null}
                         </div>
                       ) : null}
-                      <CustomSelectField
-                        id="shiftId"
-                        placeholder="Shift"
-                        value={formik.values.shiftId}
-                        onChange={(value) =>
-                          formik.setFieldValue('shiftId', value)
-                        }
-                        required
-                        options={shifts}
-                        styleClasses={fieldStyleClasses}
-                      />
+                      <div className="space-y-1.5">
+                        <CustomSelectField
+                          id="shiftId"
+                          placeholder="Shift"
+                          value={formik.values.shiftId}
+                          onChange={(value) =>
+                            formik.setFieldValue('shiftId', value)
+                          }
+                          required
+                          options={shifts}
+                          styleClasses={fieldStyleClasses}
+                        />
+                        {shifts.length === 0 ? (
+                          <p className="text-xs text-amber-800 dark:text-amber-300">
+                            No Public Holiday Eligible shift types. On Shift
+                            Types, turn on{' '}
+                            <span className="font-medium">
+                              Public Holiday Eligible
+                            </span>{' '}
+                            for the templates you use on holidays.
+                          </p>
+                        ) : isEdit &&
+                          record?.shiftTypeId &&
+                          !(formOptions?.shifts ?? []).some(
+                            (s) => s.id === record.shiftTypeId
+                          ) ? (
+                          <p className="text-xs text-muted-foreground">
+                            Current shift is no longer Public Holiday Eligible.
+                            Pick an eligible shift to change it, or keep it to
+                            leave the duty unchanged.
+                          </p>
+                        ) : null}
+                      </div>
                     </div>
 
                     {showStaff ? (
@@ -765,8 +808,11 @@ export default function SheetHolidayForm({
                           Grant Lieu Leave
                         </Label>
                         <p className="text-xs text-muted-foreground">
-                          Add a lieu day to the staff leave entitlement instead
-                          of extra pay.
+                          When status is Approved (or published), posts +
+                          {LIEU_GRANT_DAYS} day
+                          {LIEU_GRANT_DAYS === 1 ? '' : 's'} to the published
+                          Lieu leave-type bank for the duty’s calendar year
+                          (Leave Types → Add Lieu).
                         </p>
                       </div>
                       <Switch
@@ -778,6 +824,14 @@ export default function SheetHolidayForm({
                         className="shrink-0"
                       />
                     </div>
+
+                    <LieuGrantPreviewCard
+                      enabled={formik.values.grantLieuLeave}
+                      staffId={formik.values.staffId}
+                      dutyDate={formik.values.dutyDate}
+                      allocationId={isEdit ? record?.id : null}
+                      bulkStaffCount={isBulk ? selectedCount : 0}
+                    />
 
                     <div className="flex items-center justify-between gap-4 rounded-lg border border-border px-4 py-3">
                       <div className="min-w-0 space-y-0.5">
@@ -859,7 +913,11 @@ export default function SheetHolidayForm({
                       }
                       className={buttonStyles.save}
                     >
-                      {copy.saveLabel}
+                      {loading
+                        ? isEdit
+                          ? 'Updating...'
+                          : 'Saving...'
+                        : copy.saveLabel}
                     </Button>
                   </SheetFooter>
                 </Form>

@@ -123,6 +123,13 @@ export const leaveTypeColumns: ColumnDef<LeaveTypeRecord>[] = [
     )
   },
   {
+    accessorKey: 'isLieuLeave',
+    header: 'Lieu',
+    cell: ({ row }) => (
+      <BooleanBadge value={Boolean(row.original.isLieuLeave)} />
+    )
+  },
+  {
     accessorKey: 'carryForwardAllowed',
     header: 'Carry Fwd',
     cell: ({ row }) => (

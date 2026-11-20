@@ -5,6 +5,7 @@ import { endOfDay, endOfMonth, format, startOfDay, startOfMonth } from 'date-fns
 import prisma from '@/lib/prisma';
 import { formatHalfDaySessionLabel } from '@/lib/helpers/leave-application-days.helper';
 import { formatDate } from '@/lib/utils/date';
+import { getInstitutionShortCode } from '@/types/institution';
 
 function initialsFromName(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
@@ -43,6 +44,22 @@ function formatDateRangeLabel(fromDate: Date, toDate: Date): string {
   }
 
   return `${format(fromDate, 'd MMM yyyy')} – ${format(toDate, 'd MMM yyyy')}`;
+}
+
+function parseInstitutionId(value: string | null | undefined): number | null {
+  if (!value?.trim()) return null;
+  if (value === 'ruhunu_hospitals') return 0;
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) && parsed >= 0 && parsed <= 3 ? parsed : null;
+}
+
+function formatOrgLine(
+  parts: Array<string | null | undefined>
+): string {
+  const cleaned = parts
+    .map((part) => part?.trim())
+    .filter((part): part is string => Boolean(part));
+  return cleaned.length > 0 ? cleaned.join(' / ') : '—';
 }
 
 export type LeaveManagementCounts = {
@@ -112,7 +129,10 @@ export type PendingApprovalListItem = {
   id: string;
   name: string;
   initials: string;
+  /** Institution / department / designation display line. */
   department: string;
+  institution?: string;
+  designation?: string;
   leaveType: string;
   dateRange: string;
   duration: string;
@@ -137,17 +157,81 @@ export async function getPendingLeaveApprovals(limit?: number): Promise<{
       take: Math.min(Math.max(take, 1), 200),
       include: {
         leaveType: { select: { name: true, code: true } },
-        staff: { select: { name: true, code: true } }
+        staff: {
+          select: {
+            name: true,
+            code: true,
+            employmentDetails: true
+          }
+        }
       }
     });
 
+    const departmentIds = new Set<string>();
+    const designationIds = new Set<string>();
+
+    for (const row of records) {
+      const employment = row.staff?.employmentDetails?.employment;
+      const departmentId = employment?.department?.trim();
+      const designationId = employment?.staffDesignation?.trim();
+      if (departmentId) departmentIds.add(departmentId);
+      if (designationId) designationIds.add(designationId);
+    }
+
+    const [departments, designations] = await Promise.all([
+      departmentIds.size > 0
+        ? prisma.department.findMany({
+            where: { id: { in: [...departmentIds] } },
+            select: { id: true, name: true }
+          })
+        : Promise.resolve([]),
+      designationIds.size > 0
+        ? prisma.designation.findMany({
+            where: { id: { in: [...designationIds] } },
+            select: { id: true, name: true }
+          })
+        : Promise.resolve([])
+    ]);
+
+    const departmentNameById = new Map(
+      departments.map((department) => [department.id, department.name] as const)
+    );
+    const designationNameById = new Map(
+      designations.map(
+        (designation) => [designation.id, designation.name] as const
+      )
+    );
+
     const data: PendingApprovalListItem[] = records.map((row) => {
       const name = row.staff?.name ?? 'Unknown';
+      const employment = row.staff?.employmentDetails?.employment;
+      const institutionNum = parseInstitutionId(employment?.institution);
+      const institutionLabel =
+        institutionNum != null
+          ? getInstitutionShortCode(institutionNum)
+          : '';
+
+      const rawDepartment = employment?.department?.trim() || '';
+      const departmentLabel =
+        (rawDepartment ? departmentNameById.get(rawDepartment) : undefined) ||
+        rawDepartment;
+
+      const rawDesignation = employment?.staffDesignation?.trim() || '';
+      const designationLabel = rawDesignation
+        ? (designationNameById.get(rawDesignation) ?? '')
+        : '';
+
       return {
         id: row.id,
         name,
         initials: initialsFromName(name),
-        department: '—',
+        department: formatOrgLine([
+          institutionLabel,
+          departmentLabel,
+          designationLabel
+        ]),
+        institution: institutionLabel || undefined,
+        designation: designationLabel || undefined,
         leaveType: row.leaveType?.name ?? 'Leave',
         dateRange: formatDateRangeLabel(row.fromDate, row.toDate),
         duration: formatDuration(row.days, row.halfDaySession),

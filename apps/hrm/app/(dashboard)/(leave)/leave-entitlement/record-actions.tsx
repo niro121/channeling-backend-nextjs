@@ -66,15 +66,18 @@ export default function LeaveEntitlementRecordActions({
     }
   };
 
+  const isLieuLeave = Boolean(record.isLieuLeave);
+
   return (
     <div className="flex justify-end">
       <DataTableRowActions>
-        {has('leave-entitlement', 'edit') && (
+        {has('leave-entitlement', 'edit') && !isLieuLeave && (
           <Button
             variant="ghost"
             size="sm"
             className="h-8 w-8 cursor-pointer p-0"
             onClick={() => onEdit?.(record)}
+            title="Edit"
           >
             <Pencil className="h-4 w-4" />
             <span className="sr-only">Edit</span>

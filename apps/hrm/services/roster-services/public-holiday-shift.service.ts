@@ -20,6 +20,7 @@ import {
 } from '@/lib/helpers/roster/shifts-per-person-per-day.helper';
 import { assertWeeklyOffSoftWarnForAllocations } from '@/lib/helpers/roster/weekly-off-soft-warn.helper';
 import { formatHolidayMoney } from '@/lib/utils/public-holiday-shift';
+import { syncLieuLeaveGrantForAllocation } from '@/services/leave-services/lieu-leave-grant.service';
 import { saveRosterAllocationDraft } from '@/services/roster-services/shift-roster.service';
 import { HOLIDAY_TYPES } from '@/types/holiday-calendar';
 import { getInstitutionName } from '@/types/institution';
@@ -203,6 +204,54 @@ function formatShiftLabel(input: {
     return `${name} (${input.startTime}–${input.endTime})`;
   }
   return name;
+}
+
+const HOLIDAY_ELIGIBLE_REQUIRED_MESSAGE =
+  'Selected shift type is not Public Holiday Eligible. Enable that rule on Shift Types, or pick an eligible shift.';
+
+type HolidayEligibleShiftType = {
+  id: string;
+  durationHours: number | null;
+  holidayEligible: boolean;
+  startTime: string;
+  endTime: string;
+};
+
+/**
+ * PH duties must use Shift Types with holidayEligible (same pattern as Night /
+ * Overnight flags). On edit, the current shift may be kept even if the flag
+ * was later turned off — changing to another non-eligible type is rejected.
+ */
+async function requireHolidayEligibleShiftType(
+  shiftTypeId: string,
+  options?: { allowIfUnchangedFrom?: string | null }
+): Promise<
+  | { ok: true; shiftType: HolidayEligibleShiftType }
+  | { ok: false; message: string }
+> {
+  const shiftType = await prisma.shiftType.findUnique({
+    where: { id: shiftTypeId },
+    select: {
+      id: true,
+      durationHours: true,
+      holidayEligible: true,
+      startTime: true,
+      endTime: true
+    }
+  });
+  if (!shiftType) {
+    return { ok: false, message: 'Selected shift type not found' };
+  }
+
+  const unchanged =
+    Boolean(options?.allowIfUnchangedFrom) &&
+    options?.allowIfUnchangedFrom === shiftTypeId;
+
+  if (!shiftType.holidayEligible && !unchanged) {
+    return { ok: false, message: HOLIDAY_ELIGIBLE_REQUIRED_MESSAGE };
+  }
+
+  return { ok: true, shiftType };
 }
 
 function mapRecord(
@@ -559,7 +608,7 @@ export async function getPublicHolidayShiftFormOptions(): Promise<{
           }
         }),
         prisma.shiftType.findMany({
-          where: { status: 'active' },
+          where: { status: 'active', holidayEligible: true },
           orderBy: { name: 'asc' },
           select: {
             id: true,
@@ -863,13 +912,19 @@ export async function createPublicHolidayShift(
       };
     }
 
-    const shiftType = await prisma.shiftType.findUnique({
-      where: { id: data.shiftTypeId },
-      select: { id: true, durationHours: true }
-    });
-    if (!shiftType) {
-      return { success: false, error: { message: 'Selected shift type not found' } };
+    const shiftTypeResult = await requireHolidayEligibleShiftType(
+      data.shiftTypeId
+    );
+    if (!shiftTypeResult.ok) {
+      return {
+        success: false,
+        error: {
+          message: shiftTypeResult.message,
+          issues: { shiftTypeId: [shiftTypeResult.message] }
+        }
+      };
     }
+    const shiftType = shiftTypeResult.shiftType;
 
     const snapshot = await getStaffSnapshot(data.staffId);
     if (!snapshot) {
@@ -936,6 +991,21 @@ export async function createPublicHolidayShift(
       }
     });
 
+    const lieuSync = await syncLieuLeaveGrantForAllocation(
+      draftResult.data.id,
+      user
+    );
+    if (!lieuSync.success) {
+      return {
+        success: false,
+        error: {
+          message:
+            lieuSync.error?.message ??
+            'Holiday shift saved but lieu leave grant failed'
+        }
+      };
+    }
+
     return loadRecord(draftResult.data.id);
   } catch (error: any) {
     console.error('createPublicHolidayShift error:', error);
@@ -993,13 +1063,19 @@ export async function bulkCreatePublicHolidayShifts(
 
     const dutyDate = dutyDateFromHoliday(holiday.date);
 
-    const shiftType = await prisma.shiftType.findUnique({
-      where: { id: data.shiftTypeId },
-      select: { id: true, startTime: true, endTime: true }
-    });
-    if (!shiftType) {
-      return { success: false, error: { message: 'Selected shift type not found' } };
+    const shiftTypeResult = await requireHolidayEligibleShiftType(
+      data.shiftTypeId
+    );
+    if (!shiftTypeResult.ok) {
+      return {
+        success: false,
+        error: {
+          message: shiftTypeResult.message,
+          issues: { shiftTypeId: [shiftTypeResult.message] }
+        }
+      };
     }
+    const shiftType = shiftTypeResult.shiftType;
 
     const softRows = staffIds.map((staffId) => ({
       staffId,
@@ -1234,10 +1310,20 @@ export async function updatePublicHolidayShift(
       }
     }
 
-    const shiftType = await prisma.shiftType.findUnique({
-      where: { id: data.shiftTypeId },
-      select: { durationHours: true }
-    });
+    const shiftTypeResult = await requireHolidayEligibleShiftType(
+      data.shiftTypeId,
+      { allowIfUnchangedFrom: existing.shiftTypeId }
+    );
+    if (!shiftTypeResult.ok) {
+      return {
+        success: false,
+        error: {
+          message: shiftTypeResult.message,
+          issues: { shiftTypeId: [shiftTypeResult.message] }
+        }
+      };
+    }
+    const shiftType = shiftTypeResult.shiftType;
 
     const location = await resolveDutyLocationDepartment(
       data.dutyLocationDepartmentId
@@ -1254,7 +1340,7 @@ export async function updatePublicHolidayShift(
       where: { id },
       data: {
         holidayId: data.holidayId,
-        hours: data.workedHours ?? shiftType?.durationHours ?? 0,
+        hours: data.workedHours ?? shiftType.durationHours ?? 0,
         payRate: data.payRate,
         holidayAllowance: data.holidayAllowance ?? 0,
         dutyLocation: location.name,
@@ -1268,6 +1354,18 @@ export async function updatePublicHolidayShift(
         updatedBy: auditUser?.id
       }
     });
+
+    const lieuSync = await syncLieuLeaveGrantForAllocation(id, user);
+    if (!lieuSync.success) {
+      return {
+        success: false,
+        error: {
+          message:
+            lieuSync.error?.message ??
+            'Holiday shift updated but lieu leave grant failed'
+        }
+      };
+    }
 
     return loadRecord(id);
   } catch (error: any) {
@@ -1308,6 +1406,22 @@ export async function deletePublicHolidayShift(
     const lock = await assertWritableAllocation(allocation);
     if (!lock.ok) {
       return { success: false, error: { message: PUBLISHED_LOCK_MESSAGE } };
+    }
+
+    await prisma.rosterAllocation.update({
+      where: { id },
+      data: { grantLieuLeave: false }
+    });
+    const lieuSync = await syncLieuLeaveGrantForAllocation(id, user);
+    if (!lieuSync.success) {
+      return {
+        success: false,
+        error: {
+          message:
+            lieuSync.error?.message ??
+            'Cannot delete while lieu grant cannot be reversed'
+        }
+      };
     }
 
     await prisma.rosterAllocation.delete({ where: { id } });

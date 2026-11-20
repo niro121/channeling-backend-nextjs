@@ -154,6 +154,47 @@ export async function getPublicHolidayShiftFormOptionsAction() {
   }
 }
 
+/** Preview Lieu bank period/balance when Grant Lieu Leave is enabled. */
+export async function getLieuGrantPreviewAction(input: {
+  staffId: string;
+  dutyDate: Date | string | null;
+  allocationId?: string | null;
+}) {
+  try {
+    await requirePermission('shift-roster', 'view');
+    if (!input.staffId?.trim() || !input.dutyDate) {
+      return { isError: false, data: null, errors: {} };
+    }
+    const { getLieuGrantPreview } = await import(
+      '@/services/leave-services/lieu-leave-grant.service'
+    );
+    const result = await getLieuGrantPreview({
+      staffId: input.staffId,
+      dutyDate: input.dutyDate,
+      allocationId: input.allocationId
+    });
+    if (!result.success) {
+      return {
+        isError: true,
+        data: null,
+        errors: {
+          message: result.error?.message ?? 'Could not load Lieu grant preview'
+        }
+      };
+    }
+    return { isError: false, data: result.data ?? null, errors: {} };
+  } catch (error: any) {
+    console.error('getLieuGrantPreviewAction error', error);
+    return {
+      isError: true,
+      data: null,
+      errors: {
+        message: error.message ?? 'Could not load Lieu grant preview'
+      }
+    };
+  }
+}
+
 export async function getPublicHolidayShiftConflictPreviewAction(input: {
   staffId: string;
   dutyDate: Date | string | null;

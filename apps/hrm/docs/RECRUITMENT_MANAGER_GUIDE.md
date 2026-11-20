@@ -362,7 +362,7 @@ All under `app/(dashboard)/(recruitment)/`.
 | Entry | Appointment Letters UserPlus (accepted only) → `/staff/onboard?letterId=` |
 | Choice | **Create with prefill** → `/staff/add?from=appointment&letterId=` · **Browse list** → `/staff?keyword=` |
 | Prefill | Name, email, phone, join date from letter + Application; NIC left for HR |
-| Link | `Staff.appointmentLetterId` + `AppointmentLetter.staffId`; blocks double onboard |
+| Link | `Staff.appointmentLetterId` (indexed, not unique — Mongo null-safe) + `AppointmentLetter.staffId`; double-onboard blocked in `linkStaffToAppointmentLetter` / onboard context |
 | Service | `staff-onboard.service.ts` + `staff-onboard.actions.ts`; createStaffOption `appointmentLetterId` |
 
 ---
