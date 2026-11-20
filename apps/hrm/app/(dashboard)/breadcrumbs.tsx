@@ -11,6 +11,7 @@ const PATH_NAMES = [
   { path: 'departments', name: 'Departments' },
   { path: 'positions', name: 'Positions' },
   { path: 'leave-requests', name: 'Leave Requests' },
+  { path: 'leave', name: 'Leave Guide' },
   { path: 'leave-types', name: 'Leave Types' },
   { path: 'leave-entitlement', name: 'Leave Entitlement' },
   { path: 'leave-management', name: 'Leave Management' },
@@ -66,6 +67,7 @@ const PATH_NAMES = [
   { path: 'monitor', name: 'Server Monitor' },
   { path: 'account', name: 'Account' },
   { path: 'add', name: 'Add' },
+  { path: 'add-lieu', name: 'Add Lieu' },
   { path: 'edit', name: 'Edit' },
   { path: 'unauthorized-access', name: 'Unauthorized' },
 ];
