@@ -52,7 +52,22 @@ export async function channelingUserFetch(path: string, init: RequestInit = {}):
   const userId = session?.user?.id;
   if (!userId) throw new ChannelingUserApiError('You must be signed in.', 401);
 
-  const token = await signUserToken(userId, session.user?.email, config.secret);
+  return channelingFetchAs({ id: userId, email: session.user?.email }, path, init);
+}
+
+/**
+ * Same call on behalf of a given user, for server work with no signed-in session
+ * (e.g. the recurring-task job notifying people as the task's creator).
+ */
+export async function channelingFetchAs(
+  user: { id: string; email?: string | null },
+  path: string,
+  init: RequestInit = {}
+): Promise<Response> {
+  const config = getConfig();
+  if (!config) throw new ChannelingUserApiError('Channeling is not connected.', 503);
+
+  const token = await signUserToken(user.id, user.email, config.secret);
   const headers = new Headers(init.headers);
   headers.set('Authorization', `Bearer ${token}`);
   // JSON bodies only; FormData sets its own multipart boundary.

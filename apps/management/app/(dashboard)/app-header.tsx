@@ -1,8 +1,9 @@
 'use client';
 
+import { Suspense } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Sparkles } from 'lucide-react';
 import { useSession } from 'next-auth/react';
 import { Avatar, AvatarFallback } from '@archmage/ui';
 import DashboardBreadcrumb from './breadcrumbs';
@@ -11,6 +12,9 @@ import { MORE_ITEMS, NAV_ITEMS, isNavActive } from './nav-items';
 import { MoreMenu } from './more-menu';
 import { HEADER_ACTIONS_ID } from './header-actions';
 import { isInnerPath, parentPath, usePageHeaderState } from './page-header-context';
+import { useFeatures } from './features-context';
+import { TaskBell } from '@/components/tasks/task-bell';
+import { canUseAi } from '@/lib/ai/constants';
 
 function initialOf(name?: string | null, email?: string | null): string {
   return (name?.trim() || email?.trim() || 'U').charAt(0).toUpperCase();
@@ -23,6 +27,7 @@ export function AppHeader() {
   const { data: session } = useSession();
   const inner = isInnerPath(pathname);
   const page = usePageHeaderState();
+  const showAyu = !inner && canUseAi(useFeatures().ai) && !isNavActive(pathname, '/ayu');
   const title =
     [...NAV_ITEMS, ...MORE_ITEMS].find((item) => isNavActive(pathname, item.href))?.label ?? 'Management';
 
@@ -46,7 +51,9 @@ export function AppHeader() {
           </>
         ) : (
           <>
-            <MoreMenu />
+            <Suspense fallback={<span className="-ml-2 h-10 w-10 shrink-0 lg:hidden" />}>
+              <MoreMenu />
+            </Suspense>
             <h1 className="min-w-0 flex-1 truncate text-xl font-semibold tracking-tight lg:hidden">{title}</h1>
             <div className="hidden min-w-0 flex-1 lg:block">
               <DashboardBreadcrumb />
@@ -54,6 +61,17 @@ export function AppHeader() {
           </>
         )}
         <div id={HEADER_ACTIONS_ID} className="flex shrink-0 items-center gap-2" />
+        {showAyu && (
+          <Link
+            href="/ayu"
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-primary active:bg-muted lg:hover:bg-muted"
+            aria-label="Ask Ayu"
+            title="Ask Ayu"
+          >
+            <Sparkles className="h-5 w-5" />
+          </Link>
+        )}
+        {!inner && <TaskBell />}
         {!inner && (
         <Link href="/account" className="shrink-0 lg:hidden" aria-label="Account">
           <Avatar className="h-9 w-9">

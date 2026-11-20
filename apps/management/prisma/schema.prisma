@@ -1,0 +1,182 @@
+// Management domain database (tasks) — auth lives in @archmage/db-auth (AUTH_DATABASE_URL).
+// User ids below are auth/channeling User ids (no cross-DB Prisma relation). Who may do what is
+// decided by channeling's `management-tasks` group privileges, never stored here.
+
+generator client {
+  provider      = "prisma-client-js"
+  output        = "../lib/generated/prisma-client"
+  binaryTargets = ["native", "darwin-arm64", "debian-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("MANAGEMENT_DATABASE_URL")
+}
+
+/// TODO | IN_PROGRESS | WAITING | DONE | CANCELLED (lib/tasks/constants.ts)
+model Task {
+  id          String    @id @default(auto()) @map("_id") @db.ObjectId
+  /// Human-friendly number shown as T-123
+  number      Int       @unique
+  title       String
+  description String?
+  status      String    @default("TODO")
+  /// LOW | NORMAL | HIGH | URGENT
+  priority    String    @default("NORMAL")
+  dueAt       DateTime?
+
+  createdById  String  @db.ObjectId
+  assigneeId   String? @db.ObjectId
+  /// Assignee must leave a comment when marking Done (e.g. "cash balance confirmed: Rs 12,400")
+  requireCompletionNote Boolean @default(false)
+
+  recurringTaskId String?        @db.ObjectId
+  recurringTask   RecurringTask? @relation(fields: [recurringTaskId], references: [id])
+  /// Occurrence day (YYYY-MM-DD, Asia/Colombo) for tasks made by a recurring template
+  occurrenceDate  String?
+  /// Unique per task: "task:<number>", or "rec:<templateId>:<date>" so a template can't create the same day twice.
+  /// (A unique index on the optional recurringTaskId/occurrenceDate pair would treat every one-off task as a clash.)
+  dedupeKey       String    @unique
+
+  completedAt       DateTime?
+  completedById     String?   @db.ObjectId
+  /// Claimed by the reminder job so each reminder is sent once
+  dueSoonNotifiedAt DateTime?
+  overdueNotifiedAt DateTime?
+
+  comments TaskComment[]
+  activity TaskActivity[]
+  watchers TaskWatcher[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([assigneeId, status])
+  @@index([createdById, status])
+  @@index([status, dueAt])
+}
+
+model TaskComment {
+  id       String   @id @default(auto()) @map("_id") @db.ObjectId
+  taskId   String   @db.ObjectId
+  task     Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  authorId String   @db.ObjectId
+  body     String
+  /// Left when marking the task Done
+  isCompletionNote Boolean @default(false)
+  createdAt DateTime @default(now())
+  editedAt  DateTime?
+
+  @@index([taskId, createdAt])
+}
+
+/// History line: created, assigned, status, due date, priority, edited, recurring-created
+model TaskActivity {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  taskId    String   @db.ObjectId
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  /// null = the system (recurring job)
+  actorId   String?  @db.ObjectId
+  type      String
+  fromValue String?
+  toValue   String?
+  createdAt DateTime @default(now())
+
+  @@index([taskId, createdAt])
+}
+
+/// People who get updates. Creator and assignee are added automatically.
+model TaskWatcher {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  taskId    String   @db.ObjectId
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  userId    String   @db.ObjectId
+  createdAt DateTime @default(now())
+
+  @@unique([taskId, userId])
+  @@index([userId])
+}
+
+/// Template that creates a Task on a schedule, e.g. "Cash balance channel" every Wednesday.
+model RecurringTask {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  title       String
+  description String?
+  priority    String   @default("NORMAL")
+  assigneeId  String   @db.ObjectId
+  createdById String   @db.ObjectId
+  requireCompletionNote Boolean @default(true)
+
+  /// DAILY | WEEKLY | MONTHLY
+  frequency   String
+  /// WEEKLY: 0 = Sunday … 6 = Saturday
+  daysOfWeek  Int[]
+  /// MONTHLY: 1–31 (short months use their last day)
+  dayOfMonth  Int?
+  /// HH:mm Asia/Colombo — when the task appears
+  createTime  String   @default("08:00")
+  /// HH:mm Asia/Colombo — due the same day
+  dueTime     String   @default("17:00")
+
+  active      Boolean  @default(true)
+  /// Next occurrence day (YYYY-MM-DD) to create; advanced by the job
+  nextRunDate String
+  lastRunAt   DateTime?
+
+  tasks Task[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([active, nextRunDate])
+}
+
+/// Counter for Task.number
+model Counter {
+  id    String @id @map("_id")
+  value Int
+}
+
+/// An AI assistant on an ADK server (RuhunuAI: "ayu", "ayu_management"). Browsers never reach the
+/// ADK server — every chat goes through this app, which sends ADK_SERVICE_KEY. Who may chat is
+/// decided by channeling's `management-ai` privileges: STAFF needs chat-staff, PUBLIC needs chat.
+model Assistant {
+  id          String  @id @default(auto()) @map("_id") @db.ObjectId
+  name        String
+  description String?
+  /// e.g. https://ruhunuai-xxxx.run.app (no trailing slash)
+  adkBaseUrl  String
+  /// ADK app name on that server, e.g. "ayu_management"
+  adkAppName  String
+  /// STAFF | PUBLIC (lib/ai/constants.ts)
+  audience    String  @default("STAFF")
+  /// First line shown in an empty chat
+  greeting    String?
+  active      Boolean @default(true)
+  sortOrder   Int     @default(0)
+
+  createdById String @db.ObjectId
+  chats       AssistantChat[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([active, sortOrder])
+}
+
+/// One conversation. The messages themselves live in the ADK server's session store
+/// (adkSessionId); this row is the user's chat list.
+model AssistantChat {
+  id            String    @id @default(auto()) @map("_id") @db.ObjectId
+  assistantId   String    @db.ObjectId
+  assistant     Assistant @relation(fields: [assistantId], references: [id], onDelete: Cascade)
+  /// Channeling/auth user id — also the ADK user_id
+  userId        String    @db.ObjectId
+  adkSessionId  String    @unique
+  title         String    @default("New chat")
+  messageCount  Int       @default(0)
+  lastMessageAt DateTime  @default(now())
+  createdAt     DateTime  @default(now())
+
+  @@index([userId, assistantId, lastMessageAt])
+}

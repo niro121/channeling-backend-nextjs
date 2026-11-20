@@ -217,6 +217,28 @@ export const RESOURCES: ResourceWithOptionalActions[] = [
     customActions: [{ id: "access", name: "Sign in to Management app" }],
   },
   {
+    // Management app Task Manager (tasks live in the management DB; who may do what is decided here).
+    id: "management-tasks",
+    name: "Management App Tasks",
+    customActions: [
+      { id: "view", name: "Use tasks (own and assigned tasks; can be assigned tasks)" },
+      { id: "create", name: "Create and assign tasks" },
+      { id: "recurring", name: "Manage recurring tasks" },
+      { id: "manage-all", name: "See and manage everyone's tasks" },
+    ],
+  },
+  {
+    // Management app AI assistants (Ayu). Assistants are set up in the management app;
+    // a Staff assistant needs chat-staff, a Public one (e.g. patient Ayu) needs chat.
+    id: "management-ai",
+    name: "Management App AI Assistants",
+    customActions: [
+      { id: "chat", name: "Chat with public assistants (Ayu)" },
+      { id: "chat-staff", name: "Chat with staff assistants (Ayu for Management)" },
+      { id: "manage", name: "Set up assistants" },
+    ],
+  },
+  {
     // Management app Overview (apps/management) — one switch per channel-insights module.
     id: "management-overview",
     name: "Management App Overview",
