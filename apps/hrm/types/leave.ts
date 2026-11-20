@@ -12,6 +12,29 @@ export const LEAVE_APPLICATION_FORM_SCOPE = 'leave-application';
 /** Process Lieu Shift — civil-day lookback before leave `fromDate` (Asia/Colombo). */
 export const LIEU_SOURCE_LOOKBACK_DAYS = 90;
 
+/** Days credited to the Lieu bank per Public Holiday Grant Lieu Leave. */
+export const LIEU_GRANT_DAYS = 1;
+
+/** Live preview for Public Holiday “Grant Lieu Leave” switch. */
+export type LieuGrantPreview = {
+  hasPublishedLieuType: boolean;
+  leaveTypeCode: string | null;
+  leaveTypeName: string | null;
+  periodFrom: string;
+  periodTo: string;
+  periodLabel: string;
+  entitled: number;
+  used: number;
+  remaining: number;
+  /** Lieu days already credited this calendar year (same as entitled for this bank). */
+  daysEarnedThisYear: number;
+  grantDays: number;
+  afterGrantEntitled: number;
+  afterGrantRemaining: number;
+  alreadyGrantedForAllocation: boolean;
+  message?: string;
+};
+
 export const LEAVE_APPLICATION_STATUSES = [
   'pending',
   'approved',

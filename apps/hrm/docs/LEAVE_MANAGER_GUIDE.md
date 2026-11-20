@@ -4,7 +4,7 @@ Guidance for building and extending leave features in `apps/hrm`.
 Use with `HRM_DEVELOPMENT_GUIDELINES.md` (layered architecture) and `PERMISSION_FLOW.md` (Auth User Group grants).
 
 **Status:** Types, Entitlements, Application, Management, Process Shift, and Process Lieu Shift Phase A+B live. In-app Guide at `/leave`.  
-**Next:** Phase 5b A+B done (delete policy, auto-approve, duty soft-warn). Remaining: Recalculate decision + Phase 7 smoke/export/permissions.  
+**Next:** Phase 5b done (delete policy, auto-approve, duty soft-warn, Recalculate). Remaining checklist: **§11** (export / smoke / permissions).  
 **Build path:** Follow **§6 Development phases** (Phase 0 → 7 for v1; Phase 8 optional).
 
 ---
@@ -92,7 +92,7 @@ remaining = entitled + carryForward - used
 - Reject of a pending app: no entitlement change.
 - Delete of `pending` / `rejected` / `cancelled`: no `used` change (pending reserve drops because those apps disappear).
 - **Do not** hard-delete `approved` without reversing `used` — block delete; force Cancel first.
-- Form balance card / snapshots auto-sync from live entitlement (dedicated Recalculate button optional — decide in Phase 5b).
+- Form balance card / snapshots auto-sync from live entitlement. Thin **Recalculate** on the Leave Balance card refreshes staff + type balances from live entitlements (does not change Save rules; days still follow form dates; snapshots write on Save only).
 
 #### Caps from Leave Type (entitlement create/update)
 
@@ -116,7 +116,7 @@ remaining = entitled + carryForward - used
 
 - **Full-day mode:** inclusive calendar days from `fromDate`/`toDate` (whole days only; no 2.5 yet).
 - **Half-day mode** (when leave type `allowHalfDay`): single date + required session `AM` (Morning) / `PM` (Afternoon); store `days = 0.5`, `halfDaySession`, and equal `fromDate`/`toDate`.
-- Form “Recalculate” may also set `entitleSnapshot` / `utilizedSnapshot` / `balanceSnapshot` from current entitlement — snapshots are audit only, not source of truth.
+- Form **Recalculate** refreshes live balance UI only. `entitleSnapshot` / `utilizedSnapshot` / `balanceSnapshot` are written on **Save** from the current card — audit only, not source of truth.
 
 ### 3.3 Process Shift / Lieu Shift
 
@@ -244,7 +244,7 @@ Push schema to Mongo when starting Phase 0 if collections are not live yet: `npx
 | **3** | Applications (CRUD) | Create/list/update/delete + filters; form numbers |
 | **4** | Workflow | Approve / reject / cancel updates entitlement `used` |
 | **5** | Application UX polish | Process Shift / Lieu, half-day, balance card, edit via row |
-| **5b** | Application finish | Delete policy, auto-approve, duty soft-warn, Recalculate decision |
+| **5b** | Application finish | Delete policy, auto-approve, duty soft-warn, Recalculate (auto-sync + thin button) |
 | **6** | Leave Management | Real pending/balances/calendar queries |
 | **7** | Hardening | Permissions matrix, exports, smoke, bulk delete policy |
 | **8** | v2 (optional) | Gate pass, shift masters, approval history |
@@ -364,7 +364,7 @@ Push schema to Mongo when starting Phase 0 if collections are not live yet: `npx
 | [x] Leave Balance card on form from live entitlement aggregate (auto-sync; snapshots on save) |
 | [x] Edit flow: row Edit → load left form (pending only). Staff-code → **View** dialog (not edit) |
 | [x] Half-day mode: checkbox + single date + Morning/Afternoon (`halfDaySession`); no multi-day fractions yet |
-| [ ] Recalculate button — **decide**: keep auto-sync only, or add explicit Recalculate that reloads days + snapshots |
+| [x] Recalculate — keep auto-sync + thin **Recalculate** on Leave Balance card (refresh live balances; Save still owns snapshots) |
 
 ---
 
@@ -395,7 +395,7 @@ Push schema to Mongo when starting Phase 0 if collections are not live yet: `npx
 
 | Work |
 |------|
-| [ ] Decide Recalculate (drop vs thin button); update form + this guide |
+| [x] Decide Recalculate: auto-sync + thin button; update form + this guide |
 | [x] Document staff-code = View; edit = row action only (Phase 5) |
 | [x] Multi-day fractions (`2.5`) stay **out of v1** |
 
@@ -524,3 +524,36 @@ See **Phase 8**. Summary:
 - `apps/hrm/docs/ROSTER_SHIFTS_MANAGER_GUIDE.md` — Shift Roster; cell `isLeave` ≠ Leave Application. **INT-L2 (done):** soft warn + Continue when leave overlaps duty day; **Continue ≠ cancel leave** (manual Cancel in Leave if entitlement should reverse). **Lieu:** PH `grantLieuLeave` → `LieuLeaveGrant` → Lieu entitlement; spend via Process Lieu Shift. See also `HR_ADMINISTRATION_GUIDE.md` §32.
 - `apps/hrm/docs/PERMISSION_FLOW.md` — route/resource gating and Auth grants
 - `apps/hrm/prisma/schema.prisma` — source of truth for leave collections
+
+---
+
+## 11. Remaining work (this phase vs next)
+
+Types, Entitlement, Application (incl. Phase 5b A+B), Management, and Lieu grant/spend are live. Split below is what is left for production close-out vs deferred product work.
+
+### 11.1 This phase (finish leave v1 / production)
+
+| # | Task | Where |
+|---|------|--------|
+| 1 | **Export columns** match live fields | Application (+ any leave exports that are off) |
+| 2 | **Smoke** — type (approval Yes/No) → entitlement → apply → approve / auto-approve → cancel → delete pending → balances correct | Cross-module |
+| 3 | **Lieu smoke** — Add Lieu type → PH Grant Lieu → bank +1 → Process Lieu Shift apply → approve → bank −1; reverse grant paths | Lieu + PH + Application |
+| 4 | **Permission matrix** — view-only vs full CRUD for leave resources | Types / Entitlement / Application / Management |
+| 5 | **Auth User Group** can grant all leave resources (`leave-types`, `leave-entitlement`, `leave-application`, `leave-management`) | Permissions |
+
+**Done this close-out:** Recalculate = auto-sync + thin Leave Balance card button. Remaining is Phase 7 hardening (export / smoke / permissions).
+
+### 11.2 Next phase (after v1 / deferred)
+
+| # | Task | Notes |
+|---|------|--------|
+| 1 | **Year-end carry-forward rollover** | Entitlement / CF policy automation |
+| 2 | **Gate pass** model + Management section | Phase 8 |
+| 3 | **Shift / roster masters** + optional FKs on application | Keep label snapshots |
+| 4 | **Approval history** collection | Audit trail beyond current status fields |
+| 5 | **Financial-year helpers** | Only if product needs FY labels on top of from/to |
+| 6 | **Multi-day fractions** (e.g. `2.5` days) | Explicitly out of v1 |
+| 7 | **Auto-refund leave** when Present punch exists | No auto reverse from attendance |
+| 8 | **`sendToPayroll`** engine wiring | Still flag-only on PH duties |
+
+**Rule of thumb:** anything needed to trust balances and ship leave to production → §11.1. Policy automation, gate pass, and deeper integrations → §11.2.

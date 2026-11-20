@@ -13,8 +13,6 @@ import {
   type LieuGrantPreview
 } from '@/types/leave';
 
-export type { LieuGrantPreview };
-
 /** RosterAllocation statuses that may post a lieu grant. */
 const LIEU_GRANT_ELIGIBLE_STATUSES = [
   'published',
