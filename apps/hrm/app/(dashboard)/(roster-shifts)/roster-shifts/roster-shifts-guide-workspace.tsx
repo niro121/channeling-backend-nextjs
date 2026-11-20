@@ -92,11 +92,28 @@ const PROCESS_STEPS: ProcessStep[] = [
   {
     n: 6,
     title: 'Derived registers',
-    body: 'Night, Overnight, and Public Holiday Shifts are views / add paths on the same allocations (flags, day-split, holiday dates). Payroll / lieu flags only in v1.',
-    href: '/night-shifts',
-    linkLabel: 'Open Night Shifts'
+    body: 'Night, Overnight, and Public Holiday Shifts are views / add paths on the same allocations (flags, day-split, holiday dates). Grant Lieu Leave on PH credits the Leave Lieu bank (see Lieu section below).',
+    href: '/public-holiday-shifts',
+    linkLabel: 'Open Public Holiday Shifts'
   }
 ];
+
+const LIEU_CROSS_STEPS = [
+  {
+    n: 1,
+    title: 'Grant on the holiday duty',
+    body: 'On Public Holiday Shifts: assign staff, turn Grant Lieu Leave on, set status Approved (or published / amended). That posts +1 day to the Leave Types Lieu bank for the calendar year of the duty date (1 Jan–31 Dec). Does not create a Leave Application or pay salary (Send to Payroll is separate).',
+    href: '/public-holiday-shifts',
+    linkLabel: 'Open Public Holiday Shifts'
+  },
+  {
+    n: 2,
+    title: 'Spend later in Leave',
+    body: 'Staff files a Lieu leave application, uses Process Lieu Shift to pick that duty, then Management approves — consuming 1 day from the Lieu bank.',
+    href: '/leave',
+    linkLabel: 'Open Leave Guide'
+  }
+] as const;
 
 const SETUP_NOTES = [
   {
@@ -476,6 +493,49 @@ export default function RosterShiftsGuideWorkspace() {
         </div>
       </section>
 
+      <section className="space-y-3">
+        <div className="flex items-start gap-2">
+          <PartyPopper className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
+          <div>
+            <h2 className="text-lg font-semibold">Lieu leave (cross-module)</h2>
+            <p className="text-sm text-muted-foreground">
+              Grant Lieu Leave on a public-holiday duty credits the Leave Lieu
+              bank (+1 day). Spending that day is a Leave Application — not a
+              payroll payment.
+            </p>
+          </div>
+        </div>
+        <ol className="grid gap-3 lg:grid-cols-2">
+          {LIEU_CROSS_STEPS.map((step) => {
+            const linkOk = Boolean(step.href && canAccess(step.href));
+            return (
+              <li key={step.n}>
+                <Card className="h-full rounded-lg border border-border shadow-sm">
+                  <CardContent className="flex gap-3 p-4">
+                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold tabular-nums text-primary">
+                      {step.n}
+                    </span>
+                    <div className="min-w-0 space-y-1.5">
+                      <p className="font-semibold">{step.title}</p>
+                      <p className="text-sm text-muted-foreground">{step.body}</p>
+                      {linkOk && step.href ? (
+                        <Link
+                          href={step.href}
+                          className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline"
+                        >
+                          {step.linkLabel}
+                          <ArrowRight className="h-3.5 w-3.5" />
+                        </Link>
+                      ) : null}
+                    </div>
+                  </CardContent>
+                </Card>
+              </li>
+            );
+          })}
+        </ol>
+      </section>
+
       <Card className="rounded-lg border border-amber-200/80 bg-amber-50/50 shadow-sm dark:border-amber-900/50 dark:bg-amber-950/20">
         <CardContent className="flex gap-3 p-4">
           <ShieldAlert className="mt-0.5 h-5 w-5 shrink-0 text-amber-700 dark:text-amber-400" />
@@ -498,6 +558,12 @@ export default function RosterShiftsGuideWorkspace() {
                 Attendance Confirm to Duty and OT Process Staff Shift are owned
                 by Attendance / Overtime — not auto-wired from punches or fake
                 APIs.
+              </li>
+              <li>
+                <strong>Grant Lieu Leave</strong> credits the Leave Lieu bank
+                (+1) for the <strong>duty’s calendar year</strong> (1 Jan–31
+                Dec); it is not Annual leave and not a payroll payment.{' '}
+                <strong>Send to Payroll</strong> remains a separate flag.
               </li>
             </ul>
           </div>
