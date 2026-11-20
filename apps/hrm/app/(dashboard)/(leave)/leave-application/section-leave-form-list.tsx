@@ -1,3 +1,5 @@
+'use client';
+
 import { Suspense } from 'react';
 import type { ColumnDef } from '@tanstack/react-table';
 import {
@@ -13,6 +15,7 @@ import {
   DataTableBulkDeleteFeature,
   DataTableExportFeature
 } from '@/components/common/common-data-table';
+import { usePermissions } from '@/components/hooks/use-permissions';
 import type { LeaveApplicationRecord } from '@/types/leave';
 import LeaveApplicationFilterSection from './filter-section';
 
@@ -58,6 +61,9 @@ export default function SectionLeaveFormList({
   onBulkDelete,
   getBulkDeleteDescription
 }: SectionLeaveFormListProps) {
+  const { has } = usePermissions();
+  const canBulkDelete = has('leave-application', 'delete');
+
   return (
     <div className="min-w-0 space-y-4">
       <div className="flex flex-wrap items-center gap-3">
@@ -109,10 +115,12 @@ export default function SectionLeaveFormList({
         data={records}
         rowCount={records.length}
         showPagination={true}
-        haveBulkDelete
-        deleteServerAction={onBulkDelete}
-        getBulkDeleteDescription={getBulkDeleteDescription}
-        toolbarLeft={<DataTableBulkDeleteFeature />}
+        haveBulkDelete={canBulkDelete}
+        deleteServerAction={canBulkDelete ? onBulkDelete : undefined}
+        getBulkDeleteDescription={
+          canBulkDelete ? getBulkDeleteDescription : undefined
+        }
+        toolbarLeft={canBulkDelete ? <DataTableBulkDeleteFeature /> : undefined}
         toolbarRight={
           <DataTableExportFeature
             showColumnToggle

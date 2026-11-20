@@ -3,8 +3,8 @@
 Guidance for building and extending leave features in `apps/hrm`.  
 Use with `HRM_DEVELOPMENT_GUIDELINES.md` (layered architecture) and `PERMISSION_FLOW.md` (Auth User Group grants).
 
-**Status:** Types, Entitlements, Application, Management, Process Shift, and Process Lieu Shift Phase A+B live. In-app Guide at `/leave`.  
-**Next:** Phase 5b + export columns done. Remaining checklist: **§11** (smoke / permissions).  
+**Status:** Leave **v1 complete** (Types, Entitlements, Application, Management, Lieu grant/spend, Phase 7 hardening). In-app Guide at `/leave`.  
+**Next:** Optional follow-ons only — **§11.2** / Phase 8.  
 **Build path:** Follow **§6 Development phases** (Phase 0 → 7 for v1; Phase 8 optional).
 
 ---
@@ -204,14 +204,28 @@ Count cards → pending approvals + my balances → calendar + gate pass (mostly
 
 ## 5. Permissions
 
-Resources already in `types/user-group.ts`:
+Resources in HRM `types/user-group.ts` → `RESOURCES` (User Group matrix UI under `/user-groups`):
 
-- `leave-types`, `leave-entitlement`, `leave-application`, `leave-management` (+ `leave-requests` reserved)
+| Resource id | Screen | Typical grants |
+|-------------|--------|----------------|
+| `leave-types` | `/leave-types` | view / add / edit / delete |
+| `leave-entitlement` | `/leave-entitlement` | view / add / edit / delete |
+| `leave-application` | `/leave-application` (+ Guide `/leave` route map) | view / add / edit / delete |
+| `leave-management` | `/leave-management` | view; **edit** for approve / reject / cancel |
 
-Routes mapped in `lib/permissions.ts` → `ROUTE_TO_RESOURCE`.
+Routes mapped in `lib/permissions.ts` → `ROUTE_TO_RESOURCE`. Guide `/leave` allows view if **any** leave resource has `view`.
 
-**Granting access:** Auth **User Group** permissions in `@archmage/db-auth` — not Channeling domain permissions.  
-Channeling’s User Groups UI currently lists Channeling `RESOURCES` only; HRM leave keys may need HRM admin UI or an extended matrix. See `PERMISSION_FLOW.md`.
+**Granting access:** Auth **User Group** permissions via HRM `/user-groups` (same Auth DB as `@archmage/db-auth`). Re-login after changing grants. See `PERMISSION_FLOW.md`.
+
+### View-only vs full CRUD (non-admin matrix)
+
+| Action | View only | Full CRUD |
+|--------|-----------|-----------|
+| Open leave pages / Guide | Yes (per resource `view`) | Yes |
+| Add / Edit / Delete types, entitlements, applications | No (UI hidden; actions `requirePermission`) | Yes |
+| Bulk delete (types / applications) | No | Needs `delete` |
+| Approve / Reject / Cancel | No | Needs `leave-application.edit` **or** `leave-management.edit` |
+| Export / column toggle | Yes (`view`) | Yes |
 
 Checklist per new leave page:
 
@@ -404,8 +418,8 @@ Push schema to Mongo when starting Phase 0 if collections are not live yet: `npx
 | Work |
 |------|
 | [x] Export columns match live fields (application + leave types; entitlement already aligned) |
-| [ ] Smoke: type (approval Yes/No) → entitlement → apply → approve/auto-approve → cancel → delete pending |
-| [ ] Permission matrix: view-only vs full CRUD on `leave-application` |
+| [x] Smoke: type (approval Yes/No) → entitlement → apply → approve/auto-approve → cancel → delete pending |
+| [x] Permission matrix: view-only vs full CRUD on `leave-application` (form read-only + bulk delete gated) |
 
 **Defer (not Phase 5b):** year-end CF rollover; gate pass / Phase 8; auto-refund leave when Present punch exists.
 
@@ -431,9 +445,9 @@ Push schema to Mongo when starting Phase 0 if collections are not live yet: `npx
 |------|
 | [x] Bulk delete applications — policy from Phase 5b (`pending` \| `rejected` \| `cancelled` only) |
 | [x] Export columns match live fields (application: half-day + lieu + datetimes; leave types: Lieu + audit) |
-| [ ] Auth User Group can grant all leave resources (HRM matrix or extended Channeling RESOURCES) |
-| [ ] Smoke: create type → entitlement → apply → approve / auto-approve → cancel → balances |
-| [ ] Non-admin permission matrix test (view-only vs full CRUD) |
+| [x] Auth User Group can grant all leave resources (HRM `/user-groups` matrix includes all four leave keys) |
+| [x] Smoke: create type → entitlement → apply → approve / auto-approve → cancel → balances |
+| [x] Non-admin permission matrix (view-only vs full CRUD) — UI + action gates; re-login after grant changes |
 
 ---
 
@@ -531,16 +545,16 @@ See **Phase 8**. Summary:
 
 Types, Entitlement, Application (incl. Phase 5b A+B), Management, and Lieu grant/spend are live. Split below is what is left for production close-out vs deferred product work.
 
-### 11.1 This phase (finish leave v1 / production)
+### 11.1 This phase (finish leave v1 / production) — **done**
 
-| # | Task | Where |
+| # | Task | Status |
 |---|------|--------|
-| 1 | **Smoke** — type (approval Yes/No) → entitlement → apply → approve / auto-approve → cancel → delete pending → balances correct | Cross-module |
-| 2 | **Lieu smoke** — Add Lieu type → PH Grant Lieu → bank +1 → Process Lieu Shift apply → approve → bank −1; reverse grant paths | Lieu + PH + Application |
-| 3 | **Permission matrix** — view-only vs full CRUD for leave resources | Types / Entitlement / Application / Management |
-| 4 | **Auth User Group** can grant all leave resources (`leave-types`, `leave-entitlement`, `leave-application`, `leave-management`) | Permissions |
+| 1 | Recalculate (auto-sync + thin button) | Done |
+| 2 | Export columns match live fields | Done |
+| 3 | Smoke (approval Yes/No + Lieu path) | Passed |
+| 4 | Permission matrix + Auth User Group leave resources | Done |
 
-**Done this close-out:** Recalculate; export columns aligned to live fields. Remaining is smoke + permissions.
+Leave **v1** is closed. Further work is §11.2 / Phase 8 only.
 
 ### 11.2 Next phase (after v1 / deferred)
 

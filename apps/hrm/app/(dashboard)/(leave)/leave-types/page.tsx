@@ -118,6 +118,7 @@ export default async function LeaveTypesPage({ searchParams }: SearchParams) {
 
   const canAdd = await checkPermission('leave-types', 'add');
   const canEdit = await checkPermission('leave-types', 'edit');
+  const canDelete = await checkPermission('leave-types', 'delete');
 
   return (
     <div className="overflow-hidden">
@@ -129,9 +130,9 @@ export default async function LeaveTypesPage({ searchParams }: SearchParams) {
           data={data}
           rowCount={totalRecords}
           page={params?.page}
-          haveBulkDelete
-          deleteServerAction={bulkDeleteLeaveTypesAction}
-          getBulkDeleteDescription={bulkDeleteDescription}
+          haveBulkDelete={canDelete}
+          deleteServerAction={canDelete ? bulkDeleteLeaveTypesAction : undefined}
+          getBulkDeleteDescription={canDelete ? bulkDeleteDescription : undefined}
           toolbarLeft={
             <LeaveTypeFilterSection
               status={params?.status}
@@ -143,7 +144,7 @@ export default async function LeaveTypesPage({ searchParams }: SearchParams) {
           toolbarRight={
             <div className="flex flex-col gap-3 flex-1 min-w-0">
               <div className="flex flex-wrap items-start justify-end gap-2 shrink-0">
-                <DataTableBulkDeleteFeature />
+                {canDelete ? <DataTableBulkDeleteFeature /> : null}
                 {lieuType?.id && canEdit ? (
                   <Link href={`/leave-types/${lieuType.id}/edit`}>
                     <Button

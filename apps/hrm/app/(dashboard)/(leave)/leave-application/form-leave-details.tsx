@@ -376,14 +376,15 @@ export default function FormLeaveDetails({
   const formValuesRef = useRef<LeaveApplicationFormValues | null>(null);
 
   const isEdit = Boolean(selectedRecord?.id);
-  const isReadOnly = Boolean(
+  const canWrite = isEdit
+    ? has('leave-application', 'edit')
+    : has('leave-application', 'add');
+  const isStatusLocked = Boolean(
     selectedRecord?.id && selectedRecord.status !== 'pending'
   );
-  const canSave =
-    !isReadOnly &&
-    (isEdit
-      ? has('leave-application', 'edit')
-      : has('leave-application', 'add'));
+  /** View-only users and non-pending edits cannot mutate the form. */
+  const isReadOnly = isStatusLocked || !canWrite;
+  const canSave = !isReadOnly;
   const canDelete =
     has('leave-application', 'delete') &&
     Boolean(selectedRecord?.id) &&
