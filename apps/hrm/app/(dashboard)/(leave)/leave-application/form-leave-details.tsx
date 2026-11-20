@@ -1,6 +1,13 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type MutableRefObject
+} from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
@@ -15,6 +22,7 @@ import {
   CirclePlay,
   Info,
   Plane,
+  RefreshCw,
   RotateCcw,
   SaveIcon,
   Trash2,
@@ -242,6 +250,19 @@ function resolveLeaveRange(values: LeaveApplicationFormValues): {
   return { fromDate, toDate: toDate ?? null };
 }
 
+/** Keeps a mutable ref of form values for controls outside Formik (e.g. Recalculate). */
+function FormValuesRefSync({
+  valuesRef
+}: {
+  valuesRef: MutableRefObject<LeaveApplicationFormValues | null>;
+}) {
+  const { values } = useFormikContext<LeaveApplicationFormValues>();
+  useEffect(() => {
+    valuesRef.current = values;
+  }, [values, valuesRef]);
+  return null;
+}
+
 /** Keeps staff entitlement notice in sync with staff + leave date range. */
 function StaffEntitlementBalanceSync({
   loadStaffBalance,
@@ -351,6 +372,8 @@ export default function FormLeaveDetails({
     leaveTypes: [] as LeaveEntitlementBalanceLeaveType[]
   });
   const [staffBalanceLoading, setStaffBalanceLoading] = useState(false);
+  const [recalculatingBalance, setRecalculatingBalance] = useState(false);
+  const formValuesRef = useRef<LeaveApplicationFormValues | null>(null);
 
   const isEdit = Boolean(selectedRecord?.id);
   const isReadOnly = Boolean(
@@ -484,6 +507,51 @@ export default function FormLeaveDetails({
     },
     [clearLeaveBalance]
   );
+
+  const handleRecalculateBalances = useCallback(async () => {
+    const values = formValuesRef.current;
+    if (!values?.staffId) {
+      toast({
+        variant: 'destructive',
+        title: 'Select staff first',
+        description: 'Choose a staff member before recalculating leave balance.'
+      });
+      return;
+    }
+
+    setRecalculatingBalance(true);
+    try {
+      const { fromDate, toDate } = resolveLeaveRange(values);
+      await loadStaffBalance(values.staffId, { fromDate, toDate });
+
+      if (values.leaveTypeId && fromDate && toDate) {
+        await loadLeaveBalance({
+          staffId: values.staffId,
+          leaveTypeId: values.leaveTypeId,
+          fromDate,
+          toDate,
+          excludeApplicationId: selectedRecord?.id
+        });
+      } else {
+        clearLeaveBalance();
+      }
+
+      toast({
+        variant: 'success',
+        title: 'Balance recalculated',
+        description:
+          'Leave balance refreshed from live entitlements. Days still follow the leave dates on the form.'
+      });
+    } finally {
+      setRecalculatingBalance(false);
+    }
+  }, [
+    clearLeaveBalance,
+    loadLeaveBalance,
+    loadStaffBalance,
+    selectedRecord?.id,
+    toast
+  ]);
 
   useEffect(() => {
     if (selectedRecord) {
@@ -877,6 +945,7 @@ export default function FormLeaveDetails({
                     ) : null}
                   </div>
 
+                  <FormValuesRefSync valuesRef={formValuesRef} />
                   <StaffEntitlementBalanceSync
                     loadStaffBalance={loadStaffBalance}
                     clearStaffBalance={clearStaffBalance}
@@ -1640,8 +1709,34 @@ export default function FormLeaveDetails({
       </Card>
 
       <Card className="rounded-lg border border-border shadow-sm">
-        <CardHeader className="space-y-1.5">
-          <CardTitle className="text-lg font-semibold">Leave Balance</CardTitle>
+        <CardHeader className="flex flex-row items-start justify-between gap-2 space-y-0">
+          <div className="space-y-1.5">
+            <CardTitle className="text-lg font-semibold">Leave Balance</CardTitle>
+            <p className="text-xs text-muted-foreground">
+              Auto-updates with staff and dates. Recalculate refreshes from live
+              entitlements.
+            </p>
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-9 shrink-0 gap-1.5"
+            disabled={recalculatingBalance || staffBalanceLoading}
+            onClick={() => {
+              void handleRecalculateBalances();
+            }}
+          >
+            <RefreshCw
+              className={cn(
+                'h-4 w-4',
+                recalculatingBalance ? 'animate-spin' : undefined
+              )}
+            />
+            <span className="hidden sm:inline">
+              {recalculatingBalance ? 'Recalculating…' : 'Recalculate'}
+            </span>
+          </Button>
         </CardHeader>
         <CardContent className="space-y-5">
           <div className="grid grid-cols-3 gap-2">
