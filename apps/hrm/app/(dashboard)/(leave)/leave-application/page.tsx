@@ -83,7 +83,8 @@ export default async function LeaveApplicationPage({
     id: type.id,
     name: type.code ? `${type.code} — ${type.name}` : type.name,
     allowHalfDay: Boolean(type.allowHalfDay),
-    isLieuLeave: Boolean(type.isLieuLeave)
+    isLieuLeave: Boolean(type.isLieuLeave),
+    requiresApproval: Boolean(type.requiresApproval)
   }));
 
   const filterLeaveTypeOptions = leaveTypeOptions.map(({ id, name }) => ({
@@ -157,7 +158,7 @@ export default async function LeaveApplicationPage({
 
   const getBulkDeleteDescription = async (ids: string[]) => {
     'use server';
-    return `This will permanently delete ${ids.length} leave application${ids.length === 1 ? '' : 's'}. This action cannot be undone.`;
+    return `This will permanently delete ${ids.length} leave application${ids.length === 1 ? '' : 's'} with status pending, rejected, or cancelled. Approved leave cannot be deleted — cancel those first. This action cannot be undone.`;
   };
 
   return (

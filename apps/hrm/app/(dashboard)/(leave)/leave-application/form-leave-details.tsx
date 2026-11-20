@@ -1,6 +1,7 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
   Formik,
@@ -43,6 +44,8 @@ import {
   createLeaveApplicationAction,
   deleteLeaveApplicationAction,
   getLeaveApplicationBalanceSnapshotAction,
+  processLeaveApplicationLieuShiftsAction,
+  processLeaveApplicationShiftsAction,
   updateLeaveApplicationAction
 } from '@/app/actions/leave-actions/leave-application.actions';
 import { getLeaveEntitlementBalanceAction } from '@/app/actions/leave-actions/leave-entitlement.actions';
@@ -57,6 +60,7 @@ import {
 } from '@/lib/mappers/leave-application-form.mapper';
 import {
   LEAVE_HALF_DAY_SESSION_OPTIONS,
+  LIEU_SOURCE_LOOKBACK_DAYS,
   type LeaveApplicationFormValues,
   type LeaveApplicationRecord,
   type LeaveApplicationShiftRow,
@@ -67,6 +71,8 @@ export type LeaveTypeFormOption = {
   id: string;
   name: string;
   allowHalfDay?: boolean;
+  isLieuLeave?: boolean;
+  requiresApproval?: boolean;
 };
 
 type FilterOption = {
@@ -86,10 +92,29 @@ type LeaveBalanceSnapshot = {
 type ShiftRow = {
   id: string;
   shift: string;
+  department?: string;
   from: string;
   to: string;
+  fromAt?: Date;
+  toAt?: Date;
   shiftDate?: Date;
+  allocationId?: string;
 };
+
+function dutyRosterHref(input: {
+  staffId?: string;
+  shiftDate?: Date;
+  allocationId?: string;
+}): string | null {
+  if (!input.allocationId?.trim() || !input.shiftDate) return null;
+  const dutyDate = input.shiftDate.toISOString().slice(0, 10);
+  const params = new URLSearchParams({
+    dutyDate,
+    allocationId: input.allocationId.trim()
+  });
+  if (input.staffId?.trim()) params.set('staffId', input.staffId.trim());
+  return `/duty-roster?${params.toString()}`;
+}
 
 type AuditInfo = {
   name: string;
@@ -135,6 +160,10 @@ const emptyBalance: LeaveBalanceSnapshot = {
   available: 0,
   hasEntitlement: false
 };
+
+/** Stable defaults — inline `= []` would create a new array every render and loop effects. */
+const EMPTY_FILTER_OPTIONS: FilterOption[] = [];
+const EMPTY_LEAVE_TYPE_OPTIONS: LeaveTypeFormOption[] = [];
 
 const validationSchema = Yup.object({
   staffId: Yup.string().required('Staff is required'),
@@ -290,20 +319,31 @@ function LeaveBalanceSnapshotSync({
 }
 
 export default function FormLeaveDetails({
-  staffOptions = [],
-  leaveTypeOptions = [],
-  shiftOptions = [],
+  staffOptions = EMPTY_FILTER_OPTIONS,
+  leaveTypeOptions = EMPTY_LEAVE_TYPE_OPTIONS,
+  shiftOptions = EMPTY_FILTER_OPTIONS,
   selectedRecord = null,
   onClearSelection
 }: FormLeaveDetailsProps) {
   const router = useRouter();
   const { toast } = useToast();
-  const { has } = usePermissions();
+  const { has, canAccess } = usePermissions();
+  const canOpenDutyRoster = canAccess('/duty-roster');
   const [loading, setLoading] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [softWarnOpen, setSoftWarnOpen] = useState(false);
+  const [softWarnMessage, setSoftWarnMessage] = useState('');
+  const softWarnAckRef = useRef(false);
+  const pendingSubmitRef = useRef<{
+    values: LeaveApplicationFormValues;
+    helpers: FormikHelpers<LeaveApplicationFormValues>;
+  } | null>(null);
   const [balance, setBalance] = useState<LeaveBalanceSnapshot>(emptyBalance);
   const [shiftRows, setShiftRows] = useState<ShiftRow[]>([]);
+  const [processingShifts, setProcessingShifts] = useState(false);
+  const [lieuOptions, setLieuOptions] = useState<FilterOption[]>(shiftOptions);
+  const [processingLieu, setProcessingLieu] = useState(false);
   const [staffBalance, setStaffBalance] = useState({
     total: 0,
     used: 0,
@@ -321,11 +361,20 @@ export default function FormLeaveDetails({
     (isEdit
       ? has('leave-application', 'edit')
       : has('leave-application', 'add'));
-  const canDelete = has('leave-application', 'delete') && !isReadOnly;
+  const canDelete =
+    has('leave-application', 'delete') &&
+    Boolean(selectedRecord?.id) &&
+    (selectedRecord?.status === 'pending' ||
+      selectedRecord?.status === 'rejected' ||
+      selectedRecord?.status === 'cancelled');
 
-  const formInitialValues: LeaveApplicationFormValues = selectedRecord
-    ? leaveApplicationRecordToFormValues(selectedRecord)
-    : emptyValues;
+  const formInitialValues = useMemo(
+    () =>
+      selectedRecord
+        ? leaveApplicationRecordToFormValues(selectedRecord)
+        : emptyValues,
+    [selectedRecord]
+  );
 
   const leaveTypeAllowHalfDay = useMemo(() => {
     const map = new Map(
@@ -334,17 +383,56 @@ export default function FormLeaveDetails({
     return map;
   }, [leaveTypeOptions]);
 
+  const leaveTypeIsLieu = useMemo(() => {
+    const map = new Map(
+      leaveTypeOptions.map((opt) => [opt.id, Boolean(opt.isLieuLeave)])
+    );
+    return map;
+  }, [leaveTypeOptions]);
+
+  const leaveTypeRequiresApproval = useMemo(() => {
+    const map = new Map(
+      leaveTypeOptions.map((opt) => [
+        opt.id,
+        opt.requiresApproval !== false
+      ])
+    );
+    return map;
+  }, [leaveTypeOptions]);
+
   const clearStaffBalance = useCallback(() => {
-    setStaffBalance({
-      total: 0,
-      used: 0,
-      remaining: 0,
-      leaveTypes: []
+    setStaffBalance((prev) => {
+      if (
+        prev.total === 0 &&
+        prev.used === 0 &&
+        prev.remaining === 0 &&
+        prev.leaveTypes.length === 0
+      ) {
+        return prev;
+      }
+      return {
+        total: 0,
+        used: 0,
+        remaining: 0,
+        leaveTypes: []
+      };
     });
   }, []);
 
   const clearLeaveBalance = useCallback(() => {
-    setBalance(emptyBalance);
+    setBalance((prev) => {
+      if (
+        prev.entitle === 0 &&
+        prev.utilized === 0 &&
+        prev.balance === 0 &&
+        prev.pendingReserved === 0 &&
+        prev.available === 0 &&
+        !prev.hasEntitlement
+      ) {
+        return prev;
+      }
+      return emptyBalance;
+    });
   }, []);
 
   const loadStaffBalance = useCallback(
@@ -406,22 +494,52 @@ export default function FormLeaveDetails({
         balance: snapshotBalance,
         pendingReserved: 0,
         available: snapshotBalance,
-        hasEntitlement: snapshotBalance > 0 || Number(selectedRecord.entitleSnapshot ?? 0) > 0
+        hasEntitlement:
+          snapshotBalance > 0 ||
+          Number(selectedRecord.entitleSnapshot ?? 0) > 0
       });
       setShiftRows(
-        (selectedRecord.shifts ?? []).map((shift, index) => ({
-          id: String(index),
-          shift: shift.shiftLabel,
-          from: format(new Date(shift.from), 'EEE MMM d HH:mm'),
-          to: format(new Date(shift.to), 'EEE MMM d HH:mm'),
-          shiftDate: shift.shiftDate ? new Date(shift.shiftDate) : undefined
-        }))
+        (selectedRecord.shifts ?? []).map((shift, index) => {
+          const fromAt = new Date(shift.from);
+          const toAt = new Date(shift.to);
+          const allocationId = shift.allocationId?.trim() || undefined;
+          return {
+            id: allocationId || String(index),
+            shift: shift.shiftLabel,
+            department: shift.department?.trim() || undefined,
+            from: format(fromAt, 'EEE MMM d HH:mm'),
+            to: format(toAt, 'EEE MMM d HH:mm'),
+            fromAt,
+            toAt,
+            shiftDate: shift.shiftDate ? new Date(shift.shiftDate) : undefined,
+            allocationId
+          };
+        })
       );
-    } else {
-      setBalance(emptyBalance);
-      setShiftRows([]);
+      const lieuId = selectedRecord.lieuShiftId?.trim();
+      const lieuLabel = selectedRecord.lieuShiftLabel?.trim();
+      if (lieuId && lieuLabel) {
+        setLieuOptions([{ id: lieuId, name: lieuLabel }]);
+      } else {
+        setLieuOptions(shiftOptions);
+      }
+      return;
     }
-  }, [selectedRecord]);
+
+    setBalance((prev) =>
+      prev === emptyBalance ||
+      (prev.entitle === 0 &&
+        prev.utilized === 0 &&
+        prev.balance === 0 &&
+        prev.pendingReserved === 0 &&
+        prev.available === 0 &&
+        !prev.hasEntitlement)
+        ? prev
+        : emptyBalance
+    );
+    setShiftRows((prev) => (prev.length === 0 ? prev : []));
+    setLieuOptions((prev) => (prev === shiftOptions ? prev : shiftOptions));
+  }, [selectedRecord, shiftOptions]);
 
   const utilisationPercent =
     staffBalance.total > 0
@@ -444,13 +562,10 @@ export default function FormLeaveDetails({
 
   const handleSubmit = async (
     values: LeaveApplicationFormValues,
-    {
-      setErrors,
-      setTouched,
-      resetForm
-    }: FormikHelpers<LeaveApplicationFormValues>
+    helpers: FormikHelpers<LeaveApplicationFormValues>
   ) => {
     if (isReadOnly) return;
+    const { setErrors, setTouched, resetForm } = helpers;
 
     const requestDays = previewLeaveDays(
       values,
@@ -474,20 +589,25 @@ export default function FormLeaveDetails({
       setLoading(true);
       const shifts: LeaveApplicationShiftRow[] = shiftRows.map((row) => ({
         shiftLabel: row.shift,
-        from: values.fromDate as Date,
-        to: values.toDate as Date,
-        shiftDate: row.shiftDate ?? values.fromDate
+        from: row.fromAt ?? (values.fromDate as Date),
+        to: row.toAt ?? (values.toDate as Date),
+        shiftDate: row.shiftDate ?? values.fromDate,
+        department: row.department?.trim() || null,
+        allocationId: row.allocationId?.trim() || null
       }));
 
       const lieuLabel =
-        shiftOptions.find((opt) => opt.id === values.lieuShiftId)?.name ?? null;
+        lieuOptions.find((opt) => opt.id === values.lieuShiftId)?.name ??
+        shiftOptions.find((opt) => opt.id === values.lieuShiftId)?.name ??
+        null;
 
       const payload = leaveApplicationFormValuesToPayload(values, {
         lieuShiftLabel: lieuLabel,
         entitleSnapshot: balance.entitle,
         utilizedSnapshot: balance.utilized,
         balanceSnapshot: balance.available,
-        shifts
+        shifts,
+        ...(softWarnAckRef.current ? { acknowledgedWarnings: true } : {})
       });
 
       const respond =
@@ -501,18 +621,37 @@ export default function FormLeaveDetails({
         typeof respond.errors === 'object' &&
         !Array.isArray(respond.errors)
       ) {
+        const errorMap = respond.errors as Record<string, unknown>;
+        if (errorMap.requiresAck) {
+          const warnings = Array.isArray(errorMap.softWarnings)
+            ? (errorMap.softWarnings as string[])
+            : [];
+          pendingSubmitRef.current = { values, helpers };
+          setSoftWarnMessage(
+            warnings[0] ||
+              (typeof errorMap.message === 'string'
+                ? errorMap.message
+                : 'Published duties overlap this leave. Continue anyway?')
+          );
+          setSoftWarnOpen(true);
+          return;
+        }
+
+        softWarnAckRef.current = false;
         const fieldErrors: Record<string, string> = {};
-        const errorMap = respond.errors as Record<
-          string,
-          string | string[] | undefined
-        >;
 
         Object.keys(errorMap).forEach((key) => {
-          if (key === 'message') return;
+          if (
+            key === 'message' ||
+            key === 'requiresAck' ||
+            key === 'softWarnings'
+          ) {
+            return;
+          }
           const err = errorMap[key];
           const msg =
             Array.isArray(err) && err.length > 0
-              ? err[0]
+              ? String(err[0])
               : typeof err === 'string'
                 ? err
                 : undefined;
@@ -534,26 +673,36 @@ export default function FormLeaveDetails({
           variant: 'destructive',
           title: 'Error',
           description:
-            ((respond.errors as Record<string, unknown>)?.message as string) ??
-            'Leave application save unsuccessful.'
+            (typeof errorMap.message === 'string'
+              ? errorMap.message
+              : null) ?? 'Leave application save unsuccessful.'
         });
         return;
       }
 
+      softWarnAckRef.current = false;
+      pendingSubmitRef.current = null;
+      const autoApproved = Boolean(
+        (respond as { data?: { autoApproved?: boolean } })?.data?.autoApproved
+      );
       toast({
         variant: 'success',
         title: 'Success',
         description: isEdit
           ? 'Leave application updated successfully.'
-          : 'Leave application created successfully.'
+          : autoApproved
+            ? 'Leave application created and auto-approved.'
+            : 'Leave application created successfully.'
       });
 
       resetForm({ values: emptyValues });
       setBalance(emptyBalance);
       setShiftRows([]);
+      setLieuOptions(shiftOptions);
       onClearSelection?.();
       router.refresh();
     } catch (error: unknown) {
+      softWarnAckRef.current = false;
       toast({
         variant: 'destructive',
         title: 'Error',
@@ -565,6 +714,14 @@ export default function FormLeaveDetails({
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleSoftWarnContinue = async () => {
+    const pending = pendingSubmitRef.current;
+    setSoftWarnOpen(false);
+    if (!pending) return;
+    softWarnAckRef.current = true;
+    await handleSubmit(pending.values, pending.helpers);
   };
 
   const handleDelete = async () => {
@@ -809,6 +966,16 @@ export default function FormLeaveDetails({
                     disabled={isReadOnly}
                     styleClasses={fieldStyleClasses}
                   />
+                  {formik.values.leaveTypeId &&
+                  leaveTypeRequiresApproval.get(formik.values.leaveTypeId) ===
+                    false &&
+                  !isEdit ? (
+                    <p className="flex items-start gap-1.5 text-xs text-muted-foreground">
+                      <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                      This leave type does not require approval — saving will
+                      approve immediately and deduct entitlement.
+                    </p>
+                  ) : null}
 
                   {showHalfDayControls ? (
                     <div className="flex items-center gap-2">
@@ -1009,7 +1176,17 @@ export default function FormLeaveDetails({
                         variant="outline"
                         size="sm"
                         className="h-9 gap-1.5"
-                        onClick={() => {
+                        disabled={processingShifts}
+                        onClick={async () => {
+                          if (!formik.values.staffId) {
+                            toast({
+                              variant: 'destructive',
+                              title: 'Missing staff',
+                              description:
+                                'Select staff before processing shifts.'
+                            });
+                            return;
+                          }
                           if (!formik.values.fromDate || !effectiveToDate) {
                             toast({
                               variant: 'destructive',
@@ -1019,27 +1196,79 @@ export default function FormLeaveDetails({
                             });
                             return;
                           }
-                          const sessionLabel = formatHalfDaySessionLabel(
-                            formik.values.halfDaySession
-                          );
-                          setShiftRows([
-                            {
-                              id: '1',
-                              shift: formik.values.isHalfDay
-                                ? `Half day${sessionLabel ? ` (${sessionLabel})` : ''}`
-                                : 'Leave day',
-                              from: format(
-                                formik.values.fromDate,
-                                'EEE MMM d HH:mm'
-                              ),
-                              to: format(effectiveToDate, 'EEE MMM d HH:mm'),
-                              shiftDate: formik.values.fromDate
+                          if (
+                            formik.values.isHalfDay &&
+                            !formik.values.halfDaySession
+                          ) {
+                            toast({
+                              variant: 'destructive',
+                              title: 'Missing session',
+                              description:
+                                'Select Morning or Afternoon before processing half-day shifts.'
+                            });
+                            return;
+                          }
+
+                          setProcessingShifts(true);
+                          try {
+                            const result =
+                              await processLeaveApplicationShiftsAction({
+                                staffId: formik.values.staffId,
+                                fromDate: formik.values.fromDate,
+                                toDate: effectiveToDate,
+                                isHalfDay: formik.values.isHalfDay,
+                                halfDaySession: formik.values.halfDaySession
+                              });
+
+                            if (result.isError || !result.data) {
+                              toast({
+                                variant: 'destructive',
+                                title: 'Process Shift failed',
+                                description:
+                                  result.errors?.message ??
+                                  'Could not load published duties.'
+                              });
+                              return;
                             }
-                          ]);
+
+                            const nextRows: ShiftRow[] = result.data.map(
+                              (duty, index) => {
+                                const fromAt = new Date(duty.from);
+                                const toAt = new Date(duty.to);
+                                return {
+                                  id: duty.allocationId || String(index),
+                                  shift: duty.shiftLabel,
+                                  department: duty.department?.trim() || undefined,
+                                  from: format(fromAt, 'EEE MMM d HH:mm'),
+                                  to: format(toAt, 'EEE MMM d HH:mm'),
+                                  fromAt,
+                                  toAt,
+                                  shiftDate: new Date(duty.shiftDate),
+                                  allocationId: duty.allocationId
+                                };
+                              }
+                            );
+                            setShiftRows(nextRows);
+
+                            if (nextRows.length === 0) {
+                              toast({
+                                title: 'No published duties',
+                                description:
+                                  'No published or amended roster duties for this staff in the leave period.'
+                              });
+                            } else {
+                              toast({
+                                title: 'Shifts processed',
+                                description: `Loaded ${nextRows.length} published duty(ies). Save the leave form to keep this snapshot.`
+                              });
+                            }
+                          } finally {
+                            setProcessingShifts(false);
+                          }
                         }}
                       >
                         <CirclePlay className="h-4 w-4" />
-                        Process Shift
+                        {processingShifts ? 'Processing…' : 'Process Shift'}
                       </Button>
                     ) : null}
                     <div className="max-h-48 overflow-auto rounded-md border border-border bg-background">
@@ -1047,6 +1276,7 @@ export default function FormLeaveDetails({
                         <thead className="sticky top-0 bg-muted/50 text-muted-foreground">
                           <tr>
                             <th className="px-2 py-1.5 font-medium">Shift</th>
+                            <th className="px-2 py-1.5 font-medium">Dept</th>
                             <th className="px-2 py-1.5 font-medium">From</th>
                             <th className="px-2 py-1.5 font-medium">To</th>
                           </tr>
@@ -1055,29 +1285,51 @@ export default function FormLeaveDetails({
                           {shiftRows.length === 0 ? (
                             <tr>
                               <td
-                                colSpan={3}
+                                colSpan={4}
                                 className="px-2 py-3 text-center text-muted-foreground"
                               >
                                 No shifts processed
                               </td>
                             </tr>
                           ) : (
-                            shiftRows.map((row) => (
-                              <tr
-                                key={row.id}
-                                className="border-t border-border"
-                              >
-                                <td className="whitespace-nowrap px-2 py-1.5">
-                                  {row.shift}
-                                </td>
-                                <td className="whitespace-nowrap px-2 py-1.5 text-muted-foreground">
-                                  {row.from}
-                                </td>
-                                <td className="whitespace-nowrap px-2 py-1.5 text-muted-foreground">
-                                  {row.to}
-                                </td>
-                              </tr>
-                            ))
+                            shiftRows.map((row) => {
+                              const href = canOpenDutyRoster
+                                ? dutyRosterHref({
+                                    staffId: formik.values.staffId,
+                                    shiftDate: row.shiftDate,
+                                    allocationId: row.allocationId
+                                  })
+                                : null;
+                              return (
+                                <tr
+                                  key={row.id}
+                                  className="border-t border-border"
+                                >
+                                  <td className="whitespace-nowrap px-2 py-1.5">
+                                    {href ? (
+                                      <Link
+                                        href={href}
+                                        className="font-medium text-primary hover:underline"
+                                        title="Open on Duty Roster"
+                                      >
+                                        {row.shift}
+                                      </Link>
+                                    ) : (
+                                      row.shift
+                                    )}
+                                  </td>
+                                  <td className="whitespace-nowrap px-2 py-1.5 text-muted-foreground">
+                                    {row.department || '—'}
+                                  </td>
+                                  <td className="whitespace-nowrap px-2 py-1.5 text-muted-foreground">
+                                    {row.from}
+                                  </td>
+                                  <td className="whitespace-nowrap px-2 py-1.5 text-muted-foreground">
+                                    {row.to}
+                                  </td>
+                                </tr>
+                              );
+                            })
                           )}
                         </tbody>
                       </table>
@@ -1085,29 +1337,117 @@ export default function FormLeaveDetails({
                   </div>
 
                   <div className="space-y-3 rounded-lg border border-border bg-muted/30 p-3">
+                    {formik.values.leaveTypeId &&
+                    !leaveTypeIsLieu.get(formik.values.leaveTypeId) ? (
+                      <p className="text-xs text-muted-foreground">
+                        Select a Lieu leave type to use Process Lieu Shift.
+                      </p>
+                    ) : null}
                     {!isReadOnly ? (
                       <Button
                         type="button"
                         variant="outline"
                         size="sm"
                         className="h-9 gap-1.5"
-                        onClick={() => {
-                          toast({
-                            title: 'Coming soon',
-                            description:
-                              'Process Lieu Shift will wire when shift masters land.'
-                          });
+                        disabled={
+                          processingLieu ||
+                          Boolean(
+                            formik.values.leaveTypeId &&
+                              !leaveTypeIsLieu.get(formik.values.leaveTypeId)
+                          )
+                        }
+                        onClick={async () => {
+                          if (!formik.values.staffId) {
+                            toast({
+                              variant: 'destructive',
+                              title: 'Missing staff',
+                              description:
+                                'Select staff before processing lieu shifts.'
+                            });
+                            return;
+                          }
+                          if (!formik.values.fromDate) {
+                            toast({
+                              variant: 'destructive',
+                              title: 'Missing dates',
+                              description:
+                                'Set leave date(s) before processing lieu shifts.'
+                            });
+                            return;
+                          }
+
+                          setProcessingLieu(true);
+                          try {
+                            const result =
+                              await processLeaveApplicationLieuShiftsAction({
+                                staffId: formik.values.staffId,
+                                fromDate: formik.values.fromDate,
+                                excludeApplicationId: selectedRecord?.id
+                              });
+
+                            if (result.isError || !result.data) {
+                              toast({
+                                variant: 'destructive',
+                                title: 'Process Lieu Shift failed',
+                                description:
+                                  result.errors?.message ??
+                                  'Could not load lieu source duties.'
+                              });
+                              return;
+                            }
+
+                            const nextOptions: FilterOption[] = result.data.map(
+                              (duty) => ({
+                                id: duty.allocationId,
+                                name: duty.optionLabel
+                              })
+                            );
+                            setLieuOptions(nextOptions);
+
+                            if (nextOptions.length === 0) {
+                              formik.setFieldValue('lieuShiftId', '');
+                              toast({
+                                title: 'No lieu duties',
+                                description: `No unused published duties with Grant Lieu Leave in the ${LIEU_SOURCE_LOOKBACK_DAYS} days before leave start.`
+                              });
+                              return;
+                            }
+
+                            if (nextOptions.length === 1) {
+                              formik.setFieldValue(
+                                'lieuShiftId',
+                                nextOptions[0]!.id
+                              );
+                            } else if (
+                              formik.values.lieuShiftId &&
+                              !nextOptions.some(
+                                (opt) => opt.id === formik.values.lieuShiftId
+                              )
+                            ) {
+                              formik.setFieldValue('lieuShiftId', '');
+                            }
+
+                            toast({
+                              title: 'Lieu shifts processed',
+                              description:
+                                nextOptions.length === 1
+                                  ? 'One eligible duty found and selected. Save the leave form to keep it.'
+                                  : `Loaded ${nextOptions.length} eligible duties. Select one, then Save.`
+                            });
+                          } finally {
+                            setProcessingLieu(false);
+                          }
                         }}
                       >
                         <CirclePlay className="h-4 w-4" />
-                        Process Lieu Shift
+                        {processingLieu ? 'Processing…' : 'Process Lieu Shift'}
                       </Button>
                     ) : null}
                     <div className={fieldStyleClasses.parentDiv}>
                       <div className={fieldStyleClasses.inputClassName}>
                         <Combobox
                           label="Select Staff Shift"
-                          options={shiftOptions}
+                          options={lieuOptions}
                           value={formik.values.lieuShiftId}
                           defaultValue=""
                           clearable
@@ -1146,7 +1486,12 @@ export default function FormLeaveDetails({
                       <div className="rounded-md border border-border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
                         {selectedRecord?.approverName?.trim()
                           ? selectedRecord.approverName
-                          : '—'}
+                          : formik.values.leaveTypeId &&
+                              leaveTypeRequiresApproval.get(
+                                formik.values.leaveTypeId
+                              ) === false
+                            ? 'Auto on save (approval not required)'
+                            : '—'}
                       </div>
                     </div>
                   </div>
@@ -1203,6 +1548,7 @@ export default function FormLeaveDetails({
                         formik.resetForm({ values: emptyValues });
                         setBalance(emptyBalance);
                         setShiftRows([]);
+                        setLieuOptions(shiftOptions);
                         clearStaffBalance();
                         onClearSelection?.();
                       }}
@@ -1347,6 +1693,25 @@ export default function FormLeaveDetails({
         handleContinue={handleDelete}
         className={{
           actionButton: buttonStyles.delete.danger
+        }}
+      />
+
+      <CustomAlertDialog
+        open={softWarnOpen}
+        handleVisibilityChange={(open) => {
+          setSoftWarnOpen(open);
+          if (!open) {
+            softWarnAckRef.current = false;
+            pendingSubmitRef.current = null;
+          }
+        }}
+        loading={loading}
+        title="Published duties overlap leave"
+        description={softWarnMessage}
+        handleContinue={handleSoftWarnContinue}
+        className={{
+          cancelButton: 'h-9',
+          actionButton: 'h-9'
         }}
       />
     </div>

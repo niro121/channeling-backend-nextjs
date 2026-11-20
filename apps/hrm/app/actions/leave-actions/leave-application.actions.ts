@@ -15,6 +15,8 @@ import {
   getLeaveApplications,
   getLeaveApplicationsForExport,
   getLeaveApproverOptions,
+  listLieuSourceDutiesForLeave,
+  listPublishedDutiesForLeavePeriod,
   rejectLeaveApplication,
   updateLeaveApplication
 } from '@/services/leave-services/leave-application.service';
@@ -120,7 +122,15 @@ export async function createLeaveApplicationAction(
         errors: {
           message:
             result.error?.message ?? 'Failed to create leave application',
-          ...(result.error?.issues ?? {})
+          ...(result.error?.issues ?? {}),
+          ...(result.error?.requiresAck
+            ? {
+                requiresAck: true,
+                softWarnings: result.error.softWarnings ?? [
+                  result.error.message ?? ''
+                ]
+              }
+            : {})
         }
       };
     }
@@ -133,12 +143,29 @@ export async function createLeaveApplicationAction(
         entityId: result.data?.id,
         importance: 'medium'
       });
+      if (result.autoApproved) {
+        logActivityNonBlocking({
+          userId: auditUser.id,
+          action: 'leave.application.auto_approved',
+          entityType: 'LeaveApplication',
+          entityId: result.data?.id,
+          importance: 'high'
+        });
+      }
     }
 
     revalidatePath('/leave-application');
+    if (result.autoApproved) {
+      revalidatePath('/leave-management');
+      revalidatePath('/leave-entitlement');
+    }
     return {
       isError: false,
-      data: { saved: true, id: result.data?.id },
+      data: {
+        saved: true,
+        id: result.data?.id,
+        autoApproved: Boolean(result.autoApproved)
+      },
       errors: {}
     };
   } catch (error: any) {
@@ -264,6 +291,7 @@ export async function bulkDeleteLeaveApplicationsAction(ids: string[]) {
     }
 
     revalidatePath('/leave-application');
+    revalidatePath('/leave-management');
     return true;
   } catch (error: any) {
     console.error('bulkDeleteLeaveApplicationsAction error:', error);
@@ -339,6 +367,62 @@ export async function getLeaveApplicationBalanceSnapshotAction(params: {
   }
 }
 
+/** Process Shift — published/amended roster duties for staff + leave dates (read-only). */
+export async function processLeaveApplicationShiftsAction(params: {
+  staffId: string;
+  fromDate: Date | string;
+  toDate: Date | string;
+  isHalfDay?: boolean;
+  halfDaySession?: string | null;
+}) {
+  try {
+    await requirePermission('leave-application', 'view');
+    const result = await listPublishedDutiesForLeavePeriod(params);
+    if (!result.success) {
+      throw new Error(
+        result.error?.message ?? 'Failed to load published duties'
+      );
+    }
+    return { isError: false, data: result.data ?? [], errors: {} };
+  } catch (error: any) {
+    console.error('processLeaveApplicationShiftsAction error:', error);
+    return {
+      isError: true,
+      data: null,
+      errors: {
+        message: error.message ?? 'Failed to load published duties'
+      }
+    };
+  }
+}
+
+/** Process Lieu Shift Phase A — grantLieuLeave source duties for combobox. */
+export async function processLeaveApplicationLieuShiftsAction(params: {
+  staffId: string;
+  fromDate: Date | string;
+  excludeApplicationId?: string;
+}) {
+  try {
+    await requirePermission('leave-application', 'view');
+    const result = await listLieuSourceDutiesForLeave(params);
+    if (!result.success) {
+      throw new Error(
+        result.error?.message ?? 'Failed to load lieu source duties'
+      );
+    }
+    return { isError: false, data: result.data ?? [], errors: {} };
+  } catch (error: any) {
+    console.error('processLeaveApplicationLieuShiftsAction error:', error);
+    return {
+      isError: true,
+      data: null,
+      errors: {
+        message: error.message ?? 'Failed to load lieu source duties'
+      }
+    };
+  }
+}
+
 /** Staff + published leave types + approvers for application form/filters. */
 export async function getLeaveApplicationFormOptionsAction() {
   try {
@@ -354,27 +438,11 @@ export async function getLeaveApplicationFormOptionsAction() {
       getLeaveApproverOptions()
     ]);
 
-    const { default: prisma } = await import('@/lib/prisma');
-    const leaveTypeIds = (leaveTypeResult.data ?? []).map((t) => t.id);
-    const halfDayRows =
-      leaveTypeIds.length > 0
-        ? await prisma.leaveType.findMany({
-            where: { id: { in: leaveTypeIds } },
-            select: { id: true, allowHalfDay: true }
-          })
-        : [];
-    const halfDayMap = new Map(
-      halfDayRows.map((row) => [row.id, row.allowHalfDay])
-    );
-
     return {
       isError: false,
       data: {
         staff: staffResult.data ?? [],
-        leaveTypes: (leaveTypeResult.data ?? []).map((type) => ({
-          ...type,
-          allowHalfDay: halfDayMap.get(type.id) ?? true
-        })),
+        leaveTypes: leaveTypeResult.data ?? [],
         approvers: approverResult.data ?? []
       },
       errors: {}
@@ -393,7 +461,8 @@ export async function getLeaveApplicationFormOptionsAction() {
 
 async function runStatusTransition(
   id: string,
-  action: 'approve' | 'reject' | 'cancel'
+  action: 'approve' | 'reject' | 'cancel',
+  options?: { acknowledgedWarnings?: boolean }
 ) {
   const canManage = await checkPermission('leave-management', 'edit');
   const canEditApplication = await checkPermission('leave-application', 'edit');
@@ -404,21 +473,32 @@ async function runStatusTransition(
   }
 
   const auditUser = await getAuditUser();
-  const runner =
+  const result =
     action === 'approve'
-      ? approveLeaveApplication
+      ? await approveLeaveApplication(id, auditUser, {
+          acknowledgedWarnings: options?.acknowledgedWarnings
+        })
       : action === 'reject'
-        ? rejectLeaveApplication
-        : cancelLeaveApplication;
-
-  const result = await runner(id, auditUser);
+        ? await rejectLeaveApplication(id, auditUser)
+        : await cancelLeaveApplication(id, auditUser);
   if (!result.success) {
+    const softWarnError = result.error as
+      | { message?: string; requiresAck?: boolean; softWarnings?: string[] }
+      | undefined;
     return {
       isError: true as const,
       data: null,
       errors: {
         message:
-          result.error?.message ?? `Failed to ${action} leave application`
+          softWarnError?.message ?? `Failed to ${action} leave application`,
+        ...(softWarnError?.requiresAck
+          ? {
+              requiresAck: true,
+              softWarnings: softWarnError.softWarnings ?? [
+                softWarnError.message ?? ''
+              ]
+            }
+          : {})
       }
     };
   }
@@ -450,9 +530,12 @@ async function runStatusTransition(
   };
 }
 
-export async function approveLeaveApplicationAction(id: string) {
+export async function approveLeaveApplicationAction(
+  id: string,
+  options?: { acknowledgedWarnings?: boolean }
+) {
   try {
-    return await runStatusTransition(id, 'approve');
+    return await runStatusTransition(id, 'approve', options);
   } catch (error: any) {
     console.error('approveLeaveApplicationAction error:', error);
     return {

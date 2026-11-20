@@ -7,24 +7,41 @@ import prisma, { Prisma } from '@/lib/prisma';
 import type { AuditUser } from '@/lib/audit-user';
 import { toAuditUser } from '@/lib/audit-user';
 import { generateRecordCode } from '@/lib/conventions/record-code-generator';
+import { format } from 'date-fns';
+import {
+  addColomboCivilDays,
+  colomboCivilDayUtc,
+  colomboWallTimeToUtc,
+  parseHhMmToMinutes,
+  toColomboDateIso
+} from '@/lib/helpers/attendance-timezone.helper';
 import {
   computeLeaveApplicationDays,
   isHalfDaySession,
   isSameLocalDay
 } from '@/lib/helpers/leave-application-days.helper';
+import { dutyOverlapsLeaveWindow } from '@/lib/helpers/roster/shift-time-overlap.helper';
 import { resolveAuthUsers } from '@/lib/helpers/resolve-auth-users.helper';
 import { hasPermission } from '@/lib/permissions';
 import { userTypes } from '@/lib/roles';
 import { formatDate } from '@/lib/utils/date';
 import {
   computeEntitlementRemaining,
+  LEAVE_APPLICATION_DELETABLE_STATUSES,
   LEAVE_HALF_DAY_SESSIONS,
+  LIEU_SOURCE_LOOKBACK_DAYS,
   type GetLeaveApplicationsParams,
   type GetLeaveApplicationsReturn,
   type LeaveApplicationPayload,
   type LeaveApplicationRecord,
-  type LeaveApplicationShiftRow
+  type LeaveApplicationShiftRow,
+  type LeaveLieuSourceDutyRow,
+  type LeaveProcessedDutyRow
 } from '@/types/leave';
+
+const DELETABLE_STATUS_SET = new Set<string>([
+  ...LEAVE_APPLICATION_DELETABLE_STATUSES
+]);
 
 const leaveApplicationPayloadSchema = z
   .object({
@@ -46,13 +63,16 @@ const leaveApplicationPayloadSchema = z
     entitleSnapshot: z.coerce.number().finite().nullable().optional(),
     utilizedSnapshot: z.coerce.number().finite().nullable().optional(),
     balanceSnapshot: z.coerce.number().finite().nullable().optional(),
+    acknowledgedWarnings: z.boolean().optional().default(false),
     shifts: z
       .array(
         z.object({
           shiftLabel: z.string().min(1),
           from: z.coerce.date(),
           to: z.coerce.date(),
-          shiftDate: z.coerce.date().nullable().optional()
+          shiftDate: z.coerce.date().nullable().optional(),
+          department: z.string().nullable().optional(),
+          allocationId: z.string().nullable().optional()
         })
       )
       .optional()
@@ -99,7 +119,13 @@ function mapShiftsForWrite(shifts?: LeaveApplicationShiftRow[]) {
     shiftLabel: shift.shiftLabel,
     from: new Date(shift.from),
     to: new Date(shift.to),
-    ...(shift.shiftDate ? { shiftDate: new Date(shift.shiftDate) } : {})
+    ...(shift.shiftDate ? { shiftDate: new Date(shift.shiftDate) } : {}),
+    ...(shift.department?.trim()
+      ? { department: shift.department.trim() }
+      : {}),
+    ...(shift.allocationId?.trim()
+      ? { allocationId: shift.allocationId.trim() }
+      : {})
   }));
 }
 
@@ -287,6 +313,64 @@ function insufficientBalanceError(
   };
 }
 
+/**
+ * Soft warn when published/amended roster duties already exist in the leave
+ * range (approve / auto-approve). Pass acknowledgedWarnings to continue.
+ */
+async function assertPublishedDutySoftWarn(input: {
+  staffId: string;
+  fromDate: Date;
+  toDate: Date;
+  isHalfDay?: boolean;
+  halfDaySession?: string | null;
+  acknowledgedWarnings?: boolean;
+}): Promise<
+  | { ok: true }
+  | {
+      ok: false;
+      requiresAck: true;
+      message: string;
+      softWarnings: string[];
+    }
+> {
+  if (input.acknowledgedWarnings) {
+    return { ok: true };
+  }
+
+  const duties = await listPublishedDutiesForLeavePeriod({
+    staffId: input.staffId,
+    fromDate: input.fromDate,
+    toDate: input.toDate,
+    isHalfDay: input.isHalfDay,
+    halfDaySession: input.halfDaySession
+  });
+
+  if (!duties.success) {
+    return { ok: true };
+  }
+
+  const count = duties.data?.length ?? 0;
+  if (count === 0) {
+    return { ok: true };
+  }
+
+  const message =
+    count === 1
+      ? 'This staff member already has 1 published duty in the leave date range. Continue approving leave anyway? If they work, cancel the leave later to restore entitlement.'
+      : `This staff member already has ${count} published duties in the leave date range. Continue approving leave anyway? If they work, cancel the leave later to restore entitlement.`;
+
+  return {
+    ok: false,
+    requiresAck: true,
+    message,
+    softWarnings: [message]
+  };
+}
+
+function isDeletableLeaveApplicationStatus(status: string | null | undefined) {
+  return DELETABLE_STATUS_SET.has(String(status ?? ''));
+}
+
 export async function getLeaveApplications(
   params: GetLeaveApplicationsParams
 ): Promise<{
@@ -454,7 +538,13 @@ export async function createLeaveApplication(
   success: boolean;
   data?: any;
   message?: string;
-  error?: { message?: string; issues?: Record<string, string[]> };
+  autoApproved?: boolean;
+  error?: {
+    message?: string;
+    issues?: Record<string, string[]>;
+    requiresAck?: boolean;
+    softWarnings?: string[];
+  };
 }> {
   try {
     const parsed = leaveApplicationPayloadSchema.safeParse(payload);
@@ -481,7 +571,14 @@ export async function createLeaveApplication(
       }),
       prisma.leaveType.findUnique({
         where: { id: data.leaveTypeId },
-        select: { id: true, status: true, allowHalfDay: true, name: true }
+        select: {
+          id: true,
+          status: true,
+          allowHalfDay: true,
+          isLieuLeave: true,
+          requiresApproval: true,
+          name: true
+        }
       })
     ]);
 
@@ -531,6 +628,20 @@ export async function createLeaveApplication(
         error: {
           message: 'Half-day leave is not allowed for this leave type',
           issues: { isHalfDay: ['Half-day leave is not allowed for this type'] }
+        }
+      };
+    }
+
+    const lieuTypeCheck = assertLieuLeaveTypeRules({
+      isLieuLeave: Boolean(leaveType.isLieuLeave),
+      lieuShiftId: data.lieuShiftId
+    });
+    if (!lieuTypeCheck.ok) {
+      return {
+        success: false,
+        error: {
+          message: lieuTypeCheck.message,
+          issues: lieuTypeCheck.issues
         }
       };
     }
@@ -606,45 +717,171 @@ export async function createLeaveApplication(
 
     const shifts = mapShiftsForWrite(data.shifts as LeaveApplicationShiftRow[]);
 
-    const record = await prisma.leaveApplication.create({
-      data: {
-        formNumber: generated.code,
+    const lieuCheck = await assertLieuShiftEligible({
+      staffId: data.staffId,
+      fromDate: leaveFromDate,
+      lieuShiftId: data.lieuShiftId,
+      lieuShiftLabel: data.lieuShiftLabel
+    });
+    if (!lieuCheck.ok) {
+      return {
+        success: false,
+        error: {
+          message: lieuCheck.message,
+          issues: { lieuShiftId: [lieuCheck.message] }
+        }
+      };
+    }
+
+    const requiresApproval = leaveType.requiresApproval !== false;
+    const autoApprove = !requiresApproval;
+
+    if (autoApprove) {
+      if (!auditUser?.id) {
+        return {
+          success: false,
+          error: {
+            message:
+              'User identity is required to auto-approve leave that does not require approval'
+          }
+        };
+      }
+
+      const dutyWarn = await assertPublishedDutySoftWarn({
         staffId: data.staffId,
-        leaveTypeId: data.leaveTypeId,
         fromDate: leaveFromDate,
         toDate: leaveToDate,
-        days,
+        isHalfDay: data.isHalfDay,
         halfDaySession,
-        requestedDate: data.requestedDate ?? new Date(),
-        // Approver is set only when leave management approves.
-        approverId: null,
-        approverName: null,
-        status: 'pending',
-        outWithCancel: data.outWithCancel ?? false,
-        comment: data.comment ?? null,
-        lieuShiftId: data.lieuShiftId ?? null,
-        lieuShiftLabel: data.lieuShiftLabel ?? null,
-        entitleSnapshot: data.entitleSnapshot ?? null,
-        utilizedSnapshot: data.utilizedSnapshot ?? null,
-        balanceSnapshot: data.balanceSnapshot ?? null,
-        shifts,
-        ...(auditUser?.id && {
-          createdBy: auditUser.id,
-          updatedBy: auditUser.id
-        })
-      },
-      include: {
-        leaveType: {
-          select: { id: true, name: true, code: true, allowHalfDay: true }
-        },
-        staff: { select: { id: true, name: true, code: true } }
+        acknowledgedWarnings: Boolean(data.acknowledgedWarnings)
+      });
+      if (!dutyWarn.ok) {
+        return {
+          success: false,
+          error: {
+            message: dutyWarn.message,
+            requiresAck: true,
+            softWarnings: dutyWarn.softWarnings
+          }
+        };
       }
+    }
+
+    const createData = {
+      formNumber: generated.code,
+      staffId: data.staffId,
+      leaveTypeId: data.leaveTypeId,
+      fromDate: leaveFromDate,
+      toDate: leaveToDate,
+      days,
+      halfDaySession,
+      requestedDate: data.requestedDate ?? new Date(),
+      outWithCancel: data.outWithCancel ?? false,
+      comment: data.comment ?? null,
+      lieuShiftId: lieuCheck.lieuShiftId,
+      lieuShiftLabel: lieuCheck.lieuShiftLabel,
+      entitleSnapshot: data.entitleSnapshot ?? null,
+      utilizedSnapshot: data.utilizedSnapshot ?? null,
+      balanceSnapshot: data.balanceSnapshot ?? null,
+      shifts,
+      ...(auditUser?.id && {
+        createdBy: auditUser.id,
+        updatedBy: auditUser.id
+      })
+    };
+
+    if (!autoApprove) {
+      const record = await prisma.leaveApplication.create({
+        data: {
+          ...createData,
+          approverId: null,
+          approverName: null,
+          status: 'pending'
+        },
+        include: {
+          leaveType: {
+            select: { id: true, name: true, code: true, allowHalfDay: true }
+          },
+          staff: { select: { id: true, name: true, code: true } }
+        }
+      });
+
+      return {
+        success: true,
+        data: mapApplicationRecord(record),
+        autoApproved: false,
+        message: 'Leave application created successfully'
+      };
+    }
+
+    const autoResult = await prisma.$transaction(async (tx) => {
+      const availabilityTx = await getCoveringEntitlementAvailability(
+        {
+          staffId: data.staffId,
+          leaveTypeId: data.leaveTypeId,
+          fromDate: leaveFromDate,
+          toDate: leaveToDate
+        },
+        tx
+      );
+      if (!availabilityTx.entitlement) {
+        return {
+          ok: false as const,
+          message:
+            'No covering leave entitlement found for this staff, leave type, and dates'
+        };
+      }
+      if (days > availabilityTx.available) {
+        return {
+          ok: false as const,
+          message: `Insufficient leave balance (available ${availabilityTx.available}, required ${days})`
+        };
+      }
+
+      const entitlement = availabilityTx.entitlement;
+      const used = entitlement.used + days;
+      const remaining = computeEntitlementRemaining(
+        entitlement.entitled,
+        entitlement.carryForward,
+        used
+      );
+
+      await tx.leaveEntitlement.update({
+        where: { id: entitlement.id },
+        data: { used, remaining }
+      });
+
+      const record = await tx.leaveApplication.create({
+        data: {
+          ...createData,
+          status: 'approved',
+          approverId: auditUser!.id,
+          approverName: auditUser!.name ?? null,
+          approvedAt: new Date()
+        },
+        include: {
+          leaveType: {
+            select: { id: true, name: true, code: true, allowHalfDay: true }
+          },
+          staff: { select: { id: true, name: true, code: true } }
+        }
+      });
+
+      return { ok: true as const, record };
     });
+
+    if (!autoResult.ok) {
+      return {
+        success: false,
+        error: { message: autoResult.message }
+      };
+    }
 
     return {
       success: true,
-      data: mapApplicationRecord(record),
-      message: 'Leave application created successfully'
+      data: mapApplicationRecord(autoResult.record),
+      autoApproved: true,
+      message: 'Leave application created and auto-approved successfully'
     };
   } catch (error: any) {
     console.error('createLeaveApplication error:', error);
@@ -718,7 +955,12 @@ export async function updateLeaveApplication(
       }),
       prisma.leaveType.findUnique({
         where: { id: data.leaveTypeId },
-        select: { id: true, status: true, allowHalfDay: true }
+        select: {
+          id: true,
+          status: true,
+          allowHalfDay: true,
+          isLieuLeave: true
+        }
       })
     ]);
 
@@ -748,6 +990,20 @@ export async function updateLeaveApplication(
         error: {
           message: 'Half-day leave is not allowed for this leave type',
           issues: { isHalfDay: ['Half-day leave is not allowed for this type'] }
+        }
+      };
+    }
+
+    const lieuTypeCheck = assertLieuLeaveTypeRules({
+      isLieuLeave: Boolean(leaveType.isLieuLeave),
+      lieuShiftId: data.lieuShiftId
+    });
+    if (!lieuTypeCheck.ok) {
+      return {
+        success: false,
+        error: {
+          message: lieuTypeCheck.message,
+          issues: lieuTypeCheck.issues
         }
       };
     }
@@ -814,6 +1070,23 @@ export async function updateLeaveApplication(
         ? mapShiftsForWrite(data.shifts as LeaveApplicationShiftRow[])
         : undefined;
 
+    const lieuCheck = await assertLieuShiftEligible({
+      staffId: data.staffId,
+      fromDate: leaveFromDate,
+      lieuShiftId: data.lieuShiftId,
+      lieuShiftLabel: data.lieuShiftLabel,
+      excludeApplicationId: id
+    });
+    if (!lieuCheck.ok) {
+      return {
+        success: false,
+        error: {
+          message: lieuCheck.message,
+          issues: { lieuShiftId: [lieuCheck.message] }
+        }
+      };
+    }
+
     const record = await prisma.leaveApplication.update({
       where: { id },
       data: {
@@ -827,8 +1100,8 @@ export async function updateLeaveApplication(
         // Do not overwrite leave-management approver from the application form.
         outWithCancel: data.outWithCancel ?? false,
         comment: data.comment ?? null,
-        lieuShiftId: data.lieuShiftId ?? null,
-        lieuShiftLabel: data.lieuShiftLabel ?? null,
+        lieuShiftId: lieuCheck.lieuShiftId,
+        lieuShiftLabel: lieuCheck.lieuShiftLabel,
         ...(data.entitleSnapshot !== undefined && {
           entitleSnapshot: data.entitleSnapshot
         }),
@@ -887,6 +1160,18 @@ export async function deleteLeaveApplication(id: string): Promise<{
       };
     }
 
+    if (!isDeletableLeaveApplicationStatus(existing.status)) {
+      return {
+        success: false,
+        error: {
+          message:
+            existing.status === 'approved'
+              ? 'Approved leave cannot be deleted. Cancel it first to restore entitlement usage.'
+              : `Cannot delete a leave application with status "${existing.status}"`
+        }
+      };
+    }
+
     await prisma.leaveApplication.delete({ where: { id } });
     return {
       success: true,
@@ -913,12 +1198,17 @@ export async function deleteLeaveApplication(id: string): Promise<{
  */
 export async function approveLeaveApplication(
   id: string,
-  user?: AuditUser
+  user?: AuditUser,
+  options?: { acknowledgedWarnings?: boolean }
 ): Promise<{
   success: boolean;
   data?: any;
   message?: string;
-  error?: { message?: string };
+  error?: {
+    message?: string;
+    requiresAck?: boolean;
+    softWarnings?: string[];
+  };
 }> {
   try {
     if (!id) {
@@ -930,6 +1220,55 @@ export async function approveLeaveApplication(
       return {
         success: false,
         error: { message: 'Approver identity is required' }
+      };
+    }
+
+    const existingForWarn = await prisma.leaveApplication.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        status: true,
+        staffId: true,
+        fromDate: true,
+        toDate: true,
+        halfDaySession: true,
+        days: true
+      }
+    });
+    if (!existingForWarn) {
+      return {
+        success: false,
+        error: { message: 'Leave application not found' }
+      };
+    }
+    if (existingForWarn.status !== 'pending') {
+      return {
+        success: false,
+        error: {
+          message: `Cannot approve an application with status "${existingForWarn.status}"`
+        }
+      };
+    }
+
+    const isHalfDay =
+      Number(existingForWarn.days ?? 0) === 0.5 &&
+      Boolean(existingForWarn.halfDaySession);
+    const dutyWarn = await assertPublishedDutySoftWarn({
+      staffId: existingForWarn.staffId,
+      fromDate: existingForWarn.fromDate,
+      toDate: existingForWarn.toDate,
+      isHalfDay,
+      halfDaySession: existingForWarn.halfDaySession,
+      acknowledgedWarnings: Boolean(options?.acknowledgedWarnings)
+    });
+    if (!dutyWarn.ok) {
+      return {
+        success: false,
+        error: {
+          message: dutyWarn.message,
+          requiresAck: true,
+          softWarnings: dutyWarn.softWarnings
+        }
       };
     }
 
@@ -1226,8 +1565,41 @@ export async function deleteLeaveApplications(ids: string[]): Promise<{
       return { success: false, error: { message: 'No applications selected' } };
     }
 
+    const rows = await prisma.leaveApplication.findMany({
+      where: { id: { in: uniqueIds } },
+      select: { id: true, status: true, formNumber: true }
+    });
+
+    if (rows.length !== uniqueIds.length) {
+      return {
+        success: false,
+        error: { message: 'One or more leave applications were not found' }
+      };
+    }
+
+    const blocked = rows.filter(
+      (row) => !isDeletableLeaveApplicationStatus(row.status)
+    );
+    if (blocked.length > 0) {
+      const approvedCount = blocked.filter(
+        (row) => row.status === 'approved'
+      ).length;
+      return {
+        success: false,
+        error: {
+          message:
+            approvedCount > 0
+              ? `Cannot delete ${approvedCount} approved application(s). Cancel approved leave first, or select only pending, rejected, or cancelled rows.`
+              : `Cannot delete ${blocked.length} application(s) with status that is not pending, rejected, or cancelled.`
+        }
+      };
+    }
+
     await prisma.leaveApplication.deleteMany({
-      where: { id: { in: uniqueIds } }
+      where: {
+        id: { in: uniqueIds },
+        status: { in: [...LEAVE_APPLICATION_DELETABLE_STATUSES] }
+      }
     });
 
     return {
@@ -1384,4 +1756,465 @@ export async function getLeaveApplicationBalanceSnapshot(params: {
       error: { message: error.message || 'Failed to recalculate leave balance' }
     };
   }
+}
+
+function formatDutyShiftLabel(shiftType: {
+  code?: string | null;
+  name?: string | null;
+  startTime?: string | null;
+  endTime?: string | null;
+}): string {
+  const code = shiftType.code?.trim() ?? '';
+  const name = shiftType.name?.trim() ?? '';
+  const base =
+    code && name ? `${code} — ${name}` : code || name || 'Shift';
+  const start = shiftType.startTime?.trim() ?? '';
+  const end = shiftType.endTime?.trim() ?? '';
+  if (start && end) return `${base} (${start}–${end})`;
+  return base;
+}
+
+function dutyWindowFromAllocation(input: {
+  date: Date;
+  startTime: string;
+  endTime: string;
+}): { from: Date; to: Date } {
+  const civilDay = colomboCivilDayUtc(input.date);
+  const startMins = parseHhMmToMinutes(input.startTime) ?? 0;
+  const endMins = parseHhMmToMinutes(input.endTime);
+  const startHours = Math.floor(startMins / 60);
+  const startMinutes = startMins % 60;
+  const from = colomboWallTimeToUtc(civilDay, startHours, startMinutes);
+
+  if (endMins == null) {
+    return { from, to: from };
+  }
+
+  // Overnight: end <= start → end is next civil day.
+  const overnight = endMins <= startMins;
+  const endCivil = overnight
+    ? new Date(civilDay.getTime() + 24 * 60 * 60 * 1000)
+    : civilDay;
+  const endHours = Math.floor(endMins / 60);
+  const endMinutes = endMins % 60;
+  const to = colomboWallTimeToUtc(endCivil, endHours, endMinutes);
+  return { from, to };
+}
+
+/**
+ * Process Shift: read published/amended RosterAllocation duties for staff
+ * over the leave date range. Snapshot-only — does not mutate roster.
+ */
+export async function listPublishedDutiesForLeavePeriod(params: {
+  staffId: string;
+  fromDate: Date | string;
+  toDate: Date | string;
+  halfDaySession?: string | null;
+  isHalfDay?: boolean;
+}): Promise<{
+  success: boolean;
+  data?: LeaveProcessedDutyRow[];
+  error?: { message?: string };
+}> {
+  try {
+    const staffId = params.staffId?.trim();
+    const fromDate = new Date(params.fromDate);
+    const toDate = new Date(params.toDate);
+
+    if (!staffId) {
+      return {
+        success: false,
+        error: { message: 'Select staff before processing shifts.' }
+      };
+    }
+    if (Number.isNaN(fromDate.getTime()) || Number.isNaN(toDate.getTime())) {
+      return {
+        success: false,
+        error: { message: 'Set leave date(s) before processing shifts.' }
+      };
+    }
+
+    const fromUtc = colomboCivilDayUtc(fromDate);
+    const toUtc = colomboCivilDayUtc(toDate);
+    const rangeStart = fromUtc <= toUtc ? fromUtc : toUtc;
+    const rangeEnd = fromUtc <= toUtc ? toUtc : fromUtc;
+
+    const rows = await prisma.rosterAllocation.findMany({
+      where: {
+        staffId,
+        status: { in: ['published', 'amended'] },
+        date: { gte: rangeStart, lte: rangeEnd }
+      },
+      include: {
+        shiftType: {
+          select: {
+            code: true,
+            name: true,
+            startTime: true,
+            endTime: true
+          }
+        },
+        dutyLocationDepartment: {
+          select: { id: true, name: true }
+        }
+      },
+      orderBy: [{ date: 'asc' }, { staffName: 'asc' }]
+    });
+
+    // RosterAllocation.department often stores Department ObjectId (same as Shift Assignment).
+    const departmentIds = [
+      ...new Set(
+        rows
+          .map((row) => row.department?.trim())
+          .filter((value): value is string => Boolean(value))
+      )
+    ];
+    const departmentNameById = new Map(
+      departmentIds.length
+        ? (
+            await prisma.department.findMany({
+              where: { id: { in: departmentIds } },
+              select: { id: true, name: true }
+            })
+          ).map((dept) => [dept.id, dept.name] as const)
+        : []
+    );
+
+    const halfDay =
+      Boolean(params.isHalfDay) && isHalfDaySession(params.halfDaySession);
+
+    const duties: LeaveProcessedDutyRow[] = [];
+    for (const row of rows) {
+      const startTime = row.shiftType?.startTime?.trim() ?? '';
+      const endTime = row.shiftType?.endTime?.trim() ?? '';
+
+      if (
+        halfDay &&
+        startTime &&
+        endTime &&
+        !dutyOverlapsLeaveWindow({
+          startTime,
+          endTime,
+          halfDaySession: params.halfDaySession,
+          days: 0.5
+        })
+      ) {
+        continue;
+      }
+
+      const { from, to } = dutyWindowFromAllocation({
+        date: row.date,
+        startTime: startTime || '00:00',
+        endTime: endTime || startTime || '00:00'
+      });
+
+      const rawDepartment = row.department?.trim() ?? '';
+      const departmentName =
+        (rawDepartment
+          ? departmentNameById.get(rawDepartment) ?? rawDepartment
+          : '') ||
+        row.dutyLocationDepartment?.name?.trim() ||
+        '';
+
+      duties.push({
+        allocationId: row.id,
+        shiftLabel: formatDutyShiftLabel({
+          code: row.shiftType?.code,
+          name: row.shiftType?.name,
+          startTime,
+          endTime
+        }),
+        department: departmentName,
+        from,
+        to,
+        shiftDate: colomboCivilDayUtc(row.date),
+        startTime,
+        endTime
+      });
+    }
+
+    return { success: true, data: duties };
+  } catch (error: any) {
+    console.error('listPublishedDutiesForLeavePeriod error:', error);
+    return {
+      success: false,
+      error: {
+        message: error.message || 'Failed to load published duties for leave'
+      }
+    };
+  }
+}
+
+async function getLinkedLieuAllocationIds(params: {
+  excludeApplicationId?: string;
+}): Promise<Set<string>> {
+  const rows = await prisma.leaveApplication.findMany({
+    where: {
+      status: { in: ['pending', 'approved'] },
+      lieuShiftId: { not: null },
+      ...(params.excludeApplicationId
+        ? { id: { not: params.excludeApplicationId } }
+        : {})
+    },
+    select: { lieuShiftId: true }
+  });
+
+  return new Set(
+    rows
+      .map((row) => row.lieuShiftId?.trim())
+      .filter((id): id is string => Boolean(id))
+  );
+}
+
+/**
+ * Process Lieu Shift Phase A: published/amended duties with grantLieuLeave
+ * in the LIEU_SOURCE_LOOKBACK_DAYS before leave fromDate, excluding
+ * already-linked allocations.
+ */
+export async function listLieuSourceDutiesForLeave(params: {
+  staffId: string;
+  fromDate: Date | string;
+  excludeApplicationId?: string;
+}): Promise<{
+  success: boolean;
+  data?: LeaveLieuSourceDutyRow[];
+  error?: { message?: string };
+}> {
+  try {
+    const staffId = params.staffId?.trim();
+    const fromDate = new Date(params.fromDate);
+
+    if (!staffId) {
+      return {
+        success: false,
+        error: { message: 'Select staff before processing lieu shifts.' }
+      };
+    }
+    if (Number.isNaN(fromDate.getTime())) {
+      return {
+        success: false,
+        error: { message: 'Set leave date(s) before processing lieu shifts.' }
+      };
+    }
+
+    const leaveFromUtc = colomboCivilDayUtc(fromDate);
+    const rangeStart = addColomboCivilDays(
+      leaveFromUtc,
+      -LIEU_SOURCE_LOOKBACK_DAYS
+    );
+    const linkedIds = await getLinkedLieuAllocationIds({
+      excludeApplicationId: params.excludeApplicationId
+    });
+
+    const rows = await prisma.rosterAllocation.findMany({
+      where: {
+        staffId,
+        status: { in: ['published', 'amended', 'approved'] },
+        grantLieuLeave: true,
+        date: { gte: rangeStart, lt: leaveFromUtc },
+        ...(linkedIds.size > 0
+          ? { id: { notIn: [...linkedIds] } }
+          : {})
+      },
+      include: {
+        shiftType: {
+          select: {
+            code: true,
+            name: true,
+            startTime: true,
+            endTime: true
+          }
+        },
+        dutyLocationDepartment: {
+          select: { id: true, name: true }
+        }
+      },
+      orderBy: [{ date: 'desc' }, { staffName: 'asc' }]
+    });
+
+    const departmentIds = [
+      ...new Set(
+        rows
+          .map((row) => row.department?.trim())
+          .filter((value): value is string => Boolean(value))
+      )
+    ];
+    const departmentNameById = new Map(
+      departmentIds.length
+        ? (
+            await prisma.department.findMany({
+              where: { id: { in: departmentIds } },
+              select: { id: true, name: true }
+            })
+          ).map((dept) => [dept.id, dept.name] as const)
+        : []
+    );
+
+    const duties: LeaveLieuSourceDutyRow[] = rows.map((row) => {
+      const startTime = row.shiftType?.startTime?.trim() ?? '';
+      const endTime = row.shiftType?.endTime?.trim() ?? '';
+      const { from, to } = dutyWindowFromAllocation({
+        date: row.date,
+        startTime: startTime || '00:00',
+        endTime: endTime || startTime || '00:00'
+      });
+      const rawDepartment = row.department?.trim() ?? '';
+      const departmentName =
+        (rawDepartment
+          ? departmentNameById.get(rawDepartment) ?? rawDepartment
+          : '') ||
+        row.dutyLocationDepartment?.name?.trim() ||
+        '';
+      const shiftLabel = formatDutyShiftLabel({
+        code: row.shiftType?.code,
+        name: row.shiftType?.name,
+        startTime,
+        endTime
+      });
+      const shiftDate = colomboCivilDayUtc(row.date);
+      const dateLabel = format(shiftDate, 'dd MMM yyyy');
+      const deptPart = departmentName ? ` · ${departmentName}` : '';
+
+      return {
+        allocationId: row.id,
+        shiftLabel,
+        department: departmentName,
+        from,
+        to,
+        shiftDate,
+        startTime,
+        endTime,
+        optionLabel: `${dateLabel} — ${shiftLabel}${deptPart}`
+      };
+    });
+
+    return { success: true, data: duties };
+  } catch (error: any) {
+    console.error('listLieuSourceDutiesForLeave error:', error);
+    return {
+      success: false,
+      error: {
+        message: error.message || 'Failed to load lieu source duties'
+      }
+    };
+  }
+}
+
+type LieuShiftAssertResult =
+  | {
+      ok: true;
+      lieuShiftId: string | null;
+      lieuShiftLabel: string | null;
+    }
+  | { ok: false; message: string };
+
+function assertLieuLeaveTypeRules(params: {
+  isLieuLeave: boolean;
+  lieuShiftId?: string | null;
+}):
+  | { ok: true }
+  | { ok: false; message: string; issues: Record<string, string[]> } {
+  const hasLieuShift = Boolean(params.lieuShiftId?.trim());
+
+  if (hasLieuShift && !params.isLieuLeave) {
+    return {
+      ok: false,
+      message:
+        'Process Lieu Shift can only be used with a Lieu leave type. Enable “Lieu leave type” on the leave type.',
+      issues: {
+        leaveTypeId: ['Select the Lieu leave type for this application'],
+        lieuShiftId: ['Lieu shift requires a Lieu leave type']
+      }
+    };
+  }
+
+  if (params.isLieuLeave && !hasLieuShift) {
+    return {
+      ok: false,
+      message:
+        'Lieu leave requires Process Lieu Shift — select the duty this leave is in return for.',
+      issues: {
+        lieuShiftId: ['Process Lieu Shift and select a staff duty']
+      }
+    };
+  }
+
+  return { ok: true };
+}
+
+/**
+ * Validate optional lieuShiftId on create/update (Phase A uniqueness + eligibility).
+ */
+async function assertLieuShiftEligible(params: {
+  staffId: string;
+  fromDate: Date;
+  lieuShiftId?: string | null;
+  lieuShiftLabel?: string | null;
+  excludeApplicationId?: string;
+}): Promise<LieuShiftAssertResult> {
+  const lieuShiftId = params.lieuShiftId?.trim() || null;
+  if (!lieuShiftId) {
+    return { ok: true, lieuShiftId: null, lieuShiftLabel: null };
+  }
+
+  const leaveFromUtc = colomboCivilDayUtc(params.fromDate);
+  const rangeStart = addColomboCivilDays(
+    leaveFromUtc,
+    -LIEU_SOURCE_LOOKBACK_DAYS
+  );
+
+  const allocation = await prisma.rosterAllocation.findFirst({
+    where: {
+      id: lieuShiftId,
+      staffId: params.staffId,
+      status: { in: ['published', 'amended', 'approved'] },
+      grantLieuLeave: true,
+      date: { gte: rangeStart, lt: leaveFromUtc }
+    },
+    include: {
+      shiftType: {
+        select: { code: true, name: true, startTime: true, endTime: true }
+      }
+    }
+  });
+
+  if (!allocation) {
+    return {
+      ok: false,
+      message: `Selected lieu shift is not an eligible published duty with Grant Lieu Leave in the ${LIEU_SOURCE_LOOKBACK_DAYS} days before leave start.`
+    };
+  }
+
+  const linked = await prisma.leaveApplication.findFirst({
+    where: {
+      lieuShiftId,
+      status: { in: ['pending', 'approved'] },
+      ...(params.excludeApplicationId
+        ? { id: { not: params.excludeApplicationId } }
+        : {})
+    },
+    select: { formNumber: true }
+  });
+
+  if (linked) {
+    return {
+      ok: false,
+      message: `This lieu shift is already linked to leave form ${linked.formNumber}.`
+    };
+  }
+
+  const label =
+    params.lieuShiftLabel?.trim() ||
+    `${toColomboDateIso(allocation.date)} — ${formatDutyShiftLabel({
+      code: allocation.shiftType?.code,
+      name: allocation.shiftType?.name,
+      startTime: allocation.shiftType?.startTime,
+      endTime: allocation.shiftType?.endTime
+    })}`;
+
+  return {
+    ok: true,
+    lieuShiftId,
+    lieuShiftLabel: label
+  };
 }

@@ -42,8 +42,12 @@ export default function LeaveApplicationRecordActions({
   const canView = has('leave-application', 'view');
   const canEdit =
     has('leave-application', 'edit') || has('leave-management', 'edit');
-  const canDelete = has('leave-application', 'delete');
   const isPending = record.status === 'pending';
+  const canDelete =
+    has('leave-application', 'delete') &&
+    (record.status === 'pending' ||
+      record.status === 'rejected' ||
+      record.status === 'cancelled');
   const canCancel =
     canEdit &&
     (record.status === 'pending' || record.status === 'approved');

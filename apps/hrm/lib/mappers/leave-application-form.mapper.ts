@@ -15,6 +15,7 @@ export function leaveApplicationFormValuesToPayload(
       | 'utilizedSnapshot'
       | 'balanceSnapshot'
       | 'shifts'
+      | 'acknowledgedWarnings'
     >
   >
 ): LeaveApplicationPayload {
@@ -41,7 +42,10 @@ export function leaveApplicationFormValuesToPayload(
     entitleSnapshot: extras?.entitleSnapshot ?? null,
     utilizedSnapshot: extras?.utilizedSnapshot ?? null,
     balanceSnapshot: extras?.balanceSnapshot ?? null,
-    shifts: extras?.shifts
+    shifts: extras?.shifts,
+    ...(extras?.acknowledgedWarnings
+      ? { acknowledgedWarnings: true }
+      : {})
   };
 }
 

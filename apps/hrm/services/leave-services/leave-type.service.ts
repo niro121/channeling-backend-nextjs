@@ -672,6 +672,7 @@ export async function getLeaveTypeOptions(): Promise<{
         code: true,
         allowHalfDay: true,
         isLieuLeave: true,
+        requiresApproval: true,
         carryForwardAllowed: true,
         maxDaysPerYear: true,
         maxCarryForwardDays: true
@@ -686,6 +687,7 @@ export async function getLeaveTypeOptions(): Promise<{
         code: record.code,
         allowHalfDay: Boolean(record.allowHalfDay),
         isLieuLeave: Boolean(record.isLieuLeave),
+        requiresApproval: Boolean(record.requiresApproval),
         carryForwardAllowed: Boolean(record.carryForwardAllowed),
         maxDaysPerYear:
           record.maxDaysPerYear == null ? null : Number(record.maxDaysPerYear),

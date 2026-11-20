@@ -244,8 +244,23 @@ function mapEntitlementRecord(record: any) {
     ...record,
     leaveTypeName: record.leaveType?.name ?? '',
     leaveTypeCode: record.leaveType?.code ?? '',
+    isLieuLeave: Boolean(record.leaveType?.isLieuLeave),
     staffName: record.staff?.name ?? '',
     staffCode: record.staff?.code ?? ''
+  };
+}
+
+const LIEU_MANUAL_ENTITLEMENT_MESSAGE =
+  'Lieu leave entitlement is managed by Public Holiday Grant Lieu — it cannot be created or edited here.';
+
+function rejectManualLieuEntitlement(isLieuLeave: boolean) {
+  if (!isLieuLeave) return null;
+  return {
+    success: false as const,
+    error: {
+      message: LIEU_MANUAL_ENTITLEMENT_MESSAGE,
+      issues: { leaveTypeId: [LIEU_MANUAL_ENTITLEMENT_MESSAGE] }
+    }
   };
 }
 
@@ -287,7 +302,9 @@ export async function getLeaveEntitlements(
         take: pageSize,
         orderBy: [{ fromDate: 'desc' }, { createdAt: 'desc' }],
         include: {
-          leaveType: { select: { id: true, name: true, code: true } },
+          leaveType: {
+            select: { id: true, name: true, code: true, isLieuLeave: true }
+          },
           staff: { select: { id: true, name: true, code: true } }
         }
       }),
@@ -338,7 +355,9 @@ export async function getLeaveEntitlementsForExport({
       where,
       orderBy: [{ fromDate: 'desc' }, { createdAt: 'desc' }],
       include: {
-        leaveType: { select: { id: true, name: true, code: true } },
+        leaveType: {
+          select: { id: true, name: true, code: true, isLieuLeave: true }
+        },
         staff: { select: { id: true, name: true, code: true } }
       }
     });
@@ -372,7 +391,9 @@ export async function getLeaveEntitlementById(id: string): Promise<{
     const record = await prisma.leaveEntitlement.findUnique({
       where: { id },
       include: {
-        leaveType: { select: { id: true, name: true, code: true } },
+        leaveType: {
+          select: { id: true, name: true, code: true, isLieuLeave: true }
+        },
         staff: { select: { id: true, name: true, code: true } }
       }
     });
@@ -439,7 +460,9 @@ export async function getLeaveEntitlementBalance(
           : {})
       },
       include: {
-        leaveType: { select: { id: true, name: true, code: true } }
+        leaveType: {
+          select: { id: true, name: true, code: true, isLieuLeave: true }
+        }
       },
       orderBy: { fromDate: 'desc' }
     });
@@ -543,6 +566,7 @@ export async function createLeaveEntitlement(
         select: {
           id: true,
           status: true,
+          isLieuLeave: true,
           maxDaysPerYear: true,
           carryForwardAllowed: true,
           maxCarryForwardDays: true
@@ -569,6 +593,11 @@ export async function createLeaveEntitlement(
         }
       };
     }
+
+    const lieuBlocked = rejectManualLieuEntitlement(
+      Boolean(leaveTypeRow.isLieuLeave)
+    );
+    if (lieuBlocked) return lieuBlocked;
 
     const leaveType: LeaveTypePolicy = {
       id: leaveTypeRow.id,
@@ -639,7 +668,9 @@ export async function createLeaveEntitlement(
         })
       },
       include: {
-        leaveType: { select: { id: true, name: true, code: true } },
+        leaveType: {
+          select: { id: true, name: true, code: true, isLieuLeave: true }
+        },
         staff: { select: { id: true, name: true, code: true } }
       }
     });
@@ -725,6 +756,7 @@ export async function updateLeaveEntitlement(
       select: {
         id: true,
         status: true,
+        isLieuLeave: true,
         maxDaysPerYear: true,
         carryForwardAllowed: true,
         maxCarryForwardDays: true
@@ -739,6 +771,11 @@ export async function updateLeaveEntitlement(
         }
       };
     }
+
+    const lieuBlocked = rejectManualLieuEntitlement(
+      Boolean(leaveTypeRow.isLieuLeave)
+    );
+    if (lieuBlocked) return lieuBlocked;
 
     const leaveType: LeaveTypePolicy = {
       id: leaveTypeRow.id,
@@ -807,7 +844,9 @@ export async function updateLeaveEntitlement(
         ...(auditUser?.id && { updatedBy: auditUser.id })
       },
       include: {
-        leaveType: { select: { id: true, name: true, code: true } },
+        leaveType: {
+          select: { id: true, name: true, code: true, isLieuLeave: true }
+        },
         staff: { select: { id: true, name: true, code: true } }
       }
     });

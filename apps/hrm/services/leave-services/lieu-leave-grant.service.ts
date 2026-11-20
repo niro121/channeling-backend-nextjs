@@ -7,7 +7,13 @@ import {
   colomboCivilDayUtc,
   toColomboDateIso
 } from '@/lib/helpers/attendance-timezone.helper';
-import { computeEntitlementRemaining } from '@/types/leave';
+import {
+  computeEntitlementRemaining,
+  LIEU_GRANT_DAYS,
+  type LieuGrantPreview
+} from '@/types/leave';
+
+export type { LieuGrantPreview };
 
 /** RosterAllocation statuses that may post a lieu grant. */
 const LIEU_GRANT_ELIGIBLE_STATUSES = [
@@ -15,8 +21,6 @@ const LIEU_GRANT_ELIGIBLE_STATUSES = [
   'amended',
   'approved'
 ] as const;
-
-const GRANT_DAYS = 1;
 
 function isEligibleGrantStatus(status: string): boolean {
   return (LIEU_GRANT_ELIGIBLE_STATUSES as readonly string[]).includes(status);
@@ -40,6 +44,136 @@ export async function getPublishedLieuLeaveType(): Promise<{
     select: { id: true, code: true, name: true },
     orderBy: { createdAt: 'asc' }
   });
+}
+
+/**
+ * Preview which calendar-year Lieu bank a PH grant would credit for staff + duty date.
+ */
+export async function getLieuGrantPreview(params: {
+  staffId: string;
+  dutyDate: Date | string;
+  allocationId?: string | null;
+}): Promise<{
+  success: boolean;
+  data?: LieuGrantPreview;
+  error?: { message?: string };
+}> {
+  try {
+    const staffId = params.staffId?.trim();
+    const dutyDate = new Date(params.dutyDate);
+    if (!staffId) {
+      return {
+        success: false,
+        error: { message: 'Select staff to preview Lieu grant.' }
+      };
+    }
+    if (Number.isNaN(dutyDate.getTime())) {
+      return {
+        success: false,
+        error: { message: 'Set holiday duty date to preview Lieu grant.' }
+      };
+    }
+
+    const leaveType = await getPublishedLieuLeaveType();
+    const civil = colomboCivilDayUtc(dutyDate);
+    const { fromDate, toDate } = calendarYearBoundsUtc(civil);
+    const periodFrom = toColomboDateIso(fromDate);
+    const periodTo = toColomboDateIso(toDate);
+    const year = periodFrom.slice(0, 4);
+    const periodLabel = `1 Jan ${year} – 31 Dec ${year}`;
+
+    let alreadyGrantedForAllocation = false;
+    const allocationId = params.allocationId?.trim();
+    if (allocationId) {
+      const existing = await prisma.lieuLeaveGrant.findFirst({
+        where: { allocationId },
+        select: { id: true }
+      });
+      alreadyGrantedForAllocation = Boolean(existing);
+    }
+
+    if (!leaveType) {
+      return {
+        success: true,
+        data: {
+          hasPublishedLieuType: false,
+          leaveTypeCode: null,
+          leaveTypeName: null,
+          periodFrom,
+          periodTo,
+          periodLabel,
+          entitled: 0,
+          used: 0,
+          remaining: 0,
+          daysEarnedThisYear: 0,
+          grantDays: LIEU_GRANT_DAYS,
+          afterGrantEntitled: LIEU_GRANT_DAYS,
+          afterGrantRemaining: LIEU_GRANT_DAYS,
+          alreadyGrantedForAllocation,
+          message:
+            'No published Lieu leave type. Use Leave Types → Add Lieu, then Publish.'
+        }
+      };
+    }
+
+    const entitlement = await prisma.leaveEntitlement.findFirst({
+      where: {
+        staffId,
+        leaveTypeId: leaveType.id,
+        fromDate,
+        toDate
+      },
+      select: {
+        entitled: true,
+        used: true,
+        remaining: true
+      }
+    });
+
+    const entitled = Number(entitlement?.entitled ?? 0);
+    const used = Number(entitlement?.used ?? 0);
+    const remaining = Number(
+      entitlement?.remaining ??
+        computeEntitlementRemaining(entitled, 0, used)
+    );
+
+    const willAdd = alreadyGrantedForAllocation ? 0 : LIEU_GRANT_DAYS;
+    const afterGrantEntitled = entitled + willAdd;
+    const afterGrantRemaining = computeEntitlementRemaining(
+      afterGrantEntitled,
+      0,
+      used
+    );
+
+    return {
+      success: true,
+      data: {
+        hasPublishedLieuType: true,
+        leaveTypeCode: leaveType.code,
+        leaveTypeName: leaveType.name,
+        periodFrom,
+        periodTo,
+        periodLabel,
+        entitled,
+        used,
+        remaining,
+        daysEarnedThisYear: entitled,
+        grantDays: LIEU_GRANT_DAYS,
+        afterGrantEntitled,
+        afterGrantRemaining,
+        alreadyGrantedForAllocation,
+        message: alreadyGrantedForAllocation
+          ? 'This duty already has a Lieu grant — saving again will not add another day.'
+          : undefined
+      }
+    };
+  } catch (error: any) {
+    console.error('getLieuGrantPreview error:', error);
+    return {
+      success: false,
+      error: { message: error.message || 'Failed to load Lieu grant preview' }
+    };
+  }
 }
 
 /**
@@ -149,10 +283,10 @@ async function grantLieuLeaveForAllocation(
           leaveTypeId: leaveType.id,
           fromDate,
           toDate,
-          entitled: GRANT_DAYS,
+          entitled: LIEU_GRANT_DAYS,
           used: 0,
           carryForward: 0,
-          remaining: GRANT_DAYS,
+          remaining: LIEU_GRANT_DAYS,
           status: 'active',
           ...(auditUser?.id && {
             createdBy: auditUser.id,
@@ -161,7 +295,7 @@ async function grantLieuLeaveForAllocation(
         }
       });
     } else {
-      const entitled = entitlement.entitled + GRANT_DAYS;
+      const entitled = entitlement.entitled + LIEU_GRANT_DAYS;
       const remaining = computeEntitlementRemaining(
         entitled,
         entitlement.carryForward,
@@ -185,7 +319,7 @@ async function grantLieuLeaveForAllocation(
           staffId: allocation.staffId,
           leaveTypeId: leaveType.id,
           entitlementId: entitlement.id,
-          daysGranted: GRANT_DAYS,
+          daysGranted: LIEU_GRANT_DAYS,
           dutyDate,
           status: 'granted',
           grantedAt: new Date(),
@@ -200,7 +334,7 @@ async function grantLieuLeaveForAllocation(
           staffId: allocation.staffId,
           leaveTypeId: leaveType.id,
           entitlementId: entitlement.id,
-          daysGranted: GRANT_DAYS,
+          daysGranted: LIEU_GRANT_DAYS,
           dutyDate,
           status: 'granted',
           ...(auditUser?.id && {
