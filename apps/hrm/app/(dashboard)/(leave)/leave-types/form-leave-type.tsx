@@ -389,7 +389,7 @@ export default function FormLeaveType({
                         <CustomFormField
                           id="maxDaysPerYear"
                           type="number"
-                          placeholder="Max Days Per Year"
+                          placeholder="Max Entitled Days"
                           value={formik.values.maxDaysPerYear}
                           onChange={formik.handleChange}
                           onBlur={formik.handleBlur}
