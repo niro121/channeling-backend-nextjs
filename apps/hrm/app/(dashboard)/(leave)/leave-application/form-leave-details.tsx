@@ -1607,7 +1607,13 @@ export default function FormLeaveDetails({
                         }
                       >
                         <SaveIcon className="h-4 w-4" />
-                        {loading ? 'Saving...' : 'Save'}
+                        {loading
+                          ? isEdit
+                            ? 'Updating...'
+                            : 'Saving...'
+                          : isEdit
+                            ? 'Update'
+                            : 'Save'}
                       </Button>
                     ) : null}
                     <Button
