@@ -1,7 +1,6 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { checkPermission, requirePermission } from '@/lib/server-permissions';
 import { getLocationLetterhead } from '@/lib/location';
 import { markPatientReceiptPrinted } from '@/services/receipts/mark-patient-receipt-printed.service';
 import { getPatientReceiptPrintSlip } from '@/services/receipts/get-patient-receipt-print-slip.service';
@@ -24,14 +23,6 @@ export async function markPatientReceiptPrintedAction(receiptId: string) {
     return { success: false as const, message: 'You must be logged in to print a receipt.' };
   }
 
-  const [canViewReceipts, canViewBills] = await Promise.all([
-    checkPermission('receipts', 'view'),
-    checkPermission('patient-bills', 'view'),
-  ]);
-  if (!canViewReceipts && !canViewBills) {
-    return { success: false as const, message: 'You do not have permission to print this receipt.' };
-  }
-
   return markPatientReceiptPrinted(receiptId);
 }
 
@@ -39,22 +30,6 @@ export async function markPatientReceiptPrintedAction(receiptId: string) {
 export async function getPatientReceiptPrintSlipAction(receiptId: string) {
   const session = await fetchServerSession();
   if (!session?.user?.id) {
-    return {
-      kind: 'payment' as const,
-      originalReceiptNumber: '',
-      createdByCode: '',
-      printedByCode: '',
-      canceledByCode: '',
-      createdAt: '',
-      patientName: '',
-    };
-  }
-
-  const [canViewReceipts, canViewBills] = await Promise.all([
-    checkPermission('receipts', 'view'),
-    checkPermission('patient-bills', 'view'),
-  ]);
-  if (!canViewReceipts && !canViewBills) {
     return {
       kind: 'payment' as const,
       originalReceiptNumber: '',
@@ -75,26 +50,16 @@ export async function getReceiptLetterheadAction(locationId?: string | null) {
   const session = await fetchServerSession();
   if (!session?.user?.id) return empty;
 
-  const [canViewReceipts, canViewBills, canViewDoctorPayments] = await Promise.all([
-    checkPermission('receipts', 'view'),
-    checkPermission('patient-bills', 'view'),
-    checkPermission('doctor-payments', 'view'),
-  ]);
-  if (!canViewReceipts && !canViewBills && !canViewDoctorPayments) return empty;
-
   return getLocationLetterhead(locationId);
 }
 
 export async function getReceiptsAction(params: GetReceiptsParams = {}) {
-  await requirePermission('receipts', 'view');
   return getReceipts(params);
 }
 
 export async function getReceiptsExportAction(
   params: Omit<GetReceiptsParams, 'page' | 'limit'>
 ): Promise<{ success: boolean; data?: ReceiptExportRow[]; message?: string }> {
-  await requirePermission('receipts', 'view');
-
   try {
     const items = await getReceiptsExport(params);
     const data: ReceiptExportRow[] = items.map((item) => ({
@@ -140,8 +105,6 @@ export async function cancelPatientBillReceiptAction(
     slipDate?: string;
   }
 ) {
-  // Same permission as recording payments — receipt cancel recalculates the bill.
-  await requirePermission('patient-bills', 'edit');
   const session = await fetchServerSession();
   if (!session?.user?.id) {
     return { success: false as const, message: 'You must be logged in to cancel a receipt.' };

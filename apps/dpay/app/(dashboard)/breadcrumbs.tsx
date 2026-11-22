@@ -25,14 +25,11 @@ const PATH_NAMES = [
   { path: 'patient-excess', name: 'Patient Excess' },
   { path: 'admission-list', name: 'Admission List' },
   { path: 'user-activity', name: 'User Activity' },
-  { path: 'users', name: 'Users' },
-  { path: 'user-groups', name: 'User Groups' },
   { path: 'admin', name: 'Admin' },
   { path: 'monitor', name: 'Server Monitor' },
   { path: 'account', name: 'Account' },
   { path: 'add', name: 'Add' },
   { path: 'edit', name: 'Edit' },
-  { path: 'unauthorized-access', name: 'Unauthorized' },
 ];
 
 function isDynamicId(segment: string): boolean {

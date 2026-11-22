@@ -1,7 +1,6 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { checkPermission, requirePermission } from '@/lib/server-permissions';
 import { fetchServerSession } from '@/lib/session';
 import { getDoctorsForPayment } from '@/services/doctor-payments/get-doctors-for-payment.service';
 import { getEligibleBillsForDoctor } from '@/services/doctor-payments/get-eligible-bills.service';
@@ -18,12 +17,10 @@ import type {
 import type { PatientBillPaymentMethod } from '@/types/patient-bill';
 
 export async function getDoctorPaymentsAction(params: GetDoctorPaymentsParams = {}) {
-  await requirePermission('doctor-payments', 'view');
   return getDoctorPayments(params);
 }
 
 export async function getDoctorPaymentByIdAction(id: string) {
-  await requirePermission('doctor-payments', 'view');
   return getDoctorPaymentById(id);
 }
 
@@ -32,11 +29,6 @@ export async function markDoctorPaymentPrintedAction(paymentId: string) {
   const session = await fetchServerSession();
   if (!session?.user?.id) {
     return { success: false as const, message: 'You must be logged in to print a receipt.' };
-  }
-
-  const canView = await checkPermission('doctor-payments', 'view');
-  if (!canView) {
-    return { success: false as const, message: 'You do not have permission to print this receipt.' };
   }
 
   return markDoctorPaymentPrinted(paymentId);
@@ -48,24 +40,18 @@ export async function getDoctorPaymentPrintSlipAction(paymentId: string) {
   const session = await fetchServerSession();
   if (!session?.user?.id) return empty;
 
-  const canView = await checkPermission('doctor-payments', 'view');
-  if (!canView) return empty;
-
   return getDoctorPaymentPrintSlip(paymentId, session.user.id);
 }
 
 export async function getDoctorsForPaymentAction() {
-  await requirePermission('doctor-payments', 'add');
   return getDoctorsForPayment();
 }
 
 export async function getEligibleBillsForDoctorAction(doctorName: string) {
-  await requirePermission('doctor-payments', 'add');
   return getEligibleBillsForDoctor(doctorName);
 }
 
 export async function processDoctorPaymentAction(input: ProcessDoctorPaymentInput) {
-  await requirePermission('doctor-payments', 'add');
   const session = await fetchServerSession();
   const result = await processDoctorPayment(
     input,
@@ -90,7 +76,6 @@ export async function cancelDoctorPaymentAction(input: {
   slipReference?: string;
   slipDate?: string;
 }) {
-  await requirePermission('doctor-payments', 'add');
   const session = await fetchServerSession();
   if (!session?.user?.id) {
     return { success: false as const, message: 'You must be logged in to cancel a doctor payment.' };

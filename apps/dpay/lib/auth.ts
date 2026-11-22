@@ -2,7 +2,6 @@ import { NextAuthOptions } from 'next-auth';
 import CredentialsProvider from 'next-auth/providers/credentials';
 import { authPrisma } from '@archmage/db-auth';
 import * as argon2 from 'argon2';
-import { Permissions } from '@archmage/shared';
 import { verifyTotp } from '@/lib/helpers/2fa/totp';
 import { isDashboardLoginUserType } from '@/lib/roles';
 
@@ -61,8 +60,7 @@ export const authOptions: NextAuthOptions = {
                   twoFactorTempCode: twoFactorToken,
                   twoFactorExpires: { gt: new Date() },
                   status: 1
-                },
-                include: { userGroup: true }
+                }
               });
               if (!user) throw new Error('Invalid or expired 2FA. Please try again.');
               if (!isDashboardLoginUserType(user.userType)) throw new Error('Invalid credentials');
@@ -90,14 +88,13 @@ export const authOptions: NextAuthOptions = {
                 userType: user.userType,
                 name: user.name,
                 email: user.email,
-                permissions: user.userGroup?.permissions as Permissions ?? null,
                 userLocationId: user.userLocationId ?? null,
                 locationCode: user.locationCode ?? null
               };
             }
 
             // SMS/EMAIL 2FA
-            const user = await authPrisma.user.findFirst({ where: userWhere, include: { userGroup: true } });
+            const user = await authPrisma.user.findFirst({ where: userWhere });
             if (!user?.password) throw new Error('Invalid credentials');
             if (!await argon2.verify(user.password, credentials.password)) throw new Error('Invalid credentials');
             if (!isDashboardLoginUserType(user.userType)) throw new Error('Invalid credentials');
@@ -116,29 +113,26 @@ export const authOptions: NextAuthOptions = {
               userType: user.userType,
               name: user.name,
               email: user.email,
-              permissions: user.userGroup?.permissions as Permissions ?? null,
               userLocationId: user.userLocationId ?? null,
               locationCode: user.locationCode ?? null
             };
           }
 
           // Password-only login
-          const user = await authPrisma.user.findFirst({ where: userWhere, include: { userGroup: true } });
+          const user = await authPrisma.user.findFirst({ where: userWhere });
           if (!user?.password) throw new Error('Invalid credentials');
           if (!await argon2.verify(user.password, credentials.password)) throw new Error('Invalid credentials');
           if (!isDashboardLoginUserType(user.userType)) throw new Error('Invalid credentials');
           if (user.mustChangePassword) return null;
 
-          const group = user.userGroup;
-          const groupAllows2FA = group == null || group.twoFactorEnabled === true;
-          if (user.twoFactorEnabled && groupAllows2FA) return null;
+          // Require 2FA when enabled on the user (ignore group settings)
+          if (user.twoFactorEnabled) return null;
 
           return {
             id: user.id,
             userType: user.userType,
             name: user.name,
             email: user.email,
-            permissions: group?.permissions as Permissions ?? null,
             userLocationId: user.userLocationId ?? null,
             locationCode: user.locationCode ?? null
           };
@@ -156,7 +150,6 @@ export const authOptions: NextAuthOptions = {
       if (user) {
         token.id = user.id;
         token.userType = user.userType;
-        token.permissions = user.permissions ?? null;
         token.userLocationId = user.userLocationId ?? null;
         token.locationCode = user.locationCode ?? null;
       }
@@ -166,7 +159,6 @@ export const authOptions: NextAuthOptions = {
       if (session?.user) {
         session.user.id = token.id;
         session.user.userType = token.userType;
-        session.user.permissions = token.permissions ?? null;
         session.user.userLocationId = token.userLocationId ?? null;
         session.user.locationCode = token.locationCode ?? null;
       }

@@ -1,7 +1,5 @@
 import { withAuth } from "next-auth/middleware";
 import { NextResponse } from "next/server";
-import { userTypes, roleRights } from "@/lib/roles";
-import { canAccessRoute, getResourceFromRoute } from "@/lib/permissions";
 
 const getSecret = () => {
   if (process.env.NEXTAUTH_SECRET) return process.env.NEXTAUTH_SECRET;
@@ -21,24 +19,7 @@ export default withAuth(
     const token = request.nextauth.token;
     if (!token) return NextResponse.redirect(new URL('/login', request.url));
 
-    const userType = token.userType;
-    const permissions = token.permissions;
-
-    if (userType === userTypes.admin) return NextResponse.next();
-
-    if (permissions) {
-      const resource = getResourceFromRoute(currentPath);
-      if (resource) {
-        return canAccessRoute(permissions, currentPath)
-          ? NextResponse.next()
-          : NextResponse.rewrite(new URL('/unauthorized-access', request.url));
-      }
-      return NextResponse.next();
-    }
-
-    const allowedRoutes = roleRights.get(userType?.toString());
-    if (allowedRoutes && allowedRoutes.some((route) => currentPath.startsWith(route))) return NextResponse.next();
-    return NextResponse.rewrite(new URL('/unauthorized-access', request.url));
+    return NextResponse.next();
   },
   { secret: getSecret(), pages: { signIn: '/login' } }
 );

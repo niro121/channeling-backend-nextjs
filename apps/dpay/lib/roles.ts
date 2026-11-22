@@ -1,13 +1,4 @@
 // userType: 1 = admin, 2 = staff, 3 = doctor (doctor app), 4 = api user (public API createdBy only)
-export const ALL_ROLES: Record<number, string[]> = {
-    1: [ // admin
-        "/users", "/accounts"
-    ],
-    2: [ // staff
-        "/transect-results", "/welcome"
-    ],
-} as const
-
 export const userTypes = {
     admin: 1,
     staff: 2,
@@ -30,5 +21,3 @@ export function getUserTypeLabel(userType: number): string {
 export function isDashboardLoginUserType(userType: number): boolean {
     return userType === userTypes.admin || userType === userTypes.staff
 }
-
-export const roleRights = new Map(Object.entries(ALL_ROLES));

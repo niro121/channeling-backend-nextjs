@@ -1,23 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { Session } from "next-auth";
 import { NavLink } from "@archmage/ui";
-import { LayoutGrid, Landmark, FileText, Receipt, ScrollText, Wallet, BarChart3, Users, Shield } from "lucide-react";
-import { canAccessRoute } from "@/lib/permissions";
-import { userTypes } from "@/lib/roles";
+import { LayoutGrid, Landmark, FileText, Receipt, ScrollText, Wallet, BarChart3 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-export function DesktopSidebar({ session, className }: { session: Session | null; className?: string }) {
-  const userType = session?.user?.userType;
-  const permissions = session?.user?.permissions;
-
-  const hasAccess = (path: string) => {
-    if (userType === userTypes.admin) return true;
-    if (permissions) return canAccessRoute(permissions, path);
-    return false;
-  };
-
+export function DesktopSidebar({ className }: { className?: string }) {
   return (
     <aside className={cn("fixed inset-y-0 left-0 z-50 flex w-52 flex-col border-r border-primary/20 bg-secondary overflow-hidden sm:flex", className)}>
       <div className="flex h-14 shrink-0 items-center border-b border-primary/20 bg-secondary px-3">
@@ -40,38 +28,13 @@ export function DesktopSidebar({ session, className }: { session: Session | null
               Finance
             </p>
             <div className="space-y-0.5">
-              {hasAccess('/patient-bills') && (
-                <NavLink href="/patient-bills" label="Patient Bills" icon={<FileText className="h-5 w-5" />} />
-              )}
-              {hasAccess('/receipts') && (
-                <NavLink href="/receipts" label="Receipts" icon={<Receipt className="h-5 w-5" />} />
-              )}
-              {hasAccess('/receipt-manager') && (
-                <NavLink href="/receipt-manager" label="Receipt Manager" icon={<ScrollText className="h-5 w-5" />} />
-              )}
-              {hasAccess('/doctor-payments') && (
-                <NavLink href="/doctor-payments" label="Doctor Payments" icon={<Wallet className="h-5 w-5" />} />
-              )}
-              {hasAccess('/reports') && (
-                <NavLink href="/reports" label="Reports" icon={<BarChart3 className="h-5 w-5" />} />
-              )}
+              <NavLink href="/patient-bills" label="Patient Bills" icon={<FileText className="h-5 w-5" />} />
+              <NavLink href="/receipts" label="Receipts" icon={<Receipt className="h-5 w-5" />} />
+              <NavLink href="/receipt-manager" label="Receipt Manager" icon={<ScrollText className="h-5 w-5" />} />
+              <NavLink href="/doctor-payments" label="Doctor Payments" icon={<Wallet className="h-5 w-5" />} />
+              <NavLink href="/reports" label="Reports" icon={<BarChart3 className="h-5 w-5" />} />
             </div>
           </div>
-          {(hasAccess('/users') || hasAccess('/user-groups')) && (
-            <div>
-              <p className="px-2 mb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                Administration
-              </p>
-              <div className="space-y-0.5">
-                {hasAccess('/users') && (
-                  <NavLink href="/users" label="Users" icon={<Users className="h-5 w-5" />} />
-                )}
-                {hasAccess('/user-groups') && (
-                  <NavLink href="/user-groups" label="User Groups" icon={<Shield className="h-5 w-5" />} />
-                )}
-              </div>
-            </div>
-          )}
         </div>
       </nav>
 
