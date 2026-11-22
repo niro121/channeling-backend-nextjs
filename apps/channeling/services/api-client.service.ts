@@ -6,21 +6,27 @@ import * as argon2 from "argon2"
 import * as crypto from "crypto"
 import type { GetApiClientsQuery, GetApiClientsReturn, ApiClient } from "@/types/api-client"
 import { userTypes } from "@/lib/roles"
+import { API_CLIENT_SCOPES, normalizeApiClientScopes } from "@/lib/api-client-scopes"
 
 const actingUserIdSchema = z
   .string()
   .min(1, "User is required")
   .regex(/^[a-f\d]{24}$/i, "User is required")
 
+const scopeIds = API_CLIENT_SCOPES.map((s) => s.id) as [string, ...string[]]
+const scopesSchema = z.array(z.enum(scopeIds))
+
 const createSchema = z.object({
   name: z.string().min(1, "Name is required").max(150, "Must be less than 150 characters").trim(),
   actingUserId: actingUserIdSchema,
+  scopes: scopesSchema.optional(),
 })
 
 const updateSchema = z.object({
   name: z.string().min(1, "Name is required").max(150, "Must be less than 150 characters").trim().optional(),
   isBlocked: z.boolean().optional(),
   actingUserId: actingUserIdSchema,
+  scopes: scopesSchema.optional(),
 })
 
 export type CreateApiClientPayload = z.infer<typeof createSchema>
@@ -36,6 +42,7 @@ const apiClientSelect = {
   isBlocked: true,
   actingUserId: true,
   actingUser: { select: { id: true, name: true } },
+  scopes: true,
   createdAt: true,
   updatedAt: true,
 } as const
@@ -47,6 +54,7 @@ function toApiClient(row: {
   isBlocked: boolean
   actingUserId: string
   actingUser: { id: string; name: string }
+  scopes?: string[] | null
   createdAt: Date
   updatedAt: Date
 }): ApiClient {
@@ -57,6 +65,7 @@ function toApiClient(row: {
     isBlocked: row.isBlocked,
     actingUserId: row.actingUserId,
     actingUserName: row.actingUser.name,
+    scopes: normalizeApiClientScopes(row.scopes),
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   }
@@ -165,7 +174,7 @@ export async function createApiClientService(
   }
 
   try {
-    const { name, actingUserId: actingUserIdRaw } = parsed.data
+    const { name, actingUserId: actingUserIdRaw, scopes } = parsed.data
     const actingResolved = await resolveActingUserId(actingUserIdRaw)
     if (!actingResolved.ok) {
       return { success: false, message: actingResolved.message }
@@ -182,6 +191,7 @@ export async function createApiClientService(
         name,
         isBlocked: false,
         actingUserId: actingResolved.value,
+        scopes: [...new Set(scopes ?? [])],
       },
       select: apiClientSelect,
     })
@@ -217,7 +227,7 @@ export async function updateApiClientService(
   }
 
   try {
-    const { actingUserId: actingUserIdRaw, ...rest } = parsed.data
+    const { actingUserId: actingUserIdRaw, scopes, ...rest } = parsed.data
     const actingResolved = await resolveActingUserId(actingUserIdRaw)
     if (!actingResolved.ok) {
       return { success: false, message: actingResolved.message }
@@ -225,7 +235,11 @@ export async function updateApiClientService(
 
     const row = await prismaApiClient.update({
       where: { id },
-      data: { ...rest, actingUserId: actingResolved.value },
+      data: {
+        ...rest,
+        actingUserId: actingResolved.value,
+        ...(scopes !== undefined ? { scopes: [...new Set(scopes)] } : {}),
+      },
       select: apiClientSelect,
     })
     return { success: true, data: toApiClient(row) }

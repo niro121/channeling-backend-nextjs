@@ -818,6 +818,8 @@ model ApiClient {
   /// User attributed as createdBy on bookings made via this API client (public API). Required.
   actingUserId     String   @db.ObjectId
   actingUser       User     @relation("ApiClientActingUser", fields: [actingUserId], references: [id], onDelete: Restrict)
+  /// What this client may call beyond the public API, e.g. "ayu:staff:read". See lib/api-client-scopes.ts.
+  scopes           String[] @default([])
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
