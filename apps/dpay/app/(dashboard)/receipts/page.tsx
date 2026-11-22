@@ -1,7 +1,5 @@
 import { Suspense } from 'react';
-import { redirect } from 'next/navigation';
 import { SearchInput } from '@archmage/ui';
-import { checkRouteAccess } from '@/lib/server-permissions';
 import { getReceiptsAction, getReceiptsExportAction } from '@/app/actions/receipts/receipts.actions';
 import ReceiptsFilterSection from './filter-section';
 import { ReceiptsTableWithDialog } from './receipts-view-context';
@@ -21,8 +19,6 @@ type SearchParams = {
 };
 
 export default async function ReceiptsPage({ searchParams }: SearchParams) {
-  const canView = await checkRouteAccess('/receipts');
-  if (!canView) redirect('/unauthorized-access');
 
   const params = await searchParams;
   const page = params?.page ? Number(params.page) : 1;

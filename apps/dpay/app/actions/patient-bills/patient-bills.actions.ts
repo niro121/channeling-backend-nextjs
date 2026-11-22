@@ -1,7 +1,6 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { requirePermission } from '@/lib/server-permissions';
 import { fetchServerSession } from '@/lib/session';
 import { getPatientBills } from '@/services/patient-bills/get-patient-bills.service';
 import { getPatientBillById } from '@/services/patient-bills/get-patient-bill.service';
@@ -26,7 +25,6 @@ import type {
 } from '@/types/patient-bill';
 
 export async function getPatientBillsAction(params: GetPatientBillsParams = {}) {
-  await requirePermission('patient-bills', 'view');
 
   const session = await fetchServerSession();
   if (session?.user?.id) {
@@ -46,7 +44,6 @@ export async function getPatientBillsAction(params: GetPatientBillsParams = {}) 
 }
 
 export async function getPatientBillByIdAction(id: string) {
-  await requirePermission('patient-bills', 'view');
 
   const session = await fetchServerSession();
   if (session?.user?.id) {
@@ -63,7 +60,6 @@ export async function getPatientBillByIdAction(id: string) {
 }
 
 export async function createPatientBillAction(draft: PatientBillDraft) {
-  await requirePermission('patient-bills', 'add');
   const session = await fetchServerSession();
   const result = await createPatientBill(
     draft,
@@ -90,7 +86,6 @@ export async function createPatientBillAction(draft: PatientBillDraft) {
 }
 
 export async function updatePatientBillAction(id: string, draft: PatientBillDraft) {
-  await requirePermission('patient-bills', 'edit');
   const session = await fetchServerSession();
   const result = await updatePatientBill(
     id,
@@ -125,7 +120,6 @@ export async function updatePatientBillDetailsAction(
     'admissionDate' | 'dischargeDate' | 'customerName' | 'customerNicPhone' | 'customerAddress'
   >
 ) {
-  await requirePermission('patient-bills', 'edit');
   const session = await fetchServerSession();
   const result = await updatePatientBillDetails(
     id,
@@ -154,7 +148,6 @@ export async function updatePatientBillDetailsAction(
 }
 
 export async function addPatientBillLineItemAction(input: AddPatientBillLineItemInput) {
-  await requirePermission('patient-bills', 'edit');
   const session = await fetchServerSession();
   const result = await addPatientBillLineItem(
     input,
@@ -190,7 +183,6 @@ export async function removePatientBillLineItemAction(
   lineItemId: string,
   deleteRemark: string
 ) {
-  await requirePermission('patient-bills', 'edit');
   const session = await fetchServerSession();
   const result = await removePatientBillLineItem(
     billId,
@@ -220,7 +212,6 @@ export async function removePatientBillLineItemAction(
 }
 
 export async function recordPatientBillPaymentAction(input: RecordPatientBillPaymentInput) {
-  await requirePermission('patient-bills', 'edit');
   const session = await fetchServerSession();
   const result = await recordPatientBillPayment(
     input,
@@ -269,7 +260,6 @@ export async function cancelPatientBillAction(
     slipDate?: string;
   }
 ) {
-  await requirePermission('patient-bills', 'edit');
   const session = await fetchServerSession();
   if (!session?.user?.id) {
     return { success: false as const, message: 'You must be logged in to cancel a patient bill.' };
@@ -311,7 +301,6 @@ export async function cancelPatientBillAction(
 }
 
 export async function closePatientBillAction(billId: string) {
-  await requirePermission('patient-bills', 'edit');
   const session = await fetchServerSession();
   if (!session?.user?.id) {
     return { success: false as const, message: 'You must be logged in to close a patient bill.' };
@@ -351,7 +340,6 @@ export async function refundOverpaidPatientBillAction(
     slipDate?: string;
   }
 ) {
-  await requirePermission('patient-bills', 'edit');
   const session = await fetchServerSession();
   if (!session?.user?.id) {
     return { success: false as const, message: 'You must be logged in to refund a bill.' };
@@ -396,7 +384,6 @@ export async function refundOverpaidPatientBillAction(
 }
 
 export async function getPatientBillLineItemHistoryAction(lineItemId: string) {
-  await requirePermission('patient-bills', 'view');
   return getPatientBillLineItemHistory(lineItemId);
 }
 
@@ -404,6 +391,5 @@ export async function getPatientBillActivityLogsAction(
   billId: string,
   relatedEntityIds: string[] = []
 ) {
-  await requirePermission('patient-bills', 'view');
   return getBillActivityLogs(billId, relatedEntityIds);
 }

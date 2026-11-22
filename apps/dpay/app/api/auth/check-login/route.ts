@@ -18,16 +18,13 @@ export async function POST(request: Request) {
         ],
         status: 1,
       },
-      include: { userGroup: true },
     });
     if (!user || !user.password) return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });
     if (!await argon2.verify(user.password, password)) return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });
     if (user.mustChangePassword === true) return NextResponse.json({ requiresPasswordChange: true });
 
-    const group = user.userGroup;
-    const groupAllows2FA = group == null || group.twoFactorEnabled === true;
-    const userRequires2FA = user.twoFactorEnabled === true && groupAllows2FA;
-    const allowedMethods = Array.isArray(group?.twoFactorMethods) && group.twoFactorMethods.length > 0 ? group.twoFactorMethods : ['1', '2', '3'];
+    const userRequires2FA = user.twoFactorEnabled === true;
+    const allowedMethods = ['1', '2', '3'];
 
     if (!userRequires2FA) return NextResponse.json({ success: true, requiresTwoFactor: false });
     return NextResponse.json({ requiresTwoFactor: true, allowedMethods });

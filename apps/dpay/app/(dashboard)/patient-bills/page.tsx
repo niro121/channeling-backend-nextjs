@@ -1,9 +1,7 @@
 import { Suspense } from 'react';
 import Link from 'next/link';
-import { redirect } from 'next/navigation';
 import { Button, SearchInput } from '@archmage/ui';
 import { Plus } from 'lucide-react';
-import { checkRouteAccess } from '@/lib/server-permissions';
 import { getPatientBillsAction } from '@/app/actions/patient-bills/patient-bills.actions';
 import type { PatientBillStatus } from '@/types/patient-bill';
 import PatientBillsFilterSection from './filter-section';
@@ -32,9 +30,6 @@ const VALID_STATUSES: PatientBillStatus[] = [
 ];
 
 export default async function PatientBillsPage({ searchParams }: SearchParams) {
-  const canView = await checkRouteAccess('/patient-bills');
-  if (!canView) redirect('/unauthorized-access');
-
   const params = await searchParams;
   const page = params?.page ? Number(params.page) : 1;
   const limit = params?.limit ? Number(params.limit) : 20;

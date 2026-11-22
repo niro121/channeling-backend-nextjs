@@ -1,7 +1,5 @@
 import { Suspense } from 'react';
-import { redirect } from 'next/navigation';
 import { BackButton, SearchInput } from '@archmage/ui';
-import { checkRouteAccess } from '@/lib/server-permissions';
 import {
   getReceiptReportAction,
   getReceiptReportExportAction,
@@ -22,8 +20,6 @@ type SearchParams = {
 };
 
 export default async function ReceiptReportPage({ searchParams }: SearchParams) {
-  const canView = await checkRouteAccess('/reports');
-  if (!canView) redirect('/unauthorized-access');
 
   const params = await searchParams;
   const page = params?.page ? Number(params.page) : 1;
