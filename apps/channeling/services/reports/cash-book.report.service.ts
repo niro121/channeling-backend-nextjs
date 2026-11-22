@@ -5,6 +5,7 @@ import { getInclusiveDaySpan, getReportMaxRangeDays, getReportMaxRecords } from 
 import { parseReportDateTime } from '@/lib/parse-report-datetime';
 import { PAYMENT_METHOD_NAMES, RECEIPT_PAYMENT_METHOD } from '@/types/receipt';
 import { netEffectForAccountType } from '@/lib/accounting/helpers';
+import { sumAccountLinesAsOf } from '@/services/accounting/journal-lines-as-of';
 import { isBranchReconciledCashAccount } from '@/services/accounting/account/branch-reconciled-account.constants';
 import type {
   CashBookReportQuery,
@@ -81,28 +82,10 @@ async function openingBalancesByType(
   const totals = new Map<string, number>();
   if (accountIds.length === 0) return totals;
 
-  const journals = await prisma.journal.findMany({
-    where: { date: { lte: asOf } },
-    select: { id: true },
-  });
-  const journalIds = journals.map((journal) => journal.id);
-  if (journalIds.length === 0) return totals;
-
-  const grouped = await prisma.journalLine.groupBy({
-    by: ['paymentMethod'],
-    where: {
-      accountId: { in: accountIds },
-      journalId: { in: journalIds },
-    },
-    _sum: { debitAmount: true, creditAmount: true },
-  });
+  const grouped = await sumAccountLinesAsOf(accountIds, asOf);
 
   for (const row of grouped) {
-    const net = netEffectForAccountType(
-      row._sum.debitAmount ?? 0,
-      row._sum.creditAmount ?? 0,
-      'CASH'
-    );
+    const net = netEffectForAccountType(row._sum.debitAmount, row._sum.creditAmount, 'CASH');
     addTypeBalance(totals, row.paymentMethod, net);
   }
   return totals;

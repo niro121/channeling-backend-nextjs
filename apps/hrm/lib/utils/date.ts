@@ -44,3 +44,27 @@ export function formatAuditDateTime(date?: Date | string | null): string {
 export function formatDate(date?: Date | string | null): string {
   return formatDateTime(date, DATE_DISPLAY_FORMAT);
 }
+
+const DEFAULT_CALENDAR_PAST_YEARS = 10;
+const DEFAULT_CALENDAR_FUTURE_YEARS = 15;
+
+/**
+ * Sliding year window for calendar dropdowns (`fromYear`/`toYear` or `startMonth`/`endMonth`).
+ * Anchored on the current year, expanded to include any extra years provided.
+ */
+export function getCalendarYearRange(
+  extraYears: number[] = [],
+  pastYears: number = DEFAULT_CALENDAR_PAST_YEARS,
+  futureYears: number = DEFAULT_CALENDAR_FUTURE_YEARS
+) {
+  const currentYear = new Date().getFullYear();
+  const fromYear = Math.min(currentYear - pastYears, ...extraYears, currentYear);
+  const toYear = Math.max(currentYear + futureYears, ...extraYears, currentYear);
+
+  return {
+    fromYear,
+    toYear,
+    startMonth: new Date(fromYear, 0),
+    endMonth: new Date(toYear, 11)
+  };
+}

@@ -9,6 +9,7 @@ import {
   createZone,
   deleteZone,
   getLinkedLocationOptions,
+  getPublishedZoneOptions,
   getZoneById,
   getZoneList,
   updateZone
@@ -69,6 +70,37 @@ export async function getZoneListAction(params: GetZoneParams = {}): Promise<{
       data: null,
       errors: {
         message: error.message ?? 'Error getting data. Please try again later'
+      }
+    };
+  }
+}
+
+/** Published zones for the staff form. Uses staff view so HR users can load the list. */
+export async function getPublishedZoneOptionsAction(
+  includeCode?: string | null
+): Promise<{
+  isError: boolean;
+  data: { id: string; name: string }[] | null;
+  errors: Record<string, unknown>;
+}> {
+  try {
+    await requirePermission('staff', 'view');
+    const result = await getPublishedZoneOptions(includeCode);
+    if (!result.success) {
+      throw new Error(result.error?.message ?? 'Failed to load zones');
+    }
+    return {
+      isError: false,
+      data: result.data ?? [],
+      errors: {}
+    };
+  } catch (error: any) {
+    console.error('getPublishedZoneOptionsAction error:', error);
+    return {
+      isError: true,
+      data: null,
+      errors: {
+        message: error.message ?? 'Error getting zone options.'
       }
     };
   }
@@ -148,47 +180,34 @@ export async function createZoneAction(
     }
 
     const hrmId = result.data.id;
+    let channelingWarning: string | undefined;
     const shouldSyncToChanneling = options?.syncToChanneling ?? true;
 
     if (shouldSyncToChanneling && hrmId) {
-      const channelingResult = await pushZoneCreateToChanneling(
-        hrmId,
-        payload,
-        result.data.locationMigrateSourceId
-      );
+      try {
+        const channelingResult = await pushZoneCreateToChanneling(
+          hrmId,
+          payload,
+          result.data.locationMigrateSourceId
+        );
 
-      if (!channelingResult.success) {
-        await deleteZone(hrmId);
-        return {
-          isError: true,
-          errors: {
-            message:
-              channelingResult.error?.message ??
-              'Zone could not be created in Channeling. No record was saved in HRM.'
-          },
-          data: null
-        };
-      }
-
-      const refreshed = await getZoneById(hrmId);
-      if (refreshed.success && refreshed.data) {
-        if (auditUser?.id) {
-          logActivityNonBlocking({
-            userId: auditUser.id,
-            action: 'organizations.zones.created',
-            entityType: 'Zone',
-            entityId: hrmId,
-            importance: 'high'
-          });
+        if (!channelingResult.success) {
+          channelingWarning =
+            channelingResult.error?.message ??
+            'Zone was saved in HRM, but Channeling sync failed.';
         }
-        revalidatePath('/zones');
-        return {
-          isError: false,
-          data: mapZoneToUiRecord(refreshed.data),
-          errors: {}
-        };
+      } catch (syncError: any) {
+        channelingWarning =
+          syncError?.message ??
+          'Zone was saved in HRM, but Channeling sync failed.';
       }
     }
+
+    const refreshed = await getZoneById(hrmId);
+    const savedRecord =
+      refreshed.success && refreshed.data
+        ? mapZoneToUiRecord(refreshed.data)
+        : mapZoneToUiRecord(result.data);
 
     if (auditUser?.id) {
       logActivityNonBlocking({
@@ -203,8 +222,9 @@ export async function createZoneAction(
     revalidatePath('/zones');
     return {
       isError: false,
-      data: mapZoneToUiRecord(result.data),
-      errors: {}
+      data: savedRecord,
+      errors: {},
+      channelingWarning
     };
   } catch (error: any) {
     console.error('createZoneAction error:', error);

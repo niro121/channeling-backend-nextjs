@@ -36,7 +36,7 @@ import {
 } from '@/components/common/date-time-range-picker';
 import { doctorDuePaymentReportColumns } from './columns';
 
-export default function DoctorDueReportContent() {
+export default function DoctorDueReportContent({ capLabel }: { capLabel: string }) {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [rows, setRows] = useState<DoctorDuePaymentReportRow[]>([]);
@@ -130,8 +130,8 @@ export default function DoctorDueReportContent() {
             <div>
               <CardTitle className="text-2xl font-bold">Doctor Due Payment Report</CardTitle>
               <CardDescription className="mt-1">
-                Doctors still owed for unpaid bill line items. Display is capped at 10,000
-                records; use Export for PDF/Excel/Print.
+                Doctors still owed for unpaid bill line items. Display is capped at {capLabel} records;
+                use Export for PDF/Excel/Print.
               </CardDescription>
             </div>
             <div className="shrink-0">
@@ -192,7 +192,7 @@ export default function DoctorDueReportContent() {
                   ? 'Loading...'
                   : totalRecords > 0
                     ? `Showing ${rows.length} of ${totalRecords} row${totalRecords === 1 ? '' : 's'}${
-                        hasMore ? ' (capped at 10,000 — use Export)' : ''
+                        hasMore ? ` (capped at ${capLabel} — use Export)` : ''
                       }`
                     : 'No data. Select a date range and click Search.'}
               </CardDescription>

@@ -3,6 +3,8 @@
 import { Button } from '@archmage/ui';
 import { SaveIcon, XIcon } from 'lucide-react';
 
+import { buttonStyles } from '@/lib/utils/common-styles';
+
 type CustomFormSubmitBtnsProps = {
   loading?: boolean;
   onCancel?: () => void;
@@ -23,7 +25,7 @@ export function CustomFormSubmitBtns({
       <Button
         type="button"
         variant="outline"
-        className="text-red-500 hover:text-white hover:bg-red-500 transition-colors"
+        className={buttonStyles.cancel.normal}
         onClick={onCancel}
         disabled={loading}
       >
@@ -34,7 +36,13 @@ export function CustomFormSubmitBtns({
       </Button>
       {showSave ? (
         <>
-          <Button type="button" variant="default" onClick={onSave} disabled={loading}>
+          <Button
+            type="button"
+            variant="default"
+            className={buttonStyles.save}
+            onClick={onSave}
+            disabled={loading}
+          >
             <div className="flex items-center gap-2">
               <SaveIcon className="w-4 h-4" />
               Save
@@ -43,6 +51,7 @@ export function CustomFormSubmitBtns({
           <Button
             type="button"
             variant="outline"
+            className={buttonStyles.saveAndClose}
             onClick={onSaveAndClose}
             disabled={loading}
           >

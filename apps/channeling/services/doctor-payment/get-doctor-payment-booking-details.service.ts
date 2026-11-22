@@ -12,6 +12,9 @@ export type DoctorPaymentBookingRow = {
   discount: number;
   refunds: number;
   paymentRs: number;
+  sessionDateMs: number;
+  sessionStartMs: number;
+  appointmentNo: number;
 };
 
 export type GetDoctorPaymentBookingDetailsResult =
@@ -35,7 +38,7 @@ export async function getDoctorPaymentBookingDetailsService(bookingIds: string[]
   const bookings = await prisma.booking.findMany({
     where: { id: { in: bookingIds } },
     include: {
-      session: { select: { date: true } },
+      session: { select: { date: true, startTime: true } },
     },
   });
 
@@ -44,7 +47,10 @@ export async function getDoctorPaymentBookingDetailsService(bookingIds: string[]
   for (const b of bookings) {
     const sessionDate = b.session?.date
       ? (b.session.date instanceof Date ? b.session.date : new Date(b.session.date))
-      : new Date();
+      : new Date(0);
+    const sessionStart = b.session?.startTime
+      ? new Date(b.session.startTime)
+      : new Date((b.sessionStartTime ?? 0) * 1000);
     const professionalFee = b.professionalFee ?? 0;
     const discount = b.professionsalFeeDiscount ?? 0;
     const refunds = b.refundAmountProfessionalFee ?? 0;
@@ -61,6 +67,9 @@ export async function getDoctorPaymentBookingDetailsService(bookingIds: string[]
       discount,
       refunds,
       paymentRs,
+      sessionDateMs: sessionDate.getTime(),
+      sessionStartMs: sessionStart.getTime(),
+      appointmentNo: b.appointmentNo,
     });
   }
 

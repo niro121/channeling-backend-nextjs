@@ -2,6 +2,7 @@ import React from 'react';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { getAllLocations, getAllZonesByLocaionID } from '@/app/actions/room.actions';
+import { getDepartmentOptions } from '@/app/actions/doctor.sessions.action';
 import RoomForm from '../room-form';
 import { BackButton } from '@/components/common/back-button';
 
@@ -9,10 +10,18 @@ export default async function AddRoomPage() {
   const session = await getServerSession(authOptions);
   const user = session?.user;
 
-  const locationRes = await getAllLocations();
+  const [locationRes, departmentRes] = await Promise.all([
+    getAllLocations(),
+    getDepartmentOptions()
+  ]);
 
   const locationOptions =
     locationRes?.data?.map((l) => ({ id: l.id as string, name: l.name })) ?? [];
+
+  const departmentOptions =
+    departmentRes?.success && departmentRes.data
+      ? departmentRes.data.map((d) => ({ id: d.id, name: d.name }))
+      : [];
 
   const zonesByLocation: Record<string, { id: string; name: string }[]> = {};
   if (locationOptions.length > 0) {
@@ -38,6 +47,7 @@ export default async function AddRoomPage() {
         <RoomForm
           room={null}
           locationOptions={locationOptions}
+          departmentOptions={departmentOptions}
           initialZonesByLocation={Object.keys(zonesByLocation).length > 0 ? zonesByLocation : undefined}
           isEditPage={false}
           user={{

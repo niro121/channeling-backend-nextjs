@@ -2,12 +2,11 @@ import React, { Suspense } from 'react';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { getServerSession } from 'next-auth';
+import { Button } from '@archmage/ui';
 import {
-  BulkDeleteButton,
-  Button,
-  CustomDataTable,
-  SearchInput
-} from '@archmage/ui';
+  CommonDataTable,
+  DataTableBulkDeleteFeature
+} from '@/components/common/common-data-table';
 import { Plus } from 'lucide-react';
 import Loading from '../loading';
 import { authOptions } from '@/lib/auth';
@@ -15,9 +14,11 @@ import { checkPermission, checkRouteAccess } from '@/lib/server-permissions';
 import { logActivityNonBlocking } from '@/lib/activity-log';
 import { ExportWrapper } from '../export-wrapper';
 import { userGroupColumns } from './columns';
+import UserGroupFilterSection from './filter-section';
 import {
   bulkDeleteUserGroups,
   getAllUserGroups,
+  getAllUserGroupsOptions,
   getUserGroupsExport
 } from '@/app/actions/user-usergrp-actions/user-group.actions';
 
@@ -25,7 +26,8 @@ type SearchParams = {
   searchParams?: Promise<{
     page?: string;
     limit?: string;
-    keyword?: string;
+    userGroupId?: string;
+    status?: string;
   }>;
 };
 
@@ -46,11 +48,21 @@ export default async function UserGroupsPage({ searchParams }: SearchParams) {
   }
 
   const params = await searchParams;
-  const { data, totalRecords } = await getAllUserGroups({
-    page: params?.page,
-    limit: params?.limit,
-    keyword: params?.keyword
-  });
+  const [{ data, totalRecords }, { data: groupOptionsData }] =
+    await Promise.all([
+      getAllUserGroups({
+        page: params?.page,
+        limit: params?.limit,
+        userGroupId: params?.userGroupId,
+        status: params?.status
+      }),
+      getAllUserGroupsOptions({ activeOnly: false })
+    ]);
+
+  const groupOptions = (groupOptionsData ?? []).map((group) => ({
+    id: group.id,
+    name: group.name
+  }));
 
   const canAdd = await checkPermission('users', 'add');
 
@@ -58,7 +70,8 @@ export default async function UserGroupsPage({ searchParams }: SearchParams) {
     'use server';
 
     const exportResponse = await getUserGroupsExport({
-      keyword: params?.keyword
+      userGroupId: params?.userGroupId,
+      status: params?.status
     });
 
     if (!exportResponse.success || !exportResponse.data?.length) {
@@ -88,7 +101,7 @@ export default async function UserGroupsPage({ searchParams }: SearchParams) {
   return (
     <div className="overflow-hidden">
       <Suspense fallback={<Loading />}>
-        <CustomDataTable
+        <CommonDataTable
           heading="User Groups"
           subHeading="Manage HRM user groups and permission matrices."
           columns={userGroupColumns}
@@ -99,17 +112,28 @@ export default async function UserGroupsPage({ searchParams }: SearchParams) {
           deleteServerAction={bulkDeleteUserGroups}
           getBulkDeleteDescription={bulkDeleteDescription}
           toolbarLeft={
+            <UserGroupFilterSection
+              groupOptions={groupOptions}
+              userGroupId={params?.userGroupId}
+              status={params?.status}
+            />
+          }
+          toolbarRight={
             <div className="flex flex-col gap-3 flex-1 min-w-0">
-              <div className="flex flex-col sm:flex-row gap-3 items-start">
-                <div className="relative w-full sm:max-w-sm">
-                  <SearchInput
-                    name="keyword"
-                    placeholder="Search by name, description"
-                    className="pl-8 w-full h-9"
-                  />
-                </div>
+              <div className="flex items-start justify-end gap-2 shrink-0">
+                <DataTableBulkDeleteFeature />
+                {canAdd ? (
+                  <Link href="/user-groups/add">
+                    <Button size="sm" className="gap-1.5 h-9 cursor-pointer">
+                      <Plus className="h-4 w-4" />
+                      <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">
+                        Add New
+                      </span>
+                    </Button>
+                  </Link>
+                ) : null}
               </div>
-              <div className="flex items-center">
+              <div className="flex items-center justify-end">
                 <ExportWrapper
                   serverData={handleExport}
                   columns={['Group Name', 'Description', 'Status']}
@@ -120,22 +144,6 @@ export default async function UserGroupsPage({ searchParams }: SearchParams) {
               </div>
             </div>
           }
-          toolbarRight={
-            <div className="flex items-start gap-2 shrink-0">
-              <BulkDeleteButton />
-              {canAdd ? (
-                <Link href="/user-groups/add">
-                  <Button size="sm" className="gap-1.5 h-9 cursor-pointer">
-                    <Plus className="h-4 w-4" />
-                    <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">
-                      Add New
-                    </span>
-                  </Button>
-                </Link>
-              ) : null}
-            </div>
-          }
-          hideAutoBulkDelete
         />
       </Suspense>
     </div>

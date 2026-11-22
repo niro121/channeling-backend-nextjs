@@ -10,6 +10,7 @@ import {
   type ReactNode
 } from 'react';
 import type { DepartmentUiRecord } from '@/types/department';
+import type { DepartmentListFilters } from './section-department-filters';
 
 type DepartmentUiContextValue = {
   records: DepartmentUiRecord[];
@@ -18,12 +19,7 @@ type DepartmentUiContextValue = {
   setSelectedId: (id: string | null) => void;
   isNew: boolean;
   setIsNew: (value: boolean) => void;
-  search: string;
-  setSearch: (value: string) => void;
-  statusFilter: string;
-  setStatusFilter: (value: string) => void;
-  institutionFilter: string;
-  setInstitutionFilter: (value: string) => void;
+  filters: DepartmentListFilters;
   detailFormHighlight: boolean;
   startNewDepartment: () => void;
 };
@@ -33,12 +29,14 @@ const DepartmentUiContext = createContext<DepartmentUiContextValue | null>(null)
 type ProviderProps = {
   initialRecords: DepartmentUiRecord[];
   initialSelectedId?: string | null;
+  initialFilters?: DepartmentListFilters;
   children: ReactNode;
 };
 
 export function DepartmentUiProvider({
   initialRecords,
   initialSelectedId = null,
+  initialFilters = {},
   children
 }: ProviderProps) {
   const [records, setRecords] = useState(initialRecords);
@@ -47,13 +45,15 @@ export function DepartmentUiProvider({
   );
   const [isNew, setIsNew] = useState(false);
   const [detailFormHighlight, setDetailFormHighlight] = useState(false);
-  const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState('');
-  const [institutionFilter, setInstitutionFilter] = useState('');
+  const [filters, setFilters] = useState<DepartmentListFilters>(initialFilters);
 
   useEffect(() => {
     setRecords(initialRecords);
   }, [initialRecords]);
+
+  useEffect(() => {
+    setFilters(initialFilters);
+  }, [initialFilters]);
 
   useEffect(() => {
     setSelectedIdState(initialSelectedId);
@@ -86,12 +86,7 @@ export function DepartmentUiProvider({
       setSelectedId,
       isNew,
       setIsNew,
-      search,
-      setSearch,
-      statusFilter,
-      setStatusFilter,
-      institutionFilter,
-      setInstitutionFilter,
+      filters,
       detailFormHighlight,
       startNewDepartment
     }),
@@ -100,9 +95,7 @@ export function DepartmentUiProvider({
       selectedId,
       setSelectedId,
       isNew,
-      search,
-      statusFilter,
-      institutionFilter,
+      filters,
       detailFormHighlight,
       startNewDepartment
     ]

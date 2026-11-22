@@ -1,8 +1,5 @@
 'use client';
 
-import { useCallback } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
-import { useToast } from '@archmage/ui';
 import { CommonManagerHeader } from '@/components/common/common-manager-header';
 import type {
   OvernightShiftFilterOptions,
@@ -31,7 +28,11 @@ type OvernightShiftsWorkspaceProps = {
   initialFilters: OvernightFilterValues;
   filterOptions: OvernightShiftFilterOptions;
   formOptions: OvernightShiftFormOptions;
-  onExport: () => Promise<{ success: boolean; data?: Record<string, unknown>[]; message?: string }>;
+  onExport: () => Promise<{
+    success: boolean;
+    data?: Record<string, unknown>[];
+    message?: string;
+  }>;
 };
 
 function OvernightShiftsWorkspaceInner({
@@ -44,38 +45,12 @@ function OvernightShiftsWorkspaceInner({
   formOptions,
   onExport
 }: OvernightShiftsWorkspaceProps) {
-  const { toast } = useToast();
-  const router = useRouter();
-  const searchParams = useSearchParams();
   const {
     formSheet,
     historyRecord,
     closeFormSheet,
     closeHistorySheet
   } = useOvernightShiftsUi();
-
-  const applyFilters = useCallback(
-    (values: OvernightFilterValues) => {
-      const params = new URLSearchParams();
-      if (values.fromDate) params.set('fromDate', values.fromDate.toISOString().slice(0, 10));
-      if (values.toDate) params.set('toDate', values.toDate.toISOString().slice(0, 10));
-      if (values.departmentId) params.set('department', values.departmentId);
-      if (values.unitId) params.set('unit', values.unitId);
-      if (values.shiftTypeId) params.set('shiftTypeId', values.shiftTypeId);
-      if (values.allocationId) params.set('allocationDate', values.allocationId);
-      if (values.staffSearch) params.set('staffSearch', values.staffSearch);
-      if (values.statusId) params.set('status', values.statusId);
-      const limit = searchParams.get('limit');
-      if (limit) params.set('limit', limit);
-      router.push(`/overnight-shifts?${params.toString()}`);
-    },
-    [router, searchParams]
-  );
-
-  const clearFilters = useCallback(() => {
-    const limit = searchParams.get('limit');
-    router.push(limit ? `/overnight-shifts?limit=${limit}` : '/overnight-shifts');
-  }, [router, searchParams]);
 
   return (
     <div className="space-y-6">
@@ -88,15 +63,12 @@ function OvernightShiftsWorkspaceInner({
       <SectionOvernightSummary summary={summary} />
 
       <SectionOvernightFilters
-        values={initialFilters}
+        initial={initialFilters}
         departmentOptions={filterOptions.departments}
         unitOptions={filterOptions.units}
         shiftTypeOptions={filterOptions.shiftTypes}
         allocationOptions={filterOptions.allocationOptions}
         statusOptions={filterOptions.statuses}
-        onChange={() => undefined}
-        onSearch={applyFilters}
-        onClear={clearFilters}
       />
 
       <SectionOvernightRegister

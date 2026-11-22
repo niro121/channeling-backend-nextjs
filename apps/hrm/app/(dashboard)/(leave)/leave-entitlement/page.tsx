@@ -57,13 +57,17 @@ export default async function LeaveEntitlementPage({
     params?.leaveType && params.leaveType !== '__all__'
       ? params.leaveType
       : undefined;
+  const departmentId =
+    params?.departmentId && params.departmentId !== '__all__'
+      ? params.departmentId
+      : undefined;
 
   const [optionsRes, entitlementsRes, balanceRes] = await Promise.all([
     getLeaveEntitlementFormOptionsAction(),
     getLeaveEntitlementsAction({
       staffId,
       leaveTypeId,
-      departmentId: params?.departmentId,
+      departmentId,
       fromDate: params?.fromDate,
       toDate: params?.toDate,
       limit: process.env.DEFAULT_PAGE_SIZE
@@ -83,8 +87,12 @@ export default async function LeaveEntitlementPage({
     name: type.code ? `${type.code} — ${type.name}` : type.name
   }));
 
-  // Department master not built yet — keep filter UI with empty options.
-  const departmentOptions: { id: string; name: string }[] = [];
+  const departmentOptions = (optionsRes.data?.departments ?? []).map(
+    (department) => ({
+      id: department.id,
+      name: department.name
+    })
+  );
 
   const entitlements = (
     entitlementsRes.isError ? [] : (entitlementsRes.data?.data ?? [])
@@ -98,7 +106,7 @@ export default async function LeaveEntitlementPage({
     const exportResponse = await getLeaveEntitlementsExport({
       staffId,
       leaveTypeId,
-      departmentId: params?.departmentId,
+      departmentId,
       fromDate: params?.fromDate,
       toDate: params?.toDate
     });
@@ -157,10 +165,7 @@ export default async function LeaveEntitlementPage({
             <LeaveEntitlementFilterSection
               employeeOptions={employeeOptions}
               departmentOptions={departmentOptions}
-              leaveTypeOptions={[
-                { id: '__all__', name: 'All Leave Types' },
-                ...leaveTypeOptions
-              ]}
+              leaveTypeOptions={leaveTypeOptions}
               employeeId={params?.employeeId}
               departmentId={params?.departmentId}
               leaveType={params?.leaveType}

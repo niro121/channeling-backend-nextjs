@@ -13,6 +13,7 @@ const PATH_NAMES = [
   { path: 'make', name: 'Make' },
   { path: 'payments', name: 'Payments' },
   { path: 'receipts', name: 'Receipts' },
+  { path: 'receipt-manager', name: 'Receipt Manager' },
   { path: 'bank-accounts', name: 'Bank Accounts' },
   { path: 'ledger', name: 'Ledger' },
   { path: 'reconciliation', name: 'Reconciliation' },

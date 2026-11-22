@@ -1,15 +1,63 @@
 import { Permissions } from '@archmage/shared';
 
+/* -----------------------------------------------------------------------------
+ * Public API machine scopes (API Clients / Bearer tokens)
+ * Separate from dashboard User Group resources (view/add/edit/delete).
+ * Add new product scopes here as public APIs are released.
+ * -------------------------------------------------------------------------- */
+export const PUBLIC_API_SCOPES = [
+  {
+    id: 'careers:read',
+    label: 'Careers — Read jobs',
+    group: 'Careers'
+  },
+  {
+    id: 'careers:apply',
+    label: 'Careers — Submit applications',
+    group: 'Careers'
+  }
+] as const;
+
+export type PublicApiScopeId = (typeof PUBLIC_API_SCOPES)[number]['id'];
+
+/** Scope ids only — for Zod / persistence validation. */
+export const PUBLIC_API_SCOPE_IDS = PUBLIC_API_SCOPES.map(
+  (s) => s.id
+) as unknown as [PublicApiScopeId, ...PublicApiScopeId[]];
+
+/** Default scopes for a new API client (read-only Careers). */
+export const DEFAULT_PUBLIC_API_SCOPES: PublicApiScopeId[] = ['careers:read'];
+
+/** Options for CustomMultiSelect / forms. */
+export const PUBLIC_API_SCOPE_OPTIONS = PUBLIC_API_SCOPES.map((s) => ({
+  id: s.id,
+  name: s.label
+}));
+
+export function getPublicApiScopeLabel(scopeId: string): string {
+  return PUBLIC_API_SCOPES.find((s) => s.id === scopeId)?.label ?? scopeId;
+}
+
+export function isPublicApiScopeId(value: string): value is PublicApiScopeId {
+  return (PUBLIC_API_SCOPE_IDS as readonly string[]).includes(value);
+}
+
 export const ROUTE_TO_RESOURCE: Record<string, string> = {
+  '/user-groups': 'users',
+  '/users': 'users',
+  '/api-clients': 'users',
   '/staff': 'staff',
-  '/leave-types': 'leave-types',
-  '/leave-entitlement': 'leave-entitlement',
-  '/leave-management': 'leave-management',
-  '/leave-application': 'leave-application',
-  '/overtime-requests': 'overtime-requests',
-  '/overtime-extra-time': 'overtime-requests',
-  '/overtime-day-off-ph-shift': 'overtime-requests',
-  '/overtime-extra-shift-normal': 'overtime-requests',
+  // HR-Admin
+  '/paysheet-components': 'paysheet-components',
+  '/hrm-variables': 'hrm-variables',
+  '/salary-cycles': 'salary-cycles',
+  '/holiday-calendar': 'holiday-calendar',
+  '/designations': 'designations',
+  '/staff-grades': 'staff-grades',
+  '/staff-specialities': 'staff-specialities',
+  '/change-staff': 'change-staff',
+  '/manage-rosters': 'manage-rosters',
+  // Roster & Shifts
   '/shift-roster': 'shift-roster',
   '/shift-types': 'shift-roster',
   '/shift-assignment': 'shift-roster',
@@ -18,17 +66,7 @@ export const ROUTE_TO_RESOURCE: Record<string, string> = {
   '/night-shifts': 'shift-roster',
   '/overnight-shifts': 'shift-roster',
   '/public-holiday-shifts': 'shift-roster',
-  '/holiday-calendar': 'holiday-calendar',
-  '/designations': 'designations',
-  '/staff-grades': 'staff-grades',
-  '/staff-specialities': 'staff-specialities',
-  '/manage-rosters': 'manage-rosters',
-  '/departments': 'organizations',
-  '/locations': 'organizations',
-  '/zones': 'organizations',
-  '/rooms': 'organizations',
-  '/users': 'users',
-  '/user-groups': 'users',
+  // Staff Attendance
   '/attendance': 'attendance',
   '/rfid-attendance': 'attendance',
   '/attendance-daily': 'attendance',
@@ -37,6 +75,51 @@ export const ROUTE_TO_RESOURCE: Record<string, string> = {
   '/fingerprint-verification': 'attendance',
   '/attendance-summary': 'attendance',
   '/attendance-logs': 'attendance',
+  // Payroll
+  '/payroll': 'payroll',
+  '/salary-generation': 'payroll',
+  '/salary-processing': 'payroll',
+  '/assign-paysheet-component': 'payroll',
+  '/bulk-assign-paysheet-component': 'payroll',
+  '/performance-allowance': 'payroll',
+  '/loans-advances': 'payroll',
+  '/salary-structures': 'payroll',
+  '/allowances': 'payroll',
+  '/deductions': 'payroll',
+  '/payslips': 'payroll',
+  '/bank-transfer-file': 'payroll',
+  '/salary-history': 'payroll',
+  // Recruitment
+  '/vacancy-requests': 'recruitment',
+  '/job-posts': 'recruitment',
+  '/applications': 'recruitment',
+  '/resume-bank': 'recruitment',
+  '/shortlisting': 'recruitment',
+  '/interview-schedule': 'recruitment',
+  '/evaluation': 'recruitment',
+  '/appointment-letters': 'recruitment',
+  // Reports
+  '/reports': 'reports',
+  '/reports/department': 'reports',
+  '/reports/staff': 'reports',
+  '/reports/attendance': 'reports',
+  '/reports/payroll': 'reports',
+  '/reports/overtime': 'reports',
+  '/reports/leave': 'reports',
+  '/reports/statistical': 'reports',
+  '/leave-types': 'leave-types',
+  '/leave-entitlement': 'leave-entitlement',
+  '/leave-management': 'leave-management',
+  '/leave-application': 'leave-application',
+  '/overtime-requests': 'overtime-requests',
+  '/overtime-extra-time': 'overtime-requests',
+  '/overtime-day-off-ph-shift': 'overtime-requests',
+  '/overtime-extra-shift-normal': 'overtime-requests',
+  // Ruhunu Organization
+  '/departments': 'organizations',
+  '/locations': 'organizations',
+  '/zones': 'organizations',
+  '/rooms': 'organizations',
 };
 
 export const ROUTE_REQUIRED_ACTION: Partial<Record<string, string>> = {};

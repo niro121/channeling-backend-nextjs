@@ -1,17 +1,34 @@
 'use client';
 
-import { useState, useTransition } from 'react';
-import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { useMemo, useRef, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import {
+  addDays,
+  endOfMonth,
+  format,
+  parseISO,
+  startOfMonth,
+  startOfWeek
+} from 'date-fns';
 import { useToast } from '@archmage/ui';
 import {
   copyPreviousMonthRosterAction,
-  copyPreviousWeekRosterAction
+  copyPreviousWeekRosterAction,
+  getShiftRosterExportAction
 } from '@/app/actions/roster-actions/shift-roster.actions';
+import { printPdfUtil } from '@/lib/utils/export-wrapper-utils';
+import {
+  buildShiftRosterExport,
+  type ShiftRosterExportMode
+} from '@/lib/utils/shift-roster-export';
 import type {
+  DutyRosterFormOptions,
   LoadRosterParams,
   LoadRosterResult,
-  RosterStaffRow
+  RosterStaffRow,
+  ShiftRosterExportScope
 } from '@/types/roster';
+import DialogExportScope from './dialog-export-scope';
 import SectionRosterFilters, {
   type RosterFilterValues
 } from './section-roster-filters';
@@ -20,6 +37,7 @@ import SectionRosterInstructions from './section-roster-instructions';
 import SectionRosterSummary from './section-roster-summary';
 import SheetRosterAllocationForm from './sheet-roster-allocation-form';
 import SheetRosterAllocationHistory from './sheet-roster-allocation-history';
+import SheetRosterStaffView from './sheet-roster-staff-view';
 import {
   ShiftRosterUiProvider,
   useShiftRosterUi
@@ -28,6 +46,16 @@ import {
 type ShiftRosterWorkspaceProps = {
   data: LoadRosterResult;
   initialFilters: LoadRosterParams;
+  formOptions: DutyRosterFormOptions;
+};
+
+type ExportBundleResult = {
+  success: boolean;
+  cancelled?: boolean;
+  message?: string;
+  rows: RosterStaffRow[];
+  dayIsos: string[];
+  weekLabel: string;
 };
 
 function emptyFilters(
@@ -38,102 +66,204 @@ function emptyFilters(
     departmentId: initialFilters?.department ?? '',
     unitId: initialFilters?.unit ?? '',
     rosterId: initialFilters?.roster ?? '',
+    designationId: initialFilters?.designation ?? '',
+    staffGradeId: initialFilters?.staffGrade ?? '',
     fromDate: initialFilters?.fromDate ?? data.dayIsos[0] ?? '',
-    toDate: initialFilters?.toDate ?? data.dayIsos[data.dayIsos.length - 1] ?? '',
+    toDate:
+      initialFilters?.toDate ??
+      data.dayIsos[data.dayIsos.length - 1] ??
+      '',
     staffSearch: initialFilters?.search ?? ''
   };
 }
 
-function staffOptionsFromRows(
-  rows: RosterStaffRow[]
-): Array<{ id: string; name: string; staffCode: string; department: string; unit: string; designation: string }> {
-  return rows.map((row) => ({
-    id: row.staffId,
-    name: `${row.staffName} (${row.staffCode})`,
-    staffCode: row.staffCode,
-    department: row.department,
-    unit: row.unit,
-    designation: row.designation
-  }));
+function toWeekRange(anchorIso: string): { fromDate: string; toDate: string } {
+  const anchor = parseISO(anchorIso || format(new Date(), 'yyyy-MM-dd'));
+  const weekStart = startOfWeek(anchor, { weekStartsOn: 0 });
+  return {
+    fromDate: format(weekStart, 'yyyy-MM-dd'),
+    toDate: format(addDays(weekStart, 6), 'yyyy-MM-dd')
+  };
+}
+
+function toMonthRange(anchorIso: string): { fromDate: string; toDate: string } {
+  const anchor = parseISO(anchorIso || format(new Date(), 'yyyy-MM-dd'));
+  return {
+    fromDate: format(startOfMonth(anchor), 'yyyy-MM-dd'),
+    toDate: format(endOfMonth(anchor), 'yyyy-MM-dd')
+  };
 }
 
 function ShiftRosterWorkspaceInner({
   data,
-  initialFilters
+  initialFilters,
+  formOptions
 }: ShiftRosterWorkspaceProps) {
   const { toast } = useToast();
   const router = useRouter();
-  const pathname = usePathname();
   const searchParams = useSearchParams();
-  const [, startTransition] = useTransition();
   const {
     formTarget,
     historyRow,
+    viewRow,
     closeFormSheet,
-    closeHistorySheet
+    closeHistorySheet,
+    closeViewSheet
   } = useShiftRosterUi();
-  const [draftFilters, setDraftFilters] = useState<RosterFilterValues>(() =>
-    emptyFilters(data, initialFilters)
-  );
   const [staffMetaVisible, setStaffMetaVisible] = useState(true);
+  const [exportScopeOpen, setExportScopeOpen] = useState(false);
+  const [exportScopeChoice, setExportScopeChoice] =
+    useState<ShiftRosterExportScope>('500');
+  const exportScopeResolverRef = useRef<
+    ((value: ShiftRosterExportScope | null) => void) | null
+  >(null);
 
-  const staffOptions = staffOptionsFromRows(data.rows);
-  const workflowPayload = {
-    department: draftFilters.departmentId || undefined,
-    unit: draftFilters.unitId || undefined,
-    roster: draftFilters.rosterId || undefined,
-    fromDate: draftFilters.fromDate,
-    toDate: draftFilters.toDate
+  const filters = emptyFilters(data, initialFilters);
+  const viewMode: 'weekly' | 'monthly' =
+    data.dayIsos.length > 7 ? 'monthly' : 'weekly';
+
+  const exportParams = useMemo<LoadRosterParams>(
+    () => ({
+      department: filters.departmentId || undefined,
+      unit: filters.unitId || undefined,
+      roster: filters.rosterId || undefined,
+      designation: filters.designationId || undefined,
+      staffGrade: filters.staffGradeId || undefined,
+      fromDate: filters.fromDate,
+      toDate: filters.toDate,
+      search: filters.staffSearch || undefined
+    }),
+    [filters]
+  );
+
+  const pushDateRange = (fromDate: string, toDate: string) => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set('fromDate', fromDate);
+    params.set('toDate', toDate);
+    params.delete('page');
+    router.push(`/shift-roster?${params.toString()}`);
   };
 
-  const handleLoad = () => {
-    const params = new URLSearchParams();
-    if (draftFilters.departmentId) params.set('department', draftFilters.departmentId);
-    if (draftFilters.unitId) params.set('unit', draftFilters.unitId);
-    if (draftFilters.rosterId) params.set('roster', draftFilters.rosterId);
-    if (draftFilters.fromDate) params.set('fromDate', draftFilters.fromDate);
-    if (draftFilters.toDate) params.set('toDate', draftFilters.toDate);
-    if (draftFilters.staffSearch.trim()) params.set('search', draftFilters.staffSearch.trim());
-    const limit = searchParams.get('limit');
-    if (limit) params.set('limit', limit);
-    const query = params.toString();
-    startTransition(() => {
-      router.push(query ? `${pathname}?${query}` : pathname);
+  const handleViewModeChange = (mode: 'weekly' | 'monthly') => {
+    const anchor =
+      filters.fromDate || data.dayIsos[0] || format(new Date(), 'yyyy-MM-dd');
+    if (mode === 'monthly') {
+      const range = toMonthRange(anchor);
+      if (
+        range.fromDate === filters.fromDate &&
+        range.toDate === filters.toDate
+      ) {
+        return;
+      }
+      pushDateRange(range.fromDate, range.toDate);
+      return;
+    }
+    const range = toWeekRange(anchor);
+    if (
+      range.fromDate === filters.fromDate &&
+      range.toDate === filters.toDate
+    ) {
+      return;
+    }
+    pushDateRange(range.fromDate, range.toDate);
+  };
+
+  const resolveExportScope = (value: ShiftRosterExportScope | null) => {
+    const resolve = exportScopeResolverRef.current;
+    exportScopeResolverRef.current = null;
+    setExportScopeOpen(false);
+    resolve?.(value);
+  };
+
+  const askExportScope = () =>
+    new Promise<ShiftRosterExportScope | null>((resolve) => {
+      exportScopeResolverRef.current = resolve;
+      setExportScopeChoice('500');
+      setExportScopeOpen(true);
     });
-  };
 
-  const handleClear = () => {
-    setDraftFilters(emptyFilters(data));
-    setStaffMetaVisible(true);
-    startTransition(() => {
-      router.push(pathname);
+  const loadExportBundle = async (): Promise<ExportBundleResult> => {
+    const scope = await askExportScope();
+    if (!scope) {
+      return {
+        success: false,
+        cancelled: true,
+        rows: [],
+        dayIsos: [],
+        weekLabel: ''
+      };
+    }
+
+    const result = await getShiftRosterExportAction({
+      ...exportParams,
+      exportScope: scope
     });
+    if (!result.success || !result.data) {
+      return {
+        success: false,
+        message: result.message ?? 'Failed to load roster for export.',
+        rows: [],
+        dayIsos: [],
+        weekLabel: ''
+      };
+    }
+    if (result.limited) {
+      toast({
+        title: 'Export limited',
+        description:
+          result.message ??
+          `Showing first ${result.data.rows.length} of ${result.totalRecords} staff.`
+      });
+    }
+    return {
+      success: true,
+      rows: result.data.rows,
+      dayIsos: result.data.dayIsos,
+      weekLabel: result.data.weekLabel
+    };
   };
 
-  const handleCopyPreviousWeek = async () => {
-    const result = await copyPreviousWeekRosterAction(workflowPayload);
-    if (result.isError) {
-      const errorMessage =
-        'message' in result.errors
-          ? (result.errors.message as string | undefined)
-          : undefined;
+  const printRoster = async (mode: ShiftRosterExportMode) => {
+    const bundle = await loadExportBundle();
+    if (bundle.cancelled) return;
+    if (!bundle.success || !bundle.rows.length) {
       toast({
         variant: 'destructive',
-        title: 'Error',
-        description: errorMessage ?? 'Could not copy previous week roster.'
+        title: 'No data to print',
+        description: bundle.message ?? 'Load a roster before printing.'
       });
       return;
     }
-    toast({
-      variant: 'success',
-      title: 'Success',
-      description: `Copied ${result.data?.copied ?? 0} allocation(s).`
+    const built = buildShiftRosterExport({
+      rows: bundle.rows,
+      dayIsos: bundle.dayIsos,
+      mode,
+      includeStaffMeta: staffMetaVisible
     });
-    router.refresh();
+    const title =
+      mode === 'blank'
+        ? `Blank Shift Roster — ${bundle.weekLabel}`
+        : `Shift Roster — ${bundle.weekLabel}`;
+    printPdfUtil({
+      title,
+      data: built.data,
+      columns: built.columns,
+      keys: built.keys
+    });
   };
 
-  const handleCopyPreviousMonth = async () => {
-    const result = await copyPreviousMonthRosterAction(workflowPayload);
+  const runCopy = async (
+    action: typeof copyPreviousWeekRosterAction,
+    fallbackMessage: string,
+    payload: {
+      department?: string;
+      unit?: string;
+      roster?: string;
+      fromDate: string;
+      toDate: string;
+    }
+  ) => {
+    const result = await action(payload);
     if (result.isError) {
       const errorMessage =
         'message' in result.errors
@@ -142,7 +272,7 @@ function ShiftRosterWorkspaceInner({
       toast({
         variant: 'destructive',
         title: 'Error',
-        description: errorMessage ?? 'Could not copy previous month roster.'
+        description: errorMessage ?? fallbackMessage
       });
       return;
     }
@@ -164,17 +294,28 @@ function ShiftRosterWorkspaceInner({
       <SectionRosterInstructions />
 
       <SectionRosterFilters
-        values={draftFilters}
+        initial={filters}
         departmentOptions={data.filterOptions.departments}
         unitOptions={data.filterOptions.units}
         rosterOptions={data.filterOptions.rosters}
-        onChange={(next) =>
-          setDraftFilters((prev) => ({ ...prev, ...next }))
+        designationOptions={data.filterOptions.designations}
+        staffGradeOptions={data.filterOptions.staffGrades}
+        onCopyPreviousWeek={(payload) =>
+          void runCopy(
+            copyPreviousWeekRosterAction,
+            'Could not copy previous week roster.',
+            payload
+          )
         }
-        onLoad={handleLoad}
-        onClear={handleClear}
-        onCopyPreviousWeek={() => void handleCopyPreviousWeek()}
-        onCopyPreviousMonth={() => void handleCopyPreviousMonth()}
+        onCopyPreviousMonth={(payload) =>
+          void runCopy(
+            copyPreviousMonthRosterAction,
+            'Could not copy previous month roster.',
+            payload
+          )
+        }
+        onPrintBlank={() => printRoster('blank')}
+        onPrintFilled={() => printRoster('filled')}
         staffMetaVisible={staffMetaVisible}
         onHideStaffMeta={() => setStaffMetaVisible(false)}
         onShowStaffMeta={() => setStaffMetaVisible(true)}
@@ -189,17 +330,22 @@ function ShiftRosterWorkspaceInner({
         conflicts={data.summary.conflicts}
         shiftTypes={data.shiftTypes}
         periodAudit={data.periodAudit}
+        periodFromDate={filters.fromDate}
+        periodToDate={filters.toDate}
+        rosterValue={filters.rosterId}
+        viewMode={viewMode}
+        onViewModeChange={handleViewModeChange}
+        onExportRoster={loadExportBundle}
       />
 
       {formTarget ? (
         <SheetRosterAllocationForm
           open
           target={formTarget}
-          staffOptions={staffOptions}
-          shiftTypes={data.shiftTypes}
-          periodFromDate={draftFilters.fromDate}
-          periodToDate={draftFilters.toDate}
-          rosterValue={draftFilters.rosterId}
+          formOptions={formOptions}
+          periodFromDate={filters.fromDate}
+          periodToDate={filters.toDate}
+          rosterValue={filters.rosterId}
           onOpenChange={(next) => {
             if (!next) closeFormSheet();
           }}
@@ -209,9 +355,28 @@ function ShiftRosterWorkspaceInner({
       <SheetRosterAllocationHistory
         open={!!historyRow}
         record={historyRow}
+        dayIsos={data.dayIsos}
         onOpenChange={(next) => {
           if (!next) closeHistorySheet();
         }}
+      />
+
+      <SheetRosterStaffView
+        open={!!viewRow}
+        record={viewRow}
+        dayIsos={data.dayIsos}
+        onOpenChange={(next) => {
+          if (!next) closeViewSheet();
+        }}
+      />
+
+      <DialogExportScope
+        open={exportScopeOpen}
+        value={exportScopeChoice}
+        totalMatching={data.totalRecords}
+        onValueChange={setExportScopeChoice}
+        onCancel={() => resolveExportScope(null)}
+        onConfirm={() => resolveExportScope(exportScopeChoice)}
       />
     </div>
   );

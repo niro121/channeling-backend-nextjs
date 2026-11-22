@@ -50,6 +50,8 @@ type BillDetailRecord = {
   lineItems: Array<{
     id: string;
     doctorName: string;
+    doctorId?: string | null;
+    doctorCode?: string | null;
     description: string;
     amount: number;
     sortOrder: number;
@@ -57,6 +59,7 @@ type BillDetailRecord = {
     doctorPaymentId?: string | null;
     deletedAt?: Date | null;
     deletedByName?: string | null;
+    deleteRemark?: string | null;
   }>;
   receipts: Array<{
     id: string;
@@ -93,12 +96,15 @@ function mapLineItems(
     .map((item) => ({
       id: item.id,
       doctorName: item.doctorName,
+      doctorId: item.doctorId ?? null,
+      doctorCode: item.doctorCode ?? null,
       description: item.description,
       amount: item.amount,
       status: normalizeLineItemStatus(item.status),
       doctorPaymentId: item.doctorPaymentId ?? null,
       deletedAt: item.deletedAt?.toISOString() ?? null,
       deletedByName: item.deletedByName ?? null,
+      deleteRemark: item.deleteRemark ?? null,
     }));
 }
 
@@ -203,6 +209,8 @@ function buildLineItemPayload(draft: PatientBillDraft) {
     id: item.id,
     sortOrder: index,
     doctorName: item.doctorName.trim(),
+    doctorId: item.doctorId?.trim() || null,
+    doctorCode: item.doctorCode?.trim() || null,
     description: item.description.trim(),
     amount: item.amount,
   }));

@@ -16,15 +16,26 @@ model User {
   username       String?
   status         Int
   userLocationId String?   @db.ObjectId
+  staffId        String?   @db.ObjectId
   userLocation   Location? @relation("LocationToUser", fields: [userLocationId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  staff          Staff?    @relation("UserToStaff", fields: [staffId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model Staff {
+  id    String @id @default(auto()) @map("_id") @db.ObjectId
+  code  String @unique
+  users User[] @relation("UserToStaff")
 }
 
 model Location {
-  id     String @id @default(auto()) @map("_id") @db.ObjectId
-  name   String
-  code   String @unique
-  status Int
-  users  User[] @relation("LocationToUser")
+  id           String @id @default(auto()) @map("_id") @db.ObjectId
+  name         String
+  code         String @unique
+  status       Int
+  addressLine1 String?
+  addressLine2 String?
+  city         String?
+  users        User[] @relation("LocationToUser")
 }
 
 /// Banks for payment dropdowns (Channeling Tag type = 4).

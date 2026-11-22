@@ -4,6 +4,7 @@ import React, { useEffect } from "react"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import {
   ColumnDef,
+  Row,
   flexRender,
   getCoreRowModel,
   useReactTable,
@@ -80,7 +81,9 @@ interface DataTableProps<TData, TValue> {
   haveDataDownload?: boolean
   /** If false, hides pagination controls (useful for static lists). */
   showPagination?: boolean
-  deleteServerAction?: (ids: string[]) => Promise<boolean>
+  deleteServerAction?: (
+    ids: string[]
+  ) => Promise<boolean | { success: boolean; message?: string }>
   /** Optional function to get custom bulk delete description. Receives selected IDs and returns description string or Promise<string> */
   getBulkDeleteDescription?: (ids: string[]) => Promise<string> | string
   /** Renders inside the card above the table (e.g. search + Add button), like shadcn tasks example */
@@ -93,6 +96,10 @@ interface DataTableProps<TData, TValue> {
   hideAutoBulkDelete?: boolean
   /** Renders on the right side of the card header next to the title (e.g. branch filter). */
   headingRight?: React.ReactNode
+  /** When set, only rows this returns true for can be ticked. */
+  enableRowSelection?: boolean | ((row: Row<TData>) => boolean)
+  /** Stable row id so a tick stays attached to the record across page changes. */
+  getRowId?: (originalRow: TData, index: number) => string
 }
 
 export function CustomDataTable<TData, TValue>({
@@ -113,13 +120,15 @@ export function CustomDataTable<TData, TValue>({
   toolbarRight,
   hideAutoBulkDelete = false,
   headingRight,
+  enableRowSelection = true,
+  getRowId,
 }: DataTableProps<TData, TValue>) {
   const searchParams = useSearchParams()
   const pathname = usePathname()
   const router = useRouter()
   const { toast } = useToast()
 
-  const [rowSelection, setRowSelection] = React.useState({})
+  const [rowSelection, setRowSelection] = React.useState<Record<string, boolean>>({})
   const [showDeleteConfirmation, setShowDelConfirmation] = React.useState(false)
   const [loading, setLoading] = React.useState(false)
   const [fetchingDescription, setFetchingDescription] = React.useState(false)
@@ -132,9 +141,10 @@ export function CustomDataTable<TData, TValue>({
     data,
     columns,
     rowCount,
-    enableRowSelection: true,
+    enableRowSelection,
     manualPagination: true,
     getCoreRowModel: getCoreRowModel(),
+    getRowId,
     onRowSelectionChange: setRowSelection,
     state: {
       rowSelection,
@@ -170,15 +180,36 @@ export function CustomDataTable<TData, TValue>({
     getNewSearchParams(page, "page")
   }
 
-  const onDeleteConfirmation = async () => {
+  const collectSelectedIds = () => {
     const idsToDelete: string[] = []
-
-    Object.keys(rowSelection).forEach((item) => {
-      const row = table.getRow(item).original as { id: string }
-      if (row.id) {
-        idsToDelete.push(row.id)
+    Object.entries(rowSelection).forEach(([item, selected]) => {
+      if (!selected) return
+      try {
+        const row = table.getRow(item).original as { id?: string }
+        if (row?.id) idsToDelete.push(row.id)
+        else if (getRowId) idsToDelete.push(item)
+      } catch {
+        if (getRowId) idsToDelete.push(item)
       }
     })
+    return idsToDelete
+  }
+
+  const readDeleteResult = (
+    result: boolean | { success: boolean; message?: string }
+  ): { success: boolean; message?: string } => {
+    if (typeof result === "boolean") return { success: result }
+    if (result && typeof result === "object" && "success" in result) {
+      return {
+        success: result.success === true,
+        message: typeof result.message === "string" ? result.message : undefined,
+      }
+    }
+    return { success: Boolean(result) }
+  }
+
+  const onDeleteConfirmation = async () => {
+    const idsToDelete = collectSelectedIds()
 
     if (!deleteServerAction) {
       toast({
@@ -191,14 +222,14 @@ export function CustomDataTable<TData, TValue>({
 
     try {
       setLoading(true)
-      const success = await deleteServerAction(idsToDelete)
+      const outcome = readDeleteResult(await deleteServerAction(idsToDelete))
       setShowDelConfirmation(false)
 
-      if (!success) {
+      if (!outcome.success) {
         toast({
           variant: "destructive",
           title: "Error",
-          description: "Records could not be deleted. Please try again.",
+          description: outcome.message ?? "Records could not be deleted. Please try again.",
         })
         return
       }
@@ -206,7 +237,7 @@ export function CustomDataTable<TData, TValue>({
       toast({
         variant: "success",
         title: "Success",
-        description: "Records were deleted successfully",
+        description: outcome.message ?? "Records were deleted successfully",
       })
       setRowSelection({})
       router.refresh()
@@ -226,13 +257,7 @@ export function CustomDataTable<TData, TValue>({
   const showHideDeleteModal = async (value: boolean) => {
     if (value) {
       // When opening the modal, fetch custom description if provided
-      const idsToDelete: string[] = []
-      Object.keys(rowSelection).forEach((item) => {
-        const row = table.getRow(item).original as { id: string }
-        if (row.id) {
-          idsToDelete.push(row.id)
-        }
-      })
+      const idsToDelete = collectSelectedIds()
 
       if (getBulkDeleteDescription && idsToDelete.length > 0) {
         setFetchingDescription(true)
@@ -332,6 +357,8 @@ export function CustomDataTable<TData, TValue>({
     }
   }, [table, limit, page])
 
+  const selectedCount = Object.values(rowSelection).filter(Boolean).length
+
   const contextValue = React.useMemo(() => ({
     rowSelection,
     showHideDeleteModal,
@@ -352,7 +379,7 @@ export function CustomDataTable<TData, TValue>({
             </div>
           ) : null}
         </CardHeader>
-        {(toolbar != null || toolbarLeft != null || toolbarRight != null || haveBulkDelete) ? (
+        {(toolbar != null || toolbarLeft != null || toolbarRight != null || (haveBulkDelete && selectedCount > 0)) ? (
           <div className={`flex flex-col gap-4 px-6 pb-4 sm:flex-row sm:items-start ${(toolbar != null || toolbarLeft != null || toolbarRight != null) ? 'sm:justify-between' : 'sm:justify-end'}`}>
             {toolbarLeft != null || toolbarRight != null ? (
               <>
@@ -364,7 +391,7 @@ export function CustomDataTable<TData, TValue>({
                       variant="ghost"
                       size="sm"
                       className="h-9 min-w-[7rem] gap-1.5 text-destructive hover:bg-destructive/10 hover:text-destructive disabled:invisible cursor-pointer"
-                      disabled={Object.keys(rowSelection).length === 0}
+                      disabled={selectedCount === 0}
                       onClick={() => showHideDeleteModal(true)}
                     >
 
@@ -390,8 +417,8 @@ export function CustomDataTable<TData, TValue>({
                     variant="ghost"
                     size="sm"
                     className="h-9 gap-1.5 text-destructive hover:bg-destructive/10 hover:text-destructive disabled:invisible"
-                    disabled={Object.keys(rowSelection).length === 0}
-                    onClick={() => setShowDelConfirmation(true)}
+                    disabled={selectedCount === 0}
+                    onClick={() => showHideDeleteModal(true)}
                   >
                     {fetchingDescription ? (
                       <Loader2 className="h-4 w-4 animate-spin" />

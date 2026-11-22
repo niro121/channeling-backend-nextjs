@@ -333,7 +333,8 @@ export default function DoctorSessionForm({
           toast({
             variant: 'destructive',
             title: 'Error',
-            description: 'Doctor Session update unsuccessful.'
+            description:
+              respond?.error?.message || 'Doctor Session update unsuccessful.'
           });
           return;
         }
@@ -353,7 +354,8 @@ export default function DoctorSessionForm({
           toast({
             variant: 'destructive',
             title: 'Error',
-            description: 'Doctor Session save unsuccessful.'
+            description:
+              respond?.error?.message || 'Doctor Session save unsuccessful.'
           });
           return;
         }

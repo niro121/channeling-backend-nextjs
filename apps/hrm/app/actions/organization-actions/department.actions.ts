@@ -10,6 +10,7 @@ import {
   deleteDepartment,
   getDepartmentById,
   getDepartmentList,
+  getDepartmentOptions,
   updateDepartment
 } from '@/services/organization-services/department.service';
 import { syncAllDepartmentsFromChanneling } from '@/services/organization-services/department-sync.service';
@@ -70,6 +71,41 @@ export async function getDepartmentListAction(
   }
 }
 
+/**
+ * Published department options for Comboboxes in other modules (Manage Rosters, etc.).
+ * Auth: signed-in user only — not gated on organizations CRUD (mirrors Staff Speciality options pattern).
+ */
+export async function getDepartmentOptionsAction(): Promise<{
+  isError: boolean;
+  data: Array<{ id: string; name: string }> | null;
+  errors: Record<string, unknown>;
+}> {
+  try {
+    const auditUser = await getAuditUser();
+    if (!auditUser?.id) {
+      throw new Error('Unauthorized');
+    }
+    const result = await getDepartmentOptions();
+    if (!result.success) {
+      throw new Error(result.error?.message ?? 'Failed to load department options');
+    }
+    return {
+      isError: false,
+      data: result.data ?? [],
+      errors: {}
+    };
+  } catch (error: any) {
+    console.error('getDepartmentOptionsAction error:', error);
+    return {
+      isError: true,
+      data: null,
+      errors: {
+        message: error.message ?? 'Error getting department options.'
+      }
+    };
+  }
+}
+
 export async function getDepartmentByIdAction(id: string) {
   try {
     await requirePermission('organizations', 'view');
@@ -120,43 +156,29 @@ export async function createDepartmentAction(
     const shouldSyncToChanneling = options?.syncToChanneling ?? true;
 
     if (shouldSyncToChanneling && hrmId) {
-      const channelingResult = await pushDepartmentCreateToChanneling(
-        hrmId,
-        payload
-      );
+      try {
+        const channelingResult = await pushDepartmentCreateToChanneling(
+          hrmId,
+          payload
+        );
 
-      if (!channelingResult.success) {
-        await deleteDepartment(hrmId);
-        return {
-          isError: true,
-          errors: {
-            message:
-              channelingResult.error?.message ??
-              'Department could not be created in Channeling. No record was saved in HRM.'
-          },
-          data: null
-        };
-      }
-
-      const refreshed = await getDepartmentById(hrmId);
-      if (refreshed.success && refreshed.data) {
-        if (auditUser?.id) {
-          logActivityNonBlocking({
-            userId: auditUser.id,
-            action: 'organizations.departments.created',
-            entityType: 'Department',
-            entityId: hrmId,
-            importance: 'high'
-          });
+        if (!channelingResult.success) {
+          channelingWarning =
+            channelingResult.error?.message ??
+            'Department was saved in HRM, but Channeling sync failed.';
         }
-        revalidatePath('/departments');
-        return {
-          isError: false,
-          data: mapDepartmentToUiRecord(refreshed.data),
-          errors: {}
-        };
+      } catch (syncError: any) {
+        channelingWarning =
+          syncError?.message ??
+          'Department was saved in HRM, but Channeling sync failed.';
       }
     }
+
+    const refreshed = await getDepartmentById(hrmId);
+    const savedRecord =
+      refreshed.success && refreshed.data
+        ? mapDepartmentToUiRecord(refreshed.data)
+        : mapDepartmentToUiRecord(result.data);
 
     if (auditUser?.id) {
       logActivityNonBlocking({
@@ -171,7 +193,7 @@ export async function createDepartmentAction(
     revalidatePath('/departments');
     return {
       isError: false,
-      data: mapDepartmentToUiRecord(result.data),
+      data: savedRecord,
       errors: {},
       channelingWarning
     };

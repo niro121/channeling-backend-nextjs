@@ -97,6 +97,10 @@ export type HandoverTabData = {
     reconciledBy?: string | null
     cannotReconcileAt?: string | null
     cannotReconcileReason?: string | null
+    /** Set when the receipt was canceled. Still tickable. */
+    canceledAt?: string | null
+    /** Set for a DPAY receipt. The tick is stored in Channeling; the receipt stays in DPAY. */
+    source?: "dpay"
   }>
 }
 
@@ -225,8 +229,18 @@ export function ReconciliationDocumentView({
   const { toast } = useToast()
   const { has } = usePermissions()
   const isOpenForAction = reconciliationStatus === RECONCILIATION_STATUS.IN_RECONCILIATION
-  const canApproveReconciliation =
-    isOpenForAction && has("reconciliation", "approve-reconciliation") && canActAsReconciler
+  const isApproved = reconciliationStatus === RECONCILIATION_STATUS.RECONCILED_APPROVED
+  const hasOpenReceipts = chain.some((tab) =>
+    tab.receipts.some((r) => !r.reconciledAt && !r.cannotReconcileAt)
+  )
+  const canPostLines =
+    (isOpenForAction &&
+      has("reconciliation", "approve-reconciliation") &&
+      canActAsReconciler) ||
+    (isApproved &&
+      hasOpenReceipts &&
+      has("reconciliation", "post-approved-reconciliation") &&
+      canActAsReconciler)
 
   const [tickedByHandoverId, setTickedByHandoverId] = useState<Record<string, Set<string>>>(() => {
     const o: Record<string, Set<string>> = {}
@@ -342,7 +356,7 @@ export function ReconciliationDocumentView({
   }
 
   const handleSubmit = async () => {
-    if (!hasBatchToPost || !canApproveReconciliation) return
+    if (!hasBatchToPost || !canPostLines) return
     setSubmitting(true)
     try {
       const tickedReceiptIdsByHandoverId: Record<string, string[]> = {}
@@ -385,7 +399,7 @@ export function ReconciliationDocumentView({
       toast({ title: "Please enter a rejection reason.", variant: "destructive" })
       return
     }
-    if (!canApproveReconciliation) return
+    if (!isOpenForAction || !canPostLines) return
     if (hasPostedReceipts) {
       toast({ title: "Cannot reject after a receipt has been posted.", variant: "destructive" })
       return
@@ -505,11 +519,17 @@ export function ReconciliationDocumentView({
         <Alert className="border-green-500/50 bg-green-50 dark:bg-green-950/30 dark:border-green-500/40">
           <CheckCircle2 className="h-4 w-4" />
           <AlertTitle>Already reconciled</AlertTitle>
-          <AlertDescription>This handover has been submitted as reconciled. The document is read-only.</AlertDescription>
+          <AlertDescription>
+            {hasOpenReceipts && canPostLines
+              ? "This handover was reconciled. Receipts that were not posted, including a canceled receipt, can still be ticked and posted. Lines already posted stay locked."
+              : hasOpenReceipts
+                ? "This handover was reconciled. Some receipts were not posted. Posting them needs the Post On Approved Reconciliation privilege."
+                : "This handover has been submitted as reconciled. The document is read-only."}
+          </AlertDescription>
         </Alert>
       ) : (
         <p className="text-sm text-muted-foreground">
-          Post in batches. Only ticked receipts are deducted from the cashier till. Mark leftover lines as can&apos;t reconcile (they stay on the till) so the document can close.
+          Post in batches. Only ticked receipts are deducted from the cashier till. DPAY card, slip, cheque, and e-wallet receipts for the shift are on this list too. Mark leftover lines as can&apos;t reconcile (they stay on the till) so the document can close.
         </p>
       )}
 
@@ -729,7 +749,7 @@ export function ReconciliationDocumentView({
                                 const pendingCannot = cannotByHandoverId[tab.handover.id]?.[r.id]
                                 const postedCannot = Boolean(r.cannotReconcileAt)
                                 const postedReconciled = Boolean(r.reconciledAt) && !postedCannot
-                                const locked = postedReconciled || postedCannot || !isOpenForAction
+                                const locked = postedReconciled || postedCannot || !canPostLines
                                 const shiftLabel = tab.handover.shift?.startedAt
                                   ? `${fromUserLabel(tab.handover.fromUser)} · ${formatDateTimeWithSeconds(tab.handover.shift.startedAt)}`
                                   : fromUserLabel(tab.handover.fromUser)
@@ -743,7 +763,10 @@ export function ReconciliationDocumentView({
                                       />
                                     </TableCell>
                                     <TableCell className="py-1.5 text-xs text-muted-foreground whitespace-nowrap">{shiftLabel}</TableCell>
-                                    <TableCell className="py-1.5 font-mono text-xs">{r.receiptNoString}</TableCell>
+                                    <TableCell className="py-1.5 font-mono text-xs">
+                                      {r.source === "dpay" ? "DPAY " : ""}
+                                      {r.receiptNoString}
+                                    </TableCell>
                                     <TableCell className="py-1.5 text-xs whitespace-nowrap">
                                       {formatDateTimeWithSeconds(r.createdAt)}
                                     </TableCell>
@@ -753,6 +776,9 @@ export function ReconciliationDocumentView({
                                     <TableCell className="py-1.5 text-xs">{formatReceiptBank(r)}</TableCell>
                                     <TableCell className="py-1.5 text-xs font-mono">{formatReceiptReference(r)}</TableCell>
                                     <TableCell className="py-1.5 text-xs text-left align-top min-w-[10rem]">
+                                      {r.canceledAt ? (
+                                        <p className="font-medium text-amber-700 dark:text-amber-400">Canceled</p>
+                                      ) : null}
                                       {postedCannot ? (
                                         <div className="text-left">
                                           <p className="font-medium text-red-700 dark:text-red-400">Can&apos;t reconcile</p>
@@ -766,7 +792,7 @@ export function ReconciliationDocumentView({
                                         <div className="text-left">
                                           <p className="font-medium text-red-700 dark:text-red-400">Can&apos;t reconcile</p>
                                           <p className="mt-0.5 text-[11px] text-muted-foreground whitespace-normal">{pendingCannot}</p>
-                                          {isOpenForAction && (
+                                          {canPostLines && (
                                             <Button
                                               variant="link"
                                               size="sm"
@@ -785,7 +811,7 @@ export function ReconciliationDocumentView({
                                         </div>
                                       ) : ticked.has(r.id) ? (
                                         <p className="font-medium text-green-700 dark:text-green-400">Ticked</p>
-                                      ) : isOpenForAction ? (
+                                      ) : canPostLines ? (
                                         <Button
                                           variant="link"
                                           size="sm"
@@ -944,7 +970,7 @@ export function ReconciliationDocumentView({
         <Button variant="outline" asChild>
           <Link href="/reconciliation">Cancel</Link>
         </Button>
-        {canApproveReconciliation && (
+        {canPostLines && (
           <>
             {!hasPostedReceipts && (
             <Dialog open={rejectOpen} onOpenChange={setRejectOpen}>
@@ -992,11 +1018,13 @@ export function ReconciliationDocumentView({
             </Button>
           </>
         )}
-        {!canApproveReconciliation && isOpenForAction && (
+        {!canPostLines && (isOpenForAction || (isApproved && hasOpenReceipts)) && (
           <span className="text-sm text-muted-foreground">
-            {canActAsReconciler
-              ? "You do not have permission to approve or reject reconciliation."
-              : "Only the assigned reconciler can submit or reject this handover."}
+            {isApproved
+              ? "Posting on an approved reconciliation needs the Post On Approved Reconciliation privilege."
+              : canActAsReconciler
+                ? "You do not have permission to approve or reject reconciliation."
+                : "Only the assigned reconciler can submit or reject this handover."}
           </span>
         )}
       </div>

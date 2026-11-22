@@ -16,7 +16,12 @@ import FormGeneral, { type GeneralFormActions } from './form-general';
 import FormHrDetail, { type HrDetailFormActions } from './form-hr-detail';
 import FormEmployment, { type EmploymentFormActions } from './form-employment';
 import SectionAdditionalDetailContent from './section-additional-detail-content';
-import type { StaffRecord, StaffWithAuthUsers } from '@/types/staff';
+import type {
+  GeneralFormValues,
+  StaffEmploymentFormOptions,
+  StaffRecord,
+  StaffWithAuthUsers
+} from '@/types/staff';
 import type { StaffSpecialityOption } from '@/types/staff-speciality';
 
 type TabLayoutProps = {
@@ -24,13 +29,29 @@ type TabLayoutProps = {
   staffId?: string;
   isEditPage?: boolean;
   specialityOptions?: StaffSpecialityOption[];
+  zoneOptions?: { id: string; name: string }[];
+  employmentFormOptions?: StaffEmploymentFormOptions;
+  /** Wave 9 — prefill Add Staff from appointment letter. */
+  generalPrefill?: GeneralFormValues | null;
+  appointmentLetterId?: string;
+};
+
+const emptyEmploymentFormOptions: StaffEmploymentFormOptions = {
+  departments: [],
+  designations: [],
+  grades: [],
+  rosters: []
 };
 
 export default function TabLayout({
   staff,
   staffId,
   isEditPage = false,
-  specialityOptions = []
+  specialityOptions = [],
+  zoneOptions = [],
+  employmentFormOptions = emptyEmploymentFormOptions,
+  generalPrefill = null,
+  appointmentLetterId
 }: TabLayoutProps) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
@@ -93,6 +114,7 @@ export default function TabLayout({
       <FormEmployment
         staff={staff}
         staffId={staffId}
+        formOptions={employmentFormOptions}
         onRegisterActions={handleRegisterEmploymentActions}
         onLoadingChange={setLoading}
       />
@@ -116,10 +138,12 @@ export default function TabLayout({
       icon: <UserIcon className="w-4 h-4" />,
       form: (
         <FormGeneral
-          staff={staff}
+          staff={staff ?? generalPrefill}
           staffId={staffId}
           isEditPage={isEditPage}
           specialityOptions={specialityOptions}
+          zoneOptions={zoneOptions}
+          appointmentLetterId={appointmentLetterId}
           onRegisterActions={handleRegisterGeneralActions}
           onLoadingChange={setLoading}
         />

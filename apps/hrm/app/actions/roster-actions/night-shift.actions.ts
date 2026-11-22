@@ -7,6 +7,7 @@ import { requirePermission } from '@/lib/server-permissions';
 import {
   createNightShift,
   deleteNightShift,
+  getNightShiftConflictPreview,
   getNightShiftFilterOptions,
   getNightShiftFormOptions,
   getNightShiftHistory,
@@ -138,6 +139,45 @@ export async function getNightShiftFormOptionsAction() {
   }
 }
 
+export async function getNightShiftConflictPreviewAction(input: {
+  staffId: string;
+  shiftDate: Date | string | null;
+  shiftTypeId?: string | null;
+  excludeAllocationId?: string | null;
+}) {
+  try {
+    await requirePermission('shift-roster', 'view');
+    if (!input.staffId?.trim() || !input.shiftDate) {
+      return { isError: false, data: null, errors: {} };
+    }
+    const result = await getNightShiftConflictPreview({
+      staffId: input.staffId,
+      shiftDate: input.shiftDate,
+      shiftTypeId: input.shiftTypeId,
+      excludeAllocationId: input.excludeAllocationId
+    });
+    if (!result.success) {
+      return {
+        isError: true,
+        data: null,
+        errors: {
+          message: result.error?.message ?? 'Could not check conflicts'
+        }
+      };
+    }
+    return { isError: false, data: result.data ?? null, errors: {} };
+  } catch (error: any) {
+    console.error('getNightShiftConflictPreviewAction error', error);
+    return {
+      isError: true,
+      data: null,
+      errors: {
+        message: error.message ?? 'Could not check conflicts'
+      }
+    };
+  }
+}
+
 export async function createNightShiftAction(payload: NightShiftPayload) {
   await requirePermission('shift-roster', 'add');
   try {
@@ -149,7 +189,11 @@ export async function createNightShiftAction(payload: NightShiftPayload) {
         data: null,
         errors: {
           message: result.error?.message ?? 'Could not save night shift',
-          ...(result.error?.issues ?? {})
+          ...(result.error?.issues ?? {}),
+          ...(result.error?.softWarnings
+            ? { softWarnings: result.error.softWarnings }
+            : {}),
+          ...(result.error?.requiresAck ? { requiresAck: true } : {})
         }
       };
     }
@@ -194,7 +238,11 @@ export async function updateNightShiftAction(
         data: null,
         errors: {
           message: result.error?.message ?? 'Could not update night shift',
-          ...(result.error?.issues ?? {})
+          ...(result.error?.issues ?? {}),
+          ...(result.error?.softWarnings
+            ? { softWarnings: result.error.softWarnings }
+            : {}),
+          ...(result.error?.requiresAck ? { requiresAck: true } : {})
         }
       };
     }
@@ -283,21 +331,35 @@ export async function getNightShiftHistoryAction(id: string) {
 }
 
 export async function getNightShiftsExportAction(params: GetNightShiftsParams) {
+  await requirePermission('shift-roster', 'view');
+
   try {
-    await requirePermission('shift-roster', 'view');
-    const result = await getNightShiftsForExport(listParams(params));
-    if (!result.success) {
+    const response = await getNightShiftsForExport(listParams(params));
+
+    if (!response.data?.length) {
       return {
         success: false,
-        message: result.error?.message ?? 'Failed to export night shifts'
+        message: 'No night shifts found',
+        data: [],
+        totalRecords: 0
       };
     }
-    return { success: true, data: result.data ?? [] };
-  } catch (error: any) {
+
+    return {
+      success: true,
+      data: response.data,
+      totalRecords: response.totalRecords
+    };
+  } catch (error: unknown) {
     console.error('getNightShiftsExportAction error', error);
     return {
       success: false,
-      message: error.message ?? 'Failed to export night shifts'
+      message:
+        error instanceof Error
+          ? error.message
+          : 'Error getting data. Please try again later',
+      data: [],
+      totalRecords: 0
     };
   }
 }

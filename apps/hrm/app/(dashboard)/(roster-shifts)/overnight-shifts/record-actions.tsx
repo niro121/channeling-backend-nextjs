@@ -8,6 +8,7 @@ import { usePermissions } from '@/components/hooks/use-permissions';
 import { deleteOvernightShiftAction } from '@/app/actions/roster-actions/overnight-shift.actions';
 import type { OvernightShiftRecord } from '@/types/roster';
 import { useOvernightShiftsUi } from './overnight-shifts-ui-context';
+import { buttonStyles } from '@/lib/utils/common-styles';
 
 type OvernightRecordActionsProps = {
   record: OvernightShiftRecord;
@@ -37,7 +38,11 @@ export default function OvernightRecordActions({
           description: result.errors?.message ?? 'Could not delete overnight shift'
         });
       } else {
-        toast({ title: 'Overnight shift deleted' });
+        toast({
+          variant: 'success',
+          title: 'Success',
+          description: `Overnight shift for ${record.staffName} deleted.`
+        });
         router.refresh();
       }
     } catch {
@@ -98,6 +103,7 @@ export default function OvernightRecordActions({
         title="Delete overnight shift?"
         description={`This will remove the overnight duty for ${record.staffName} (${record.staffCode}).`}
         handleContinue={handleDelete}
+        className={{ actionButton: buttonStyles.delete.danger }}
       />
     </>
   );

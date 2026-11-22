@@ -339,7 +339,10 @@ export async function getAgentWiseAppointmentsReportService(
       if (wantDetail) {
         const doctor = b.doctor;
         const patientName = [b.title, b.name].filter(Boolean).join(' ').trim() || '—';
-        const billNumber = (b.receiptNoString ?? b.bookingid_string ?? '').trim() || '—';
+        const paidBillNumber = (b.receiptNoString ?? b.bookingid_string ?? '').trim() || '—';
+        const cancelBillNumber = (b.refundReceiptNoString ?? '').trim();
+        const isReversal = event.suffix === 'cancel' || event.suffix === 'refund';
+        const billNumber = isReversal && cancelBillNumber ? cancelBillNumber : paidBillNumber;
         const creatorLabel = formatCreatorBlock(b.createdUser, b.createdAt);
         const hosFee = Number(b.hospitalFee ?? 0);
         const proFee = Number(b.professionalFee ?? 0);

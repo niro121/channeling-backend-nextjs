@@ -10,6 +10,10 @@ import {
 } from '@/types/doctor.session';
 import { Prisma } from '@prisma/client';
 import z from 'zod';
+import {
+  findOverlappingDoctorSession,
+  formatDoctorSessionOverlapMessage
+} from '@/lib/doctor-session-overlap';
 
 // ==== DOCTOR-SESSION: VALIDATION SCHEMA ==== //
 const feeSchema = z.object({
@@ -85,6 +89,42 @@ const doctorSessionSchema = z
     }
   });
 
+async function doctorSessionOverlapMessage(input: {
+  doctorId: string;
+  excludeId?: string;
+  dayType: number;
+  applyTo?: Date | null;
+  startTime: Date;
+  endTime: Date;
+}): Promise<string | null> {
+  const existing = await prisma.doctorSession.findMany({
+    where: {
+      doctorId: input.doctorId,
+      ...(input.excludeId ? { id: { not: input.excludeId } } : {})
+    },
+    select: {
+      id: true,
+      name: true,
+      dayType: true,
+      applyTo: true,
+      startTime: true,
+      endTime: true
+    }
+  });
+
+  const overlap = findOverlappingDoctorSession(
+    {
+      dayType: input.dayType,
+      applyTo: input.applyTo ?? null,
+      startTime: input.startTime,
+      endTime: input.endTime
+    },
+    existing
+  );
+
+  return overlap ? formatDoctorSessionOverlapMessage(overlap) : null;
+}
+
 // ================ //
 // CRUD OPERATIONS
 // ================ //
@@ -131,6 +171,20 @@ export const createDoctorSessionService = async (
 
     const data = parsed.data;
     const fees = mergeCanonicalSessionFees(data.fees);
+
+    const overlapMessage = await doctorSessionOverlapMessage({
+      doctorId: data.doctorId,
+      dayType: data.dayType,
+      applyTo: data.applyTo ?? null,
+      startTime: data.startTime,
+      endTime: data.endTime
+    });
+    if (overlapMessage) {
+      return {
+        success: false,
+        error: { message: overlapMessage }
+      };
+    }
 
     const userRelation = user?.id ? { connect: { id: user.id } } : undefined;
 
@@ -244,6 +298,21 @@ export const updateDoctorSessionService = async (
 
     const data = parsed.data;
     const fees = mergeCanonicalSessionFees(data.fees);
+
+    const overlapMessage = await doctorSessionOverlapMessage({
+      doctorId: data.doctorId,
+      excludeId: sessionId,
+      dayType: data.dayType,
+      applyTo: data.applyTo ?? null,
+      startTime: data.startTime,
+      endTime: data.endTime
+    });
+    if (overlapMessage) {
+      return {
+        success: false,
+        error: { message: overlapMessage }
+      };
+    }
 
     const userRelation = user?.id ? { connect: { id: user.id } } : undefined;
 

@@ -16,7 +16,13 @@ import {
   type AccountingTx,
 } from "@/services/accounting.service";
 import { getNextSequenceNumber } from "@/services/channel-booking/helpers/sequence";
+import { receiptSequenceKindFromNumber } from "@/services/channel-booking/helpers/get-receipt-sequence";
 import { getCurrentShift, getShiftRequirementFailure } from "@/services/shift.service";
+import {
+  logHiddenSessionMoves,
+  restoreBookingsFromHiddenSession,
+  type HiddenSessionMoveLog,
+} from "@/services/doctor-payment/move-bookings-to-hidden-session";
 
 const JOURNAL_SEQUENCE_SCOPE = "journal";
 
@@ -27,7 +33,12 @@ export type CancelDoctorPaymentInput = {
 };
 
 export type CancelDoctorPaymentResult =
-  | { success: true; reverseReceiptId: string; reverseReceiptNoString: string }
+  | {
+      success: true;
+      reverseReceiptId: string;
+      reverseReceiptNoString: string;
+      reverseReceiptNoStrings: string[];
+    }
   | { success: false; errorCode: string; message: string };
 
 /**
@@ -70,120 +81,157 @@ export async function cancelDoctorPaymentService(
     return { success: false, errorCode: "ALREADY_CANCELED", message: "This doctor payment is already canceled." };
   }
 
-  const linkedBookings = await prisma.booking.findMany({
-    where: { doctorPaymentReceiptId: input.receiptId },
-    select: { id: true, doctorId: true },
-  });
-  const doctorId = linkedBookings[0]?.doctorId ?? null;
-  if (!doctorId) {
-    return { success: false, errorCode: "INVALID", message: "No bookings linked to this doctor payment." };
+  const grouped = original.doctorPaymentGroupId
+    ? await prisma.receipt.findMany({
+        where: {
+          doctorPaymentGroupId: original.doctorPaymentGroupId,
+          method: RECEIPT_METHOD.DOCTOR_PAYMENT,
+        },
+      })
+    : [original];
+  // Unset cancel fields are absent on Mongo, so a null filter would drop receipts that were never canceled.
+  const originals = grouped.filter(
+    (receipt) => receipt.canceledAt == null && receipt.reverseReceiptId == null
+  );
+  if (!originals.some((receipt) => receipt.id === original.id)) {
+    originals.push(original);
   }
 
-  const locationId = original.locationId ?? original.userLocationId;
-  if (!locationId) {
-    return { success: false, errorCode: "INVALID", message: "Receipt has no location." };
-  }
+  const prepared: {
+    original: (typeof originals)[number];
+    doctorId: string;
+    locationId: string;
+    accounts: Awaited<ReturnType<typeof resolveDoctorPaymentAccounts>> & { error?: never };
+    journalNumber: number;
+    reverseParams: CreateReceiptWithoutBookingParams;
+  }[] = [];
 
-  const accountsResult = await resolveDoctorPaymentAccounts({
-    doctorId,
-    locationId,
-    createdBy: input.canceledBy,
-    paymentMethod: original.paymentMethod,
-    includeWhtPayable: (original.whd ?? 0) > 0,
-  });
-  if ("error" in accountsResult) {
-    return {
-      success: false,
-      errorCode: "ACCOUNTS_NOT_FOUND",
-      message: accountsResult.error,
-    };
-  }
-  const accounts = accountsResult;
-
-  const reverseAmount = -original.amount;
-  const reversalRemarks = `Reversal of ${original.receiptNoString}. Reason: ${reason}`;
-
-  const reverseParams: CreateReceiptWithoutBookingParams = {
-    paymentMethod: original.paymentMethod,
-    amount: reverseAmount,
-    bank: original.bank ?? "",
-    bankId: original.bankId ?? null,
-    cardReference: original.cardReference ?? "",
-    slipReference: original.slipReference ?? "",
-    slipDate: original.slipDate ?? null,
-    remarks: reversalRemarks,
-    type: 1, // DEBIT (inflow for reversal)
-    method: RECEIPT_METHOD.DOCTOR_CANCEL,
-    createdBy: input.canceledBy,
-    locationId,
-    userLocationId: locationId,
-    shiftId,
-    whd: original.whd ?? 0,
-    whdPercentage: original.whdPercentage ?? 0,
-    doctorId: original.doctorId ?? doctorId,
-  };
-
-  const journalNumberResult = await getNextSequenceNumber(JOURNAL_SEQUENCE_SCOPE, { startFrom: 1 });
-  const journalNumber = journalNumberResult.success ? journalNumberResult.value : 0;
-
-  const result = await prisma.$transaction(async (tx) => {
-    const r = await createReceiptWithoutBooking(
-      tx as Pick<PrismaClient, "receipt">,
-      reverseParams
-    );
-    if (!r.success) return r;
-
-    await (tx as PrismaClient).receipt.update({
-      where: { id: r.receipt.id },
-      data: { reversedReceiptId: input.receiptId },
+  for (const source of originals) {
+    const linkedBookings = await prisma.booking.findMany({
+      where: { doctorPaymentReceiptId: source.id },
+      select: { id: true, doctorId: true },
     });
-
-    const journalInput = buildReceiptJournalEntryInput(r.receipt, accounts);
-    if (journalInput && journalNumber > 0) {
-      const jResult = await createJournalEntryInTransaction(
-        tx as unknown as AccountingTx,
-        journalInput,
-        journalNumber
-      );
-      if (!jResult.success) throw new Error(jResult.error ?? "Journal entry failed");
+    const doctorId = linkedBookings[0]?.doctorId ?? source.doctorId ?? null;
+    if (!doctorId) {
+      return { success: false, errorCode: "INVALID", message: "No bookings linked to this doctor payment." };
     }
-
-    await (tx as PrismaClient).receipt.update({
-      where: { id: input.receiptId },
-      data: {
-        canceledAt: new Date(),
-        canceledBy: input.canceledBy,
-        cancelReason: reason,
-        reverseReceiptId: r.receipt.id,
+    const locationId = source.locationId ?? source.userLocationId;
+    if (!locationId) {
+      return { success: false, errorCode: "INVALID", message: "Receipt has no location." };
+    }
+    const accountsResult = await resolveDoctorPaymentAccounts({
+      doctorId,
+      locationId,
+      createdBy: input.canceledBy,
+      paymentMethod: source.paymentMethod,
+      includeWhtPayable: (source.whd ?? 0) > 0,
+    });
+    if ("error" in accountsResult) {
+      return { success: false, errorCode: "ACCOUNTS_NOT_FOUND", message: accountsResult.error };
+    }
+    const journalNumberResult = await getNextSequenceNumber(JOURNAL_SEQUENCE_SCOPE, { startFrom: 1 });
+    if (!journalNumberResult.success) {
+      return { success: false, errorCode: "SERVER_ERROR", message: "Failed to get a journal number." };
+    }
+    const whtSeries = receiptSequenceKindFromNumber(source.receiptNoString) === "wht";
+    prepared.push({
+      original: source,
+      doctorId,
+      locationId,
+      accounts: accountsResult,
+      journalNumber: journalNumberResult.value,
+      reverseParams: {
+        paymentMethod: source.paymentMethod,
+        amount: -source.amount,
+        bank: source.bank ?? "",
+        bankId: source.bankId ?? null,
+        cardReference: source.cardReference ?? "",
+        slipReference: source.slipReference ?? "",
+        slipDate: source.slipDate ?? null,
+        remarks: `Reversal of ${source.receiptNoString}. Reason: ${reason}`,
+        type: 1,
+        method: RECEIPT_METHOD.DOCTOR_CANCEL,
+        createdBy: input.canceledBy,
+        locationId,
+        userLocationId: locationId,
+        shiftId,
+        whd: source.whd ?? 0,
+        whdPercentage: source.whdPercentage ?? 0,
+        doctorId: source.doctorId ?? doctorId,
+        receiptSequenceKind: whtSeries ? "wht_cancel" : null,
       },
     });
+  }
 
-    await (tx as PrismaClient).booking.updateMany({
-      where: { doctorPaymentReceiptId: input.receiptId },
-      data: {
-        doctorPayment: false,
-        doctorPaymentAt: null,
-      },
+  let reversals: { originalId: string; id: string; receiptNoString: string }[];
+  let restoreLogs: HiddenSessionMoveLog[] = [];
+  try {
+    const canceled = await prisma.$transaction(async (tx) => {
+      const logs = await restoreBookingsFromHiddenSession(tx as PrismaClient, {
+        receiptIds: prepared.map((item) => item.original.id),
+        userId: input.canceledBy,
+      });
+      const created: { originalId: string; id: string; receiptNoString: string }[] = [];
+      for (const item of prepared) {
+        const r = await createReceiptWithoutBooking(tx as Pick<PrismaClient, "receipt">, item.reverseParams);
+        if (!r.success) throw new Error(r.message);
+        await (tx as PrismaClient).receipt.update({
+          where: { id: r.receipt.id },
+          data: { reversedReceiptId: item.original.id },
+        });
+        const journalInput = buildReceiptJournalEntryInput(r.receipt, item.accounts);
+        if (journalInput) {
+          const jResult = await createJournalEntryInTransaction(
+            tx as unknown as AccountingTx,
+            journalInput,
+            item.journalNumber
+          );
+          if (!jResult.success) throw new Error(jResult.error ?? "Journal entry failed");
+        }
+        await (tx as PrismaClient).receipt.update({
+          where: { id: item.original.id },
+          data: {
+            canceledAt: new Date(),
+            canceledBy: input.canceledBy,
+            cancelReason: reason,
+            reverseReceiptId: r.receipt.id,
+          },
+        });
+        await (tx as PrismaClient).booking.updateMany({
+          where: { doctorPaymentReceiptId: item.original.id },
+          data: {
+            doctorPayment: false,
+            doctorPaymentAt: null,
+          },
+        });
+        created.push({
+          originalId: item.original.id,
+          id: r.receipt.id,
+          receiptNoString: r.receipt.receiptNoString,
+        });
+      }
+      return { created, logs };
     });
-
-    return { success: true as const, receipt: r.receipt };
-  });
-
-  if (!result.success) {
-    const failed = result as { success: false; errorCode?: string; message?: string };
+    reversals = canceled.created;
+    restoreLogs = canceled.logs;
+  } catch (e) {
     return {
       success: false,
-      errorCode: failed.errorCode ?? "SERVER",
-      message: failed.message ?? "Cancel failed.",
+      errorCode: "SERVER_ERROR",
+      message: e instanceof Error && e.message.trim() ? e.message : "Cancel failed.",
     };
   }
 
-  const receipt = (result as { success: true; receipt: { id: string; receiptNoString: string } })
-    .receipt;
+  logHiddenSessionMoves(input.canceledBy, restoreLogs);
 
+  const clicked = reversals.find((row) => row.originalId === input.receiptId) ?? reversals[0];
+  if (!clicked) {
+    return { success: false, errorCode: "SERVER_ERROR", message: "Cancel failed." };
+  }
   return {
     success: true,
-    reverseReceiptId: receipt.id,
-    reverseReceiptNoString: receipt.receiptNoString,
+    reverseReceiptId: clicked.id,
+    reverseReceiptNoString: clicked.receiptNoString,
+    reverseReceiptNoStrings: reversals.map((row) => row.receiptNoString),
   };
 }

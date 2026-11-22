@@ -15,10 +15,16 @@ export async function removePatientBillLineItem(
   billId: string,
   lineItemId: string,
   removedBy?: string | null,
-  removedByName?: string | null
+  removedByName?: string | null,
+  deleteRemark?: string | null
 ): Promise<RemovePatientBillLineItemResult> {
   if (!billId?.trim() || !lineItemId?.trim()) {
     return { success: false, message: 'Invalid bill or line item ID' };
+  }
+
+  const remark = deleteRemark?.trim() ?? '';
+  if (!remark) {
+    return { success: false, message: 'A remark is required to remove a line item.' };
   }
 
   try {
@@ -74,14 +80,6 @@ export async function removePatientBillLineItem(
     const activeItems = existing.lineItems.filter(
       (line) => !isDeletedLineItem({ status: normalizeLineItemStatus(line.status) })
     );
-    const remainingActiveCount = activeItems.length - 1;
-
-    if (existing.paidAmount > 0 && remainingActiveCount === 0) {
-      return {
-        success: false,
-        message: 'Cannot remove all doctor charges while payments have been recorded.',
-      };
-    }
 
     const totalAmount = activeItems
       .filter((line) => line.id !== lineItemId)
@@ -102,6 +100,7 @@ export async function removePatientBillLineItem(
           description: item.description,
           amount: item.amount,
           sortOrder: item.sortOrder,
+          deleteRemark: remark,
         },
       });
 
@@ -112,6 +111,7 @@ export async function removePatientBillLineItem(
           deletedAt,
           deletedBy: removedBy ?? undefined,
           deletedByName: removedByName ?? undefined,
+          deleteRemark: remark,
           updatedBy: removedBy ?? undefined,
           updatedByName: removedByName ?? undefined,
         },

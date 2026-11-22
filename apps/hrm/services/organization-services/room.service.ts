@@ -9,6 +9,7 @@ import {
   type AuthUserSummary
 } from '@/lib/helpers/resolve-auth-users.helper';
 import { generateRecordCode } from '@/lib/conventions/record-code-generator';
+import { LOCATION_STATUS } from '@/types/location';
 import {
   ROOM_CODE_PREFIX,
   type GetRoomParams,
@@ -17,6 +18,7 @@ import {
   type RoomServiceRecord,
   type RoomZoneSummary
 } from '@/types/room';
+import { ZONE_STATUS } from '@/types/zone';
 
 const roomPayloadSchema = z.object({
   number: z
@@ -196,7 +198,7 @@ const roomSelect = {
   updatedBy: true
 } as const;
 
-/** Locations linked to Channeling (usable for room sync). */
+/** Published locations for room form/filter options. */
 export async function getLinkedLocationOptionsForRooms(): Promise<{
   success: boolean;
   data?: RoomLocationSummary[];
@@ -204,12 +206,7 @@ export async function getLinkedLocationOptionsForRooms(): Promise<{
 }> {
   try {
     const locations = await prisma.location.findMany({
-      where: {
-        AND: [
-          { migrateSourceId: { not: null } },
-          { migrateSourceId: { not: '' } }
-        ]
-      },
+      where: { status: LOCATION_STATUS.PUBLISH },
       select: {
         id: true,
         name: true,
@@ -237,7 +234,7 @@ export async function getLinkedLocationOptionsForRooms(): Promise<{
   }
 }
 
-/** Zones linked to Channeling, optionally filtered by HRM location. */
+/** Published zones for room form/filter options, optionally filtered by HRM location. */
 export async function getLinkedZoneOptionsForRooms(locationId?: string): Promise<{
   success: boolean;
   data?: RoomZoneSummary[];
@@ -245,11 +242,8 @@ export async function getLinkedZoneOptionsForRooms(locationId?: string): Promise
 }> {
   try {
     const where: Prisma.ZoneWhereInput = {
-      AND: [
-        { migrateSourceId: { not: null } },
-        { migrateSourceId: { not: '' } },
-        ...(locationId?.trim() ? [{ locationId: locationId.trim() }] : [])
-      ]
+      status: ZONE_STATUS.PUBLISH,
+      ...(locationId?.trim() ? { locationId: locationId.trim() } : {})
     };
 
     const zones = await prisma.zone.findMany({
@@ -279,6 +273,35 @@ export async function getLinkedZoneOptionsForRooms(locationId?: string): Promise
     return {
       success: false,
       error: { message: error.message || 'Failed to fetch zones' }
+    };
+  }
+}
+
+/** Lightweight room options for Combobox consumers (roster Unit = Rooms master). */
+export async function getRoomOptions(): Promise<{
+  success: boolean;
+  data?: Array<{ id: string; name: string }>;
+  error?: { message?: string };
+}> {
+  try {
+    const rows = await prisma.room.findMany({
+      where: { status: 1 },
+      select: { id: true, number: true, code: true },
+      orderBy: [{ number: 'asc' }]
+    });
+
+    return {
+      success: true,
+      data: rows.map((row) => ({
+        id: row.id,
+        name: row.code ? `${row.number} (${row.code})` : row.number
+      }))
+    };
+  } catch (error: any) {
+    console.error('getRoomOptions error:', error);
+    return {
+      success: false,
+      error: { message: error.message || 'Failed to load room options' }
     };
   }
 }
@@ -648,6 +671,23 @@ export async function updateRoom(
   }
 }
 
+/**
+ * Product-facing delete guard. Paired with schema `onDelete: Restrict` on
+ * RosterAllocation / RosterAmendment → Room.
+ */
+async function assertRoomDeletable(id: string): Promise<string | null> {
+  const [allocationCount, amendmentCount] = await Promise.all([
+    prisma.rosterAllocation.count({ where: { dutyRoomId: id } }),
+    prisma.rosterAmendment.count({ where: { dutyRoomId: id } })
+  ]);
+
+  if (allocationCount > 0 || amendmentCount > 0) {
+    return 'Cannot delete a room that is used by duty places or amendments.';
+  }
+
+  return null;
+}
+
 export async function deleteRoom(id: string): Promise<{
   success: boolean;
   error?: { message?: string };
@@ -663,6 +703,11 @@ export async function deleteRoom(id: string): Promise<{
     });
     if (!existing) {
       return { success: false, error: { message: 'Room not found' } };
+    }
+
+    const blocked = await assertRoomDeletable(id);
+    if (blocked) {
+      return { success: false, error: { message: blocked } };
     }
 
     await prisma.room.delete({ where: { id } });

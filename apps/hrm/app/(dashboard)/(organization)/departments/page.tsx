@@ -4,11 +4,17 @@ import { authOptions } from '@/lib/auth';
 import { logActivityNonBlocking } from '@/lib/activity-log';
 import { checkRouteAccess } from '@/lib/server-permissions';
 import { getDepartmentListAction } from '@/app/actions/organization-actions/department.actions';
+import { INSTITUTION_OPTIONS } from '@/types/institution';
+import { DEPARTMENT_STATUS_OPTIONS } from '@/types/department';
 import DepartmentWorkspace from './department-workspace';
+import type { DepartmentListFilters } from './section-department-filters';
 
 type SearchParams = {
   searchParams?: Promise<{
     id?: string;
+    search?: string;
+    institution?: string;
+    status?: string;
   }>;
 };
 
@@ -32,6 +38,22 @@ export default async function DepartmentsPage({ searchParams }: SearchParams) {
   const records = listRes.isError ? [] : (listRes.data ?? []);
 
   const params = await searchParams;
+
+  const institutionIds = new Set(INSTITUTION_OPTIONS.map((opt) => opt.id));
+  const statusIds = new Set(
+    DEPARTMENT_STATUS_OPTIONS.map((opt) => opt.id as string)
+  );
+
+  const initialFilters: DepartmentListFilters = {
+    search: params?.search?.trim() || undefined,
+    institution:
+      params?.institution && institutionIds.has(params.institution)
+        ? params.institution
+        : undefined,
+    status:
+      params?.status && statusIds.has(params.status) ? params.status : undefined
+  };
+
   const defaultSelected =
     params?.id && records.some((r) => r.id === params.id)
       ? params.id
@@ -41,6 +63,7 @@ export default async function DepartmentsPage({ searchParams }: SearchParams) {
     <DepartmentWorkspace
       initialRecords={records}
       initialSelectedId={defaultSelected}
+      initialFilters={initialFilters}
     />
   );
 }

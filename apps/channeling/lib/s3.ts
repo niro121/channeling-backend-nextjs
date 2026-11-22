@@ -70,6 +70,36 @@ export function getBankDepositSlipObjectKey(userId: string, uploadId: string, ex
   return `${bankDepositSlipKeyPrefixForUser(userId)}${safeUpload}.${safeExt}`
 }
 
+/** S3 key for an inventory item image. Thumbnails use getBillAttachmentThumbKey(key). */
+export function getInventoryImageObjectKey(itemId: string, uploadId: string, ext: string) {
+  const prefix = (process.env.S3_INVENTORY_PREFIX?.trim() || "inventory-items").replace(
+    /^\/+|\/+$/g,
+    ""
+  )
+  const safeExt = ext.replace(/[^a-z0-9]/gi, "") || "webp"
+  const safeItem = itemId.replace(/[^a-zA-Z0-9]/g, "")
+  const safeUpload = uploadId.replace(/[^a-zA-Z0-9-]/g, "")
+  return `${prefix}/${safeItem}/${safeUpload}.${safeExt}`
+}
+
+function getChecklistPhotoPrefix() {
+  return (process.env.S3_CHECKLIST_PREFIX?.trim() || "room-checklists").replace(/^\/+|\/+$/g, "")
+}
+
+/** S3 key for a check-in / check-out checklist photo or signature. */
+export function getChecklistPhotoObjectKey(userId: string, uploadId: string) {
+  const safeUser = userId.replace(/[^a-zA-Z0-9]/g, "")
+  const safeUpload = uploadId.replace(/[^a-zA-Z0-9-]/g, "")
+  return `${getChecklistPhotoPrefix()}/${safeUser}/${safeUpload}.webp`
+}
+
+/** True for keys made by getChecklistPhotoObjectKey, so answers can't point at other S3 objects. */
+export function isChecklistPhotoKey(key: unknown): key is string {
+  if (typeof key !== "string") return false
+  const prefix = getChecklistPhotoPrefix()
+  return key.startsWith(`${prefix}/`) && /^[a-zA-Z0-9]+\/[a-zA-Z0-9-]+\.webp$/.test(key.slice(prefix.length + 1))
+}
+
 export async function presignBillAttachmentPut(key: string, contentType: string): Promise<string> {
   const { bucket } = getS3Config()
   return getSignedUrl(

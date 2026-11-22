@@ -10,6 +10,7 @@ import {
 } from '@/lib/patient-bills/payment-validations';
 import { generateDoctorPaymentReceiptNumber } from './generate-doctor-payment-receipt-number.service';
 import { getEligibleBillsForDoctor } from './get-eligible-bills.service';
+import { postTillJournal, requireActiveShift } from '@/lib/dpay-shift';
 
 export async function processDoctorPayment(
   input: ProcessDoctorPaymentInput,
@@ -71,6 +72,29 @@ export async function processDoctorPayment(
   const netAmount = Math.round(totalAmount * 100) / 100;
 
   const allLineItemIds = selected.flatMap((row) => row.lineItemIds);
+  const lineDoctors = await prisma.patientBillItem.findMany({
+    where: { id: { in: allLineItemIds } },
+    select: { doctorId: true, doctorCode: true, doctorName: true },
+  });
+  const doctor = lineDoctors.find((row) => row.doctorId?.trim() && row.doctorCode?.trim());
+  if (!doctor?.doctorId || !doctor.doctorCode) {
+    return {
+      success: false,
+      message: 'Reselect this doctor on the bill so the DPAY payable can be posted.',
+    };
+  }
+
+  const shiftGate = await requireActiveShift(createdBy);
+  if (!shiftGate.success) return { success: false, message: shiftGate.message };
+
+  const shares = [
+    {
+      doctorId: doctor.doctorId,
+      doctorCode: doctor.doctorCode,
+      doctorName: doctor.doctorName,
+      amount: totalAmount,
+    },
+  ];
 
   try {
     const generated = await generateDoctorPaymentReceiptNumber(createdBy);
@@ -109,6 +133,9 @@ export async function processDoctorPayment(
           netAmount,
           applyWht: false,
           status: 'paid',
+          doctorId: doctor.doctorId,
+          doctorCode: doctor.doctorCode,
+          shiftId: shiftGate.shift.shiftId,
           createdBy: createdBy ?? undefined,
           createdByName: createdByName ?? undefined,
           items: {
@@ -138,6 +165,32 @@ export async function processDoctorPayment(
 
       return created;
     });
+
+    const journal = await postTillJournal({
+      shift: shiftGate.shift,
+      kind: 'doctor_payment',
+      referenceId: payment.id,
+      description: `DPAY doctor payment ${payment.receiptNumber}`,
+      paymentMethod: input.paymentMethod,
+      shares,
+      whtAmount: 0,
+    });
+    if (!journal.success) {
+      try {
+        await prisma.patientBillItem.updateMany({
+          where: { doctorPaymentId: payment.id },
+          data: { doctorPaymentId: null, doctorPaidAt: null },
+        });
+        await prisma.doctorPayment.delete({ where: { id: payment.id } });
+      } catch (rollbackError) {
+        console.error('processDoctorPayment rollback failed', rollbackError);
+        return {
+          success: false,
+          message: `${journal.message} The doctor payment could not be removed. Do not pay it again until it is checked.`,
+        };
+      }
+      return { success: false, message: journal.message };
+    }
 
     return {
       success: true,

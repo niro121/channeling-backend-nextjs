@@ -1,13 +1,14 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Form, Formik, type FormikProps } from 'formik';
+import { Form, Formik, type FormikHelpers, type FormikProps } from 'formik';
 import * as Yup from 'yup';
-import { parseISO } from 'date-fns';
+import { format, parseISO } from 'date-fns';
 import { X } from 'lucide-react';
 import {
   Button,
-  CustomDatePickerField,
+  Combobox,
+  CustomAlertDialog,
   CustomFormField,
   CustomSelectField,
   Label,
@@ -21,26 +22,35 @@ import {
   useToast
 } from '@archmage/ui';
 import { formatAuditDateTime } from '@/lib/utils/date';
+import { DutyPlaceCascadeFields } from '@/components/roster/duty-place-cascade-fields';
+import { RosterLeaveHint } from '@/components/roster/leave-application-hint';
 import {
   holidayRecordToFormValues,
+  holidayFormValuesToBulkPayload,
   holidayFormValuesToPayload,
   type HolidayFormValues
 } from '@/lib/mappers/public-holiday-shift-form.mapper';
 import {
+  bulkCreatePublicHolidayShiftsAction,
   createPublicHolidayShiftAction,
+  getPublicHolidayShiftConflictPreviewAction,
   updatePublicHolidayShiftAction
 } from '@/app/actions/roster-actions/public-holiday-shift.actions';
-import type {
-  PublicHolidayShiftFormOptions,
-  PublicHolidayShiftRecord
+import {
+  DEFAULT_HOLIDAY_PAY_RATE,
+  type PublicHolidayShiftConflictPreview,
+  type PublicHolidayShiftFormOptions,
+  type PublicHolidayShiftRecord
 } from '@/types/roster';
 import type { PublicHolidayFormSheetMode } from './public-holiday-shifts-ui-context';
+import { buttonStyles } from '@/lib/utils/common-styles';
 
 type SheetHolidayFormProps = {
   open: boolean;
   mode: PublicHolidayFormSheetMode;
   record: PublicHolidayShiftRecord | null;
   selectedCount: number;
+  selectedStaffIds?: string[];
   formOptions: PublicHolidayShiftFormOptions | null;
   onOpenChange: (open: boolean) => void;
   onSaved: () => void;
@@ -60,9 +70,12 @@ function emptyValues(): HolidayFormValues {
     shiftId: '',
     dutyDate: null,
     workedHours: '',
-    payRate: '2.00',
+    payRate: DEFAULT_HOLIDAY_PAY_RATE,
     holidayAllowance: '',
-    dutyLocation: '',
+    useWorkingDepartment: true,
+    dutyLocationDepartmentId: '',
+    dutyZoneId: '',
+    dutyRoomId: '',
     status: 'pending_approval',
     grantLieuLeave: false,
     sendToPayroll: false,
@@ -111,23 +124,63 @@ function AutoShiftHours({
   return null;
 }
 
-function AutoStaffLocation({
+function WorkingDepartmentSync({
   staffId,
+  useWorkingDepartment,
   staff,
   setFieldValue
 }: {
   staffId: string;
+  useWorkingDepartment: boolean;
   staff: PublicHolidayShiftFormOptions['staff'];
   setFieldValue: FormikProps<HolidayFormValues>['setFieldValue'];
 }) {
-  const prev = useRef(staffId);
+  const previousKey = useRef('');
   useEffect(() => {
-    if (prev.current === staffId) return;
-    prev.current = staffId;
-    const found = staff.find((s) => s.id === staffId);
-    if (!found) return;
-    void setFieldValue('dutyLocation', found.dutyLocation);
-  }, [setFieldValue, staffId, staff]);
+    const key = `${staffId}|${useWorkingDepartment ? '1' : '0'}`;
+    if (previousKey.current === key) return;
+    previousKey.current = key;
+    if (!staffId || !useWorkingDepartment) return;
+    const found = staff.find((row) => row.id === staffId);
+    void setFieldValue(
+      'dutyLocationDepartmentId',
+      found?.departmentId ?? ''
+    );
+  }, [setFieldValue, staff, staffId, useWorkingDepartment]);
+  return null;
+}
+
+function ConflictStrip({
+  preview
+}: {
+  preview: PublicHolidayShiftConflictPreview | null;
+}) {
+  if (!preview) return null;
+  if (
+    !preview.blocksSave &&
+    !preview.infoMessage &&
+    preview.allocations.length === 0
+  ) {
+    return null;
+  }
+
+  if (preview.blocksSave) {
+    return (
+      <div className="rounded-lg border border-destructive/40 bg-destructive/5 px-3 py-2.5 text-sm text-destructive">
+        {preview.blockReason ??
+          'Cannot save this holiday shift for the selected staff and date.'}
+      </div>
+    );
+  }
+
+  if (preview.infoMessage) {
+    return (
+      <div className="rounded-lg border border-amber-300/60 bg-amber-50 px-3 py-2.5 text-sm text-amber-900 dark:border-amber-500/40 dark:bg-amber-950/30 dark:text-amber-100">
+        {preview.infoMessage}
+      </div>
+    );
+  }
+
   return null;
 }
 
@@ -159,22 +212,39 @@ export default function SheetHolidayForm({
   mode,
   record,
   selectedCount,
+  selectedStaffIds = [],
   formOptions,
   onOpenChange,
   onSaved
 }: SheetHolidayFormProps) {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [confirmDescription, setConfirmDescription] = useState('');
+  const [conflictPreview, setConflictPreview] =
+    useState<PublicHolidayShiftConflictPreview | null>(null);
+  const pendingAckRef = useRef(false);
+  const pendingSubmitRef = useRef<{
+    values: HolidayFormValues;
+    helpers: FormikHelpers<HolidayFormValues>;
+  } | null>(null);
   const copy = sheetCopy(mode);
   const isBulk = mode === 'bulk';
   const showStaff = mode !== 'bulk';
   const isEdit = mode === 'edit';
+  const uniqueStaffIds = useMemo(
+    () => [...new Set(selectedStaffIds.filter(Boolean))],
+    [selectedStaffIds]
+  );
 
   const holidays = formOptions?.holidays ?? [];
   const holidayTypes = formOptions?.holidayTypes ?? [];
   const shifts = formOptions?.shifts ?? [];
   const staffList = formOptions?.staff ?? [];
+  const departments = formOptions?.departments ?? [];
   const locations = formOptions?.locations ?? [];
+  const zones = formOptions?.zones ?? [];
+  const rooms = formOptions?.rooms ?? [];
   const payRates = formOptions?.payRates ?? [];
   const statuses = formOptions?.statuses ?? [];
 
@@ -200,299 +270,684 @@ export default function SheetHolidayForm({
   );
 
   const initialValues = useMemo(() => {
-    if (record && isEdit) return holidayRecordToFormValues(record);
+    if (record && isEdit) {
+      const staffWorkingDept = staffList.find(
+        (s) => s.id === record.staffId
+      )?.departmentId;
+      return holidayRecordToFormValues(record, staffWorkingDept);
+    }
     return emptyValues();
-  }, [isEdit, record]);
+  }, [isEdit, record, staffList]);
+
+  useEffect(() => {
+    if (!open) {
+      setConflictPreview(null);
+      pendingSubmitRef.current = null;
+      pendingAckRef.current = false;
+      setConfirmOpen(false);
+    }
+  }, [open]);
+
+  const persistHoliday = async (
+    values: HolidayFormValues,
+    helpers: FormikHelpers<HolidayFormValues>
+  ) => {
+    setLoading(true);
+    try {
+      if (isBulk) {
+        if (uniqueStaffIds.length === 0) {
+          toast({
+            variant: 'destructive',
+            title: 'Error',
+            description:
+              'Select at least one staff row before bulk assigning holiday duty.'
+          });
+          return;
+        }
+
+        const bulkPayload = holidayFormValuesToBulkPayload(
+          values,
+          uniqueStaffIds,
+          { acknowledgedWarnings: pendingAckRef.current }
+        );
+        const result = await bulkCreatePublicHolidayShiftsAction(bulkPayload);
+
+        if (result.isError) {
+          const errorMap = result.errors as Record<
+            string,
+            string | string[] | boolean | undefined
+          >;
+          if (errorMap.requiresAck) {
+            const softWarnings = Array.isArray(errorMap.softWarnings)
+              ? errorMap.softWarnings.filter(
+                  (item): item is string => typeof item === 'string'
+                )
+              : [];
+            pendingSubmitRef.current = { values, helpers };
+            setConfirmDescription(
+              softWarnings.join(' ') ||
+                (typeof errorMap.message === 'string'
+                  ? errorMap.message
+                  : 'One or more selected staff have leave or weekly-off on that holiday. Continue anyway?')
+            );
+            setConfirmOpen(true);
+            return;
+          }
+
+          toast({
+            variant: 'destructive',
+            title: 'Error',
+            description:
+              (typeof errorMap.message === 'string'
+                ? errorMap.message
+                : undefined) || 'Bulk holiday assign unsuccessful.'
+          });
+          return;
+        }
+
+        pendingAckRef.current = false;
+        const created = result.data?.count ?? uniqueStaffIds.length;
+        const skipped = result.data?.skipped?.length ?? 0;
+        toast({
+          variant: 'success',
+          title: 'Success',
+          description:
+            result.message ||
+            `${created} holiday shift(s) created${
+              skipped > 0 ? `; ${skipped} skipped` : ''
+            }.`
+        });
+        onSaved();
+        return;
+      }
+
+      const payload = holidayFormValuesToPayload(values, {
+        acknowledgedWarnings: pendingAckRef.current
+      });
+      const result =
+        isEdit && record
+          ? await updatePublicHolidayShiftAction(record.id, payload)
+          : await createPublicHolidayShiftAction(payload);
+
+      if (result.isError) {
+        const errorMap = result.errors as Record<
+          string,
+          string | string[] | boolean | undefined
+        >;
+        if (errorMap.requiresAck) {
+          const softWarnings = Array.isArray(errorMap.softWarnings)
+            ? errorMap.softWarnings.filter(
+                (item): item is string => typeof item === 'string'
+              )
+            : [];
+          pendingSubmitRef.current = { values, helpers };
+          setConfirmDescription(
+            softWarnings.join(' ') ||
+              (typeof errorMap.message === 'string'
+                ? errorMap.message
+                : 'This staff member has leave on that holiday date. Continue anyway?')
+          );
+          setConfirmOpen(true);
+          return;
+        }
+
+        toast({
+          variant: 'destructive',
+          title: 'Error',
+          description:
+            (typeof errorMap.message === 'string'
+              ? errorMap.message
+              : undefined) || 'Holiday shift save unsuccessful.'
+        });
+        return;
+      }
+
+      pendingAckRef.current = false;
+      toast({
+        variant: 'success',
+        title: 'Success',
+        description: isEdit
+          ? 'Holiday shift was updated successfully'
+          : 'Holiday shift was created successfully'
+      });
+      onSaved();
+    } catch (err: unknown) {
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description:
+          err instanceof Error
+            ? err.message
+            : 'Holiday shift save unsuccessful.'
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent
-        side="right"
-        className="flex h-full w-full flex-col gap-0 overflow-hidden p-0 sm:max-w-xl"
-      >
-        <SheetHeader className="shrink-0 space-y-1 border-b border-border bg-background px-6 py-4 pr-14 text-left">
-          <SheetTitle>{copy.title}</SheetTitle>
-          <SheetDescription>{copy.description}</SheetDescription>
-        </SheetHeader>
+    <>
+      <Sheet open={open} onOpenChange={onOpenChange}>
+        <SheetContent
+          side="right"
+          className="flex h-full w-full flex-col gap-0 overflow-hidden p-0 sm:max-w-xl"
+        >
+          <SheetHeader className="shrink-0 space-y-1 border-b border-border bg-background px-6 py-4 pr-14 text-left">
+            <SheetTitle>{copy.title}</SheetTitle>
+            <SheetDescription>{copy.description}</SheetDescription>
+          </SheetHeader>
 
-        <Formik
-          initialValues={initialValues}
-          enableReinitialize
-          validationSchema={validationSchema}
-          onSubmit={async (values) => {
-            setLoading(true);
-            try {
-              const payload = holidayFormValuesToPayload(values);
-              const result = isEdit && record
-                ? await updatePublicHolidayShiftAction(record.id, payload)
-                : await createPublicHolidayShiftAction(payload);
-
-              if (result.isError) {
-                toast({
-                  title: 'Error',
-                  description: result.errors?.message || 'Save failed',
-                  variant: 'destructive'
-                });
-                return;
+          <Formik
+            initialValues={initialValues}
+            enableReinitialize
+            validationSchema={validationSchema}
+            onSubmit={async (values, helpers) => {
+              pendingAckRef.current = false;
+              await persistHoliday(values, helpers);
+            }}
+          >
+            {(formik) => {
+              const selectedStaff = staffList.find(
+                (s) => s.id === formik.values.staffId
+              );
+              const institutionId = selectedStaff?.institutionId ?? '';
+              const filtered = institutionId
+                ? departments.filter((d) => d.institutionId === institutionId)
+                : departments;
+              const selectedDeptId = formik.values.dutyLocationDepartmentId;
+              const dutyDepartmentOptions = filtered.map((d) => ({
+                id: d.id,
+                name: d.name
+              }));
+              if (
+                selectedDeptId &&
+                !dutyDepartmentOptions.some((d) => d.id === selectedDeptId)
+              ) {
+                const orphan = departments.find((d) => d.id === selectedDeptId);
+                if (orphan) {
+                  dutyDepartmentOptions.unshift({
+                    id: orphan.id,
+                    name: orphan.name
+                  });
+                } else if (record?.dutyLocation) {
+                  dutyDepartmentOptions.unshift({
+                    id: selectedDeptId,
+                    name: record.dutyLocation
+                  });
+                }
               }
 
-              toast({
-                title: isEdit ? 'Holiday shift updated' : 'Holiday shift created'
-              });
-              onSaved();
-            } catch (err: any) {
-              toast({
-                title: 'Error',
-                description: err.message || 'Unexpected error',
-                variant: 'destructive'
-              });
-            } finally {
-              setLoading(false);
-            }
-          }}
-        >
-          {(formik) => (
-            <Form className="flex min-h-0 flex-1 flex-col">
-              <AutoHoliday
-                holidayId={formik.values.holidayId}
-                holidays={holidays}
-                setFieldValue={formik.setFieldValue}
-              />
-              <AutoShiftHours
-                shiftId={formik.values.shiftId}
-                shifts={shifts}
-                setFieldValue={formik.setFieldValue}
-              />
-              {showStaff ? (
-                <AutoStaffLocation
-                  staffId={formik.values.staffId}
-                  staff={staffList}
-                  setFieldValue={formik.setFieldValue}
-                />
-              ) : null}
-
-              <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-6 py-4">
-                {isBulk ? (
-                  <div className="rounded-lg border border-border bg-muted/40 px-3 py-2.5 text-sm text-muted-foreground">
-                    {selectedCount} staff selected — the holiday duty below
-                    applies to every selected staff member.
-                  </div>
-                ) : null}
-
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  <div className="sm:col-span-2">
-                    <CustomSelectField
-                      id="holidayId"
-                      placeholder="Select holiday from Holiday Date master"
-                      value={formik.values.holidayId}
-                      onChange={(value) =>
-                        formik.setFieldValue('holidayId', value)
-                      }
-                      required
-                      options={holidayOptions}
-                      styleClasses={fieldStyleClasses}
-                    />
-                  </div>
-                  <CustomSelectField
-                    id="holidayTypeId"
-                    placeholder="Holiday Type"
-                    value={formik.values.holidayTypeId}
-                    onChange={(value) =>
-                      formik.setFieldValue('holidayTypeId', value)
-                    }
-                    required
-                    options={holidayTypes}
-                    styleClasses={fieldStyleClasses}
+              return (
+                <Form className="flex min-h-0 flex-1 flex-col">
+                  <AutoHoliday
+                    holidayId={formik.values.holidayId}
+                    holidays={holidays}
+                    setFieldValue={formik.setFieldValue}
+                  />
+                  <AutoShiftHours
+                    shiftId={formik.values.shiftId}
+                    shifts={shifts}
+                    setFieldValue={formik.setFieldValue}
                   />
                   {showStaff ? (
-                    <CustomSelectField
-                      id="staffId"
-                      placeholder="Staff"
-                      value={formik.values.staffId}
-                      onChange={(value) =>
-                        formik.setFieldValue('staffId', value)
-                      }
-                      required
-                      options={staffList}
-                      styleClasses={fieldStyleClasses}
+                    <WorkingDepartmentSync
+                      staffId={formik.values.staffId}
+                      useWorkingDepartment={formik.values.useWorkingDepartment}
+                      staff={staffList}
+                      setFieldValue={formik.setFieldValue}
                     />
                   ) : null}
-                  <CustomSelectField
-                    id="shiftId"
-                    placeholder="Shift"
-                    value={formik.values.shiftId}
-                    onChange={(value) =>
-                      formik.setFieldValue('shiftId', value)
-                    }
-                    required
-                    options={shifts}
-                    styleClasses={fieldStyleClasses}
-                  />
-                  <CustomDatePickerField
-                    id="dutyDate"
-                    placeholder="Duty Date"
-                    value={formik.values.dutyDate}
-                    onChange={(value) =>
-                      formik.setFieldValue('dutyDate', value ?? null)
-                    }
-                    onBlur={formik.handleBlur}
-                    required
-                    styleClasses={fieldStyleClasses}
-                  />
-                  <CustomFormField
-                    id="workedHours"
-                    type="number"
-                    placeholder="Worked Hours"
-                    value={formik.values.workedHours}
-                    onChange={formik.handleChange}
-                    onBlur={formik.handleBlur}
-                    required={false}
-                    min={0}
-                    styleClasses={fieldStyleClasses}
-                  />
-                  <CustomSelectField
-                    id="payRate"
-                    placeholder="Pay Rate"
-                    value={formik.values.payRate}
-                    onChange={(value) =>
-                      formik.setFieldValue('payRate', value)
-                    }
-                    required
-                    options={payRates}
-                    styleClasses={fieldStyleClasses}
-                  />
-                  <CustomFormField
-                    id="holidayAllowance"
-                    type="number"
-                    placeholder="Holiday Allowance (LKR)"
-                    value={formik.values.holidayAllowance}
-                    onChange={formik.handleChange}
-                    onBlur={formik.handleBlur}
-                    required={false}
-                    min={0}
-                    styleClasses={fieldStyleClasses}
-                  />
-                  <CustomSelectField
-                    id="dutyLocation"
-                    placeholder="Duty Location"
-                    value={formik.values.dutyLocation}
-                    onChange={(value) =>
-                      formik.setFieldValue('dutyLocation', value)
-                    }
-                    required={false}
-                    options={locations}
-                    styleClasses={fieldStyleClasses}
-                  />
-                  <CustomSelectField
-                    id="status"
-                    placeholder="Approval Status"
-                    value={formik.values.status}
-                    onChange={(value) => formik.setFieldValue('status', value)}
-                    required
-                    options={statuses}
-                    styleClasses={fieldStyleClasses}
-                  />
-                </div>
+                  {showStaff ? (
+                    <ConflictPreviewEffect
+                      open={open}
+                      staffId={formik.values.staffId}
+                      dutyDate={formik.values.dutyDate}
+                      shiftTypeId={formik.values.shiftId}
+                      excludeAllocationId={isEdit ? record?.id : null}
+                      onPreview={setConflictPreview}
+                    />
+                  ) : null}
 
-                <div className="flex items-center justify-between gap-4 rounded-lg border border-border px-4 py-3">
-                  <div className="min-w-0 space-y-0.5">
-                    <Label
-                      htmlFor="grantLieuLeave"
-                      className="cursor-pointer text-sm font-semibold text-foreground"
-                    >
-                      Grant Lieu Leave
-                    </Label>
-                    <p className="text-xs text-muted-foreground">
-                      Add a lieu day to the staff leave entitlement instead of
-                      extra pay.
-                    </p>
+                  <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-6 py-4">
+                    {isBulk ? (
+                      <div className="rounded-lg border border-border bg-muted/40 px-3 py-2.5 text-sm text-muted-foreground">
+                        {uniqueStaffIds.length || selectedCount} staff selected
+                        — the holiday duty below applies to each unique staff
+                        member. Staff who already have this shift type or hit
+                        the day limit are skipped.
+                      </div>
+                    ) : null}
+
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                      <div className="sm:col-span-2">
+                        <CustomSelectField
+                          id="holidayId"
+                          placeholder="Select holiday from Holiday Date master"
+                          value={formik.values.holidayId}
+                          onChange={(value) =>
+                            formik.setFieldValue('holidayId', value)
+                          }
+                          required
+                          options={holidayOptions}
+                          styleClasses={fieldStyleClasses}
+                        />
+                      </div>
+                      <div className={fieldStyleClasses.parentDiv}>
+                        <Label
+                          htmlFor="holidayTypeId"
+                          className={fieldStyleClasses.labelClassName}
+                        >
+                          Holiday Type
+                        </Label>
+                        <div
+                          id="holidayTypeId"
+                          className="rounded-lg border border-border bg-muted/40 px-3 py-2.5 text-sm text-foreground"
+                        >
+                          {holidayTypes.find(
+                            (t) => t.id === formik.values.holidayTypeId
+                          )?.name || (
+                            <span className="text-muted-foreground">
+                              Select a holiday to see its type
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <div className={fieldStyleClasses.parentDiv}>
+                        <Label
+                          htmlFor="dutyDate"
+                          className={fieldStyleClasses.labelClassName}
+                        >
+                          Duty Date
+                        </Label>
+                        <div
+                          id="dutyDate"
+                          className="rounded-lg border border-border bg-muted/40 px-3 py-2.5 text-sm text-foreground"
+                        >
+                          {formik.values.dutyDate ? (
+                            format(formik.values.dutyDate, 'MMMM do, yyyy')
+                          ) : (
+                            <span className="text-muted-foreground">
+                              Select a holiday to see its date
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      {showStaff ? (
+                        <div className={fieldStyleClasses.parentDiv}>
+                          <Label className={fieldStyleClasses.labelClassName}>
+                            Staff *
+                          </Label>
+                          <div className={fieldStyleClasses.inputClassName}>
+                            <Combobox
+                              label="Staff"
+                              options={staffList}
+                              value={formik.values.staffId}
+                              defaultValue=""
+                              clearable={!isEdit}
+                              disabled={isEdit}
+                              triggerClassName="w-full max-w-none font-normal!"
+                              popoverClassName="w-[var(--radix-popover-trigger-width)] min-w-60"
+                              onChange={(value) => {
+                                void formik.setFieldValue('staffId', value);
+                              }}
+                            />
+                          </div>
+                          {formik.touched.staffId && formik.errors.staffId ? (
+                            <p className="text-xs text-destructive">
+                              {formik.errors.staffId}
+                            </p>
+                          ) : null}
+                        </div>
+                      ) : null}
+                      <CustomSelectField
+                        id="shiftId"
+                        placeholder="Shift"
+                        value={formik.values.shiftId}
+                        onChange={(value) =>
+                          formik.setFieldValue('shiftId', value)
+                        }
+                        required
+                        options={shifts}
+                        styleClasses={fieldStyleClasses}
+                      />
+                    </div>
+
+                    {showStaff ? (
+                      <>
+                        <ConflictStrip preview={conflictPreview} />
+                        <RosterLeaveHint
+                          open={open}
+                          staffId={formik.values.staffId}
+                          date={formik.values.dutyDate}
+                          staffLabel={selectedStaff?.name}
+                        />
+                      </>
+                    ) : null}
+
+                    <div className="flex items-center justify-between gap-3 rounded-lg border border-border px-3 py-2.5">
+                      <div>
+                        <p className="text-sm font-semibold text-foreground">
+                          Use staff working department
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {isBulk
+                            ? 'When on, each selected staff keeps their working department. Turn off to set one duty department for all.'
+                            : 'Turn off to pick another department at the same institution.'}
+                        </p>
+                      </div>
+                      <Switch
+                        checked={formik.values.useWorkingDepartment}
+                        onCheckedChange={(checked) => {
+                          void formik.setFieldValue(
+                            'useWorkingDepartment',
+                            checked
+                          );
+                          if (!checked) return;
+                          void formik.setFieldValue(
+                            'dutyLocationDepartmentId',
+                            selectedStaff?.departmentId ?? ''
+                          );
+                        }}
+                        disabled={showStaff && !formik.values.staffId}
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                      <div className={fieldStyleClasses.parentDiv}>
+                        <Label
+                          htmlFor="workingLocation"
+                          className={fieldStyleClasses.labelClassName}
+                        >
+                          Working Location
+                        </Label>
+                        <div
+                          id="workingLocation"
+                          className="rounded-lg border border-border bg-muted/40 px-3 py-2.5 text-sm text-foreground"
+                        >
+                          {selectedStaff?.institutionName || (
+                            <span className="text-muted-foreground">
+                              {showStaff
+                                ? 'Select a staff member to see institution'
+                                : 'Bulk uses each staff member’s institution'}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <div className={fieldStyleClasses.parentDiv}>
+                        <Label className={fieldStyleClasses.labelClassName}>
+                          Duty Department
+                        </Label>
+                        <div className={fieldStyleClasses.inputClassName}>
+                          <Combobox
+                            label="Duty Department"
+                            options={dutyDepartmentOptions}
+                            value={formik.values.dutyLocationDepartmentId}
+                            defaultValue=""
+                            clearable={!formik.values.useWorkingDepartment}
+                            disabled={formik.values.useWorkingDepartment}
+                            triggerClassName="w-full max-w-none font-normal!"
+                            popoverClassName="w-[var(--radix-popover-trigger-width)] min-w-60"
+                            onChange={(value) =>
+                              formik.setFieldValue(
+                                'dutyLocationDepartmentId',
+                                value
+                              )
+                            }
+                          />
+                        </div>
+                      </div>
+                      <DutyPlaceCascadeFields
+                        locations={locations}
+                        zones={zones}
+                        rooms={rooms}
+                        dutyZoneId={formik.values.dutyZoneId}
+                        dutyRoomId={formik.values.dutyRoomId}
+                        fieldStyleClasses={fieldStyleClasses}
+                        onZoneChange={(value) => {
+                          void formik.setFieldValue('dutyZoneId', value);
+                        }}
+                        onRoomChange={(value) => {
+                          void formik.setFieldValue('dutyRoomId', value);
+                        }}
+                      />
+                      <CustomFormField
+                        id="workedHours"
+                        type="number"
+                        placeholder="Worked Hours"
+                        value={formik.values.workedHours}
+                        onChange={formik.handleChange}
+                        onBlur={formik.handleBlur}
+                        required={false}
+                        min={0}
+                        styleClasses={fieldStyleClasses}
+                      />
+                      <CustomSelectField
+                        id="payRate"
+                        placeholder="Pay Rate"
+                        value={formik.values.payRate}
+                        onChange={(value) =>
+                          formik.setFieldValue('payRate', value)
+                        }
+                        required
+                        options={payRates}
+                        styleClasses={fieldStyleClasses}
+                      />
+                      <CustomFormField
+                        id="holidayAllowance"
+                        type="number"
+                        placeholder="Holiday Allowance (LKR)"
+                        value={formik.values.holidayAllowance}
+                        onChange={formik.handleChange}
+                        onBlur={formik.handleBlur}
+                        required={false}
+                        min={0}
+                        styleClasses={fieldStyleClasses}
+                      />
+                      <CustomSelectField
+                        id="status"
+                        placeholder="Approval Status"
+                        value={formik.values.status}
+                        onChange={(value) =>
+                          formik.setFieldValue('status', value)
+                        }
+                        required
+                        options={statuses}
+                        styleClasses={fieldStyleClasses}
+                      />
+                    </div>
+
+                    <div className="flex items-center justify-between gap-4 rounded-lg border border-border px-4 py-3">
+                      <div className="min-w-0 space-y-0.5">
+                        <Label
+                          htmlFor="grantLieuLeave"
+                          className="cursor-pointer text-sm font-semibold text-foreground"
+                        >
+                          Grant Lieu Leave
+                        </Label>
+                        <p className="text-xs text-muted-foreground">
+                          Add a lieu day to the staff leave entitlement instead
+                          of extra pay.
+                        </p>
+                      </div>
+                      <Switch
+                        id="grantLieuLeave"
+                        checked={formik.values.grantLieuLeave}
+                        onCheckedChange={(checked) =>
+                          formik.setFieldValue('grantLieuLeave', checked)
+                        }
+                        className="shrink-0"
+                      />
+                    </div>
+
+                    <div className="flex items-center justify-between gap-4 rounded-lg border border-border px-4 py-3">
+                      <div className="min-w-0 space-y-0.5">
+                        <Label
+                          htmlFor="sendToPayroll"
+                          className="cursor-pointer text-sm font-semibold text-foreground"
+                        >
+                          Send to Payroll
+                        </Label>
+                        <p className="text-xs text-muted-foreground">
+                          Post the holiday pay and allowance to the current
+                          salary cycle.
+                        </p>
+                      </div>
+                      <Switch
+                        id="sendToPayroll"
+                        checked={formik.values.sendToPayroll}
+                        onCheckedChange={(checked) =>
+                          formik.setFieldValue('sendToPayroll', checked)
+                        }
+                        className="shrink-0"
+                      />
+                    </div>
+
+                    <CustomFormField
+                      id="remarks"
+                      type="textarea"
+                      placeholder="Remarks"
+                      value={formik.values.remarks}
+                      onChange={formik.handleChange}
+                      onBlur={formik.handleBlur}
+                      required={false}
+                      styleClasses={fieldStyleClasses}
+                    />
+
+                    <div className="grid grid-cols-1 gap-2 rounded-lg border border-border bg-muted/40 px-3 py-2.5 text-xs text-muted-foreground sm:grid-cols-2">
+                      <p>
+                        Created by:{' '}
+                        {isEdit
+                          ? record?.createdUser?.name ||
+                            record?.createdBy ||
+                            '—'
+                          : '—'}
+                        {isEdit && record?.createdAt
+                          ? ` · ${formatAuditDateTime(record.createdAt)}`
+                          : null}
+                      </p>
+                      <p className="sm:text-right">
+                        Last updated:{' '}
+                        {isEdit
+                          ? record?.updatedUser?.name ||
+                            record?.updatedBy ||
+                            '—'
+                          : '—'}
+                        {isEdit && record?.updatedAt
+                          ? ` · ${formatAuditDateTime(record.updatedAt)}`
+                          : null}
+                      </p>
+                    </div>
                   </div>
-                  <Switch
-                    id="grantLieuLeave"
-                    checked={formik.values.grantLieuLeave}
-                    onCheckedChange={(checked) =>
-                      formik.setFieldValue('grantLieuLeave', checked)
-                    }
-                    className="shrink-0"
-                  />
-                </div>
 
-                <div className="flex items-center justify-between gap-4 rounded-lg border border-border px-4 py-3">
-                  <div className="min-w-0 space-y-0.5">
-                    <Label
-                      htmlFor="sendToPayroll"
-                      className="cursor-pointer text-sm font-semibold text-foreground"
+                  <SheetFooter className="shrink-0 flex-row justify-end gap-2 border-t border-border bg-background px-6 py-4 sm:space-x-0">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={loading}
+                      size="sm"
+                      className={buttonStyles.cancel.normal}
+                      onClick={() => onOpenChange(false)}
                     >
-                      Send to Payroll
-                    </Label>
-                    <p className="text-xs text-muted-foreground">
-                      Post the holiday pay and allowance to the current salary
-                      cycle.
-                    </p>
-                  </div>
-                  <Switch
-                    id="sendToPayroll"
-                    checked={formik.values.sendToPayroll}
-                    onCheckedChange={(checked) =>
-                      formik.setFieldValue('sendToPayroll', checked)
-                    }
-                    className="shrink-0"
-                  />
-                </div>
+                      <X className="h-3.5 w-3.5" />
+                      Cancel
+                    </Button>
+                    <Button
+                      type="submit"
+                      size="sm"
+                      disabled={
+                        loading || Boolean(conflictPreview?.blocksSave)
+                      }
+                      className={buttonStyles.save}
+                    >
+                      {copy.saveLabel}
+                    </Button>
+                  </SheetFooter>
+                </Form>
+              );
+            }}
+          </Formik>
+        </SheetContent>
+      </Sheet>
 
-                <CustomFormField
-                  id="remarks"
-                  type="textarea"
-                  placeholder="Remarks"
-                  value={formik.values.remarks}
-                  onChange={formik.handleChange}
-                  onBlur={formik.handleBlur}
-                  required={false}
-                  styleClasses={fieldStyleClasses}
-                />
-
-                <div className="grid grid-cols-1 gap-2 rounded-lg border border-border bg-muted/40 px-3 py-2.5 text-xs text-muted-foreground sm:grid-cols-2">
-                  <p>
-                    Created by:{' '}
-                    {isEdit
-                      ? record?.createdUser?.name || record?.createdBy || '—'
-                      : '—'}
-                    {isEdit && record?.createdAt
-                      ? ` · ${formatAuditDateTime(record.createdAt)}`
-                      : null}
-                  </p>
-                  <p className="sm:text-right">
-                    Last updated:{' '}
-                    {isEdit
-                      ? record?.updatedUser?.name || record?.updatedBy || '—'
-                      : '—'}
-                    {isEdit && record?.updatedAt
-                      ? ` · ${formatAuditDateTime(record.updatedAt)}`
-                      : null}
-                  </p>
-                </div>
-              </div>
-
-              <SheetFooter className="shrink-0 flex-row justify-end gap-2 border-t border-border bg-background px-6 py-4 sm:space-x-0">
-                <Button
-                  type="button"
-                  variant="outline"
-                  disabled={loading}
-                  size="sm"
-                  className="w-full sm:w-24 gap-1 border-red-500 text-red-500 transition-colors ease-in-out duration-100 hover:bg-red-500 hover:text-white"
-                  onClick={() => onOpenChange(false)}
-                >
-                  <X className="h-3.5 w-3.5" />
-                  Cancel
-                </Button>
-                <Button type="submit" size="sm" disabled={loading}>
-                  {copy.saveLabel}
-                </Button>
-              </SheetFooter>
-            </Form>
-          )}
-        </Formik>
-      </SheetContent>
-    </Sheet>
+      <CustomAlertDialog
+        open={confirmOpen}
+        title="Confirm roster warning"
+        description={confirmDescription}
+        loading={loading}
+        handleVisibilityChange={(nextOpen) => {
+          if (!nextOpen) {
+            pendingSubmitRef.current = null;
+            pendingAckRef.current = false;
+          }
+          setConfirmOpen(nextOpen);
+        }}
+        handleContinue={async () => {
+          const pending = pendingSubmitRef.current;
+          if (!pending) {
+            setConfirmOpen(false);
+            return;
+          }
+          pendingAckRef.current = true;
+          setConfirmOpen(false);
+          await persistHoliday(pending.values, pending.helpers);
+          pendingSubmitRef.current = null;
+        }}
+      />
+    </>
   );
+}
+
+function ConflictPreviewEffect({
+  open,
+  staffId,
+  dutyDate,
+  shiftTypeId,
+  excludeAllocationId,
+  onPreview
+}: {
+  open: boolean;
+  staffId: string;
+  dutyDate: Date | null;
+  shiftTypeId: string;
+  excludeAllocationId?: string | null;
+  onPreview: (preview: PublicHolidayShiftConflictPreview | null) => void;
+}) {
+  useEffect(() => {
+    if (!open || !staffId || !dutyDate) {
+      onPreview(null);
+      return;
+    }
+
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      void (async () => {
+        const response = await getPublicHolidayShiftConflictPreviewAction({
+          staffId,
+          dutyDate,
+          shiftTypeId,
+          excludeAllocationId
+        });
+        if (cancelled) return;
+        if (response.isError || !response.data) {
+          onPreview(null);
+          return;
+        }
+        onPreview(response.data);
+      })();
+    }, 250);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [
+    dutyDate,
+    excludeAllocationId,
+    onPreview,
+    open,
+    shiftTypeId,
+    staffId
+  ]);
+
+  return null;
 }

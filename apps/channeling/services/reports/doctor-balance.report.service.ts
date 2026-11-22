@@ -74,7 +74,7 @@ export async function getDoctorBalanceReportService(
         city: true,
         specialityId: true,
         accounts: {
-          where: { type: 'PAYABLE', isActive: true },
+          where: { type: 'PAYABLE', isActive: true, NOT: { code: { startsWith: 'DPAY-DOC-' } } },
           select: { id: true, createdAt: true },
           orderBy: { createdAt: 'asc' },
           take: 1,

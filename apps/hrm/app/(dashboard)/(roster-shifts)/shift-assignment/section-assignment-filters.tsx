@@ -1,16 +1,9 @@
 'use client';
 
-import { RefreshCw, Search } from 'lucide-react';
-import {
-  Button,
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  Combobox,
-  Input,
-  Label
-} from '@archmage/ui';
+import { Suspense } from 'react';
+import { Search } from 'lucide-react';
+import { Combobox, Input, Label } from '@archmage/ui';
+import { FilterWrapper } from '@/app/(dashboard)/filter-wrapper';
 import type { RosterFilterOption } from '@/types/roster';
 
 export type AssignmentFilterValues = {
@@ -25,7 +18,7 @@ export type AssignmentFilterValues = {
 };
 
 type SectionAssignmentFiltersProps = {
-  values: AssignmentFilterValues;
+  initial?: Partial<AssignmentFilterValues>;
   institutionOptions: RosterFilterOption[];
   departmentOptions: RosterFilterOption[];
   unitOptions: RosterFilterOption[];
@@ -33,158 +26,175 @@ type SectionAssignmentFiltersProps = {
   staffCategoryOptions: RosterFilterOption[];
   staffGradeOptions: RosterFilterOption[];
   employeeStatusOptions: RosterFilterOption[];
-  onChange: (next: Partial<AssignmentFilterValues>) => void;
-  onSearch: () => void;
-  onClear: () => void;
 };
 
-export default function SectionAssignmentFilters({
-  values,
+function SectionAssignmentFiltersInner({
+  initial = {},
   institutionOptions,
   departmentOptions,
   unitOptions,
   designationOptions,
   staffCategoryOptions,
   staffGradeOptions,
-  employeeStatusOptions,
-  onChange,
-  onSearch,
-  onClear
+  employeeStatusOptions
 }: SectionAssignmentFiltersProps) {
+  const initialValues = {
+    institution: initial.institutionId ?? '',
+    department: initial.departmentId ?? '',
+    unit: initial.unitId ?? '',
+    designation: initial.designationId ?? '',
+    staffCategory: initial.staffCategoryId ?? '',
+    staffGrade: initial.staffGradeId ?? '',
+    employeeStatus: initial.employeeStatusId ?? '',
+    search: initial.staffSearch ?? ''
+  };
+
   return (
-    <Card className="rounded-lg border border-border shadow-sm">
-      <CardHeader className="pb-3">
-        <CardTitle className="text-lg font-semibold">Search & Filters</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <div className="space-y-2">
-            <Label className="text-xs uppercase text-muted-foreground">
-              Institution
-            </Label>
-            <Combobox
-              label="Select Institution"
-              options={institutionOptions}
-              value={values.institutionId}
-              defaultValue=""
-              onChange={(value) => onChange({ institutionId: value })}
-              clearable
-            />
-          </div>
-          <div className="space-y-2">
-            <Label className="text-xs uppercase text-muted-foreground">
-              Department
-            </Label>
-            <Combobox
-              label="Select Department"
-              options={departmentOptions}
-              value={values.departmentId}
-              defaultValue=""
-              onChange={(value) => onChange({ departmentId: value })}
-              clearable
-            />
-          </div>
-          <div className="space-y-2">
-            <Label className="text-xs uppercase text-muted-foreground">
-              Unit
-            </Label>
-            <Combobox
-              label="Select Unit"
-              options={unitOptions}
-              value={values.unitId}
-              defaultValue=""
-              onChange={(value) => onChange({ unitId: value })}
-              clearable
-            />
-          </div>
-          <div className="space-y-2">
-            <Label className="text-xs uppercase text-muted-foreground">
-              Designation
-            </Label>
-            <Combobox
-              label="Select Designation"
-              options={designationOptions}
-              value={values.designationId}
-              defaultValue=""
-              onChange={(value) => onChange({ designationId: value })}
-              clearable
-            />
-          </div>
-          <div className="space-y-2">
-            <Label className="text-xs uppercase text-muted-foreground">
-              Staff Category
-            </Label>
-            <Combobox
-              label="Select Staff Category"
-              options={staffCategoryOptions}
-              value={values.staffCategoryId}
-              defaultValue=""
-              onChange={(value) => onChange({ staffCategoryId: value })}
-              clearable
-            />
-          </div>
-          <div className="space-y-2">
-            <Label className="text-xs uppercase text-muted-foreground">
-              Staff Grade
-            </Label>
-            <Combobox
-              label="Select Staff Grade"
-              options={staffGradeOptions}
-              value={values.staffGradeId}
-              defaultValue=""
-              onChange={(value) => onChange({ staffGradeId: value })}
-              clearable
-            />
-          </div>
-          <div className="space-y-2">
-            <Label className="text-xs uppercase text-muted-foreground">
-              Employee Status
-            </Label>
-            <Combobox
-              label="Select Employee Status"
-              options={employeeStatusOptions}
-              value={values.employeeStatusId}
-              defaultValue=""
-              onChange={(value) => onChange({ employeeStatusId: value })}
-              clearable
-            />
-          </div>
-          <div className="space-y-2">
-            <Label
-              htmlFor="assignment-staff-search"
-              className="text-xs uppercase text-muted-foreground"
-            >
-              Staff Search
-            </Label>
-            <div className="relative">
-              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                id="assignment-staff-search"
-                className="pl-8"
-                placeholder="Search staff ID or name"
-                value={values.staffSearch}
-                onChange={(e) => onChange({ staffSearch: e.target.value })}
+    <div className="rounded-lg border border-border bg-card p-4 shadow-sm">
+      <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+        Search & Filters
+      </h2>
+      <FilterWrapper
+        key={Object.values(initialValues).join('|')}
+        initialValues={initialValues}
+        buttonLabel="Search"
+        showClearButton
+        preserveQueryKeys={['limit']}
+        searchButton={{
+          variant: 'default',
+          className: 'h-10 shrink-0 gap-2'
+        }}
+      >
+        {({ values, setValue }) => (
+          <div className="grid w-full gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            <div className="space-y-2">
+              <Label className="text-xs uppercase text-muted-foreground">
+                Select Institution
+              </Label>
+              <Combobox
+                label="Institution"
+                options={institutionOptions}
+                value={values.institution ?? ''}
+                defaultValue=""
+                onChange={(value) => setValue('institution', value)}
+                clearable
               />
             </div>
+            <div className="space-y-2">
+              <Label className="text-xs uppercase text-muted-foreground">
+                Select Department
+              </Label>
+              <Combobox
+                label="Department"
+                options={departmentOptions}
+                value={values.department ?? ''}
+                defaultValue=""
+                onChange={(value) => setValue('department', value)}
+                clearable
+              />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-xs uppercase text-muted-foreground">
+                Select Unit
+              </Label>
+              <Combobox
+                label="Unit"
+                options={unitOptions}
+                value={values.unit ?? ''}
+                defaultValue=""
+                onChange={(value) => setValue('unit', value)}
+                clearable
+              />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-xs uppercase text-muted-foreground">
+                Select Designation
+              </Label>
+              <Combobox
+                label="Designation"
+                options={designationOptions}
+                value={values.designation ?? ''}
+                defaultValue=""
+                onChange={(value) => setValue('designation', value)}
+                clearable
+              />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-xs uppercase text-muted-foreground">
+                Select Staff Category
+              </Label>
+              <Combobox
+                label="Staff Category"
+                options={staffCategoryOptions}
+                value={values.staffCategory ?? ''}
+                defaultValue=""
+                onChange={(value) => setValue('staffCategory', value)}
+                clearable
+              />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-xs uppercase text-muted-foreground">
+                Select Staff Grade
+              </Label>
+              <Combobox
+                label="Staff Grade"
+                options={staffGradeOptions}
+                value={values.staffGrade ?? ''}
+                defaultValue=""
+                onChange={(value) => setValue('staffGrade', value)}
+                clearable
+              />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-xs uppercase text-muted-foreground">
+                Select Employee Status
+              </Label>
+              <Combobox
+                label="Employee Status"
+                options={employeeStatusOptions}
+                value={values.employeeStatus ?? ''}
+                defaultValue=""
+                onChange={(value) => setValue('employeeStatus', value)}
+                clearable
+              />
+            </div>
+            <div className="space-y-2">
+              <Label
+                htmlFor="assignment-staff-search"
+                className="text-xs uppercase text-muted-foreground"
+              >
+                Staff Search
+              </Label>
+              <div className="relative">
+                <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  id="assignment-staff-search"
+                  className="pl-8"
+                  placeholder="Search staff ID or name"
+                  value={values.search ?? ''}
+                  onChange={(e) => setValue('search', e.target.value)}
+                />
+              </div>
+            </div>
           </div>
-        </div>
+        )}
+      </FilterWrapper>
+    </div>
+  );
+}
 
-        <div className="flex flex-wrap gap-2">
-          <Button type="button" size="sm" className="h-9" onClick={onSearch}>
-            Search
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            className="h-9 gap-1.5"
-            onClick={onClear}
-          >
-            <RefreshCw className="h-3.5 w-3.5" />
-            Clear
-          </Button>
+export default function SectionAssignmentFilters(
+  props: SectionAssignmentFiltersProps
+) {
+  return (
+    <Suspense
+      fallback={
+        <div className="rounded-lg border border-border bg-muted/20 px-4 py-6 text-sm text-muted-foreground">
+          Loading filters...
         </div>
-      </CardContent>
-    </Card>
+      }
+    >
+      <SectionAssignmentFiltersInner {...props} />
+    </Suspense>
   );
 }

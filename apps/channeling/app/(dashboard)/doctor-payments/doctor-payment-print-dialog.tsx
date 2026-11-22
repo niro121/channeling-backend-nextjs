@@ -35,10 +35,11 @@ export async function printDoctorPaymentReceiptById(
     return { success: false, message: "Receipt is required." };
   }
   const printed = await printDoctorPaymentReceiptAction(receiptId.trim(), options);
-  if (!printed.success || !printed.data) {
+  const slips = printed.slips?.length ? printed.slips : printed.data ? [printed.data] : [];
+  if (!printed.success || slips.length === 0) {
     return { success: false, message: printed.message ?? "Could not prepare the receipt." };
   }
-  printHtmlInIframe(buildDoctorPaymentPrintHtml([printed.data]), {
+  printHtmlInIframe(buildDoctorPaymentPrintHtml(slips), {
     title: "Consultant Payment",
     width: "148mm",
     height: "210mm",
@@ -68,13 +69,11 @@ export function DoctorPaymentPrintDialog({
   const [loading, setLoading] = useState(true);
   const [printing, setPrinting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [detail, setDetail] = useState<DoctorPaymentPrintModel | null>(null);
-  const [cancelDetail, setCancelDetail] = useState<DoctorPaymentPrintModel | null>(null);
+  const [slips, setSlips] = useState<DoctorPaymentPrintModel[]>([]);
 
   useEffect(() => {
     if (!open || !receiptId) {
-      setDetail(null);
-      setCancelDetail(null);
+      setSlips([]);
       setError(null);
       setLoading(false);
       return;
@@ -82,24 +81,16 @@ export function DoctorPaymentPrintDialog({
     let cancelled = false;
     setLoading(true);
     setError(null);
-    const loadPromise = cancelReceiptId
-      ? getDoctorPaymentReceiptForPrint(cancelReceiptId, { doctorName, originalReceiptNoString })
-      : getDoctorPaymentReceiptForPrint(receiptId);
-
-    loadPromise
+    const loadId = cancelReceiptId || receiptId;
+    const loadOptions = cancelReceiptId ? { doctorName, originalReceiptNoString } : {};
+    getDoctorPaymentReceiptForPrint(loadId, loadOptions)
       .then((detailRes) => {
         if (cancelled) return;
-        if (detailRes.success && detailRes.data) {
-          if (cancelReceiptId) {
-            setDetail(null);
-            setCancelDetail(detailRes.data);
-          } else {
-            setDetail(detailRes.data);
-            setCancelDetail(null);
-          }
+        const loaded = detailRes.slips?.length ? detailRes.slips : detailRes.data ? [detailRes.data] : [];
+        if (detailRes.success && loaded.length > 0) {
+          setSlips(loaded);
         } else {
-          setDetail(null);
-          setCancelDetail(null);
+          setSlips([]);
           setError(detailRes.success ? "No data" : detailRes.message ?? "Failed to load receipt.");
         }
       })
@@ -115,8 +106,7 @@ export function DoctorPaymentPrintDialog({
   }, [open, receiptId, cancelReceiptId, doctorName, originalReceiptNoString]);
 
   const handlePrint = async () => {
-    const canPrint = cancelReceiptId ? Boolean(cancelDetail) : Boolean(detail);
-    if (!canPrint || printing) return;
+    if (slips.length === 0 || printing) return;
     setPrinting(true);
     try {
       const printId = cancelReceiptId ?? receiptId;
@@ -144,9 +134,8 @@ export function DoctorPaymentPrintDialog({
     }
   };
 
-  const paidHtml = detail ? buildDoctorPaymentPrintHtml([detail]) : null;
-  const cancelHtml = cancelDetail ? buildDoctorPaymentPrintHtml([cancelDetail]) : null;
-  const hasContent = Boolean(paidHtml || cancelHtml);
+  const previewHtml = slips.length > 0 ? buildDoctorPaymentPrintHtml(slips) : null;
+  const hasContent = Boolean(previewHtml);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -164,28 +153,15 @@ export function DoctorPaymentPrintDialog({
         )}
         {!loading && !error && hasContent && (
           <div className="flex-1 min-h-0 overflow-y-auto space-y-6">
-            {paidHtml && !cancelReceiptId && (
-              <div className="space-y-2">
-                <div className="rounded-md border bg-white overflow-auto">
-                  <iframe
-                    title="Paid receipt preview"
-                    srcDoc={paidHtml}
-                    className="w-full min-h-[520px] border-0 bg-white"
-                    sandbox="allow-same-origin"
-                  />
-                </div>
-              </div>
-            )}
-            {cancelHtml && (
-              <div className="space-y-2">
-                <div className="rounded-md border bg-white overflow-auto">
-                  <iframe
-                    title="Cancel receipt preview"
-                    srcDoc={cancelHtml}
-                    className="w-full min-h-[520px] border-0 bg-white"
-                    sandbox="allow-same-origin"
-                  />
-                </div>
+            {previewHtml && (
+              <div className="rounded-md border bg-white overflow-auto">
+                <iframe
+                  title="Receipt preview"
+                  srcDoc={previewHtml}
+                  className="w-full border-0 bg-white"
+                  style={{ minHeight: `${Math.max(520, slips.length * 520)}px` }}
+                  sandbox="allow-same-origin"
+                />
               </div>
             )}
           </div>
@@ -194,7 +170,7 @@ export function DoctorPaymentPrintDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Close
           </Button>
-          {(cancelReceiptId ? cancelDetail : detail) && (
+          {slips.length > 0 && (
             <Button onClick={handlePrint} disabled={printing}>
               {printing ? (
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />

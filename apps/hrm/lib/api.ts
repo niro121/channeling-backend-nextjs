@@ -204,24 +204,25 @@ export async function channelingFetch<T = unknown>(
     requestHeaders.set('Content-Type', 'application/json');
   }
 
-  let accessToken: string | undefined;
-  if (token) {
-    requestHeaders.set('Authorization', `Bearer ${token}`);
-  } else if (useClientCredentials) {
-    accessToken = await getChannelingAccessToken();
-    requestHeaders.set('Authorization', `Bearer ${accessToken}`);
-  }
-
-  const executeRequest = () =>
-    fetch(buildChannelingUrl(path, searchParams), {
-      method,
-      headers: requestHeaders,
-      body: hasJsonBody ? JSON.stringify(body) : undefined,
-      cache,
-      next
-    });
-
   try {
+    let accessToken: string | undefined;
+    if (token) {
+      requestHeaders.set('Authorization', `Bearer ${token}`);
+    } else if (useClientCredentials) {
+      // Must stay inside try: token fetch also fails when Channeling is offline.
+      accessToken = await getChannelingAccessToken();
+      requestHeaders.set('Authorization', `Bearer ${accessToken}`);
+    }
+
+    const executeRequest = () =>
+      fetch(buildChannelingUrl(path, searchParams), {
+        method,
+        headers: requestHeaders,
+        body: hasJsonBody ? JSON.stringify(body) : undefined,
+        cache,
+        next
+      });
+
     let response = await executeRequest();
     let responseBody = await parseResponseBody(response);
 

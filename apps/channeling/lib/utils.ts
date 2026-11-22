@@ -441,18 +441,25 @@ export const formatDateSriLanka = (
 /**
  * Format date+time in Sri Lanka (Asia/Colombo) for display.
  * Use for createdAt/updatedAt etc. so all app times use the same timezone.
+ * Default stays `08/10/2026, 5:37 pm`. `withSeconds` adds seconds and capital AM/PM.
  */
-export const formatDateTimeSriLanka = (value: Date | number | string): string => {
+export const formatDateTimeSriLanka = (
+  value: Date | number | string,
+  options?: { withSeconds?: boolean }
+): string => {
   const date = typeof value === 'string' || typeof value === 'number' ? new Date(value) : value
-  return new Intl.DateTimeFormat('en-GB', {
+  const formatted = new Intl.DateTimeFormat('en-GB', {
     timeZone: SRI_LANKA_TZ,
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',
     hour: 'numeric',
     minute: '2-digit',
+    ...(options?.withSeconds ? { second: '2-digit' as const } : {}),
     hour12: true
   }).format(date)
+  if (!options?.withSeconds) return formatted
+  return formatted.replace(/\b(am|pm)\b/gi, (m) => m.toUpperCase())
 }
 
 export const buildDateFromTime = (

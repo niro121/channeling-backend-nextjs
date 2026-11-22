@@ -117,46 +117,33 @@ export async function createLocationAction(
     }
 
     const hrmId = result.data.id;
+    let channelingWarning: string | undefined;
     const shouldSyncToChanneling = options?.syncToChanneling ?? true;
 
     if (shouldSyncToChanneling && hrmId) {
-      const channelingResult = await pushLocationCreateToChanneling(hrmId, {
-        ...payload,
-        code: result.data.code
-      });
+      try {
+        const channelingResult = await pushLocationCreateToChanneling(hrmId, {
+          ...payload,
+          code: result.data.code
+        });
 
-      if (!channelingResult.success) {
-        await deleteLocation(hrmId);
-        return {
-          isError: true,
-          errors: {
-            message:
-              channelingResult.error?.message ??
-              'Location could not be created in Channeling. No record was saved in HRM.'
-          },
-          data: null
-        };
-      }
-
-      const refreshed = await getLocationById(hrmId);
-      if (refreshed.success && refreshed.data) {
-        if (auditUser?.id) {
-          logActivityNonBlocking({
-            userId: auditUser.id,
-            action: 'organizations.locations.created',
-            entityType: 'Location',
-            entityId: hrmId,
-            importance: 'high'
-          });
+        if (!channelingResult.success) {
+          channelingWarning =
+            channelingResult.error?.message ??
+            'Location was saved in HRM, but Channeling sync failed.';
         }
-        revalidatePath('/locations');
-        return {
-          isError: false,
-          data: mapLocationToUiRecord(refreshed.data),
-          errors: {}
-        };
+      } catch (syncError: any) {
+        channelingWarning =
+          syncError?.message ??
+          'Location was saved in HRM, but Channeling sync failed.';
       }
     }
+
+    const refreshed = await getLocationById(hrmId);
+    const savedRecord =
+      refreshed.success && refreshed.data
+        ? mapLocationToUiRecord(refreshed.data)
+        : mapLocationToUiRecord(result.data);
 
     if (auditUser?.id) {
       logActivityNonBlocking({
@@ -171,8 +158,9 @@ export async function createLocationAction(
     revalidatePath('/locations');
     return {
       isError: false,
-      data: mapLocationToUiRecord(result.data),
-      errors: {}
+      data: savedRecord,
+      errors: {},
+      channelingWarning
     };
   } catch (error: any) {
     console.error('createLocationAction error:', error);
@@ -214,17 +202,23 @@ export async function updateLocationAction(
 
     let channelingWarning: string | undefined;
     if (options?.syncToChanneling) {
-      const channelingResult = await pushLocationUpdateToChanneling(
-        id,
-        existing?.migrateSourceId,
-        {
-          ...payload,
-          code: result.data.code
+      try {
+        const channelingResult = await pushLocationUpdateToChanneling(
+          id,
+          existing?.migrateSourceId,
+          {
+            ...payload,
+            code: result.data.code
+          }
+        );
+        if (!channelingResult.success) {
+          channelingWarning =
+            channelingResult.error?.message ??
+            'Location was updated in HRM, but Channeling sync failed.';
         }
-      );
-      if (!channelingResult.success) {
+      } catch (syncError: any) {
         channelingWarning =
-          channelingResult.error?.message ??
+          syncError?.message ??
           'Location was updated in HRM, but Channeling sync failed.';
       }
     }

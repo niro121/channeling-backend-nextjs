@@ -164,17 +164,22 @@ export type BillLineItemStatus = 'active' | 'deleted';
 export type BillLineItem = {
   id: string;
   doctorName: string;
+  doctorId?: string | null;
+  doctorCode?: string | null;
   description: string;
   amount: number;
   status?: BillLineItemStatus;
   doctorPaymentId?: string | null;
   deletedAt?: string | null;
   deletedByName?: string | null;
+  deleteRemark?: string | null;
 };
 
 export type AddPatientBillLineItemInput = {
   billId: string;
   doctorName: string;
+  doctorId?: string | null;
+  doctorCode?: string | null;
   description: string;
   amount: number;
 };
@@ -200,6 +205,7 @@ export type BillLineItemHistoryEntry = {
   previousDescription?: string | null;
   previousAmount?: number | null;
   previousSortOrder?: number | null;
+  deleteRemark?: string | null;
 };
 
 export type GeneratedBillNumbers = {

@@ -23,6 +23,8 @@ import {
   MoonStar,
   PartyPopper,
   ChevronDown,
+  FoldVertical,
+  UnfoldVertical,
   Clock,
   Users,
   Building2,
@@ -39,6 +41,29 @@ import {
   ScrollText,
   TabletSmartphone,
   Fingerprint,
+  KeyRound,
+  Wallet,
+  PlayCircle,
+  Cog,
+  ListChecks,
+  Percent,
+  Banknote,
+  CirclePlus,
+  CircleMinus,
+  FileText,
+  Landmark,
+  History,
+  BriefcaseBusiness,
+  ClipboardPenLine,
+  Megaphone,
+  Inbox,
+  FolderOpen,
+  UserCheck,
+  UserPen,
+  Star,
+  Mail,
+  FileBarChart2,
+  PieChart,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { canAccessRoute } from "@/lib/permissions";
@@ -56,7 +81,8 @@ function SidebarGroup({
       <p className="px-3 py-1.5 text-xs font-medium text-muted-foreground uppercase tracking-wider">
         {label}
       </p>
-      <div className="space-y-0.5">{children}</div>
+      {/* Module / leaf nav icons stay size-4 */}
+      <div className="space-y-0.5 [&_a>svg]:!size-4 [&_a>svg]:shrink-0">{children}</div>
     </div>
   );
 }
@@ -67,25 +93,26 @@ function SidebarCollapsible({
   icon,
   paths,
   children,
-  defaultOpen = false,
+  allExpanded = false,
 }: {
   label: string;
   icon: React.ReactNode;
   /** Routes that keep this section open / highlight the parent when active. */
   paths?: string[];
   children: React.ReactNode;
-  defaultOpen?: boolean;
+  /** When true, force-expand; when false, collapse unless a child route is active. */
+  allExpanded?: boolean;
 }) {
   const pathname = usePathname();
   const visibleChildren = Children.toArray(children).filter(Boolean);
   const isChildActive =
     paths?.some((path) => pathname === path || pathname?.startsWith(path + "/")) ?? false;
 
-  const [open, setOpen] = useState(defaultOpen || isChildActive);
+  const [open, setOpen] = useState(isChildActive);
 
   useEffect(() => {
-    if (isChildActive) setOpen(true);
-  }, [isChildActive]);
+    setOpen(allExpanded || isChildActive);
+  }, [allExpanded, isChildActive]);
 
   if (visibleChildren.length === 0) return null;
 
@@ -102,14 +129,16 @@ function SidebarCollapsible({
         )}
         aria-expanded={open}
       >
-        {icon}
+        <span className="inline-flex size-5 shrink-0 items-center justify-center [&>svg]:!size-5">
+          {icon}
+        </span>
         <span className="flex-1 text-left">{label}</span>
         <ChevronDown
-          className={cn("h-4 w-4 shrink-0 transition-transform", open && "rotate-180")}
+          className={cn("size-4 shrink-0 transition-transform", open && "rotate-180")}
         />
       </button>
       {open && (
-        <div className="ml-3 space-y-0.5 border-l border-primary/10 pl-1">
+        <div className="ml-3 space-y-0.5 border-l border-primary/10 pl-1 [&_svg]:!size-4 [&_svg]:shrink-0">
           {visibleChildren}
         </div>
       )}
@@ -120,6 +149,7 @@ function SidebarCollapsible({
 export function DesktopSidebar({ session, className }: { session: Session | null; className?: string }) {
   const userType = session?.user?.userType;
   const permissions = session?.user?.permissions;
+  const [allExpanded, setAllExpanded] = useState(false);
 
   const hasAccess = (path: string) => {
     if (userType === userTypes.admin) return true;
@@ -141,152 +171,27 @@ export function DesktopSidebar({ session, className }: { session: Session | null
       </div>
 
       <nav className="scrollbar-thin flex-1 overflow-y-auto overflow-x-hidden flex flex-col gap-6 px-3 py-4 min-h-0">
-        <div className="space-y-0.5">
-          <NavLink href="/welcome" label="Dashboard" icon={<LayoutGrid className="h-5 w-5" />} />
+        <div className="space-y-0.5 [&_a>svg]:!size-5 [&_a>svg]:shrink-0">
+          <NavLink href="/welcome" label="Dashboard" icon={<LayoutGrid className="size-5 shrink-0" />} />
+          <button
+            type="button"
+            onClick={() => setAllExpanded((prev) => !prev)}
+            className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition-colors cursor-pointer hover:bg-muted hover:text-foreground"
+            aria-pressed={allExpanded}
+            title={allExpanded ? "Collapse all groups" : "Expand all groups"}
+          >
+            <span className="inline-flex size-5 shrink-0 items-center justify-center [&>svg]:!size-5">
+              {allExpanded ? (
+                <FoldVertical className="size-5 shrink-0" />
+              ) : (
+                <UnfoldVertical className="size-5 shrink-0" />
+              )}
+            </span>
+            <span className="flex-1 text-left">
+              {allExpanded ? "Collapse all" : "Expand all"}
+            </span>
+          </button>
         </div>
-        {(hasAccess('/user-groups') || hasAccess('/users') || hasAccess('/staff')) && (
-          <SidebarGroup label="Administration">
-            {hasAccess('/user-groups') && (
-              <NavLink href="/user-groups" label="User Groups" icon={<Users className="h-5 w-5" />} />
-            )}
-            {hasAccess('/users') && (
-              <NavLink href="/users" label="Users" icon={<UsersRound className="h-5 w-5" />} />
-            )}
-            {hasAccess("/staff") && <NavLink href="/staff" label="Staff" icon={<UserCircle className="h-5 w-5" />} />}
-          </SidebarGroup>
-        )}
-        {(hasAccess('/leave-entitlement') ||
-          hasAccess('/leave-management') ||
-          hasAccess('/leave-application') ||
-          hasAccess('/leave-types')) && (
-          <SidebarGroup label="Leave Management">
-            <SidebarCollapsible
-              label="Leave"
-              icon={<CalendarDays className="h-5 w-5" />}
-              paths={["/leave-entitlement", "/leave-management", "/leave-application", "/leave-types"]}
-            >
-              {hasAccess("/leave-entitlement") && (
-                <NavLink href="/leave-entitlement" label="Entitlement" icon={<CalendarDays className="h-5 w-5" />} />
-              )}
-              {hasAccess("/leave-management") && (
-                <NavLink href="/leave-management" label="Management" icon={<CalendarClock className="h-5 w-5" />} />
-              )}
-              {hasAccess("/leave-application") && (
-                <NavLink href="/leave-application" label="Application" icon={<FilePlus2 className="h-5 w-5" />} />
-              )}
-              {hasAccess("/leave-types") && (
-                <NavLink href="/leave-types" label="Types" icon={<Tags className="h-5 w-5" />} />
-              )}
-            </SidebarCollapsible>
-          </SidebarGroup>
-        )}
-        {(hasAccess('/overtime-requests') ||
-          hasAccess('/overtime-extra-time') ||
-          hasAccess('/overtime-day-off-ph-shift') ||
-          hasAccess('/overtime-extra-shift-normal')) && (
-          <SidebarGroup label="Overtime Management">
-            <SidebarCollapsible
-              label="Overtime"
-              icon={<Clock className="h-5 w-5" />}
-              paths={["/overtime-requests", "/overtime-extra-time", "/overtime-day-off-ph-shift", "/overtime-extra-shift-normal"]}
-            >
-              {hasAccess("/overtime-requests") && (
-                <NavLink href="/overtime-requests" label="OT Requests" icon={<Clock className="h-5 w-5" />} />
-              )}
-              {hasAccess("/overtime-extra-time") && (
-                <NavLink href="/overtime-extra-time" label="Extra Time" icon={<FilePlus2 className="h-5 w-5" />} />
-              )}
-              {hasAccess("/overtime-day-off-ph-shift") && (
-                <NavLink href="/overtime-day-off-ph-shift" label="Day Off / PH Shift" icon={<CalendarOff className="h-5 w-5" />} />
-              )}
-              {hasAccess("/overtime-extra-shift-normal") && (
-                <NavLink href="/overtime-extra-shift-normal" label="Extra Shift Normal" icon={<CalendarPlus className="h-5 w-5" />} />
-              )}
-            </SidebarCollapsible>
-          </SidebarGroup>
-        )}
-        {(hasAccess('/shift-roster') ||
-          hasAccess('/shift-types') ||
-          hasAccess('/shift-assignment') ||
-          hasAccess('/duty-roster') ||
-          hasAccess('/roster-amendments') ||
-          hasAccess('/night-shifts') ||
-          hasAccess('/overnight-shifts') ||
-          hasAccess('/public-holiday-shifts')) && (
-          <SidebarGroup label="Roster & Shifts">
-            <SidebarCollapsible
-              label="Roster & Shifts"
-              icon={<CalendarRange className="h-5 w-5" />}
-              paths={[
-                '/shift-roster',
-                '/shift-types',
-                '/shift-assignment',
-                '/duty-roster',
-                '/roster-amendments',
-                '/night-shifts',
-                '/overnight-shifts',
-                '/public-holiday-shifts'
-              ]}
-            >
-              {hasAccess('/shift-roster') && (
-                <NavLink
-                  href="/shift-roster"
-                  label="Shift Roster"
-                  icon={<CalendarRange className="h-5 w-5" />}
-                />
-              )}
-              {hasAccess('/shift-types') && (
-                <NavLink
-                  href="/shift-types"
-                  label="Shift Types"
-                  icon={<Tags className="h-5 w-5" />}
-                />
-              )}
-              {hasAccess('/shift-assignment') && (
-                <NavLink
-                  href="/shift-assignment"
-                  label="Shift Assignment"
-                  icon={<ClipboardList className="h-5 w-5" />}
-                />
-              )}
-              {hasAccess('/duty-roster') && (
-                <NavLink
-                  href="/duty-roster"
-                  label="Duty Roster"
-                  icon={<ClipboardCheck className="h-5 w-5" />}
-                />
-              )}
-              {hasAccess('/roster-amendments') && (
-                <NavLink
-                  href="/roster-amendments"
-                  label="Roster Amendments"
-                  icon={<FilePenLine className="h-5 w-5" />}
-                />
-              )}
-              {hasAccess('/night-shifts') && (
-                <NavLink
-                  href="/night-shifts"
-                  label="Night Shifts"
-                  icon={<Moon className="h-5 w-5" />}
-                />
-              )}
-              {hasAccess('/overnight-shifts') && (
-                <NavLink
-                  href="/overnight-shifts"
-                  label="Overnight Shifts"
-                  icon={<MoonStar className="h-5 w-5" />}
-                />
-              )}
-              {hasAccess('/public-holiday-shifts') && (
-                <NavLink
-                  href="/public-holiday-shifts"
-                  label="Public Holiday Shifts"
-                  icon={<PartyPopper className="h-5 w-5" />}
-                />
-              )}
-            </SidebarCollapsible>
-          </SidebarGroup>
-        )}
         {(hasAccess('/attendance') ||
           hasAccess('/rfid-attendance') ||
           hasAccess('/attendance-corrections') ||
@@ -309,7 +214,7 @@ export function DesktopSidebar({ session, className }: { session: Session | null
                 '/attendance-summary',
                 '/attendance-logs'
               ]}
-              defaultOpen
+              allExpanded={allExpanded}
             >
               {hasAccess('/attendance') && (
                 <NavLink
@@ -370,11 +275,412 @@ export function DesktopSidebar({ session, className }: { session: Session | null
             </SidebarCollapsible>
           </SidebarGroup>
         )}
+        {(hasAccess('/leave-types') ||
+          hasAccess('/leave-entitlement') ||
+          hasAccess('/leave-application') ||
+          hasAccess('/leave-management')) && (
+          <SidebarGroup label="Leave Management">
+            <SidebarCollapsible
+              label="Leave"
+              icon={<CalendarDays className="h-5 w-5" />}
+              paths={["/leave-types", "/leave-entitlement", "/leave-application", "/leave-management"]}
+              allExpanded={allExpanded}
+            >
+              {hasAccess("/leave-types") && (
+                <NavLink href="/leave-types" label="Types" icon={<Tags className="h-5 w-5" />} />
+              )}
+              {hasAccess("/leave-entitlement") && (
+                <NavLink href="/leave-entitlement" label="Entitlement" icon={<CalendarDays className="h-5 w-5" />} />
+              )}
+              {hasAccess("/leave-application") && (
+                <NavLink href="/leave-application" label="Application" icon={<FilePlus2 className="h-5 w-5" />} />
+              )}
+              {hasAccess("/leave-management") && (
+                <NavLink href="/leave-management" label="Management" icon={<CalendarClock className="h-5 w-5" />} />
+              )}
+            </SidebarCollapsible>
+          </SidebarGroup>
+        )}
+        {(hasAccess('/shift-roster') ||
+          hasAccess('/shift-types') ||
+          hasAccess('/shift-assignment') ||
+          hasAccess('/duty-roster') ||
+          hasAccess('/roster-amendments') ||
+          hasAccess('/night-shifts') ||
+          hasAccess('/overnight-shifts') ||
+          hasAccess('/public-holiday-shifts')) && (
+          <SidebarGroup label="Roster & Shifts">
+            <SidebarCollapsible
+              label="Roster & Shifts"
+              icon={<CalendarRange className="h-5 w-5" />}
+              paths={[
+                '/shift-roster',
+                '/shift-types',
+                '/shift-assignment',
+                '/duty-roster',
+                '/roster-amendments',
+                '/night-shifts',
+                '/overnight-shifts',
+                '/public-holiday-shifts'
+              ]}
+              allExpanded={allExpanded}
+            >
+              {hasAccess('/shift-roster') && (
+                <NavLink
+                  href="/shift-roster"
+                  label="Shift Roster"
+                  icon={<CalendarRange className="h-5 w-5" />}
+                />
+              )}
+              {hasAccess('/shift-types') && (
+                <NavLink
+                  href="/shift-types"
+                  label="Shift Types"
+                  icon={<Tags className="h-5 w-5" />}
+                />
+              )}
+              {hasAccess('/shift-assignment') && (
+                <NavLink
+                  href="/shift-assignment"
+                  label="Shift Assignment"
+                  icon={<ClipboardList className="h-5 w-5" />}
+                />
+              )}
+              {hasAccess('/duty-roster') && (
+                <NavLink
+                  href="/duty-roster"
+                  label="Duty Roster"
+                  icon={<ClipboardCheck className="h-5 w-5" />}
+                />
+              )}
+              {hasAccess('/roster-amendments') && (
+                <NavLink
+                  href="/roster-amendments"
+                  label="Roster Amendments"
+                  icon={<FilePenLine className="h-5 w-5" />}
+                />
+              )}
+              {hasAccess('/night-shifts') && (
+                <NavLink
+                  href="/night-shifts"
+                  label="Night Shifts"
+                  icon={<Moon className="h-5 w-5" />}
+                />
+              )}
+              {hasAccess('/overnight-shifts') && (
+                <NavLink
+                  href="/overnight-shifts"
+                  label="Overnight Shifts"
+                  icon={<MoonStar className="h-5 w-5" />}
+                />
+              )}
+              {hasAccess('/public-holiday-shifts') && (
+                <NavLink
+                  href="/public-holiday-shifts"
+                  label="Public Holiday Shifts"
+                  icon={<PartyPopper className="h-5 w-5" />}
+                />
+              )}
+            </SidebarCollapsible>
+          </SidebarGroup>
+        )}
+        {(hasAccess('/overtime-extra-time') ||
+          hasAccess('/overtime-day-off-ph-shift') ||
+          hasAccess('/overtime-extra-shift-normal') ||
+          hasAccess('/overtime-requests')) && (
+          <SidebarGroup label="Overtime Management">
+            <SidebarCollapsible
+              label="Overtime"
+              icon={<Clock className="h-5 w-5" />}
+              paths={["/overtime-extra-time", "/overtime-day-off-ph-shift", "/overtime-extra-shift-normal", "/overtime-requests"]}
+              allExpanded={allExpanded}
+            >
+              {hasAccess("/overtime-extra-time") && (
+                <NavLink href="/overtime-extra-time" label="Extra Time" icon={<FilePlus2 className="h-5 w-5" />} />
+              )}
+              {hasAccess("/overtime-day-off-ph-shift") && (
+                <NavLink href="/overtime-day-off-ph-shift" label="Day Off / PH Shift" icon={<CalendarOff className="h-5 w-5" />} />
+              )}
+              {hasAccess("/overtime-extra-shift-normal") && (
+                <NavLink href="/overtime-extra-shift-normal" label="Extra Shift Normal" icon={<CalendarPlus className="h-5 w-5" />} />
+              )}
+              {hasAccess("/overtime-requests") && (
+                <NavLink href="/overtime-requests" label="OT Requests" icon={<Clock className="h-5 w-5" />} />
+              )}
+            </SidebarCollapsible>
+          </SidebarGroup>
+        )}
+        {(hasAccess('/payroll') ||
+          hasAccess('/salary-generation') ||
+          hasAccess('/salary-processing') ||
+          hasAccess('/assign-paysheet-component') ||
+          hasAccess('/bulk-assign-paysheet-component') ||
+          hasAccess('/performance-allowance') ||
+          hasAccess('/loans-advances') ||
+          hasAccess('/salary-structures') ||
+          hasAccess('/allowances') ||
+          hasAccess('/deductions') ||
+          hasAccess('/payslips') ||
+          hasAccess('/bank-transfer-file') ||
+          hasAccess('/salary-history')) && (
+          <SidebarGroup label="Payroll">
+            <SidebarCollapsible
+              label="Payroll"
+              icon={<Wallet className="h-5 w-5" />}
+              paths={[
+                '/payroll',
+                '/salary-structures',
+                '/allowances',
+                '/deductions',
+                '/assign-paysheet-component',
+                '/bulk-assign-paysheet-component',
+                '/performance-allowance',
+                '/loans-advances',
+                '/salary-generation',
+                '/salary-processing',
+                '/payslips',
+                '/bank-transfer-file',
+                '/salary-history'
+              ]}
+              allExpanded={allExpanded}
+            >
+              {hasAccess('/payroll') && (
+                <NavLink
+                  href="/payroll"
+                  label="Guide"
+                  icon={<BookOpen className="h-5 w-5" />}
+                />
+              )}
+              {hasAccess('/salary-structures') && (
+                <NavLink
+                  href="/salary-structures"
+                  label="Salary Structures"
+                  icon={<Layers className="h-5 w-5" />}
+                />
+              )}
+              {hasAccess('/allowances') && (
+                <NavLink
+                  href="/allowances"
+                  label="Allowances"
+                  icon={<CirclePlus className="h-5 w-5" />}
+                />
+              )}
+              {hasAccess('/deductions') && (
+                <NavLink
+                  href="/deductions"
+                  label="Deductions"
+                  icon={<CircleMinus className="h-5 w-5" />}
+                />
+              )}
+              {hasAccess('/assign-paysheet-component') && (
+                <NavLink
+                  href="/assign-paysheet-component"
+                  label="Assign Paysheet Component"
+                  icon={<ListChecks className="h-5 w-5" />}
+                />
+              )}
+              {hasAccess('/bulk-assign-paysheet-component') && (
+                <NavLink
+                  href="/bulk-assign-paysheet-component"
+                  label="Bulk assign paysheet component"
+                  icon={<Users className="h-5 w-5" />}
+                />
+              )}
+              {hasAccess('/performance-allowance') && (
+                <NavLink
+                  href="/performance-allowance"
+                  label="Performance Allowance"
+                  icon={<Percent className="h-5 w-5" />}
+                />
+              )}
+              {hasAccess('/loans-advances') && (
+                <NavLink
+                  href="/loans-advances"
+                  label="Loans & Advances"
+                  icon={<Banknote className="h-5 w-5" />}
+                />
+              )}
+              {hasAccess('/salary-generation') && (
+                <NavLink
+                  href="/salary-generation"
+                  label="Salary Generation"
+                  icon={<PlayCircle className="h-5 w-5" />}
+                />
+              )}
+              {hasAccess('/salary-processing') && (
+                <NavLink
+                  href="/salary-processing"
+                  label="Salary Processing"
+                  icon={<Cog className="h-5 w-5" />}
+                />
+              )}
+              {hasAccess('/payslips') && (
+                <NavLink
+                  href="/payslips"
+                  label="Payslips"
+                  icon={<FileText className="h-5 w-5" />}
+                />
+              )}
+              {hasAccess('/bank-transfer-file') && (
+                <NavLink
+                  href="/bank-transfer-file"
+                  label="Bank Transfer File"
+                  icon={<Landmark className="h-5 w-5" />}
+                />
+              )}
+              {hasAccess('/salary-history') && (
+                <NavLink
+                  href="/salary-history"
+                  label="Salary History"
+                  icon={<History className="h-5 w-5" />}
+                />
+              )}
+            </SidebarCollapsible>
+          </SidebarGroup>
+        )}
+        {hasAccess('/reports') && (
+          <SidebarGroup label="Reports">
+            <SidebarCollapsible
+              label="Reports"
+              icon={<FileBarChart2 className="h-5 w-5" />}
+              paths={[
+                '/reports',
+                '/reports/department',
+                '/reports/staff',
+                '/reports/attendance',
+                '/reports/payroll',
+                '/reports/overtime',
+                '/reports/leave',
+                '/reports/statistical'
+              ]}
+              allExpanded={allExpanded}
+            >
+              <NavLink
+                href="/reports/department"
+                label="Department Reports"
+                icon={<Building2 className="h-5 w-5" />}
+              />
+              <NavLink
+                href="/reports"
+                label="All Reports"
+                icon={<PieChart className="h-5 w-5" />}
+              />
+            </SidebarCollapsible>
+          </SidebarGroup>
+        )}
+        {(hasAccess('/vacancy-requests') ||
+          hasAccess('/job-posts') ||
+          hasAccess('/resume-bank') ||
+          hasAccess('/applications') ||
+          hasAccess('/shortlisting') ||
+          hasAccess('/interview-schedule') ||
+          hasAccess('/evaluation') ||
+          hasAccess('/appointment-letters')) && (
+          <SidebarGroup label="Recruitment">
+            <SidebarCollapsible
+              label="Recruitment"
+              icon={<BriefcaseBusiness className="h-5 w-5" />}
+              paths={[
+                '/vacancy-requests',
+                '/job-posts',
+                '/resume-bank',
+                '/applications',
+                '/shortlisting',
+                '/interview-schedule',
+                '/evaluation',
+                '/appointment-letters'
+              ]}
+              allExpanded={allExpanded}
+            >
+              {hasAccess('/vacancy-requests') && (
+                <NavLink
+                  href="/vacancy-requests"
+                  label="Vacancy Requests"
+                  icon={<ClipboardPenLine className="h-5 w-5" />}
+                />
+              )}
+              {hasAccess('/job-posts') && (
+                <NavLink
+                  href="/job-posts"
+                  label="Job Posts"
+                  icon={<Megaphone className="h-5 w-5" />}
+                />
+              )}
+              {hasAccess('/resume-bank') && (
+                <NavLink
+                  href="/resume-bank"
+                  label="Resume Bank"
+                  icon={<FolderOpen className="h-5 w-5" />}
+                />
+              )}
+              {hasAccess('/applications') && (
+                <NavLink
+                  href="/applications"
+                  label="Applications"
+                  icon={<Inbox className="h-5 w-5" />}
+                />
+              )}
+              {hasAccess('/shortlisting') && (
+                <NavLink
+                  href="/shortlisting"
+                  label="Shortlisting"
+                  icon={<UserCheck className="h-5 w-5" />}
+                />
+              )}
+              {hasAccess('/interview-schedule') && (
+                <NavLink
+                  href="/interview-schedule"
+                  label="Interview Schedule"
+                  icon={<CalendarClock className="h-5 w-5" />}
+                />
+              )}
+              {hasAccess('/evaluation') && (
+                <NavLink
+                  href="/evaluation"
+                  label="Evaluation"
+                  icon={<Star className="h-5 w-5" />}
+                />
+              )}
+              {hasAccess('/appointment-letters') && (
+                <NavLink
+                  href="/appointment-letters"
+                  label="Appointment Letters"
+                  icon={<Mail className="h-5 w-5" />}
+                />
+              )}
+            </SidebarCollapsible>
+          </SidebarGroup>
+        )}
+        {(hasAccess('/user-groups') ||
+          hasAccess('/users') ||
+          hasAccess('/api-clients') ||
+          hasAccess('/staff')) && (
+          <SidebarGroup label="Administration">
+            {hasAccess('/user-groups') && (
+              <NavLink href="/user-groups" label="User Groups" icon={<Users className="h-5 w-5" />} />
+            )}
+            {hasAccess('/users') && (
+              <NavLink href="/users" label="Users" icon={<UsersRound className="h-5 w-5" />} />
+            )}
+            {hasAccess('/api-clients') && (
+              <NavLink
+                href="/api-clients"
+                label="API Clients"
+                icon={<KeyRound className="h-5 w-5" />}
+              />
+            )}
+            {hasAccess("/staff") && <NavLink href="/staff" label="Staff" icon={<UserCircle className="h-5 w-5" />} />}
+          </SidebarGroup>
+        )}
         {(hasAccess('/holiday-calendar') ||
           hasAccess('/designations') ||
           hasAccess('/staff-grades') ||
           hasAccess('/staff-specialities') ||
-          hasAccess('/manage-rosters')) && (
+          hasAccess('/change-staff') ||
+          hasAccess('/manage-rosters') ||
+          hasAccess('/paysheet-components') ||
+          hasAccess('/hrm-variables') ||
+          hasAccess('/salary-cycles')) && (
           <SidebarGroup label="HR Administration">
             <SidebarCollapsible
               label="HR Administration"
@@ -384,9 +690,13 @@ export function DesktopSidebar({ session, className }: { session: Session | null
                 '/designations',
                 '/staff-grades',
                 '/staff-specialities',
-                '/manage-rosters'
+                '/change-staff',
+                '/manage-rosters',
+                '/paysheet-components',
+                '/hrm-variables',
+                '/salary-cycles'
               ]}
-              defaultOpen
+              allExpanded={allExpanded}
             >
               {hasAccess('/holiday-calendar') && (
                 <NavLink
@@ -416,11 +726,39 @@ export function DesktopSidebar({ session, className }: { session: Session | null
                   icon={<Stethoscope className="h-5 w-5" />}
                 />
               )}
+              {hasAccess('/change-staff') && (
+                <NavLink
+                  href="/change-staff"
+                  label="Change Staff"
+                  icon={<UserPen className="h-5 w-5" />}
+                />
+              )}
               {hasAccess('/manage-rosters') && (
                 <NavLink
                   href="/manage-rosters"
                   label="Manage Rosters"
                   icon={<ClipboardList className="h-5 w-5" />}
+                />
+              )}
+              {hasAccess('/paysheet-components') && (
+                <NavLink
+                  href="/paysheet-components"
+                  label="Paysheet Components"
+                  icon={<ListChecks className="h-5 w-5" />}
+                />
+              )}
+              {hasAccess('/hrm-variables') && (
+                <NavLink
+                  href="/hrm-variables"
+                  label="HRM Variable (EPF/ETF/PAYE)"
+                  icon={<Percent className="h-5 w-5" />}
+                />
+              )}
+              {hasAccess('/salary-cycles') && (
+                <NavLink
+                  href="/salary-cycles"
+                  label="Salary Cycle"
+                  icon={<CalendarRange className="h-5 w-5" />}
                 />
               )}
             </SidebarCollapsible>
@@ -435,7 +773,7 @@ export function DesktopSidebar({ session, className }: { session: Session | null
               label="Organization"
               icon={<Network className="h-5 w-5" />}
               paths={['/departments', '/locations', '/zones', '/rooms']}
-              defaultOpen
+              allExpanded={allExpanded}
             >
               {hasAccess('/departments') && (
                 <NavLink

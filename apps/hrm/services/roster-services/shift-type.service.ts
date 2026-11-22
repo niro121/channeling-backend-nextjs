@@ -9,7 +9,7 @@ import { generateRecordCode } from '@/lib/conventions/record-code-generator';
 import {
   calcTotalWorkingHours,
   normalizeShiftTime
-} from '@/lib/helpers/shift-duration.helper';
+} from '@/lib/helpers/roster/shift-duration.helper';
 import {
   SHIFT_TYPE_CATEGORIES,
   SHIFT_TYPE_CATEGORY_OPTIONS,
@@ -247,32 +247,24 @@ export async function getShiftTypes(params: GetShiftTypesParams): Promise<{
 export async function getShiftTypesForExport(
   params: Omit<GetShiftTypesParams, 'page' | 'limit'>
 ): Promise<{
-  success: boolean;
-  data?: ShiftTypeRecord[];
-  message?: string;
-  error?: { message?: string };
+  data: ShiftTypeRecord[];
+  totalRecords: number;
 }> {
   try {
     const where = buildShiftTypeWhere(params);
-    const exportLimit =
-      Number.parseInt(process.env.EXPORT_LIMIT ?? '1000', 10) || 1000;
     const records = await prisma.shiftType.findMany({
       where,
-      orderBy: { createdAt: 'desc' },
-      take: exportLimit
+      orderBy: { createdAt: 'desc' }
     });
     const recordsWithUsers = await resolveAuthUsers(records);
+    const data = recordsWithUsers.map(mapShiftTypeRecord);
     return {
-      success: true,
-      data: recordsWithUsers.map(mapShiftTypeRecord),
-      message: 'Shift types export fetched successfully'
+      data,
+      totalRecords: data.length
     };
-  } catch (error: any) {
-    console.error('getShiftTypesForExport error:', error);
-    return {
-      success: false,
-      error: { message: error.message || 'Failed to export shift types' }
-    };
+  } catch (error) {
+    console.error('getShiftTypesForExport error', error);
+    throw new Error('Error getting data');
   }
 }
 
@@ -594,6 +586,10 @@ export async function updateShiftType(
   }
 }
 
+/**
+ * Product-facing delete guard. Paired with schema `onDelete: Restrict` on
+ * assignment / allocation / amendment → ShiftType FKs (Prisma Client emulation on Mongo).
+ */
 async function assertShiftTypeDeletable(id: string): Promise<string | null> {
   const [assignmentCount, allocationCount, amendmentCount] = await Promise.all([
     prisma.staffShiftAssignment.count({ where: { shiftTypeId: id } }),

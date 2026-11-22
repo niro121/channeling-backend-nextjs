@@ -1,8 +1,7 @@
 'use client';
 
-import { useEffect, useState, useTransition } from 'react';
-import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { format } from 'date-fns';
+import { useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { CustomAlertDialog, useToast } from '@archmage/ui';
 import { CommonManagerHeader } from '@/components/common/common-manager-header';
 import {
@@ -55,9 +54,6 @@ function RosterAmendmentsWorkspaceInner({
 }: RosterAmendmentsWorkspaceProps) {
   const { toast } = useToast();
   const router = useRouter();
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
-  const [, startTransition] = useTransition();
   const {
     formSheet,
     historyRecord,
@@ -67,47 +63,55 @@ function RosterAmendmentsWorkspaceInner({
     closeFormSheet,
     closeHistorySheet
   } = useRosterAmendmentsUi();
-  const [draft, setDraft] = useState<AmendmentFilterValues>(initialFilters);
   const [confirmLoading, setConfirmLoading] = useState(false);
+  const [softWarnOpen, setSoftWarnOpen] = useState(false);
+  const [softWarnDescription, setSoftWarnDescription] = useState('');
+  const pendingApproveAckRef = useRef(false);
 
-  useEffect(() => {
-    setDraft(initialFilters);
-  }, [initialFilters]);
-
-  const pushFilters = (next: AmendmentFilterValues) => {
-    const params = new URLSearchParams();
-    const limit = searchParams.get('limit');
-    if (limit) params.set('limit', limit);
-    if (next.amendmentNo.trim()) params.set('amendmentNo', next.amendmentNo.trim());
-    if (next.staffSearch.trim()) params.set('staffSearch', next.staffSearch.trim());
-    if (next.departmentId) params.set('department', next.departmentId);
-    if (next.amendmentTypeId) params.set('amendmentType', next.amendmentTypeId);
-    if (next.statusId) params.set('status', next.statusId);
-    if (next.requestedById) params.set('requestedById', next.requestedById);
-    if (next.fromDate) params.set('fromDate', format(next.fromDate, 'yyyy-MM-dd'));
-    if (next.toDate) params.set('toDate', format(next.toDate, 'yyyy-MM-dd'));
-    const query = params.toString();
-    startTransition(() => {
-      router.push(query ? `${pathname}?${query}` : pathname);
-    });
-  };
-
-  const handleApprove = async () => {
+  const handleApprove = async (acknowledgedWarnings = false) => {
     setConfirmLoading(true);
     const result = await approveRosterAmendmentsAction(
-      selectedRecords.map((row) => row.id)
+      selectedRecords.map((row) => row.id),
+      null,
+      acknowledgedWarnings
     );
     setConfirmLoading(false);
+
     if (result.isError) {
+      const errorMap = result.errors as Record<
+        string,
+        string | string[] | boolean | undefined
+      >;
+      if (errorMap.requiresAck) {
+        const softWarnings = Array.isArray(errorMap.softWarnings)
+          ? errorMap.softWarnings.filter(
+              (item): item is string => typeof item === 'string'
+            )
+          : [];
+        setSoftWarnDescription(
+          softWarnings.join(' ') ||
+            (typeof errorMap.message === 'string'
+              ? errorMap.message
+              : 'One or more selected staff have leave or weekly off on the amendment date. Continue anyway?')
+        );
+        closeConfirm();
+        setSoftWarnOpen(true);
+        return;
+      }
+
       toast({
         variant: 'destructive',
         title: 'Error',
         description:
-          (result.errors as { message?: string })?.message ??
-          'Could not approve selected amendments.'
+          (typeof errorMap.message === 'string'
+            ? errorMap.message
+            : undefined) ?? 'Could not approve selected amendments.'
       });
       return;
     }
+
+    pendingApproveAckRef.current = false;
+    setSoftWarnOpen(false);
     toast({
       variant: 'success',
       title: 'Success',
@@ -153,23 +157,11 @@ function RosterAmendmentsWorkspaceInner({
       <SectionAmendmentSummary summary={summary} />
 
       <SectionAmendmentFilters
-        values={draft}
+        initial={initialFilters}
         departmentOptions={filterOptions.departments}
         typeOptions={filterOptions.amendmentTypes}
         statusOptions={filterOptions.statuses}
         requesterOptions={filterOptions.requesters}
-        onChange={(next) => setDraft((prev) => ({ ...prev, ...next }))}
-        onSearch={() => pushFilters(draft)}
-        onClear={() => pushFilters({
-          amendmentNo: '',
-          staffSearch: '',
-          departmentId: '',
-          amendmentTypeId: '',
-          fromDate: null,
-          toDate: null,
-          statusId: '',
-          requestedById: ''
-        })}
       />
 
       <SectionAmendmentRegister
@@ -202,13 +194,16 @@ function RosterAmendmentsWorkspaceInner({
       <CustomAlertDialog
         open={confirmKind === 'approve'}
         handleVisibilityChange={(open) => {
-          if (!open) closeConfirm();
+          if (!open) {
+            pendingApproveAckRef.current = false;
+            closeConfirm();
+          }
         }}
         loading={confirmLoading}
         title="Approve selected amendments?"
         description="Approved amendments immediately update the published duty roster and notify affected staff and supervisors."
         handleContinue={() => {
-          void handleApprove();
+          void handleApprove(pendingApproveAckRef.current);
         }}
       />
 
@@ -222,6 +217,24 @@ function RosterAmendmentsWorkspaceInner({
         description="Rejected amendments leave the original roster unchanged. Remarks are mandatory for audit."
         handleContinue={() => {
           void handleReject();
+        }}
+      />
+
+      <CustomAlertDialog
+        open={softWarnOpen}
+        title="Confirm roster warning"
+        description={softWarnDescription}
+        loading={confirmLoading}
+        handleVisibilityChange={(nextOpen) => {
+          if (!nextOpen) {
+            pendingApproveAckRef.current = false;
+          }
+          setSoftWarnOpen(nextOpen);
+        }}
+        handleContinue={async () => {
+          pendingApproveAckRef.current = true;
+          setSoftWarnOpen(false);
+          await handleApprove(true);
         }}
       />
     </div>

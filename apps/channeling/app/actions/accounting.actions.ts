@@ -17,6 +17,7 @@ import {
   type GetAllAccountsParams,
 } from '@/services/accounting.service';
 import type { Account, CreateAccountInput, UpdateAccountInput } from '@/types/accounting';
+import { RECEIPT_PAYMENT_METHOD } from '@/types/receipt';
 import { revalidatePath } from 'next/cache';
 import { requirePermission } from '@/lib/server-permissions';
 import { logActivityNonBlocking } from '@/lib/activity-log';
@@ -328,10 +329,20 @@ export async function getInstituteCashBalance() {
   }
 }
 
+/** Types a manual journal can post onto a cash or till account. */
+const MANUAL_TILL_PAYMENT_METHODS = new Set<number>([
+  RECEIPT_PAYMENT_METHOD.CASH,
+  RECEIPT_PAYMENT_METHOD.CREDIT_CARD,
+  RECEIPT_PAYMENT_METHOD.SLIP,
+  RECEIPT_PAYMENT_METHOD.CHECK,
+  RECEIPT_PAYMENT_METHOD.E_WALLET,
+]);
+
 const journalLineSchema = z.object({
   accountId: z.string().min(1, 'Account is required'),
   debitLKR: z.number().min(0).optional(),
   creditLKR: z.number().min(0).optional(),
+  paymentMethod: z.number().int().nullable().optional(),
 }).refine(
   (data) => {
     const hasDebit = data.debitLKR != null && data.debitLKR > 0;
@@ -375,12 +386,52 @@ export async function createJournalEntryAction(input: unknown) {
   const { date, description, locationId, lines } = parsed.data;
   const amountCents = (lkr: number) => Math.round(lkr * 100);
 
-  const journalLines = lines.map((l) => ({
-    accountId: l.accountId,
-    debitAmount: amountCents(l.debitLKR ?? 0),
-    creditAmount: amountCents(l.creditLKR ?? 0),
-    memo: null as string | null,
-  }));
+  const selectedAccounts = await prisma.account.findMany({
+    where: { id: { in: [...new Set(lines.map((line) => line.accountId))] } },
+    select: { id: true, name: true, type: true },
+  });
+  const accountById = new Map(selectedAccounts.map((account) => [account.id, account]));
+
+  const journalLines: {
+    accountId: string;
+    debitAmount: number;
+    creditAmount: number;
+    memo: string | null;
+    paymentMethod: number | null;
+  }[] = [];
+
+  for (const line of lines) {
+    const account = accountById.get(line.accountId);
+    if (!account) {
+      return {
+        success: false as const,
+        error: 'One of the selected accounts was not found',
+        errorCode: 'VALIDATION_ERROR',
+        issues: undefined,
+      };
+    }
+
+    let paymentMethod: number | null = null;
+    if (account.type === 'CASH') {
+      if (line.paymentMethod == null || !MANUAL_TILL_PAYMENT_METHODS.has(line.paymentMethod)) {
+        return {
+          success: false as const,
+          error: `Choose Cash, Card, Slip, Cheque, or E-Wallet for "${account.name}"`,
+          errorCode: 'VALIDATION_ERROR',
+          issues: undefined,
+        };
+      }
+      paymentMethod = line.paymentMethod;
+    }
+
+    journalLines.push({
+      accountId: line.accountId,
+      debitAmount: amountCents(line.debitLKR ?? 0),
+      creditAmount: amountCents(line.creditLKR ?? 0),
+      memo: null,
+      paymentMethod,
+    });
+  }
 
   const { fetchServerSession } = await import('@/lib/session');
   const session = await fetchServerSession();

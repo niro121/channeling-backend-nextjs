@@ -17,7 +17,7 @@ model User {
   phone    String?
 
   password String
-  userType Int     // 1 = admin, 2 = staff, 3 = doctor
+  userType Int     // 1 = admin, 2 = staff, 3 = doctor, 4 = api user (public API acting identity; no dashboard login)
   status   Int     // 0 = inactive, 1 = active
 
   // 2FA
@@ -43,6 +43,10 @@ model User {
   userGroupId String?    @db.ObjectId
   userGroup   UserGroup? @relation(fields: [userGroupId], references: [id], onDelete: NoAction)
 
+  /// Auth User.id — resolved via resolveAuthUsers (no Prisma relation)
+  createdBy String? @db.ObjectId
+  updatedBy String? @db.ObjectId
+
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now())
 }
@@ -64,6 +68,10 @@ model UserGroup {
   twoFactorMethods String[]
 
   users User[]
+
+  /// Auth User.id — resolved via resolveAuthUsers (no Prisma relation)
+  createdBy String? @db.ObjectId
+  updatedBy String? @db.ObjectId
 
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now())

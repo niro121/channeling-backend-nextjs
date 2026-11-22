@@ -117,8 +117,8 @@ export default async function ShiftAssignmentPage({ searchParams }: SearchParams
         employeeStatuses: []
       });
   const formOptions = formOptionsRes.isError
-    ? { staff: [], shiftTypes: [] }
-    : (formOptionsRes.data ?? { staff: [], shiftTypes: [] });
+    ? { rosters: [], shiftTypes: [] }
+    : (formOptionsRes.data ?? { rosters: [], shiftTypes: [] });
 
   const handleExport = async () => {
     'use server';

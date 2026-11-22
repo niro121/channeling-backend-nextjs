@@ -1,18 +1,21 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { format } from 'date-fns';
 import { CustomAlertDialog, useToast } from '@archmage/ui';
 import { CommonManagerHeader } from '@/components/common/common-manager-header';
-import { formatDateTime } from '@/lib/utils/date';
-import { swapDutyAllocationsAction } from '@/app/actions/roster-actions/duty-roster.actions';
+import {
+  replaceDutyStaffAction,
+  swapDutyAllocationsAction
+} from '@/app/actions/roster-actions/duty-roster.actions';
 import type {
   DutyRosterFilterOptions,
   DutyRosterFormOptions,
   DutyRosterRow,
   DutyRosterSummary,
-  DutyRosterViewMode
+  DutyRosterViewMode,
+  ReplaceDutyPayload,
+  SwapDutyPayload
 } from '@/types/roster';
 import { DutyRosterHeaderActions } from './header-actions';
 import SectionDutyFilters, {
@@ -20,9 +23,14 @@ import SectionDutyFilters, {
 } from './section-duty-filters';
 import SectionDutyInstructions from './section-duty-instructions';
 import SectionDutyRegister from './section-duty-register';
+import SectionDutyDaysBoard from './section-duty-days-board';
+import SectionDutyWeeksBoard from './section-duty-weeks-board';
+import SectionDutyMonthsBoard from './section-duty-months-board';
 import SectionDutySummary from './section-duty-summary';
 import SheetDutyForm from './sheet-duty-form';
 import SheetDutyHistory from './sheet-duty-history';
+import SheetDutyReplaceForm from './sheet-duty-replace-form';
+import SheetDutySwapForm from './sheet-duty-swap-form';
 import { DutyRosterUiProvider, useDutyRosterUi } from './duty-roster-ui-context';
 
 type DutyRosterWorkspaceProps = {
@@ -34,22 +42,14 @@ type DutyRosterWorkspaceProps = {
   summary: DutyRosterSummary;
   filterOptions: DutyRosterFilterOptions;
   formOptions: DutyRosterFormOptions;
+  /** Deep-link target from Night / Overnight (or other) edit notes. */
+  openAllocationId?: string;
   onExport: () => Promise<{
     success: boolean;
     message?: string;
     data?: Record<string, unknown>[];
   }>;
 };
-
-function emptyFilters(today: Date): DutyFilterValues {
-  return {
-    departmentId: '',
-    unitId: '',
-    dutyDate: today,
-    shiftId: '',
-    rosterId: ''
-  };
-}
 
 function DutyRosterWorkspaceInner({
   records,
@@ -60,6 +60,7 @@ function DutyRosterWorkspaceInner({
   summary,
   filterOptions,
   formOptions,
+  openAllocationId,
   onExport
 }: DutyRosterWorkspaceProps) {
   const { toast } = useToast();
@@ -73,36 +74,177 @@ function DutyRosterWorkspaceInner({
     pendingSwap,
     requestSwapConfirm,
     closeSwapConfirm,
+    replaceConfirmOpen,
+    pendingReplace,
+    requestReplaceConfirm,
+    closeReplaceConfirm,
     closeFormSheet,
-    closeHistorySheet
+    closeHistorySheet,
+    openEdit
   } = useDutyRosterUi();
-  const [draft, setDraft] = useState<DutyFilterValues>(filters);
   const [swapLoading, setSwapLoading] = useState(false);
-
-  useEffect(() => {
-    setDraft(filters);
-  }, [filters]);
+  const [replaceLoading, setReplaceLoading] = useState(false);
+  const [leaveWarnOpen, setLeaveWarnOpen] = useState(false);
+  const [leaveWarnDescription, setLeaveWarnDescription] = useState('');
+  const [leaveWarnKind, setLeaveWarnKind] = useState<'swap' | 'replace' | null>(
+    null
+  );
+  const leavePendingSwapRef = useRef<SwapDutyPayload | null>(null);
+  const leavePendingReplaceRef = useRef<ReplaceDutyPayload | null>(null);
+  const deepLinkHandledRef = useRef(false);
 
   const dutyDate = filters.dutyDate ?? new Date();
 
-  const pushFilters = (
-    next: DutyFilterValues,
-    nextView: DutyRosterViewMode = viewMode
-  ) => {
-    const params = new URLSearchParams();
-    const limit = searchParams.get('limit');
-    if (limit) params.set('limit', limit);
-    if (next.departmentId) params.set('department', next.departmentId);
-    if (next.unitId) params.set('unit', next.unitId);
-    if (next.shiftId) params.set('shiftTypeId', next.shiftId);
-    if (next.rosterId) params.set('roster', next.rosterId);
-    if (next.dutyDate) params.set('dutyDate', format(next.dutyDate, 'yyyy-MM-dd'));
-    if (nextView !== 'daily') params.set('view', nextView);
+  useEffect(() => {
+    if (!openAllocationId || deepLinkHandledRef.current) return;
+    deepLinkHandledRef.current = true;
+
+    const row = records.find((record) => record.id === openAllocationId);
+    if (row) {
+      openEdit(row);
+    } else {
+      toast({
+        title: 'Duty not on this list',
+        description:
+          'Check Duty Date and Staff filters, then open Edit from the register.'
+      });
+    }
+
+    if (!searchParams.has('allocationId')) return;
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete('allocationId');
+    const query = params.toString();
+    router.replace(query ? `${pathname}?${query}` : pathname);
+  }, [
+    openAllocationId,
+    openEdit,
+    pathname,
+    records,
+    router,
+    searchParams,
+    toast
+  ]);
+
+  const pushViewMode = (nextView: DutyRosterViewMode) => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (nextView === 'list') params.delete('view');
+    else params.set('view', nextView);
+    params.delete('page');
     const query = params.toString();
     router.push(query ? `${pathname}?${query}` : pathname);
   };
 
-  const latest = records[0];
+  const openLeaveWarn = (
+    kind: 'swap' | 'replace',
+    errors: Record<string, unknown>
+  ) => {
+    const softWarnings = Array.isArray(errors.softWarnings)
+      ? errors.softWarnings.filter(
+          (item): item is string => typeof item === 'string'
+        )
+      : [];
+    setLeaveWarnKind(kind);
+    setLeaveWarnDescription(
+      softWarnings.join(' ') ||
+        (typeof errors.message === 'string'
+          ? errors.message
+          : 'Staff has leave on this date. Continue anyway?')
+    );
+    setLeaveWarnOpen(true);
+  };
+
+  const runSwap = async (
+    acknowledgedWarnings: boolean,
+    source?: SwapDutyPayload | null
+  ) => {
+    const pending = source ?? pendingSwap ?? leavePendingSwapRef.current;
+    if (!pending) {
+      closeSwapConfirm();
+      return;
+    }
+    setSwapLoading(true);
+    const { confirmSummary: _confirmSummary, ...swapPayload } = pending;
+    const result = await swapDutyAllocationsAction({
+      ...swapPayload,
+      ...(acknowledgedWarnings ? { acknowledgedWarnings: true } : {})
+    });
+    setSwapLoading(false);
+    if (result.isError) {
+      const errors = (result.errors ?? {}) as Record<string, unknown>;
+      if (errors.requiresAck) {
+        leavePendingSwapRef.current = pending;
+        closeSwapConfirm();
+        openLeaveWarn('swap', errors);
+        return;
+      }
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description:
+          (typeof errors.message === 'string' ? errors.message : undefined) ??
+          'Duty shifts could not be swapped.'
+      });
+      return;
+    }
+    toast({
+      variant: 'success',
+      title: 'Success',
+      description: 'Duty shifts swapped.'
+    });
+    leavePendingSwapRef.current = null;
+    setLeaveWarnOpen(false);
+    setLeaveWarnKind(null);
+    closeSwapConfirm();
+    closeFormSheet();
+    router.refresh();
+  };
+
+  const runReplace = async (
+    acknowledgedWarnings: boolean,
+    source?: ReplaceDutyPayload | null
+  ) => {
+    const pending =
+      source ?? pendingReplace ?? leavePendingReplaceRef.current;
+    if (!pending) {
+      closeReplaceConfirm();
+      return;
+    }
+    setReplaceLoading(true);
+    const { confirmSummary: _confirmSummary, ...replacePayload } = pending;
+    const result = await replaceDutyStaffAction({
+      ...replacePayload,
+      ...(acknowledgedWarnings ? { acknowledgedWarnings: true } : {})
+    });
+    setReplaceLoading(false);
+    if (result.isError) {
+      const errors = (result.errors ?? {}) as Record<string, unknown>;
+      if (errors.requiresAck) {
+        leavePendingReplaceRef.current = pending;
+        closeReplaceConfirm();
+        openLeaveWarn('replace', errors);
+        return;
+      }
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description:
+          (typeof errors.message === 'string' ? errors.message : undefined) ??
+          'Duty staff could not be replaced.'
+      });
+      return;
+    }
+    toast({
+      variant: 'success',
+      title: 'Success',
+      description: 'Duty staff replaced.'
+    });
+    leavePendingReplaceRef.current = null;
+    setLeaveWarnOpen(false);
+    setLeaveWarnKind(null);
+    closeReplaceConfirm();
+    closeFormSheet();
+    router.refresh();
+  };
 
   return (
     <div className="space-y-6">
@@ -117,46 +259,73 @@ function DutyRosterWorkspaceInner({
       <SectionDutyInstructions />
 
       <SectionDutyFilters
-        values={draft}
+        initial={filters}
+        viewMode={viewMode}
         departmentOptions={filterOptions.departments}
         unitOptions={filterOptions.units}
         shiftOptions={filterOptions.shifts}
         rosterOptions={filterOptions.rosters}
-        onChange={(next) => setDraft((prev) => ({ ...prev, ...next }))}
-        onLoad={() => pushFilters(draft)}
-        onClear={() => {
-          const cleared = emptyFilters(new Date());
-          setDraft(cleared);
-          pushFilters(cleared, 'daily');
-        }}
+        staffOptions={filterOptions.staff}
       />
 
-      <SectionDutyRegister
-        items={records}
-        totalRecords={totalRecords}
-        page={page}
-        dutyDate={dutyDate}
-        viewMode={viewMode}
-        onViewChange={(mode) => pushFilters(filters, mode)}
-        onExport={onExport}
-      />
+      {viewMode === 'list' ? (
+        <SectionDutyRegister
+          items={records}
+          totalRecords={totalRecords}
+          page={page}
+          dutyDate={dutyDate}
+          viewMode={viewMode}
+          onViewChange={pushViewMode}
+          onExport={onExport}
+        />
+      ) : null}
+      {viewMode === 'days' ? (
+        <SectionDutyDaysBoard
+          items={records}
+          dutyDate={dutyDate}
+          viewMode={viewMode}
+          onViewChange={pushViewMode}
+        />
+      ) : null}
+      {viewMode === 'weeks' ? (
+        <SectionDutyWeeksBoard
+          items={records}
+          dutyDate={dutyDate}
+          viewMode={viewMode}
+          onViewChange={pushViewMode}
+        />
+      ) : null}
+      {viewMode === 'months' ? (
+        <SectionDutyMonthsBoard
+          items={records}
+          dutyDate={dutyDate}
+          viewMode={viewMode}
+          onViewChange={pushViewMode}
+        />
+      ) : null}
 
-      {/* <div className="flex flex-col gap-1 text-xs text-muted-foreground sm:flex-row sm:justify-between">
-        <p>
-          Created by: {latest?.createdUser?.name || latest?.createdBy || '—'}
-          {latest?.createdAt
-            ? ` · ${formatDateTime(latest.createdAt)}`
-            : null}
-        </p>
-        <p>
-          Last updated: {latest?.updatedUser?.name || latest?.updatedBy || '—'}
-          {latest?.updatedAt
-            ? ` · ${formatDateTime(latest.updatedAt)}`
-            : null}
-        </p>
-      </div> */}
-
-      {formSheet ? (
+      {formSheet?.mode === 'swap' ? (
+        <SheetDutySwapForm
+          open
+          record={formSheet.record}
+          defaultDate={dutyDate}
+          onOpenChange={(next) => {
+            if (!next) closeFormSheet();
+          }}
+          onSwapSubmit={requestSwapConfirm}
+        />
+      ) : formSheet?.mode === 'replace' ? (
+        <SheetDutyReplaceForm
+          open
+          record={formSheet.record}
+          defaultDate={dutyDate}
+          staffOptions={formOptions.staff}
+          onOpenChange={(next) => {
+            if (!next) closeFormSheet();
+          }}
+          onReplaceSubmit={requestReplaceConfirm}
+        />
+      ) : formSheet ? (
         <SheetDutyForm
           open
           mode={formSheet.mode}
@@ -166,7 +335,6 @@ function DutyRosterWorkspaceInner({
           onOpenChange={(next) => {
             if (!next) closeFormSheet();
           }}
-          onSwapSubmit={requestSwapConfirm}
         />
       ) : null}
 
@@ -185,33 +353,54 @@ function DutyRosterWorkspaceInner({
         }}
         loading={swapLoading}
         title="Swap this duty shift?"
-        description="This exchanges the shift types between the two staff members on this date. Published dates must go through Roster Amendments."
+        description={
+          pendingSwap?.confirmSummary
+            ? `${pendingSwap.confirmSummary} This exchanges their shift types on that date. Both members should be notified. Published dates must go through Roster Amendments.`
+            : 'This exchanges the shift types between the two staff members on this date. Both members should be notified. Published dates must go through Roster Amendments.'
+        }
         handleContinue={async () => {
-          if (!pendingSwap) {
-            closeSwapConfirm();
+          await runSwap(false);
+        }}
+      />
+
+      <CustomAlertDialog
+        open={replaceConfirmOpen}
+        handleVisibilityChange={(open) => {
+          if (!open) closeReplaceConfirm();
+        }}
+        loading={replaceLoading}
+        title="Replace this duty staff?"
+        description={
+          pendingReplace?.confirmSummary
+            ? `${pendingReplace.confirmSummary} The same shift and place move to the replacement. Published dates must go through Roster Amendments.`
+            : 'The selected duty cell will be moved to the replacement staff member. Published dates must go through Roster Amendments.'
+        }
+        handleContinue={async () => {
+          await runReplace(false);
+        }}
+      />
+
+      <CustomAlertDialog
+        open={leaveWarnOpen}
+        handleVisibilityChange={(open) => {
+          if (!open) {
+            setLeaveWarnOpen(false);
+            setLeaveWarnKind(null);
+            leavePendingSwapRef.current = null;
+            leavePendingReplaceRef.current = null;
+          }
+        }}
+        loading={swapLoading || replaceLoading}
+        title="Staff has leave on this date"
+        description={leaveWarnDescription}
+        handleContinue={async () => {
+          if (leaveWarnKind === 'swap') {
+            await runSwap(true, leavePendingSwapRef.current);
             return;
           }
-          setSwapLoading(true);
-          const result = await swapDutyAllocationsAction(pendingSwap);
-          setSwapLoading(false);
-          if (result.isError) {
-            toast({
-              variant: 'destructive',
-              title: 'Error',
-              description:
-                (result.errors as { message?: string })?.message ??
-                'Duty shifts could not be swapped.'
-            });
-            return;
+          if (leaveWarnKind === 'replace') {
+            await runReplace(true, leavePendingReplaceRef.current);
           }
-          toast({
-            variant: 'success',
-            title: 'Success',
-            description: 'Duty shifts swapped.'
-          });
-          closeSwapConfirm();
-          closeFormSheet();
-          router.refresh();
         }}
       />
     </div>

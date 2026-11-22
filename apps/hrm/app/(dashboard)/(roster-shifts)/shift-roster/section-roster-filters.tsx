@@ -1,163 +1,251 @@
 'use client';
 
-import { Copy, Printer, RefreshCw, Search } from 'lucide-react';
+import { Suspense, useState } from 'react';
+import { Copy, Printer, Search } from 'lucide-react';
 import {
   Button,
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
   Combobox,
   DateRangePicker,
   Input,
-  Label,
-  useToast
+  Label
 } from '@archmage/ui';
+import { FilterWrapper } from '@/app/(dashboard)/filter-wrapper';
 import type { RosterFilterOption } from '@/types/roster';
 
 export type RosterFilterValues = {
   departmentId: string;
   unitId: string;
   rosterId: string;
+  designationId: string;
+  staffGradeId: string;
   fromDate: string;
   toDate: string;
   staffSearch: string;
 };
 
 type SectionRosterFiltersProps = {
-  values: RosterFilterValues;
+  initial?: Partial<RosterFilterValues>;
   departmentOptions: RosterFilterOption[];
   unitOptions: RosterFilterOption[];
   rosterOptions: RosterFilterOption[];
-  onChange: (next: Partial<RosterFilterValues>) => void;
-  onLoad: () => void;
-  onClear: () => void;
-  onCopyPreviousWeek: () => void;
-  onCopyPreviousMonth: () => void;
+  designationOptions: RosterFilterOption[];
+  staffGradeOptions: RosterFilterOption[];
+  onCopyPreviousWeek: (values: {
+    department?: string;
+    unit?: string;
+    roster?: string;
+    designation?: string;
+    staffGrade?: string;
+    fromDate: string;
+    toDate: string;
+  }) => void;
+  onCopyPreviousMonth: (values: {
+    department?: string;
+    unit?: string;
+    roster?: string;
+    designation?: string;
+    staffGrade?: string;
+    fromDate: string;
+    toDate: string;
+  }) => void;
+  onPrintBlank: () => void | Promise<void>;
+  onPrintFilled: () => void | Promise<void>;
   onHideStaffMeta: () => void;
   onShowStaffMeta: () => void;
   staffMetaVisible: boolean;
 };
 
-const LATER = 'Will be wired in a later phase.';
-
-export default function SectionRosterFilters({
-  values,
+function SectionRosterFiltersInner({
+  initial = {},
   departmentOptions,
   unitOptions,
   rosterOptions,
-  onChange,
-  onLoad,
-  onClear,
+  designationOptions,
+  staffGradeOptions,
   onCopyPreviousWeek,
   onCopyPreviousMonth,
+  onPrintBlank,
+  onPrintFilled,
   onHideStaffMeta,
   onShowStaffMeta,
   staffMetaVisible
 }: SectionRosterFiltersProps) {
-  const { toast } = useToast();
+  const [draftDates, setDraftDates] = useState({
+    fromDate: initial.fromDate ?? '',
+    toDate: initial.toDate ?? ''
+  });
+  const [draftMeta, setDraftMeta] = useState({
+    department: initial.departmentId ?? '',
+    unit: initial.unitId ?? '',
+    roster: initial.rosterId ?? '',
+    designation: initial.designationId ?? '',
+    staffGrade: initial.staffGradeId ?? ''
+  });
+  const [printing, setPrinting] = useState<'blank' | 'filled' | null>(null);
 
-  const notify = (title: string) => {
-    toast({ title, description: LATER });
+  const initialValues = {
+    department: initial.departmentId ?? '',
+    unit: initial.unitId ?? '',
+    roster: initial.rosterId ?? '',
+    designation: initial.designationId ?? '',
+    staffGrade: initial.staffGradeId ?? '',
+    fromDate: initial.fromDate ?? '',
+    toDate: initial.toDate ?? '',
+    search: initial.staffSearch ?? ''
+  };
+
+  const workflowPayload = () => ({
+    department: draftMeta.department || undefined,
+    unit: draftMeta.unit || undefined,
+    roster: draftMeta.roster || undefined,
+    designation: draftMeta.designation || undefined,
+    staffGrade: draftMeta.staffGrade || undefined,
+    fromDate: draftDates.fromDate,
+    toDate: draftDates.toDate
+  });
+
+  const runPrint = async (mode: 'blank' | 'filled') => {
+    setPrinting(mode);
+    try {
+      await (mode === 'blank' ? onPrintBlank() : onPrintFilled());
+    } finally {
+      setPrinting(null);
+    }
   };
 
   return (
-    <Card className="rounded-lg border border-border shadow-sm">
-      <CardHeader className="pb-3">
-        <CardTitle className="text-lg font-semibold">
-          Search & Filters
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="flex flex-wrap items-end gap-3">
-          <div className="space-y-2">
-            <Label className="text-xs uppercase text-muted-foreground">
-              Department
-            </Label>
-            <Combobox
-              label="Select Department"
-              options={departmentOptions}
-              value={values.departmentId}
-              defaultValue=""
-              onChange={(value) => onChange({ departmentId: value })}
-              clearable
-            />
-          </div>
-          <div className="space-y-2">
-            <Label className="text-xs uppercase text-muted-foreground">
-              Unit
-            </Label>
-            <Combobox
-              label="Select Unit"
-              options={unitOptions}
-              value={values.unitId}
-              defaultValue=""
-              onChange={(value) => onChange({ unitId: value })}
-              clearable
-            />
-          </div>
-          <div className="space-y-2">
-            <Label className="text-xs uppercase text-muted-foreground">
-              Roster
-            </Label>
-            <Combobox
-              label="Select Roster"
-              options={rosterOptions}
-              value={values.rosterId}
-              defaultValue=""
-              onChange={(value) => onChange({ rosterId: value })}
-              clearable
-            />
-          </div>
-          <div className="flex flex-col gap-1">
-            <Label className="text-xs uppercase text-muted-foreground">
-              Date Range
-            </Label>
-            <DateRangePicker
-              from={values.fromDate || undefined}
-              to={values.toDate || undefined}
-              onChange={({ from, to }) => {
-                onChange({
-                  fromDate: from ?? '',
-                  toDate: to ?? ''
-                });
-              }}
-            />
-          </div>
-          <div className="min-w-[16rem] flex-1 space-y-2">
-            <Label
-              htmlFor="roster-staff-search"
-              className="text-xs uppercase text-muted-foreground"
-            >
-              Staff Search
-            </Label>
-            <div className="relative">
-              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                id="roster-staff-search"
-                className="pl-8"
-                placeholder="Search staff ID or name"
-                value={values.staffSearch}
-                onChange={(e) => onChange({ staffSearch: e.target.value })}
-              />
+    <div className="rounded-lg border border-border bg-card p-4 shadow-sm">
+      <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+        Search & Filters
+      </h2>
+      <div className="space-y-3">
+        <FilterWrapper
+          key={Object.values(initialValues).join('|')}
+          initialValues={initialValues}
+          buttonLabel="Load Roster"
+          showClearButton
+          preserveQueryKeys={['limit']}
+          onValuesChange={(values) => {
+            setDraftDates({
+              fromDate: values.fromDate ?? '',
+              toDate: values.toDate ?? ''
+            });
+            setDraftMeta({
+              department: values.department ?? '',
+              unit: values.unit ?? '',
+              roster: values.roster ?? '',
+              designation: values.designation ?? '',
+              staffGrade: values.staffGrade ?? ''
+            });
+          }}
+          searchButton={{
+            variant: 'default',
+            className: 'h-10 shrink-0 gap-2'
+          }}
+        >
+          {({ values, setValue }) => (
+            <div className="flex w-full flex-wrap items-end gap-3">
+              <div className="space-y-2">
+                <Label className="text-xs uppercase text-muted-foreground">
+                  Select Department
+                </Label>
+                <Combobox
+                  label="Department"
+                  options={departmentOptions}
+                  value={values.department ?? ''}
+                  defaultValue=""
+                  onChange={(value) => setValue('department', value)}
+                  clearable
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs uppercase text-muted-foreground">
+                  Select Unit / Room
+                </Label>
+                <Combobox
+                  label="Unit / Room"
+                  options={unitOptions}
+                  value={values.unit ?? ''}
+                  defaultValue=""
+                  onChange={(value) => setValue('unit', value)}
+                  clearable
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs uppercase text-muted-foreground">
+                  Select Roster
+                </Label>
+                <Combobox
+                  label="Roster"
+                  options={rosterOptions}
+                  value={values.roster ?? ''}
+                  defaultValue=""
+                  onChange={(value) => setValue('roster', value)}
+                  clearable
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs uppercase text-muted-foreground">
+                  Select Designation
+                </Label>
+                <Combobox
+                  label="Designation"
+                  options={designationOptions}
+                  value={values.designation ?? ''}
+                  defaultValue=""
+                  onChange={(value) => setValue('designation', value)}
+                  clearable
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs uppercase text-muted-foreground">
+                  Select Staff Grade
+                </Label>
+                <Combobox
+                  label="Staff Grade"
+                  options={staffGradeOptions}
+                  value={values.staffGrade ?? ''}
+                  defaultValue=""
+                  onChange={(value) => setValue('staffGrade', value)}
+                  clearable
+                />
+              </div>
+              <div className="flex flex-col">
+                <Label className="text-xs uppercase text-muted-foreground">
+                  Date Range
+                </Label>
+                <DateRangePicker
+                  from={values.fromDate || undefined}
+                  to={values.toDate || undefined}
+                  onChange={({ from, to }) => {
+                    setValue('fromDate', from ?? undefined);
+                    setValue('toDate', to ?? undefined);
+                  }}
+                />
+              </div>
+              <div className="min-w-[16rem] flex-1 space-y-2">
+                <Label
+                  htmlFor="roster-staff-search"
+                  className="text-xs uppercase text-muted-foreground"
+                >
+                  Staff Search
+                </Label>
+                <div className="relative">
+                  <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    id="roster-staff-search"
+                    className="pl-8"
+                    placeholder="Search staff ID or name"
+                    value={values.search ?? ''}
+                    onChange={(e) => setValue('search', e.target.value)}
+                  />
+                </div>
+              </div>
             </div>
-          </div>
-        </div>
+          )}
+        </FilterWrapper>
 
         <div className="flex flex-wrap items-center gap-2">
-          <Button type="button" size="sm" className="h-9" onClick={onLoad}>
-            Load Roster
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            className="h-9 gap-1.5"
-            onClick={onClear}
-          >
-            <RefreshCw className="h-3.5 w-3.5" />
-            Clear
-          </Button>
           <Button
             type="button"
             size="sm"
@@ -183,7 +271,7 @@ export default function SectionRosterFilters({
             size="sm"
             variant="outline"
             className="h-9 gap-1.5"
-            onClick={onCopyPreviousWeek}
+            onClick={() => onCopyPreviousWeek(workflowPayload())}
           >
             <Copy className="h-3.5 w-3.5" />
             Copy Previous Week
@@ -193,7 +281,7 @@ export default function SectionRosterFilters({
             size="sm"
             variant="outline"
             className="h-9 gap-1.5"
-            onClick={onCopyPreviousMonth}
+            onClick={() => onCopyPreviousMonth(workflowPayload())}
           >
             <Copy className="h-3.5 w-3.5" />
             Copy Previous Month
@@ -203,23 +291,39 @@ export default function SectionRosterFilters({
             size="sm"
             variant="outline"
             className="h-9 gap-1.5"
-            onClick={() => notify('Print Blank Roster')}
+            disabled={printing !== null}
+            onClick={() => void runPrint('blank')}
           >
             <Printer className="h-3.5 w-3.5" />
-            Print Blank Roster
+            {printing === 'blank' ? 'Printing…' : 'Print Blank Roster'}
           </Button>
           <Button
             type="button"
             size="sm"
             variant="outline"
             className="h-9 gap-1.5"
-            onClick={() => notify('Print Filled Roster')}
+            disabled={printing !== null}
+            onClick={() => void runPrint('filled')}
           >
             <Printer className="h-3.5 w-3.5" />
-            Print Filled Roster
+            {printing === 'filled' ? 'Printing…' : 'Print Filled Roster'}
           </Button>
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
+  );
+}
+
+export default function SectionRosterFilters(props: SectionRosterFiltersProps) {
+  return (
+    <Suspense
+      fallback={
+        <div className="rounded-lg border border-border bg-muted/20 px-4 py-6 text-sm text-muted-foreground">
+          Loading filters...
+        </div>
+      }
+    >
+      <SectionRosterFiltersInner {...props} />
+    </Suspense>
   );
 }

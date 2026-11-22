@@ -5,10 +5,10 @@ import {
   CommonDataTable,
   DataTableExportFeature
 } from '@/components/common/common-data-table';
-import { Button } from '@archmage/ui';
 import type { DutyRosterRow, DutyRosterViewMode } from '@/types/roster';
-import { dutyRangeLabel, formatDutyDateLabel } from '@/lib/utils/duty-roster-view';
+import { dutyRangeLabel } from '@/lib/utils/duty-roster-view';
 import { getDutyRosterColumns } from './columns';
+import SectionDutyViewToolbar from './section-duty-view-toolbar';
 
 type SectionDutyRegisterProps = {
   items: DutyRosterRow[];
@@ -24,12 +24,6 @@ type SectionDutyRegisterProps = {
   }>;
 };
 
-const VIEW_LABELS: Record<DutyRosterViewMode, string> = {
-  daily: 'Daily view',
-  weekly: 'Weekly view',
-  monthly: 'Monthly view'
-};
-
 export default function SectionDutyRegister({
   items,
   totalRecords,
@@ -39,14 +33,12 @@ export default function SectionDutyRegister({
   onViewChange,
   onExport
 }: SectionDutyRegisterProps) {
-  const dateLabel = dutyRangeLabel(dutyDate, viewMode);
-  const grouped = viewMode !== 'daily';
-  const showDate = grouped;
+  const dateLabel = dutyRangeLabel(dutyDate, 'list');
   const exportColumns = [
-    ...(showDate ? ['Duty Date'] : []),
     'Staff ID',
     'Staff Name',
     'Shift',
+    'Duty Date',
     'Start Time',
     'End Time',
     'Duty Location',
@@ -60,10 +52,10 @@ export default function SectionDutyRegister({
     'Created At'
   ];
   const exportKeys = [
-    ...(showDate ? ['date'] : []),
     'staffCode',
     'staffName',
     'shiftName',
+    'date',
     'startTime',
     'endTime',
     'dutyLocation',
@@ -87,52 +79,44 @@ export default function SectionDutyRegister({
     >
       <CommonDataTable
         heading={`Duty Roster — ${dateLabel}`}
-        subHeading={
-          viewMode === 'daily'
-            ? 'Daily duty list from the same allocations as Shift Roster.'
-            : 'Date-range duty list grouped by duty date. Same allocations as Shift Roster.'
-        }
+        subHeading="List of duty shifts grouped by staff. Same allocations as Shift Roster."
         headingRight={
-          <div className="flex flex-wrap items-center gap-2">
-            {(
-              [
-                ['daily', 'Daily Duty Roster'],
-                ['weekly', 'Weekly Duty Roster'],
-                ['monthly', 'Monthly Duty Roster']
-              ] as const
-            ).map(([mode, label]) => (
-              <Button
-                key={mode}
-                type="button"
-                size="sm"
-                variant={viewMode === mode ? 'default' : 'outline'}
-                className="h-9"
-                onClick={() => onViewChange(mode)}
-              >
-                {label}
-              </Button>
-            ))}
-          </div>
+          <SectionDutyViewToolbar
+            viewMode={viewMode}
+            onViewChange={onViewChange}
+          />
         }
-        columns={getDutyRosterColumns(showDate)}
+        columns={getDutyRosterColumns({ groupedByStaff: true })}
         data={items}
         rowCount={totalRecords}
         page={page}
-        showPagination={!grouped}
+        showPagination
         haveBulkDelete={false}
-        groupBy={grouped ? 'date' : undefined}
+        groupBy="staffId"
         groupByDefaultExpanded
-        renderGroupHeader={({ value, subRowCount }) => (
-          <span className="font-semibold text-foreground">
-            {formatDutyDateLabel(String(value ?? ''))}
-            <span className="ml-2 font-normal text-muted-foreground">
-              {subRowCount} {subRowCount === 1 ? 'duty' : 'duties'}
+        renderGroupHeader={({ row, subRowCount }) => {
+          const sample = (row.subRows[0]?.original ??
+            row.original) as DutyRosterRow | undefined;
+          const code = sample?.staffCode?.trim() || '';
+          const name = sample?.staffName?.trim() || 'Unknown staff';
+          return (
+            <span className="font-semibold text-foreground">
+              {code ? (
+                <>
+                  <span className="tabular-nums">{code}</span>
+                  <span className="mx-1.5 text-muted-foreground">·</span>
+                </>
+              ) : null}
+              {name}
+              <span className="ml-2 font-normal text-muted-foreground">
+                {subRowCount} {subRowCount === 1 ? 'duty' : 'duties'}
+              </span>
             </span>
-          </span>
-        )}
+          );
+        }}
         toolbarLeft={
           <span className="inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700">
-            {VIEW_LABELS[viewMode]}
+            List view
           </span>
         }
         toolbarRight={

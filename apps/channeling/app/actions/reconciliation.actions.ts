@@ -72,7 +72,12 @@ export async function getReconciliationJournalsAction(handoverId: string) {
 }
 
 export async function submitReconciliationAction(payload: SubmitReconciliationPayload) {
-  await requirePermission("reconciliation", "approve-reconciliation")
+  const { checkPermission } = await import("@/lib/server-permissions")
+  const canApprove = await checkPermission("reconciliation", "approve-reconciliation")
+  const canPostApproved = await checkPermission("reconciliation", "post-approved-reconciliation")
+  if (!canApprove && !canPostApproved) {
+    await requirePermission("reconciliation", "approve-reconciliation")
+  }
   const { getServerSession } = await import("next-auth")
   const { authOptions } = await import("@/lib/auth")
   const session = await getServerSession(authOptions)

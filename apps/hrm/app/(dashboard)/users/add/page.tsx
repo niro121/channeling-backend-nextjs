@@ -2,6 +2,7 @@ import React from 'react';
 import { redirect } from 'next/navigation';
 import { BackButton } from '@archmage/ui';
 import { fetchServerSession } from '@/lib/session';
+import { logActivityNonBlocking } from '@/lib/activity-log';
 import { checkPermission } from '@/lib/server-permissions';
 import { getAllUserGroupsOptions } from '@/app/actions/user-usergrp-actions/user-group.actions';
 import UserForm from '../user-form';
@@ -12,7 +13,16 @@ export default async function AddUserPage() {
     redirect('/unauthorized-access');
   }
 
-  await fetchServerSession();
+  const session = await fetchServerSession();
+  if (session?.user?.id) {
+    logActivityNonBlocking({
+      userId: session.user.id,
+      action: 'users.visited',
+      entityType: 'Users',
+      importance: 'low'
+    });
+  }
+
   const { data: userGroupOptions } = await getAllUserGroupsOptions();
 
   return (

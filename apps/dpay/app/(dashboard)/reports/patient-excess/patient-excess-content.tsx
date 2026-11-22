@@ -36,7 +36,7 @@ import {
 } from '@/components/common/date-time-range-picker';
 import { patientExcessReportColumns } from './columns';
 
-export default function PatientExcessReportContent() {
+export default function PatientExcessReportContent({ capLabel }: { capLabel: string }) {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [rows, setRows] = useState<PatientExcessReportRow[]>([]);
@@ -132,7 +132,7 @@ export default function PatientExcessReportContent() {
               <CardTitle className="text-2xl font-bold">Patient Excess Report</CardTitle>
               <CardDescription className="mt-1">
                 Patients who paid more than the bill total (over paid). Display is capped at
-                10,000 records; use Export for PDF/Excel/Print.
+                {capLabel} records; use Export for PDF/Excel/Print.
               </CardDescription>
             </div>
             <div className="shrink-0">
@@ -193,7 +193,7 @@ export default function PatientExcessReportContent() {
                   ? 'Loading...'
                   : totalRecords > 0
                     ? `Showing ${rows.length} of ${totalRecords} bill${totalRecords === 1 ? '' : 's'}${
-                        hasMore ? ' (capped at 10,000 — use Export)' : ''
+                        hasMore ? ` (capped at ${capLabel} — use Export)` : ''
                       }`
                     : 'No data. Select a date range and click Search.'}
               </CardDescription>

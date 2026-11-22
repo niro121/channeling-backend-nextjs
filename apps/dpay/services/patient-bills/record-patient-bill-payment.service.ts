@@ -8,6 +8,10 @@ import {
 import { parsePaymentSlipDate } from '@/lib/patient-bills/payment-validations';
 import { isUniqueConstraintError } from '@/lib/patient-bills/sequence';
 import { generateReceiptNumber } from './generate-receipt-number.service';
+import { requireActiveShift, postTillJournal } from '@/lib/dpay-shift';
+import { allocatePaymentShares, parsePayableShares } from '@/lib/patient-bills/payable-shares';
+import { activeLineItemWhere } from '@/lib/patient-bills/line-item-status';
+import { isVoidablePaymentReceipt } from '@/lib/receipts/helpers';
 
 export type RecordPatientBillPaymentResult =
   | {
@@ -152,15 +156,38 @@ export async function recordPatientBillPayment(
     return { success: false, message: metaError };
   }
 
+  const shiftGate = await requireActiveShift(createdBy);
+  if (!shiftGate.success) return { success: false, message: shiftGate.message };
+
   try {
     const bill = await prisma.patientBill.findUnique({
       where: { id: input.billId },
       select: {
         id: true,
+        billNumber: true,
         status: true,
         totalAmount: true,
         paidAmount: true,
         outstandingAmount: true,
+        lineItems: {
+          where: { AND: [activeLineItemWhere] },
+          select: {
+            doctorId: true,
+            doctorCode: true,
+            doctorName: true,
+            amount: true,
+            sortOrder: true,
+          },
+        },
+        receipts: {
+          select: {
+            amountPaid: true,
+            status: true,
+            cancelReceiptNumber: true,
+            refundOfReceiptId: true,
+            payableShares: true,
+          },
+        },
       },
     });
 
@@ -189,6 +216,12 @@ export async function recordPatientBillPayment(
         message: 'Cannot record payment until doctor charges are added.',
       };
     }
+
+    const priorShares = bill.receipts
+      .filter(isVoidablePaymentReceipt)
+      .flatMap((receipt) => parsePayableShares(receipt.payableShares));
+    const allocated = allocatePaymentShares(bill.lineItems, priorShares, amountReceived);
+    if (!allocated.success) return allocated;
 
     const newPaidAmount = bill.paidAmount + amountReceived;
     const newOutstandingAmount = Math.max(0, bill.totalAmount - newPaidAmount);
@@ -232,6 +265,8 @@ export async function recordPatientBillPayment(
               remarks: input.remarks?.trim() || null,
               outstandingAfter: newOutstandingAmount,
               status: 'active',
+              shiftId: shiftGate.shift.shiftId,
+              payableShares: allocated.shares,
               createdBy: createdBy ?? undefined,
               createdByName: createdByName?.trim() || undefined,
             },
@@ -270,6 +305,35 @@ export async function recordPatientBillPayment(
 
           return created;
         });
+
+        const journal = await postTillJournal({
+          shift: shiftGate.shift,
+          kind: 'patient_payment',
+          referenceId: receipt.id,
+          description: `DPAY payment ${receipt.receiptNumber}`,
+          paymentMethod: input.paymentMethod,
+          shares: allocated.shares,
+        });
+        if (!journal.success) {
+          try {
+            await prisma.patientBillReceipt.delete({ where: { id: receipt.id } });
+            await prisma.patientBill.update({
+              where: { id: bill.id },
+              data: {
+                paidAmount: bill.paidAmount,
+                outstandingAmount: bill.outstandingAmount,
+                status: bill.status,
+              },
+            });
+          } catch (rollbackError) {
+            console.error('recordPatientBillPayment rollback failed', rollbackError);
+            return {
+              success: false,
+              message: `${journal.message} The receipt could not be removed. Do not take this payment again until it is checked.`,
+            };
+          }
+          return { success: false, message: journal.message };
+        }
 
         return {
           success: true,

@@ -10,6 +10,7 @@ import {
   type ReactNode
 } from 'react';
 import type { LocationUiRecord } from '@/types/location';
+import type { LocationListFilters } from './section-location-filters';
 
 type LocationUiContextValue = {
   records: LocationUiRecord[];
@@ -18,12 +19,7 @@ type LocationUiContextValue = {
   setSelectedId: (id: string | null) => void;
   isNew: boolean;
   setIsNew: (value: boolean) => void;
-  search: string;
-  setSearch: (value: string) => void;
-  statusFilter: string;
-  setStatusFilter: (value: string) => void;
-  branchTypeFilter: string;
-  setBranchTypeFilter: (value: string) => void;
+  filters: LocationListFilters;
   detailFormHighlight: boolean;
   startNewLocation: () => void;
 };
@@ -33,12 +29,14 @@ const LocationUiContext = createContext<LocationUiContextValue | null>(null);
 type ProviderProps = {
   initialRecords: LocationUiRecord[];
   initialSelectedId?: string | null;
+  initialFilters?: LocationListFilters;
   children: ReactNode;
 };
 
 export function LocationUiProvider({
   initialRecords,
   initialSelectedId = null,
+  initialFilters = {},
   children
 }: ProviderProps) {
   const [records, setRecords] = useState(initialRecords);
@@ -47,13 +45,15 @@ export function LocationUiProvider({
   );
   const [isNew, setIsNew] = useState(false);
   const [detailFormHighlight, setDetailFormHighlight] = useState(false);
-  const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState('');
-  const [branchTypeFilter, setBranchTypeFilter] = useState('');
+  const [filters, setFilters] = useState<LocationListFilters>(initialFilters);
 
   useEffect(() => {
     setRecords(initialRecords);
   }, [initialRecords]);
+
+  useEffect(() => {
+    setFilters(initialFilters);
+  }, [initialFilters]);
 
   useEffect(() => {
     setSelectedIdState(initialSelectedId);
@@ -86,12 +86,7 @@ export function LocationUiProvider({
       setSelectedId,
       isNew,
       setIsNew,
-      search,
-      setSearch,
-      statusFilter,
-      setStatusFilter,
-      branchTypeFilter,
-      setBranchTypeFilter,
+      filters,
       detailFormHighlight,
       startNewLocation
     }),
@@ -100,9 +95,7 @@ export function LocationUiProvider({
       selectedId,
       setSelectedId,
       isNew,
-      search,
-      statusFilter,
-      branchTypeFilter,
+      filters,
       detailFormHighlight,
       startNewLocation
     ]

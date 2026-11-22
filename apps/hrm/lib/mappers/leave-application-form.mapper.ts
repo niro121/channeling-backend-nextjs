@@ -31,7 +31,6 @@ export function leaveApplicationFormValuesToPayload(
     fromDate: leaveDate,
     toDate: isHalfDay ? leaveDate : (values.toDate as Date),
     requestedDate: values.requestedDate,
-    approverId: values.approverId || null,
     comment: values.comment?.trim() ? values.comment.trim() : null,
     outWithCancel: Boolean(values.outWithCancel),
     isHalfDay,

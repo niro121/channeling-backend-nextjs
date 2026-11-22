@@ -902,6 +902,13 @@ export function EndShiftHandoverDialog({
 
         {step === 1 && (
           <>
+            {endWithoutReason?.startsWith("DPAY ") ? (
+              <Alert variant="destructive" className="mb-4">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertTitle>DPAY</AlertTitle>
+                <AlertDescription>{endWithoutReason}</AlertDescription>
+              </Alert>
+            ) : null}
             {previousHandoversNote.length > 0 && (
               <Alert className="mb-4 border-blue-200 bg-blue-50 dark:border-blue-900 dark:bg-blue-950/40">
                 <CircleAlert className="h-4 w-4 text-blue-600 dark:text-blue-400" />
@@ -1060,7 +1067,7 @@ export function EndShiftHandoverDialog({
                     <span>Total</span>
                     <span className="tabular-nums">{formatCents(balance.totalCents)}</span>
                   </div>
-                  {balance.totalCents === 0 && endWithoutReason ? (
+                  {balance.totalCents === 0 && endWithoutReason && !endWithoutReason.startsWith("DPAY ") ? (
                     <p className="text-sm text-muted-foreground">{endWithoutReason}</p>
                   ) : null}
                 </div>

@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { ColumnDef } from '@tanstack/react-table';
 import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
 import moment from 'moment';
 import { formatTimeSriLanka, normalizeSessionTime } from '@/lib/utils';
 import { formatLKR } from '@/lib/format-money';
@@ -65,10 +66,36 @@ export type SessionListItem = {
   createdUser?: { name: string | null } | null;
   updatedUser?: { name: string | null } | null;
   status: number;
+  hidden?: boolean;
   [key: string]: unknown;
 };
 
 export const SessionColumns: ColumnDef<SessionListItem>[] = [
+  {
+    id: 'select',
+    header: ({ table }) => (
+      <Checkbox
+        checked={
+          table.getIsAllPageRowsSelected() ||
+          (table.getIsSomePageRowsSelected() && 'indeterminate')
+        }
+        onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
+        aria-label="Select all"
+        className="translate-y-0.5"
+      />
+    ),
+    cell: ({ row }) => (
+      <Checkbox
+        checked={row.getIsSelected()}
+        onCheckedChange={(value) => row.toggleSelected(!!value)}
+        disabled={!row.getCanSelect()}
+        aria-label={row.getCanSelect() ? 'Select row' : 'Hidden sessions cannot be deleted'}
+        className="translate-y-0.5"
+      />
+    ),
+    enableSorting: false,
+    enableHiding: false,
+  },
   {
     accessorKey: 'id',
     header: '#',
@@ -79,13 +106,18 @@ export const SessionColumns: ColumnDef<SessionListItem>[] = [
     id: 'date',
     header: 'Date',
     cell: ({ row }) => {
-      const { date, originalSessionName, isScan } = row.original;
+      const { date, originalSessionName, isScan, hidden } = row.original;
       const dateStr = moment(date).format('DD MMM YYYY');
       const original = originalSessionName ? `(${originalSessionName})` : null;
       return (
         <div className="flex flex-col gap-0.5 text-xs whitespace-nowrap">
           <div className="flex items-center gap-2">
             <span>{dateStr}</span>
+            {hidden ? (
+              <Badge className="h-5 bg-amber-100 px-1.5 text-[10px] font-semibold tracking-wide text-amber-900 hover:bg-amber-100">
+                H
+              </Badge>
+            ) : null}
             {isScan ? (
               <Badge variant="secondary" className="h-5 px-1.5 text-[10px] font-semibold tracking-wide">
                 SCAN

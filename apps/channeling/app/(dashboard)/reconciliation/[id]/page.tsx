@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { userTypes } from "@/lib/roles"
 import { getReconciliationDocumentAction } from "@/app/actions/reconciliation.actions"
+import { checkPermission } from "@/lib/server-permissions"
 import { RECONCILIATION_STATUS } from "@/types/handover"
 import { ReconciliationDocumentView, type HandoverTabData } from "./reconciliation-document-view"
 
@@ -33,8 +34,11 @@ export default async function ReconciliationDocumentPage({ params }: Props) {
   const isAdmin = session?.user?.userType === userTypes.admin
   const assignedTo = result.reconciliationAssignedToUserId
   const isOpen = result.reconciliationStatus === RECONCILIATION_STATUS.IN_RECONCILIATION
+  const isApproved = result.reconciliationStatus === RECONCILIATION_STATUS.RECONCILED_APPROVED
+  const canPostApproved = await checkPermission("reconciliation", "post-approved-reconciliation")
   const canActAsReconciler =
-    isOpen && (isAdmin || !assignedTo || assignedTo === session?.user?.id)
+    (isOpen && (isAdmin || !assignedTo || assignedTo === session?.user?.id)) ||
+    (isApproved && (isAdmin || assignedTo === session?.user?.id || canPostApproved))
 
   const chain: HandoverTabData[] = result.chain.map((tab) => ({
     handover: {
@@ -61,6 +65,8 @@ export default async function ReconciliationDocumentPage({ params }: Props) {
           ? r.cannotReconcileAt.toISOString()
           : (r.cannotReconcileAt ?? null),
       cannotReconcileReason: r.cannotReconcileReason ?? null,
+      canceledAt:
+        r.canceledAt instanceof Date ? r.canceledAt.toISOString() : (r.canceledAt ?? null),
     })),
   }))
 

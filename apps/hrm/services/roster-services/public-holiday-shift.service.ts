@@ -13,12 +13,25 @@ import {
   HOLIDAY_TYPE_LABELS,
   holidayTypeLabel
 } from '@/lib/helpers/holiday-type.helper';
+import { assertLeaveSoftWarnForAllocations } from '@/lib/helpers/roster/leave-roster-soft-warn.helper';
+import {
+  assertStaffDayShiftLimit,
+  getShiftsPerPersonPerDayLimit
+} from '@/lib/helpers/roster/shifts-per-person-per-day.helper';
+import { assertWeeklyOffSoftWarnForAllocations } from '@/lib/helpers/roster/weekly-off-soft-warn.helper';
 import { formatHolidayMoney } from '@/lib/utils/public-holiday-shift';
 import { saveRosterAllocationDraft } from '@/services/roster-services/shift-roster.service';
+import { HOLIDAY_TYPES } from '@/types/holiday-calendar';
+import { getInstitutionName } from '@/types/institution';
 import {
-  HOLIDAY_TYPES,
+  DEFAULT_HOLIDAY_PAY_RATE,
+  HOLIDAY_PAY_RATES,
   PUBLIC_HOLIDAY_SHIFT_STATUS_OPTIONS,
   type GetPublicHolidayShiftsParams,
+  type HolidayPayRate,
+  type PublicHolidayBulkCreateResult,
+  type PublicHolidayBulkShiftPayload,
+  type PublicHolidayShiftConflictPreview,
   type PublicHolidayShiftFilterOptions,
   type PublicHolidayShiftFormOptions,
   type PublicHolidayShiftHistoryEntry,
@@ -27,6 +40,10 @@ import {
   type PublicHolidayShiftSummary,
   type RosterFilterOption
 } from '@/types/roster';
+
+const holidayPayRateSchema = z.enum(
+  HOLIDAY_PAY_RATES as unknown as [HolidayPayRate, ...HolidayPayRate[]]
+);
 
 const PUBLISHED_LOCK_MESSAGE =
   'This date is already published. Use a roster amendment before changing it.';
@@ -45,6 +62,9 @@ const allocationSelect = {
   shiftRosterId: true,
   hours: true,
   dutyLocation: true,
+  dutyLocationDepartmentId: true,
+  dutyZoneId: true,
+  dutyRoomId: true,
   holidayId: true,
   payRate: true,
   holidayAllowance: true,
@@ -71,6 +91,13 @@ const allocationSelect = {
       typeId: true,
       date: true
     }
+  },
+  dutyLocationDepartment: {
+    select: {
+      id: true,
+      name: true,
+      institution: true
+    }
   }
 } as const;
 
@@ -82,16 +109,29 @@ const holidayShiftPayloadSchema = z.object({
   holidayId: z.string().min(1, 'Public holiday is required'),
   staffId: z.string().min(1, 'Staff member is required'),
   shiftTypeId: z.string().min(1, 'Shift is required'),
-  dutyDate: z.coerce.date(),
+  /** Ignored — duty date is always taken from HolidayCalendar.date. */
+  dutyDate: z.coerce.date().optional().nullable(),
   workedHours: z.number().min(0).optional().nullable(),
-  payRate: z.string().min(1, 'Pay rate is required'),
+  payRate: holidayPayRateSchema,
   holidayAllowance: z.number().min(0).optional().nullable(),
-  dutyLocation: z.string().optional().nullable(),
+  dutyLocationDepartmentId: z.string().optional().nullable(),
+  dutyZoneId: z.string().optional().nullable(),
+  dutyRoomId: z.string().optional().nullable(),
   grantLieuLeave: z.boolean().optional().default(false),
   sendToPayroll: z.boolean().optional().default(false),
   status: z.string().optional().default('pending_approval'),
-  remarks: z.string().max(500).optional().nullable()
+  remarks: z.string().max(500).optional().nullable(),
+  acknowledgedWarnings: z.boolean().optional()
 });
+
+const holidayBulkShiftPayloadSchema = holidayShiftPayloadSchema
+  .omit({ staffId: true })
+  .extend({
+    staffIds: z
+      .array(z.string().min(1))
+      .min(1, 'Select at least one staff member'),
+    useWorkingDepartment: z.boolean().optional().default(true)
+  });
 
 function toIsoString(value: Date | string | null | undefined): string {
   if (!value) return '';
@@ -102,6 +142,44 @@ function toIsoString(value: Date | string | null | undefined): string {
 function startOfDayUtc(dateStr: string): Date {
   const d = parseISO(dateStr.slice(0, 10));
   return new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+}
+
+function dutyDateFromHoliday(date: Date): Date {
+  return new Date(
+    Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate())
+  );
+}
+
+function parseInstitutionId(value: string | null | undefined): number | null {
+  if (!value?.trim()) return null;
+  if (value === 'ruhunu_hospitals') return 0;
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) && parsed >= 0 && parsed <= 3 ? parsed : null;
+}
+
+async function resolveDutyLocationDepartment(
+  departmentId: string | null | undefined
+): Promise<
+  | { ok: true; id: string | null; name: string }
+  | { ok: false; message: string; issues?: Record<string, string[]> }
+> {
+  const id = departmentId?.trim() || '';
+  if (!id) return { ok: true, id: null, name: '' };
+
+  const department = await prisma.department.findUnique({
+    where: { id },
+    select: { id: true, name: true, status: true }
+  });
+  if (!department || department.status !== 1) {
+    return {
+      ok: false,
+      message: 'Selected duty location department was not found or is unpublished',
+      issues: {
+        dutyLocationDepartmentId: ['Select a published department']
+      }
+    };
+  }
+  return { ok: true, id: department.id, name: department.name };
 }
 
 function toOption(value: string): RosterFilterOption {
@@ -149,9 +227,15 @@ function mapRecord(
     shiftTypeId: record.shiftTypeId,
     shiftLabel: formatShiftLabel(record.shiftType),
     workedHours: record.hours ?? 0,
-    payRate: record.payRate ?? '2.00',
+    payRate: record.payRate ?? DEFAULT_HOLIDAY_PAY_RATE,
     holidayAllowance: record.holidayAllowance ?? 0,
-    dutyLocation: record.dutyLocation ?? '',
+    dutyLocation:
+      record.dutyLocationDepartment?.name?.trim() ||
+      record.dutyLocation?.trim() ||
+      '',
+    dutyLocationDepartmentId: record.dutyLocationDepartmentId ?? '',
+    dutyZoneId: record.dutyZoneId ?? '',
+    dutyRoomId: record.dutyRoomId ?? '',
     lieuLeave: record.grantLieuLeave,
     sendToPayroll: record.sendToPayroll,
     status: record.status as PublicHolidayShiftRecord['status'],
@@ -238,9 +322,11 @@ async function getStaffSnapshot(staffId: string): Promise<{
   staffCode: string;
   staffName: string;
   department: string;
+  departmentId: string;
   unit: string;
   roster: string;
-  dutyLocation: string;
+  institutionId: string;
+  institutionName: string;
 } | null> {
   const staff = await prisma.staff.findUnique({
     where: { id: staffId },
@@ -258,19 +344,38 @@ async function getStaffSnapshot(staffId: string): Promise<{
   });
   if (!staff) return null;
   const employment = (staff.employmentDetails as {
-    employment?: { department?: string; roster?: string };
+    employment?: {
+      institution?: string;
+      department?: string;
+      roster?: string;
+    };
   } | null)?.employment;
+  const departmentId =
+    employment?.department?.trim() ||
+    staff.shiftAssignments[0]?.department?.trim() ||
+    '';
+  let departmentName = '';
+  if (departmentId) {
+    const dept = await prisma.department.findUnique({
+      where: { id: departmentId },
+      select: { name: true }
+    });
+    departmentName = dept?.name?.trim() || departmentId;
+  }
+  const institutionNum = parseInstitutionId(employment?.institution);
+  const institutionId =
+    institutionNum != null ? String(institutionNum) : '';
   const unit = staff.shiftAssignments[0]?.unit?.trim() || '';
   return {
     staffCode: staff.code ?? '',
     staffName: staff.name ?? '',
-    department:
-      staff.shiftAssignments[0]?.department?.trim() ||
-      employment?.department?.trim() ||
-      '',
+    department: departmentName,
+    departmentId,
     unit,
     roster: employment?.roster?.trim() || '',
-    dutyLocation: unit
+    institutionId,
+    institutionName:
+      institutionNum != null ? getInstitutionName(institutionNum) : ''
   };
 }
 
@@ -422,56 +527,80 @@ export async function getPublicHolidayShiftFormOptions(): Promise<{
   error?: { message?: string };
 }> {
   try {
-    const [holidays, staffRecords, shiftTypes, unitRecords] = await Promise.all([
-      prisma.holidayCalendar.findMany({
-        orderBy: { date: 'desc' },
-        select: { id: true, name: true, typeId: true, date: true }
-      }),
-      prisma.staff.findMany({
-        where: { status: 1 },
-        orderBy: { name: 'asc' },
-        take: Number.parseInt(process.env.DEFAULT_PAGE_SIZE ?? '100', 10) || 100,
-        select: {
-          id: true,
-          name: true,
-          code: true,
-          employmentDetails: true,
-          shiftAssignments: {
-            where: { status: 'active' },
-            select: { department: true, unit: true },
-            take: 1,
-            orderBy: { effectiveFrom: 'desc' }
+    const [
+      holidays,
+      staffRecords,
+      shiftTypes,
+      departments,
+      locations,
+      zones,
+      rooms
+    ] = await Promise.all([
+        prisma.holidayCalendar.findMany({
+          orderBy: { date: 'desc' },
+          select: { id: true, name: true, typeId: true, date: true }
+        }),
+        prisma.staff.findMany({
+          where: { status: 1 },
+          orderBy: { name: 'asc' },
+          take:
+            Number.parseInt(process.env.DEFAULT_PAGE_SIZE ?? '100', 10) || 100,
+          select: {
+            id: true,
+            name: true,
+            code: true,
+            employmentDetails: true,
+            shiftAssignments: {
+              where: { status: 'active' },
+              select: { department: true, unit: true },
+              take: 1,
+              orderBy: { effectiveFrom: 'desc' }
+            }
           }
-        }
-      }),
-      prisma.shiftType.findMany({
-        where: { status: 'active' },
-        orderBy: { name: 'asc' },
-        select: {
-          id: true,
-          name: true,
-          chipLabel: true,
-          startTime: true,
-          endTime: true,
-          durationHours: true
-        }
-      }),
-      prisma.rosterAllocation.findMany({
-        where: { holidayId: { not: null } },
-        select: { dutyLocation: true },
-        distinct: ['dutyLocation']
-      })
-    ]);
+        }),
+        prisma.shiftType.findMany({
+          where: { status: 'active' },
+          orderBy: { name: 'asc' },
+          select: {
+            id: true,
+            name: true,
+            chipLabel: true,
+            startTime: true,
+            endTime: true,
+            durationHours: true
+          }
+        }),
+        prisma.department.findMany({
+          where: { status: 1 },
+          orderBy: { name: 'asc' },
+          select: { id: true, name: true, institution: true }
+        }),
+        prisma.location.findMany({
+          where: { status: 1 },
+          orderBy: [{ order: 'asc' }, { name: 'asc' }],
+          select: { id: true, name: true, code: true }
+        }),
+        prisma.zone.findMany({
+          where: { status: 1 },
+          orderBy: { name: 'asc' },
+          select: { id: true, name: true, code: true, locationId: true }
+        }),
+        prisma.room.findMany({
+          where: { status: 1 },
+          orderBy: { number: 'asc' },
+          select: {
+            id: true,
+            number: true,
+            code: true,
+            zoneId: true,
+            locationId: true
+          }
+        })
+      ]);
 
-    const locationSet = new Set(
-      unitRecords
-        .map((r) => r.dutyLocation?.trim())
-        .filter(Boolean) as string[]
+    const departmentNameById = new Map(
+      departments.map((d) => [d.id, d.name] as const)
     );
-    staffRecords.forEach((s) => {
-      const unit = s.shiftAssignments[0]?.unit?.trim();
-      if (unit) locationSet.add(unit);
-    });
 
     return {
       success: true,
@@ -492,36 +621,183 @@ export async function getPublicHolidayShiftFormOptions(): Promise<{
           workedHours: (s.durationHours ?? 0).toFixed(2)
         })),
         staff: staffRecords.map((s) => {
-          const dept =
+          const employment = (
+            s.employmentDetails as {
+              employment?: { institution?: string; department?: string };
+            } | null
+          )?.employment;
+          const departmentId =
+            employment?.department?.trim() ||
             s.shiftAssignments[0]?.department?.trim() ||
-            (
-              s.employmentDetails as {
-                employment?: { department?: string };
-              } | null
-            )?.employment?.department?.trim() ||
             '';
+          const institutionNum = parseInstitutionId(employment?.institution);
+          const institutionId =
+            institutionNum != null ? String(institutionNum) : '';
           const unit = s.shiftAssignments[0]?.unit?.trim() || '';
           return {
             id: s.id,
             name: s.code ? `${s.name} (${s.code})` : (s.name ?? ''),
             staffCode: s.code ?? '',
-            department: dept,
+            departmentId,
+            department:
+              departmentNameById.get(departmentId) || departmentId || '',
             unit,
-            dutyLocation: unit
+            institutionId,
+            institutionName:
+              institutionNum != null ? getInstitutionName(institutionNum) : ''
           };
         }),
-        locations: [...locationSet].sort().map(toOption),
-        payRates: [
-          { id: '1.50', name: '1.50x' },
-          { id: '2.00', name: '2.00x' },
-          { id: '2.50', name: '2.50x' }
-        ],
+        departments: departments.map((d) => ({
+          id: d.id,
+          name: d.name,
+          institutionId: String(d.institution)
+        })),
+        locations: locations.map((loc) => ({
+          id: loc.id,
+          name: loc.code ? `${loc.code} — ${loc.name}` : loc.name
+        })),
+        zones: zones.map((z) => ({
+          id: z.id,
+          name: z.code ? `${z.code} — ${z.name}` : z.name,
+          locationId: z.locationId
+        })),
+        rooms: rooms.map((r) => ({
+          id: r.id,
+          name: r.code ? `${r.number} (${r.code})` : r.number,
+          zoneId: r.zoneId,
+          locationId: r.locationId
+        })),
+        payRates: HOLIDAY_PAY_RATES.map((id) => ({ id, name: `${id}x` })),
         statuses: PUBLIC_HOLIDAY_SHIFT_STATUS_OPTIONS
       }
     };
   } catch (error: any) {
     console.error('getPublicHolidayShiftFormOptions error:', error);
     return { success: false, error: { message: error.message || 'Failed to load form options' } };
+  }
+}
+
+export async function getPublicHolidayShiftConflictPreview(input: {
+  staffId: string;
+  dutyDate: Date | string;
+  shiftTypeId?: string | null;
+  excludeAllocationId?: string | null;
+}): Promise<{
+  success: boolean;
+  data?: PublicHolidayShiftConflictPreview;
+  error?: { message?: string };
+}> {
+  try {
+    const staffId = input.staffId?.trim();
+    if (!staffId || !input.dutyDate) {
+      return {
+        success: true,
+        data: {
+          allocations: [],
+          sameShiftTypeExists: false,
+          dayLimit: 1,
+          existingCount: 0,
+          dayLimitReached: false,
+          blocksSave: false,
+          blockReason: null,
+          infoMessage: null
+        }
+      };
+    }
+
+    const raw =
+      typeof input.dutyDate === 'string'
+        ? parseISO(String(input.dutyDate).slice(0, 10))
+        : input.dutyDate;
+    const dutyDate = dutyDateFromHoliday(raw);
+    const shiftTypeId = input.shiftTypeId?.trim() || '';
+    const excludeId = input.excludeAllocationId?.trim() || null;
+
+    const snapshot = await getStaffSnapshot(staffId);
+    const { limit } = await getShiftsPerPersonPerDayLimit(snapshot?.roster);
+    const dayLimit = await assertStaffDayShiftLimit({
+      staffId,
+      date: dutyDate,
+      rosterCode: snapshot?.roster,
+      excludeAllocationId: excludeId,
+      issueField: 'dutyDate'
+    });
+
+    const rows = await prisma.rosterAllocation.findMany({
+      where: {
+        staffId,
+        date: dutyDate,
+        ...(excludeId ? { id: { not: excludeId } } : {})
+      },
+      select: {
+        id: true,
+        shiftTypeId: true,
+        status: true,
+        shiftType: {
+          select: {
+            name: true,
+            chipLabel: true,
+            startTime: true,
+            endTime: true
+          }
+        }
+      },
+      orderBy: { createdAt: 'asc' }
+    });
+
+    const allocations = rows.map((row) => ({
+      id: row.id,
+      shiftTypeId: row.shiftTypeId,
+      shiftLabel: formatShiftLabel(row.shiftType),
+      startTime: row.shiftType.startTime,
+      endTime: row.shiftType.endTime,
+      status: row.status
+    }));
+
+    const sameShiftTypeExists = Boolean(
+      shiftTypeId &&
+        allocations.some((row) => row.shiftTypeId === shiftTypeId)
+    );
+
+    let blocksSave = false;
+    let blockReason: string | null = null;
+    let infoMessage: string | null = null;
+
+    if (sameShiftTypeExists) {
+      blocksSave = true;
+      blockReason =
+        'This staff member already has this shift type on the selected holiday date.';
+    } else if (!dayLimit.ok) {
+      blocksSave = true;
+      blockReason = dayLimit.message;
+    } else if (allocations.length > 0) {
+      const labels = allocations
+        .map((row) => `${row.shiftLabel} (${row.startTime}–${row.endTime})`)
+        .join('; ');
+      infoMessage = `Also rostered that day: ${labels}. Day limit ${limit} (currently ${allocations.length}).`;
+    }
+
+    return {
+      success: true,
+      data: {
+        allocations,
+        sameShiftTypeExists,
+        dayLimit: limit,
+        existingCount: allocations.length,
+        dayLimitReached: !dayLimit.ok,
+        blocksSave,
+        blockReason,
+        infoMessage
+      }
+    };
+  } catch (error: any) {
+    console.error('getPublicHolidayShiftConflictPreview error:', error);
+    return {
+      success: false,
+      error: {
+        message: error.message || 'Failed to check holiday shift conflicts'
+      }
+    };
   }
 }
 
@@ -533,7 +809,12 @@ export async function createPublicHolidayShift(
 ): Promise<{
   success: boolean;
   data?: PublicHolidayShiftRecord;
-  error?: { message?: string; issues?: Record<string, string[]> };
+  error?: {
+    message?: string;
+    issues?: Record<string, string[]>;
+    softWarnings?: string[];
+    requiresAck?: boolean;
+  };
 }> {
   try {
     const parsed = holidayShiftPayloadSchema.safeParse(payload);
@@ -548,30 +829,38 @@ export async function createPublicHolidayShift(
     }
 
     const data = parsed.data;
-    const dutyDate = new Date(
-      Date.UTC(data.dutyDate.getFullYear(), data.dutyDate.getMonth(), data.dutyDate.getDate())
-    );
-
-    const existing = await prisma.rosterAllocation.findFirst({
-      where: { staffId: data.staffId, date: dutyDate },
-      select: { id: true }
-    });
-    if (existing) {
-      return {
-        success: false,
-        error: {
-          message: 'A roster allocation already exists for this staff member on that date',
-          issues: { dutyDate: ['Select a date with no existing roster cell for this staff member'] }
-        }
-      };
-    }
 
     const holiday = await prisma.holidayCalendar.findUnique({
       where: { id: data.holidayId },
-      select: { id: true }
+      select: { id: true, date: true }
     });
     if (!holiday) {
       return { success: false, error: { message: 'Selected holiday not found in Holiday Calendar' } };
+    }
+
+    const dutyDate = dutyDateFromHoliday(holiday.date);
+
+    const sameType = await prisma.rosterAllocation.findFirst({
+      where: {
+        staffId: data.staffId,
+        date: dutyDate,
+        shiftTypeId: data.shiftTypeId
+      },
+      select: { id: true }
+    });
+    if (sameType) {
+      return {
+        success: false,
+        error: {
+          message:
+            'This staff member already has this shift type on that holiday date',
+          issues: {
+            dutyDate: [
+              'Duplicate shift type for the same staff/date is not allowed'
+            ]
+          }
+        }
+      };
     }
 
     const shiftType = await prisma.shiftType.findUnique({
@@ -587,6 +876,16 @@ export async function createPublicHolidayShift(
       return { success: false, error: { message: 'Staff member not found' } };
     }
 
+    const location = await resolveDutyLocationDepartment(
+      data.dutyLocationDepartmentId || snapshot.departmentId
+    );
+    if (!location.ok) {
+      return {
+        success: false,
+        error: { message: location.message, issues: location.issues }
+      };
+    }
+
     const periodFrom = addDays(dutyDate, -dutyDate.getUTCDay());
     const periodTo = addDays(periodFrom, 6);
 
@@ -600,7 +899,8 @@ export async function createPublicHolidayShift(
         department: snapshot.department,
         unit: snapshot.unit,
         roster: snapshot.roster,
-        comments: data.remarks?.trim() ?? ''
+        comments: data.remarks?.trim() ?? '',
+        acknowledgedWarnings: data.acknowledgedWarnings
       },
       user
     );
@@ -610,7 +910,9 @@ export async function createPublicHolidayShift(
         success: false,
         error: {
           message: draftResult.error?.message ?? 'Could not create holiday shift allocation',
-          issues: draftResult.error?.issues
+          issues: draftResult.error?.issues,
+          softWarnings: draftResult.error?.softWarnings,
+          requiresAck: draftResult.error?.requiresAck
         }
       };
     }
@@ -623,7 +925,10 @@ export async function createPublicHolidayShift(
         hours: data.workedHours ?? shiftType.durationHours ?? 0,
         payRate: data.payRate,
         holidayAllowance: data.holidayAllowance ?? 0,
-        dutyLocation: data.dutyLocation?.trim() || snapshot.dutyLocation,
+        dutyLocation: location.name || snapshot.department,
+        dutyLocationDepartmentId: location.id,
+        dutyZoneId: data.dutyZoneId?.trim() || null,
+        dutyRoomId: data.dutyRoomId?.trim() || null,
         grantLieuLeave: data.grantLieuLeave ?? false,
         sendToPayroll: data.sendToPayroll ?? false,
         status: data.status || 'pending_approval',
@@ -638,6 +943,169 @@ export async function createPublicHolidayShift(
   }
 }
 
+/* ────────────────────── BULK CREATE ────────────────────── */
+
+export async function bulkCreatePublicHolidayShifts(
+  payload: PublicHolidayBulkShiftPayload,
+  user?: AuditUser
+): Promise<{
+  success: boolean;
+  data?: PublicHolidayBulkCreateResult;
+  message?: string;
+  error?: {
+    message?: string;
+    issues?: Record<string, string[]>;
+    softWarnings?: string[];
+    requiresAck?: boolean;
+  };
+}> {
+  try {
+    const parsed = holidayBulkShiftPayloadSchema.safeParse(payload);
+    if (!parsed.success) {
+      return {
+        success: false,
+        error: {
+          message: 'Validation failed',
+          issues: parsed.error.flatten().fieldErrors as Record<string, string[]>
+        }
+      };
+    }
+
+    const data = parsed.data;
+    const staffIds = [...new Set(data.staffIds.map((id) => id.trim()).filter(Boolean))];
+    if (staffIds.length === 0) {
+      return {
+        success: false,
+        error: { message: 'Select at least one staff member' }
+      };
+    }
+
+    const holiday = await prisma.holidayCalendar.findUnique({
+      where: { id: data.holidayId },
+      select: { id: true, date: true }
+    });
+    if (!holiday) {
+      return {
+        success: false,
+        error: { message: 'Selected holiday not found in Holiday Calendar' }
+      };
+    }
+
+    const dutyDate = dutyDateFromHoliday(holiday.date);
+
+    const shiftType = await prisma.shiftType.findUnique({
+      where: { id: data.shiftTypeId },
+      select: { id: true, startTime: true, endTime: true }
+    });
+    if (!shiftType) {
+      return { success: false, error: { message: 'Selected shift type not found' } };
+    }
+
+    const softRows = staffIds.map((staffId) => ({
+      staffId,
+      date: dutyDate,
+      startTime: shiftType.startTime,
+      endTime: shiftType.endTime
+    }));
+
+    const leaveWarn = await assertLeaveSoftWarnForAllocations({
+      rows: softRows,
+      acknowledgedWarnings: data.acknowledgedWarnings
+    });
+    const weeklyOffWarn = await assertWeeklyOffSoftWarnForAllocations({
+      rows: softRows,
+      acknowledgedWarnings: data.acknowledgedWarnings
+    });
+
+    if (!leaveWarn.ok || !weeklyOffWarn.ok) {
+      const softWarnings = [
+        ...(!leaveWarn.ok ? leaveWarn.softWarnings : []),
+        ...(!weeklyOffWarn.ok ? weeklyOffWarn.softWarnings : [])
+      ];
+      return {
+        success: false,
+        error: {
+          message: softWarnings[0] ?? 'Acknowledge warnings to continue',
+          softWarnings,
+          requiresAck: true
+        }
+      };
+    }
+
+    const useWorkingDepartment = data.useWorkingDepartment !== false;
+    const createdIds: string[] = [];
+    const skipped: PublicHolidayBulkCreateResult['skipped'] = [];
+
+    for (const staffId of staffIds) {
+      const result = await createPublicHolidayShift(
+        {
+          holidayId: data.holidayId,
+          staffId,
+          shiftTypeId: data.shiftTypeId,
+          workedHours: data.workedHours,
+          payRate: data.payRate,
+          holidayAllowance: data.holidayAllowance,
+          dutyLocationDepartmentId: useWorkingDepartment
+            ? null
+            : data.dutyLocationDepartmentId,
+          dutyZoneId: data.dutyZoneId,
+          dutyRoomId: data.dutyRoomId,
+          grantLieuLeave: data.grantLieuLeave ?? false,
+          sendToPayroll: data.sendToPayroll ?? false,
+          status: data.status || 'pending_approval',
+          remarks: data.remarks,
+          acknowledgedWarnings: true
+        },
+        user
+      );
+
+      if (!result.success || !result.data?.id) {
+        skipped.push({
+          staffId,
+          reason:
+            result.error?.message ??
+            'Could not create holiday shift for this staff member'
+        });
+        continue;
+      }
+
+      createdIds.push(result.data.id);
+    }
+
+    if (createdIds.length === 0) {
+      const firstReason = skipped[0]?.reason;
+      return {
+        success: false,
+        error: {
+          message:
+            firstReason ??
+            'No holiday shifts created. Selected staff may already have this shift type or hit the day limit.'
+        },
+        data: { count: 0, ids: [], skipped }
+      };
+    }
+
+    const skippedNote =
+      skipped.length > 0
+        ? ` ${skipped.length} skipped (already rostered or day limit).`
+        : '';
+
+    return {
+      success: true,
+      data: { count: createdIds.length, ids: createdIds, skipped },
+      message: `${createdIds.length} holiday shift(s) created successfully.${skippedNote}`
+    };
+  } catch (error: any) {
+    console.error('bulkCreatePublicHolidayShifts error:', error);
+    return {
+      success: false,
+      error: {
+        message: error.message || 'Failed to bulk create holiday shifts'
+      }
+    };
+  }
+}
+
 /* ────────────────────── UPDATE ────────────────────── */
 
 export async function updatePublicHolidayShift(
@@ -647,7 +1115,12 @@ export async function updatePublicHolidayShift(
 ): Promise<{
   success: boolean;
   data?: PublicHolidayShiftRecord;
-  error?: { message?: string; issues?: Record<string, string[]> };
+  error?: {
+    message?: string;
+    issues?: Record<string, string[]>;
+    softWarnings?: string[];
+    requiresAck?: boolean;
+  };
 }> {
   try {
     const parsed = holidayShiftPayloadSchema.safeParse(payload);
@@ -673,13 +1146,21 @@ export async function updatePublicHolidayShift(
     }
 
     const data = parsed.data;
-    const dutyDate = new Date(
-      Date.UTC(data.dutyDate.getFullYear(), data.dutyDate.getMonth(), data.dutyDate.getDate())
-    );
+
+    const holiday = await prisma.holidayCalendar.findUnique({
+      where: { id: data.holidayId },
+      select: { id: true, date: true }
+    });
+    if (!holiday) {
+      return { success: false, error: { message: 'Selected holiday not found in Holiday Calendar' } };
+    }
+
+    const dutyDate = dutyDateFromHoliday(holiday.date);
 
     const structuralChanged =
       data.staffId !== existing.staffId ||
       data.shiftTypeId !== existing.shiftTypeId ||
+      data.holidayId !== existing.holidayId ||
       dutyDate.getTime() !== existing.date.getTime();
 
     if (structuralChanged) {
@@ -695,15 +1176,25 @@ export async function updatePublicHolidayShift(
       }
 
       const duplicate = await prisma.rosterAllocation.findFirst({
-        where: { staffId: data.staffId, date: dutyDate, id: { not: id } },
+        where: {
+          staffId: data.staffId,
+          date: dutyDate,
+          shiftTypeId: data.shiftTypeId,
+          id: { not: id }
+        },
         select: { id: true }
       });
       if (duplicate) {
         return {
           success: false,
           error: {
-            message: 'A roster allocation already exists for this staff member on that date',
-            issues: { dutyDate: ['Duplicate staff/date allocation is not allowed'] }
+            message:
+              'This staff member already has this shift type on that holiday date',
+            issues: {
+              dutyDate: [
+                'Duplicate shift type for the same staff/date is not allowed'
+              ]
+            }
           }
         };
       }
@@ -725,7 +1216,8 @@ export async function updatePublicHolidayShift(
           department: snapshot.department,
           unit: snapshot.unit,
           roster: snapshot.roster,
-          comments: data.remarks?.trim() ?? ''
+          comments: data.remarks?.trim() ?? '',
+          acknowledgedWarnings: data.acknowledgedWarnings
         },
         user
       );
@@ -734,7 +1226,9 @@ export async function updatePublicHolidayShift(
           success: false,
           error: {
             message: draftResult.error?.message ?? 'Could not update holiday shift allocation',
-            issues: draftResult.error?.issues
+            issues: draftResult.error?.issues,
+            softWarnings: draftResult.error?.softWarnings,
+            requiresAck: draftResult.error?.requiresAck
           }
         };
       }
@@ -745,6 +1239,16 @@ export async function updatePublicHolidayShift(
       select: { durationHours: true }
     });
 
+    const location = await resolveDutyLocationDepartment(
+      data.dutyLocationDepartmentId
+    );
+    if (!location.ok) {
+      return {
+        success: false,
+        error: { message: location.message, issues: location.issues }
+      };
+    }
+
     const auditUser = toAuditUser(user);
     await prisma.rosterAllocation.update({
       where: { id },
@@ -753,7 +1257,10 @@ export async function updatePublicHolidayShift(
         hours: data.workedHours ?? shiftType?.durationHours ?? 0,
         payRate: data.payRate,
         holidayAllowance: data.holidayAllowance ?? 0,
-        dutyLocation: data.dutyLocation?.trim() || '',
+        dutyLocation: location.name,
+        dutyLocationDepartmentId: location.id,
+        dutyZoneId: data.dutyZoneId?.trim() || null,
+        dutyRoomId: data.dutyRoomId?.trim() || null,
         grantLieuLeave: data.grantLieuLeave ?? false,
         sendToPayroll: data.sendToPayroll ?? false,
         status: data.status || 'pending_approval',
@@ -872,54 +1379,34 @@ export async function getPublicHolidayShiftHistory(id: string): Promise<{
 /* ────────────────────── EXPORT ────────────────────── */
 
 export async function getPublicHolidayShiftsForExport(
-  params: GetPublicHolidayShiftsParams
+  params: Omit<GetPublicHolidayShiftsParams, 'page' | 'limit'>
 ): Promise<{
-  success: boolean;
-  data?: Record<string, string>[];
-  error?: { message?: string };
+  data: PublicHolidayShiftRecord[];
+  totalRecords: number;
 }> {
   try {
     const where = buildWhere(params);
     const records = await prisma.rosterAllocation.findMany({
       where,
       select: allocationSelect,
-      orderBy: [{ date: 'desc' }, { staffCode: 'asc' }],
-      take: 5000
+      orderBy: [{ date: 'desc' }, { staffCode: 'asc' }]
     });
 
     const withUsers = await resolveAuthUsers(records);
-    const data = withUsers.map((record) => {
-      const mapped = mapRecord(record, {
+    const data = withUsers.map((record) =>
+      mapRecord(record, {
         createdUser: record.createdUser,
         updatedUser: record.updatedUser
-      });
-      return {
-        staffCode: mapped.staffCode,
-        staffName: mapped.staffName,
-        department: mapped.department,
-        unit: mapped.unit,
-        holidayName: mapped.holidayName,
-        holidayType: mapped.holidayType,
-        dutyDate: mapped.dutyDate ? format(parseISO(mapped.dutyDate.slice(0, 10)), 'yyyy-MM-dd') : '',
-        shiftLabel: mapped.shiftLabel,
-        workedHours: mapped.workedHours.toFixed(2),
-        payRate: `${mapped.payRate}x`,
-        holidayAllowance: mapped.holidayAllowance.toFixed(2),
-        dutyLocation: mapped.dutyLocation,
-        lieuLeave: mapped.lieuLeave ? 'Yes' : 'No',
-        sendToPayroll: mapped.sendToPayroll ? 'Yes' : 'No',
-        status: mapped.status,
-        updatedBy: mapped.updatedUser?.name || '',
-        updatedAt: mapped.updatedAt ? format(parseISO(mapped.updatedAt.slice(0, 10)), 'yyyy-MM-dd') : '',
-        createdBy: mapped.createdUser?.name || '',
-        createdAt: mapped.createdAt ? format(parseISO(mapped.createdAt.slice(0, 10)), 'yyyy-MM-dd') : ''
-      };
-    });
+      })
+    );
 
-    return { success: true, data };
-  } catch (error: any) {
+    return {
+      data,
+      totalRecords: data.length
+    };
+  } catch (error) {
     console.error('getPublicHolidayShiftsForExport error:', error);
-    return { success: false, error: { message: error.message || 'Failed to export holiday shifts' } };
+    throw new Error('Error getting data');
   }
 }
 

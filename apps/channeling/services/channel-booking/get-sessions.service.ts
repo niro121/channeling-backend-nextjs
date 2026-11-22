@@ -9,6 +9,7 @@ import {
   appointmentSequenceScopeKey,
   effectiveAppointmentSequenceLastValue,
 } from "./helpers/appointment-number"
+import { isHiddenSession } from "@/services/doctor-payment/move-bookings-to-hidden-session"
 
 /**
  * Fetches Session records (bookable sessions) for a doctor from a given date onward.
@@ -18,7 +19,8 @@ import {
 export async function getSessionsForChannelBookingService(
   doctorId: string,
   date: Date | string,
-  locationId?: string | null
+  locationId?: string | null,
+  options?: { includeHidden?: boolean }
 ): Promise<{
   success: boolean
   data?: Session[]
@@ -38,7 +40,7 @@ export async function getSessionsForChannelBookingService(
       where.locationId = locationId
     }
 
-    const records = await prisma.session.findMany({
+    const loaded = await prisma.session.findMany({
       where,
       include: {
         doctor: { select: { id: true, title: true, name: true } },
@@ -47,6 +49,10 @@ export async function getSessionsForChannelBookingService(
       },
       orderBy: [{ date: "asc" }, { startTime: "asc" }],
     })
+    // A Prisma "hidden is not true" filter drops sessions created before the field existed.
+    const records = options?.includeHidden
+      ? loaded
+      : loaded.filter((session) => !isHiddenSession(session.hidden))
 
     if (records.length === 0) return { success: true, data: [] }
 
@@ -113,6 +119,7 @@ export async function getSessionsForChannelBookingService(
           r.startingPatientNumber
         ),
         isScan: r.isScan,
+        hidden: r.hidden === true,
         doctorId: r.doctorId,
         departmentId: r.departmentId,
         locationId: r.locationId,
@@ -154,7 +161,8 @@ export async function getSessionsForChannelBookingService(
  * Returns same Session shape as getSessionsForChannelBookingService.
  */
 export async function getSessionByIdForChannelBookingService(
-  sessionId: string
+  sessionId: string,
+  options?: { includeHidden?: boolean }
 ): Promise<{
   success: boolean
   data?: Session | null
@@ -178,6 +186,7 @@ export async function getSessionByIdForChannelBookingService(
       }),
     ])
     if (!record) return { success: true, data: null }
+    if (record.hidden === true && !options?.includeHidden) return { success: true, data: null }
 
     const seq = await prisma.sequence.findUnique({
       where: { scopeKey: appointmentSequenceScopeKey(record.id) },
@@ -220,6 +229,7 @@ export async function getSessionByIdForChannelBookingService(
         record.startingPatientNumber
       ),
       isScan: record.isScan,
+      hidden: record.hidden === true,
       doctorId: record.doctorId,
       departmentId: record.departmentId,
       locationId: record.locationId,

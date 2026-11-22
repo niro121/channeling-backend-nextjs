@@ -4,9 +4,12 @@ import Link from "next/link";
 import { NavLink } from "@archmage/ui";
 import Image from "next/image";
 import { cn } from "@/lib/utils";
-import { NAV_ITEMS } from "./nav-items";
+import { MORE_ITEMS, navItemsFor } from "./nav-items";
+import { useFeatures } from "./features-context";
 
 export function DesktopSidebar({ className }: { className?: string }) {
+  const features = useFeatures();
+  const more = MORE_ITEMS.filter((item) => item.visible(features));
   return (
     <aside className={cn("fixed inset-y-0 left-0 z-50 flex w-52 flex-col border-r border-primary/20 bg-secondary overflow-hidden", className)}>
       <div className="flex h-14 shrink-0 items-center border-b border-primary/20 bg-secondary px-3">
@@ -20,9 +23,17 @@ export function DesktopSidebar({ className }: { className?: string }) {
       </div>
 
       <nav className="scrollbar-thin flex-1 overflow-y-auto overflow-x-hidden flex flex-col gap-0.5 px-3 py-4 min-h-0">
-        {NAV_ITEMS.map(({ href, label, icon: Icon }) => (
+        {navItemsFor(features).map(({ href, label, icon: Icon }) => (
           <NavLink key={href} href={href} label={label} icon={<Icon className="h-5 w-5" />} />
         ))}
+        {more.length > 0 && (
+          <>
+            <p className="px-3 pb-1 pt-4 text-xs font-medium uppercase tracking-wide text-muted-foreground">More</p>
+            {more.map(({ href, label, icon: Icon }) => (
+              <NavLink key={href} href={href} label={label} icon={<Icon className="h-5 w-5" />} />
+            ))}
+          </>
+        )}
       </nav>
 
       <div className="shrink-0 border-t border-primary/20 bg-secondary px-3 py-3">

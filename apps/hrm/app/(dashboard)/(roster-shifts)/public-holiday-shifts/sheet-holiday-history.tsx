@@ -16,6 +16,7 @@ import type {
   PublicHolidayShiftHistoryEntry,
   PublicHolidayShiftRecord
 } from '@/types/roster';
+import { buttonStyles } from '@/lib/utils/common-styles';
 
 type SheetHolidayHistoryProps = {
   open: boolean;
@@ -96,6 +97,7 @@ export default function SheetHolidayHistory({
             type="button"
             variant="outline"
             onClick={() => onOpenChange(false)}
+            className={buttonStyles.cancel.normal}
           >
             Cancel
           </Button>

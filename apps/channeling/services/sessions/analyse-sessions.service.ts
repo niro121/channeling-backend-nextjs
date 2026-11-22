@@ -169,12 +169,12 @@ export async function analyseSessionsService(
         const sessiondata = await prisma.session.findMany({
           where: {
             doctorId: inputs.doctorId,
-            date: { gte: rangeStart, lte: rangeEnd }
+            date: { gte: rangeStart, lte: rangeEnd },
           },
           include: { location: true, doctor: true }
         });
 
-        const formattedData = sessiondata.map((item) => {
+        const formattedData = sessiondata.filter((item) => item.hidden !== true).map((item) => {
           const originalSession = schedule.find((s) => s.id === item.doctorSessionId);
           const itemDate = item.date instanceof Date ? item.date : new Date(item.date);
           const startDate = normalizeSessionTime(item.startTime as Date | number, itemDate);
@@ -350,12 +350,12 @@ export async function analyseSessionsService(
       const sessiondata = await prisma.session.findMany({
         where: {
           doctorId: inputs.doctorId,
-          date: { gte: rangeStart, lte: rangeEnd }
+          date: { gte: rangeStart, lte: rangeEnd },
         },
         include: { location: true, doctor: true }
       });
 
-      const formattedData = sessiondata.map((item) => {
+      const formattedData = sessiondata.filter((item) => item.hidden !== true).map((item) => {
         const originalSession = schedule.find((s) => s.id === item.doctorSessionId);
         const itemDate = item.date instanceof Date ? item.date : new Date(item.date);
         const startDate = normalizeSessionTime(item.startTime as Date | number, itemDate);
@@ -387,12 +387,12 @@ export async function analyseSessionsService(
       const sessiondata = await prisma.session.findMany({
         where: {
           doctorId: inputs.doctorId,
-          date: { gte: rangeStart, lte: rangeEnd }
+          date: { gte: rangeStart, lte: rangeEnd },
         },
         include: { location: true, doctor: true }
       });
 
-      const formattedData = sessiondata.map((item) => {
+      const formattedData = sessiondata.filter((item) => item.hidden !== true).map((item) => {
         const itemDate = item.date instanceof Date ? item.date : new Date(item.date);
         const startDate = normalizeSessionTime(item.startTime as Date | number, itemDate);
         const endDate = normalizeSessionTime(item.endTime as Date | number, itemDate);

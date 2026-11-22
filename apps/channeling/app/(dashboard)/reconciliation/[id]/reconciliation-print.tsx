@@ -120,14 +120,19 @@ export function ReconciliationPrint({
       const ref = formatReceiptMatchLine(r)
       const reason = (r.cannotReconcileReason ?? cannot[r.id] ?? "").trim()
       tickedReceipts.push({
-        receiptNo: r.receiptNoString,
+        receiptNo: r.source === "dpay" ? `DPAY ${r.receiptNoString}` : r.receiptNoString,
         method,
         amount: net,
         reference: ref,
         date: formatPrintDateTime(r.createdAt),
         from: fromUserLabel(tab.handover.fromUser),
         ticked: isTicked,
-        status: isCannot ? "CAN'T RECONCILE" : isPosted ? "POSTED" : isTicked ? "TICKED" : "OPEN",
+        status: [
+          r.canceledAt ? "CANCELED" : null,
+          isCannot ? "CAN'T RECONCILE" : isPosted ? "POSTED" : isTicked ? "TICKED" : "OPEN",
+        ]
+          .filter(Boolean)
+          .join(" · "),
         reason: isCannot ? reason : "",
       })
     }

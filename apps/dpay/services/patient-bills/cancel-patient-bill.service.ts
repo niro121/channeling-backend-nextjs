@@ -8,6 +8,8 @@ import { validateRefundPaymentMethodForReceiptsMessage } from '@/lib/patient-bil
 import { isVoidablePaymentReceipt } from '@/lib/receipts/helpers';
 import type { PatientBillPaymentMethod } from '@/types/patient-bill';
 import { generateCancelReceiptNumber } from '@/services/patient-bills/generate-receipt-number.service';
+import { postTillJournal, requireActiveShift, type ActiveShift } from '@/lib/dpay-shift';
+import { parsePayableShares, type PayableShare } from '@/lib/patient-bills/payable-shares';
 
 export type CancelPatientBillInput = {
   billId: string;
@@ -34,6 +36,8 @@ export type CancelPatientBillResult =
  * Refund method is chosen by the user (may differ from original payment methods).
  * Closed bills stay non-editable — cancel is the supported reversal path.
  * Blocked when any line item is still linked to a non-cancelled doctor payment.
+ * Open bills are also blocked while active doctor charges remain; remove those lines first.
+ * Closed bills skip that line-item check because their lines cannot be removed.
  * Single-receipt cancel remains blocked on closed bills (use full bill cancel instead).
  */
 export async function cancelPatientBill(
@@ -70,6 +74,7 @@ export async function cancelPatientBill(
           receiptNumber: true,
           amountPaid: true,
           paymentMethod: true,
+          payableShares: true,
           status: true,
           cancelReceiptNumber: true,
           refundOfReceiptId: true,
@@ -96,6 +101,17 @@ export async function cancelPatientBill(
       success: false,
       message:
         'Cannot cancel this bill because doctor fees have already been paid. Cancel the related doctor payment first.',
+    };
+  }
+
+  const hasActiveLineItems = bill.lineItems.some(
+    (item) => !isDeletedLineItem({ status: normalizeLineItemStatus(item.status) })
+  );
+  if (bill.status !== 'closed' && hasActiveLineItems) {
+    return {
+      success: false,
+      message:
+        'Cannot cancel this bill while doctor charges are still on it. Remove the bill line items first.',
     };
   }
 
@@ -135,6 +151,61 @@ export async function cancelPatientBill(
       slipReference: input.slipReference,
       slipDate: input.slipDate,
     });
+  }
+
+  const receiptShares = new Map<string, PayableShare[]>();
+  const postedRefunds: { id: string; receiptNumber: string; shares: PayableShare[] }[] = [];
+  let shiftId: string | null = null;
+  let shiftForReverse: ActiveShift | null = null;
+  const undoPostedRefunds = async () => {
+    if (!shiftForReverse) return true;
+    for (const row of postedRefunds) {
+      const reversed = await postTillJournal({
+        shift: shiftForReverse,
+        kind: 'patient_payment',
+        referenceId: row.id,
+        description: `Reverse failed DPAY bill cancel refund ${row.receiptNumber}`,
+        paymentMethod: input.refundPaymentMethod!,
+        shares: row.shares,
+      });
+      if (!reversed.success) return false;
+    }
+    return true;
+  };
+  if (activeReceipts.length > 0) {
+    const shiftGate = await requireActiveShift(input.canceledBy);
+    if (!shiftGate.success) return { success: false, message: shiftGate.message };
+    shiftId = shiftGate.shift.shiftId;
+    shiftForReverse = shiftGate.shift;
+
+    for (const receipt of activeReceipts) {
+      const shares = parsePayableShares(receipt.payableShares);
+      if (!shares.length) {
+        return {
+          success: false,
+          message: `Receipt ${receipt.receiptNumber} has no doctor shares to reverse, so the till cannot be updated.`,
+        };
+      }
+      const journal = await postTillJournal({
+        shift: shiftGate.shift,
+        kind: 'patient_refund',
+        referenceId: receipt.id,
+        description: `DPAY bill cancel refund ${receipt.receiptNumber}`,
+        paymentMethod: input.refundPaymentMethod!,
+        shares,
+      });
+      if (!journal.success) {
+        const undone = await undoPostedRefunds();
+        return {
+          success: false,
+          message: undone
+            ? journal.message
+            : `${journal.message} The till could not be put back. Do not retry until it is checked.`,
+        };
+      }
+      postedRefunds.push({ id: receipt.id, receiptNumber: receipt.receiptNumber, shares });
+      receiptShares.set(receipt.id, shares);
+    }
   }
 
   const canceledAt = new Date();
@@ -185,6 +256,8 @@ export async function cancelPatientBill(
             outstandingAfter: outstandingAfterCancel,
             paymentDate: canceledAt,
             status: 'refund',
+            shiftId: shiftId ?? undefined,
+            payableShares: receiptShares.get(receipt.id) ?? undefined,
             refundOfReceiptId: receipt.id,
             cancelReason: reason,
             createdBy: input.canceledBy ?? undefined,
@@ -210,6 +283,7 @@ export async function cancelPatientBill(
 
     return { success: true, voidedReceiptCount, previousStatus: bill.status };
   } catch (error) {
+    const undone = await undoPostedRefunds();
     console.error('cancelPatientBill failed', error);
     const message =
       error instanceof Error && error.message
@@ -222,6 +296,11 @@ export async function cancelPatientBill(
           'Server Prisma client is out of date. Restart the dpay dev server and try again.',
       };
     }
-    return { success: false, message: 'Failed to cancel patient bill.' };
+    return {
+      success: false,
+      message: undone
+        ? 'Failed to cancel patient bill.'
+        : 'Failed to cancel patient bill. The till could not be put back. Do not retry until it is checked.',
+    };
   }
 }

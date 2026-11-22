@@ -1,4 +1,5 @@
 import prisma from '@/lib/prisma';
+import { requireActiveShift } from '@/lib/dpay-shift';
 import type { AddPatientBillLineItemInput } from '@/types/patient-bill';
 import { computeBillPaymentStatus } from '@/lib/patient-bills/payment-status';
 import { activeLineItemWhere, BILL_LINE_ITEM_STATUS } from '@/lib/patient-bills/line-item-status';
@@ -31,6 +32,9 @@ export async function addPatientBillLineItem(
   if (input.amount < 0) {
     return { success: false, message: 'Amount cannot be negative' };
   }
+
+  const shiftGate = await requireActiveShift(createdBy);
+  if (!shiftGate.success) return { success: false, message: shiftGate.message };
 
   try {
     const existing = await prisma.patientBill.findUnique({
@@ -78,6 +82,8 @@ export async function addPatientBillLineItem(
           billId,
           sortOrder: nextSortOrder,
           doctorName,
+          doctorId: input.doctorId?.trim() || undefined,
+          doctorCode: input.doctorCode?.trim() || undefined,
           description,
           amount: input.amount,
           status: BILL_LINE_ITEM_STATUS.active,

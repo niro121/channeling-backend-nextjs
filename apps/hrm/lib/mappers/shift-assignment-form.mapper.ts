@@ -8,6 +8,7 @@ export function shiftAssignmentFormValuesToPayload(
   values: ShiftAssignmentFormValues
 ): ShiftAssignmentPayload {
   return {
+    manageRosterId: values.manageRosterId,
     staffId: values.staffId,
     shiftTypeId: values.shiftTypeId,
     rotationPattern: values.rotationPatternId || 'fixed',
@@ -23,6 +24,7 @@ export function shiftAssignmentRecordToFormValues(
   record: ShiftAssignmentRecord
 ): ShiftAssignmentFormValues {
   return {
+    manageRosterId: record.manageRosterId ?? '',
     staffId: record.staffId,
     shiftTypeId: record.shiftTypeId,
     rotationPatternId: record.rotationPattern || 'fixed',
@@ -42,6 +44,7 @@ export function shiftAssignmentFormValuesToBulkPayload(
 ): Omit<ShiftAssignmentPayload, 'staffId'> & { staffIds: string[] } {
   return {
     staffIds,
+    manageRosterId: values.manageRosterId,
     shiftTypeId: values.shiftTypeId,
     rotationPattern: values.rotationPatternId || 'fixed',
     effectiveFrom: values.effectiveFrom as Date,

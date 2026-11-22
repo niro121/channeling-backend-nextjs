@@ -1,10 +1,9 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Form, Formik, type FormikHelpers } from 'formik';
 import * as Yup from 'yup';
-import { format } from 'date-fns';
 import { SaveIcon, Trash2, X } from 'lucide-react';
 import {
   Button,
@@ -14,6 +13,7 @@ import {
   useToast
 } from '@archmage/ui';
 import { cn } from '@/lib/utils';
+import { formatAuditLine } from '@/lib/helpers/format-audit-line.helper';
 import { INSTITUTION_OPTIONS, getInstitutionName } from '@/types/institution';
 import {
   DEPARTMENT_STATUS_OPTIONS,
@@ -27,10 +27,14 @@ import {
 } from '@/app/actions/organization-actions/department.actions';
 import { formValuesToDepartmentPayload } from '@/lib/mappers/department-form.mapper';
 import { useDepartmentUi } from './department-ui-context';
+import { ChannelingSyncAlertDialog } from '@/components/common/channeling-sync-alert-dialog';
+import { buildChannelingSyncDialog } from '@/components/common/channeling-sync-dialog.helper';
+import { buttonStyles } from '@/lib/utils/common-styles';
 
 const fieldStyleClasses = {
   parentDiv: 'grid grid-cols-1 gap-1.5 items-start',
-  labelClassName: 'text-xs font-medium uppercase tracking-wide text-muted-foreground',
+  labelClassName:
+    'text-xs font-medium uppercase tracking-wide text-muted-foreground',
   inputClassName: 'w-full'
 };
 
@@ -51,14 +55,6 @@ const statusOptions = DEPARTMENT_STATUS_OPTIONS.map((opt) => ({
   name: opt.name
 }));
 
-function formatAuditLine(name?: string, role?: string, at?: string | null): string {
-  if (!name || !at) return '—';
-  const date = new Date(at);
-  if (Number.isNaN(date.getTime())) return '—';
-  const namePart = role ? `${name} (${role})` : name;
-  return `${namePart} · ${format(date, 'd MMM yyyy')} · ${format(date, 'HH:mm')}`;
-}
-
 export default function SectionDepartmentDetail() {
   const { toast } = useToast();
   const router = useRouter();
@@ -66,12 +62,18 @@ export default function SectionDepartmentDetail() {
     records,
     selectedId,
     setSelectedId,
+    setRecords,
     isNew,
     setIsNew,
     detailFormHighlight
   } = useDepartmentUi();
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [showChannelingDialog, setShowChannelingDialog] = useState(false);
+  const pendingSubmitRef = useRef<{
+    values: DepartmentFormValues;
+    helpers: FormikHelpers<DepartmentFormValues>;
+  } | null>(null);
 
   const selectedRecord = useMemo(
     () => records.find((record) => record.id === selectedId) ?? null,
@@ -98,20 +100,21 @@ export default function SectionDepartmentDetail() {
   }, [detailFormHighlight, formKey]);
 
   const showEmptyState = !isNew && !selectedRecord;
+  const isCreating = isNew || !selectedRecord;
 
-  const handleSave = async (
+  const executeSave = async (
     values: DepartmentFormValues,
-    helpers: FormikHelpers<DepartmentFormValues>
+    helpers: FormikHelpers<DepartmentFormValues>,
+    syncToChanneling: boolean
   ) => {
     setSaving(true);
     try {
       const payload = formValuesToDepartmentPayload(values);
-      const result =
-        isNew || !selectedRecord
-          ? await createDepartmentAction(payload, { syncToChanneling: true })
-          : await updateDepartmentAction(selectedRecord.id, payload, {
-              syncToChanneling: true
-            });
+      const result = isCreating
+        ? await createDepartmentAction(payload, { syncToChanneling })
+        : await updateDepartmentAction(selectedRecord!.id, payload, {
+            syncToChanneling
+          });
 
       if (result.isError || !result.data) {
         const errors = result.errors as Record<string, unknown>;
@@ -130,29 +133,82 @@ export default function SectionDepartmentDetail() {
           variant: 'destructive',
           title: 'Save failed',
           description:
-            (typeof (errors as any)?.message === 'string' && (errors as any).message) ||
-            (typeof (errors as any)?.name?.[0] === 'string' && (errors as any).name[0]) ||
+            (typeof (errors as any)?.message === 'string' &&
+              (errors as any).message) ||
+            (typeof (errors as any)?.name?.[0] === 'string' &&
+              (errors as any).name[0]) ||
             'Unable to save department.'
         });
         return;
       }
 
-      const warning = (result as { channelingWarning?: string }).channelingWarning;
+      const warning = (result as { channelingWarning?: string })
+        .channelingWarning;
+      setRecords((prev) => {
+        const nextRecord = result.data!;
+        const index = prev.findIndex((record) => record.id === nextRecord.id);
+        if (index >= 0) {
+          const next = [...prev];
+          next[index] = nextRecord;
+          return next;
+        }
+        return [...prev, nextRecord].sort((a, b) =>
+          a.name.localeCompare(b.name)
+        );
+      });
       setIsNew(false);
       setSelectedId(result.data.id);
       toast({
-        title: 'Saved',
+        variant: warning ? 'default' : 'success',
+        title: warning ? 'Saved in HRM' : 'Saved',
         description: warning
           ? warning
-          : isNew || !selectedRecord
-            ? 'Department created.'
-            : 'Department updated.'
+          : isCreating
+            ? syncToChanneling
+              ? 'Department was created in HRM and Channeling.'
+              : 'Department was created in HRM only.'
+            : syncToChanneling
+              ? 'Department was updated in HRM and Channeling.'
+              : 'Department was updated in HRM only.'
       });
       router.refresh();
     } finally {
       setSaving(false);
+      setShowChannelingDialog(false);
+      pendingSubmitRef.current = null;
     }
   };
+
+  const handleSave = async (
+    values: DepartmentFormValues,
+    helpers: FormikHelpers<DepartmentFormValues>
+  ) => {
+    pendingSubmitRef.current = { values, helpers };
+    setShowChannelingDialog(true);
+  };
+
+  const handleChannelingCancel = () => {
+    pendingSubmitRef.current = null;
+    setShowChannelingDialog(false);
+  };
+
+  const handleChannelingSaveHrmOnly = async () => {
+    const pending = pendingSubmitRef.current;
+    if (!pending) return;
+    await executeSave(pending.values, pending.helpers, false);
+  };
+
+  const handleChannelingContinue = async () => {
+    const pending = pendingSubmitRef.current;
+    if (!pending) return;
+    await executeSave(pending.values, pending.helpers, true);
+  };
+
+  const channelingDialog = buildChannelingSyncDialog({
+    entityLabel: 'department',
+    mode: isCreating ? 'create' : 'update',
+    hasChannelingLink: Boolean(selectedRecord?.migrateSourceId)
+  });
 
   const handleDelete = async () => {
     if (!selectedRecord) return;
@@ -197,7 +253,9 @@ export default function SectionDepartmentDetail() {
       )}
     >
       <div className="border-b border-primary/10 px-4 py-3">
-        <h2 className="text-base font-semibold text-foreground">Department Details</h2>
+        <h2 className="text-base font-semibold text-foreground">
+          Department Details
+        </h2>
       </div>
 
       {showEmptyState ? (
@@ -220,7 +278,10 @@ export default function SectionDepartmentDetail() {
             );
 
             return (
-              <Form id="department-form" className="flex min-h-0 flex-1 flex-col overflow-hidden">
+              <Form
+                id="department-form"
+                className="flex min-h-0 flex-1 flex-col overflow-hidden"
+              >
                 <div className="flex flex-1 flex-col gap-6 overflow-y-auto p-4">
                   <CustomFormField
                     id="name"
@@ -249,7 +310,9 @@ export default function SectionDepartmentDetail() {
                       id="institution"
                       placeholder="Select Institution"
                       value={formik.values.institution}
-                      onChange={(value) => formik.setFieldValue('institution', value)}
+                      onChange={(value) =>
+                        formik.setFieldValue('institution', value)
+                      }
                       required
                       options={INSTITUTION_OPTIONS}
                       styleClasses={fieldStyleClasses}
@@ -279,7 +342,9 @@ export default function SectionDepartmentDetail() {
 
                   <div className="grid gap-3 rounded-lg border border-border bg-muted/40 px-3 py-3 text-xs md:grid-cols-2">
                     <div className="flex flex-col gap-1">
-                      <span className="font-semibold text-foreground">Created by:</span>
+                      <span className="font-semibold text-foreground">
+                        Created by:
+                      </span>
                       <span className="text-muted-foreground">
                         {selectedRecord && !isNew
                           ? formatAuditLine(
@@ -291,7 +356,9 @@ export default function SectionDepartmentDetail() {
                       </span>
                     </div>
                     <div className="flex flex-col gap-1">
-                      <span className="font-semibold text-foreground">Last updated:</span>
+                      <span className="font-semibold text-foreground">
+                        Last updated:
+                      </span>
                       <span className="text-muted-foreground">
                         {selectedRecord && !isNew
                           ? formatAuditLine(
@@ -310,7 +377,10 @@ export default function SectionDepartmentDetail() {
                     type="button"
                     variant="outline"
                     size="sm"
-                    className="w-full sm:w-24 gap-1 border-red-500 text-red-500 transition-colors ease-in-out duration-100 hover:bg-red-500 hover:text-white"
+                    className={cn(
+                      'w-full sm:w-24 gap-1.5',
+                      buttonStyles.cancel.normal
+                    )}
                     disabled={saving}
                     onClick={() => {
                       if (isNew) {
@@ -330,7 +400,7 @@ export default function SectionDepartmentDetail() {
                     size="sm"
                     onClick={() => setDeleteOpen(true)}
                     disabled={!selectedRecord || isNew || saving}
-                    className="h-9 gap-1.5 border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                    className={cn('gap-1.5', buttonStyles.delete.warning)}
                   >
                     <Trash2 className="h-4 w-4" />
                     Delete
@@ -339,11 +409,15 @@ export default function SectionDepartmentDetail() {
                     type="submit"
                     form="department-form"
                     size="sm"
-                    className="h-9 gap-1.5"
-                    disabled={saving}
+                    className={cn('gap-1.5', buttonStyles.save)}
+                    disabled={
+                      saving ||
+                      showChannelingDialog ||
+                      (!isCreating && !formik.dirty)
+                    }
                   >
                     <SaveIcon className="h-4 w-4" />
-                    Save
+                    {isCreating ? 'Save' : 'Update'}
                   </Button>
                 </div>
               </Form>
@@ -351,6 +425,19 @@ export default function SectionDepartmentDetail() {
           }}
         </Formik>
       )}
+
+      <ChannelingSyncAlertDialog
+        open={showChannelingDialog}
+        title={channelingDialog.title}
+        description={channelingDialog.description}
+        hrmOnlyLabel={channelingDialog.hrmOnlyLabel}
+        continueLabel={channelingDialog.continueLabel}
+        cancelClassName={buttonStyles.cancel.warning} 
+        loading={saving}
+        onCancel={handleChannelingCancel}
+        onSaveHrmOnly={handleChannelingSaveHrmOnly}
+        onContinue={handleChannelingContinue}
+      />
 
       <CustomAlertDialog
         open={deleteOpen}
@@ -365,6 +452,9 @@ export default function SectionDepartmentDetail() {
         handleVisibilityChange={setDeleteOpen}
         handleContinue={handleDelete}
         loading={saving}
+        className={{
+          actionButton: buttonStyles.delete.danger
+        }}
       />
     </div>
   );

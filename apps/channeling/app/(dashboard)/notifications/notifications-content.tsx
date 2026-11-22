@@ -37,6 +37,9 @@ function getNotificationHref(item: NotificationListItem): string | null {
   if (item.referenceType === REFERENCE_TYPES.ApprovalRequest) {
     return "/approvals";
   }
+  if (item.referenceType === REFERENCE_TYPES.RoomStay && item.referenceId) {
+    return `/room-stays/${item.referenceId}`;
+  }
   return null;
 }
 

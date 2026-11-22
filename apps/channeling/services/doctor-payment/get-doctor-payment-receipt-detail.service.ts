@@ -109,7 +109,7 @@ export async function getDoctorPaymentReceiptDetail(
     const refunds = b.refundAmountProfessionalFee ?? 0;
     const amountRs = Math.max(0, professionalFee - discount - refunds);
     const patientName = [b.title, b.name].filter(Boolean).join(" ").trim() || "—";
-    const receiptNo = b.bookingid_string ?? b.receiptNoString ?? "—";
+    const receiptNo = b.receiptNoString ?? b.bookingid_string ?? "—";
     lineItems.push({
       date: dateLabel,
       session: sessionStr,

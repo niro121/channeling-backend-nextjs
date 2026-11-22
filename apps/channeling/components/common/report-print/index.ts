@@ -2,6 +2,7 @@ export { ReportPrintLayout, RUHUNU_HOSPITAL_LOGO_SRC, RUHUNU_PRINT_BRAND_NAME } 
 export type { ReportPrintSummaryItem } from "./report-print-layout"
 export {
   downloadBrandedReportPdf,
+  drawBrandedPdfFooter,
   drawBrandedPdfHeader,
   toBrandedPdfSummaryItems,
 } from "./report-pdf-branded"

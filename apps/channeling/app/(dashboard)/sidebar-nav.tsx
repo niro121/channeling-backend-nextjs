@@ -2,10 +2,13 @@
 
 import type { LucideIcon } from "lucide-react";
 import {
+  BedDouble,
+  ListChecks,
   Activity,
   ArrowRightLeft,
   Banknote,
   BookOpen,
+  Boxes,
   Building2,
   Calculator,
   CalendarCheck,
@@ -88,6 +91,10 @@ export const SIDEBAR_GROUPS: SidebarNavGroup[] = [
       { href: "/departments", label: "Department", icon: Building2 },
       { href: "/zones", label: "Zones", icon: MapPinned },
       { href: "/rooms", label: "Rooms", icon: LucideHome },
+      { href: "/inventory", label: "Inventory", icon: Boxes },
+      { href: "/room-inventory", label: "Room Inventory", icon: LayoutGrid },
+      { href: "/room-stays", label: "Room Stays", icon: BedDouble },
+      { href: "/room-checklists", label: "Room Checklists", icon: ListChecks },
       { href: "/locations", label: "Location", icon: LocateFixedIcon },
     ],
   },

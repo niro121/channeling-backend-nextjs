@@ -28,6 +28,8 @@ export type PendingApprovalItem = {
   leaveType: string;
   dateRange: string;
   duration: string;
+  days?: number;
+  halfDaySession?: string | null;
 };
 
 type SectionPendingApprovalsProps = {
@@ -140,6 +142,13 @@ export default function SectionPendingApprovals({
                   >
                     {item.leaveType}
                   </Badge>
+                  {item.halfDaySession === 'AM' ||
+                  item.halfDaySession === 'PM' ||
+                  item.days === 0.5 ? (
+                    <Badge className="border-0 bg-sky-50 text-sky-800 hover:bg-sky-50">
+                      Half day
+                    </Badge>
+                  ) : null}
                   <div>
                     <p className="text-sm font-semibold">{item.dateRange}</p>
                     <p className="text-xs text-muted-foreground">

@@ -71,7 +71,10 @@ export default function LeaveEntitlementWorkspace({
   const columns = useMemo(
     () =>
       createLeaveEntitlementColumns({
-        onEdit: (record) => setSelectedRecord(record),
+        onEdit: (record) => {
+          setSelectedRecord(record);
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        },
         onDeleted: () => setSelectedRecord(null)
       }),
     []
