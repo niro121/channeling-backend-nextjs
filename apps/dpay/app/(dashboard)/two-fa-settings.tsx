@@ -23,7 +23,6 @@ export function TwoFASettings() {
   const [hasAuthenticator, setHasAuthenticator] = useState<boolean | null>(null);
   const [require2FAAtLogin, setRequire2FAAtLogin] = useState(false);
   const [userPreference2FA, setUserPreference2FA] = useState(false);
-  const [groupAllows2FA, setGroupAllows2FA] = useState(true);
   const [hasPhone, setHasPhone] = useState(false);
   const [loading, setLoading] = useState(true);
   const [preferenceSaving, setPreferenceSaving] = useState(false);
@@ -41,7 +40,6 @@ export function TwoFASettings() {
         setHasAuthenticator(!!data.hasAuthenticator);
         setRequire2FAAtLogin(!!data.require2FAAtLogin);
         setUserPreference2FA(!!data.userPreference2FA);
-        setGroupAllows2FA(!!data.groupAllows2FA);
         setHasPhone(!!data.hasPhone);
       }
     } catch {
@@ -114,7 +112,7 @@ export function TwoFASettings() {
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error ?? 'Failed to update');
       setUserPreference2FA(!!data.require2FAAtLogin);
-      setRequire2FAAtLogin(!!data.require2FAAtLogin && groupAllows2FA);
+      setRequire2FAAtLogin(!!data.require2FAAtLogin);
       toast({
         title: checked ? '2FA required at login' : '2FA not required',
         style: { backgroundColor: '#f0fdf4' },
@@ -153,14 +151,6 @@ export function TwoFASettings() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {!groupAllows2FA && (
-            <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
-              <p className="font-medium text-amber-800">2FA is disabled for your group</p>
-              <p className="text-sm text-amber-700 mt-1">
-                Your administrator has turned off two-factor authentication for your group.
-              </p>
-            </div>
-          )}
           {!hasPhone && (
             <div className="rounded-lg border border-red-200 bg-red-50 p-4">
               <p className="font-medium text-red-600">Phone number required</p>

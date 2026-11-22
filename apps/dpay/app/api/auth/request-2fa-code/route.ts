@@ -25,17 +25,12 @@ export async function POST(request: Request) {
         ],
         status: 1,
       },
-      include: { userGroup: true },
     });
     if (!user || !user.password) return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });
     if (!await argon2.verify(user.password, password)) return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });
     if (user.twoFactorEnabled !== true) return NextResponse.json({ error: '2FA not enabled for this account' }, { status: 403 });
 
-    const group = user.userGroup;
-    const groupAllows2FA = group == null || group.twoFactorEnabled === true;
-    if (!groupAllows2FA) return NextResponse.json({ error: '2FA is disabled for your group.' }, { status: 403 });
-
-    const allowedMethods = Array.isArray(group?.twoFactorMethods) && group.twoFactorMethods.length > 0 ? group.twoFactorMethods : ['1', '2', '3'];
+    const allowedMethods = ['1', '2', '3'];
     if (!allowedMethods.includes(method)) return NextResponse.json({ error: 'Method not allowed' }, { status: 403 });
 
     const expiresMinutes = method === TWO_FACTOR_METHODS.AUTH_APP ? TWO_FA_PENDING_EXPIRY_MINUTES : TWO_FA_CODE_EXPIRY_MINUTES;

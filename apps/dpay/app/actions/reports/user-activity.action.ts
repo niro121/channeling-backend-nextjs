@@ -2,7 +2,6 @@
 
 import { format } from 'date-fns';
 import { authPrisma } from '@archmage/db-auth';
-import { requirePermission } from '@/lib/server-permissions';
 import { fetchServerSession } from '@/lib/session';
 import { logActivityNonBlocking } from '@/lib/activity-log';
 import { formatReportMax } from '@/lib/report-limits';
@@ -18,7 +17,6 @@ export async function getReportUserOptionsAction(): Promise<{
   data?: Array<{ id: string; name: string }>;
   message?: string;
 }> {
-  await requirePermission('reports', 'view');
   try {
     const users = await authPrisma.user.findMany({
       where: { status: 1 },
@@ -46,7 +44,6 @@ export async function getReportUserOptionsAction(): Promise<{
 export async function getUserActivityReportData(
   query: UserActivityReportQuery
 ): Promise<UserActivityReportResponse> {
-  await requirePermission('reports', 'view');
   try {
     return await getActivityLogsForReport(
       query.userId === '__all__' || !query.userId ? undefined : query.userId,
@@ -74,7 +71,6 @@ export async function exportUserActivityReportData(
   message?: string;
   hasMore?: boolean;
 }> {
-  await requirePermission('reports', 'view');
   try {
     const result = await getActivityLogsForReport(
       query.userId === '__all__' || !query.userId ? undefined : query.userId,

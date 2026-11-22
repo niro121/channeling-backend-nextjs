@@ -1,11 +1,10 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import type { Session } from 'next-auth';
 import { Profile } from './profile';
 import MobileNavClient from './mobile-nav-client';
 
-export function HeaderClientControls({ session }: { session: Session | null }) {
+export function HeaderClientControls() {
   const [mounted, setMounted] = useState(false);
   useEffect(() => { setMounted(true); }, []);
 
@@ -20,7 +19,7 @@ export function HeaderClientControls({ session }: { session: Session | null }) {
 
   return (
     <>
-      <MobileNavClient session={session} />
+      <MobileNavClient />
       <div className="shrink-0"><Profile /></div>
     </>
   );
