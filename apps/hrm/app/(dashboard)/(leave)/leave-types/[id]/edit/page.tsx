@@ -39,17 +39,23 @@ export default async function LeaveTypeEditPage({
   }
 
   const leaveType = response.data as LeaveTypeRecord;
+  const isLieu = Boolean(leaveType.isLieuLeave);
 
   return (
     <div className="space-y-6">
       <CommonManagerHeader
-        title="Edit Leave Type"
-        description="Update leave type details for entitlement and application workflows."
+        title={isLieu ? 'Edit Lieu Leave Type' : 'Edit Leave Type'}
+        description={
+          isLieu
+            ? 'Update the compensatory leave bank used by Public Holiday Grant Lieu Leave.'
+            : 'Update leave type details for entitlement and application workflows.'
+        }
         backwordButton
       />
       <FormLeaveType
         mode="edit"
         leaveTypeId={id}
+        variant={isLieu ? 'lieu' : 'normal'}
         initialValues={leaveTypeRecordToFormValues(leaveType)}
       />
     </div>

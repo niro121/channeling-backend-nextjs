@@ -159,13 +159,16 @@ model Staff {
   /// Denormalized from hrDetails.fingerPrintRfid for punch lookup / uniqueness among active staff.
   fingerPrintRfid String?
   /// Wave 9 — set when staff is created from an accepted AppointmentLetter.
-  appointmentLetterId String? @unique @db.ObjectId
+  /// Not @unique: Mongo unique indexes treat null as a value and block multiple unlinked staff.
+  /// One-staff-per-letter is enforced in linkStaffToAppointmentLetter / onboard checks.
+  appointmentLetterId String? @db.ObjectId
   hrDetails       StaffHrDetails?
   personnelDetails StaffPersonnelDetails?
   employmentDetails StaffEmploymentDetails?
 
   leaveEntitlements LeaveEntitlement[]
   leaveApplications LeaveApplication[]
+  lieuLeaveGrants LieuLeaveGrant[]
   overtimeRequests OvertimeRequest[]
   overtimeExtraTimes OvertimeExtraTime[]
   overtimeDayOffPhs OvertimeDayOffPh[]
@@ -187,6 +190,7 @@ model Staff {
   @@index([status])
   @@index([name])
   @@index([fingerPrintRfid])
+  @@index([appointmentLetterId])
 }
 
 /* ---------------------------------
@@ -201,6 +205,8 @@ model LeaveType {
   isPaid               Boolean @default(true)
   requiresApproval     Boolean @default(true)
   allowHalfDay         Boolean @default(true)
+  /// Compensatory bank for roster grantLieuLeave / Process Lieu Shift. At most one LeaveType with this true (any status); grants require status=1 (published).
+  isLieuLeave          Boolean @default(false)
   maxDaysPerYear       Float?
   carryForwardAllowed  Boolean @default(false)
   maxCarryForwardDays  Float?
@@ -208,6 +214,7 @@ model LeaveType {
 
   entitlements LeaveEntitlement[]
   applications LeaveApplication[]
+  lieuLeaveGrants LieuLeaveGrant[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -216,6 +223,7 @@ model LeaveType {
 
   @@index([status])
   @@index([name])
+  @@index([isLieuLeave])
 }
 
 model LeaveEntitlement {
@@ -231,7 +239,9 @@ model LeaveEntitlement {
   status       String   @default("active") // active | expired | pending
 
   staff     Staff     @relation(fields: [staffId], references: [id])
-  leaveType LeaveType @relation(fields: [leaveTypeId], references: [id])
+  /// Leave Types delete guard: paired with assertLeaveTypeDeletable (service UX).
+  leaveType LeaveType @relation(fields: [leaveTypeId], references: [id], onDelete: Restrict)
+  lieuLeaveGrants LieuLeaveGrant[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -245,12 +255,48 @@ model LeaveEntitlement {
   @@index([status])
 }
 
+/// Phase B ledger: one grant per RosterAllocation when grantLieuLeave posts to Lieu entitlement.
+model LieuLeaveGrant {
+  id            String    @id @default(auto()) @map("_id") @db.ObjectId
+  /// RosterAllocation.id (loose id — no Prisma FK to roster).
+  allocationId  String    @unique @db.ObjectId
+  staffId       String    @db.ObjectId
+  leaveTypeId   String    @db.ObjectId
+  entitlementId String    @db.ObjectId
+  daysGranted   Float     @default(1)
+  dutyDate      DateTime
+  status        String    @default("granted") // granted | reversed
+  grantedAt     DateTime  @default(now())
+  reversedAt    DateTime?
+
+  staff       Staff            @relation(fields: [staffId], references: [id])
+  /// Leave Types delete guard: paired with assertLeaveTypeDeletable (service UX).
+  leaveType   LeaveType        @relation(fields: [leaveTypeId], references: [id], onDelete: Restrict)
+  /// Entitlement delete guard: paired with assertLeaveEntitlementDeletable (service UX).
+  entitlement LeaveEntitlement @relation(fields: [entitlementId], references: [id], onDelete: Restrict)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy String?  @db.ObjectId
+  updatedBy String?  @db.ObjectId
+
+  @@index([staffId])
+  @@index([leaveTypeId])
+  @@index([entitlementId])
+  @@index([status])
+  @@index([dutyDate])
+}
+
 /// Shift rows produced by "Process Shift" on a leave application.
 type LeaveApplicationShift {
-  shiftLabel String
-  from       DateTime
-  to         DateTime
-  shiftDate  DateTime?
+  shiftLabel    String
+  from          DateTime
+  to            DateTime
+  shiftDate     DateTime?
+  /// Snapshot of roster duty department at Process Shift time.
+  department    String?
+  /// RosterAllocation.id when loaded from published/amended duty (deep-link).
+  allocationId  String?
 }
 
 model LeaveApplication {
@@ -282,7 +328,8 @@ model LeaveApplication {
   shifts LeaveApplicationShift[]
 
   staff     Staff     @relation(fields: [staffId], references: [id])
-  leaveType LeaveType @relation(fields: [leaveTypeId], references: [id])
+  /// Leave Types delete guard: paired with assertLeaveTypeDeletable (service UX).
+  leaveType LeaveType @relation(fields: [leaveTypeId], references: [id], onDelete: Restrict)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

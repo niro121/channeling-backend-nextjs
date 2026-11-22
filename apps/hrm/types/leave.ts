@@ -9,6 +9,32 @@ export const LEAVE_TYPE_CODE_PREFIX = 'LT';
  */
 export const LEAVE_APPLICATION_FORM_SCOPE = 'leave-application';
 
+/** Process Lieu Shift — civil-day lookback before leave `fromDate` (Asia/Colombo). */
+export const LIEU_SOURCE_LOOKBACK_DAYS = 90;
+
+/** Days credited to the Lieu bank per Public Holiday Grant Lieu Leave. */
+export const LIEU_GRANT_DAYS = 1;
+
+/** Live preview for Public Holiday “Grant Lieu Leave” switch. */
+export type LieuGrantPreview = {
+  hasPublishedLieuType: boolean;
+  leaveTypeCode: string | null;
+  leaveTypeName: string | null;
+  periodFrom: string;
+  periodTo: string;
+  periodLabel: string;
+  entitled: number;
+  used: number;
+  remaining: number;
+  /** Lieu days already credited this calendar year (same as entitled for this bank). */
+  daysEarnedThisYear: number;
+  grantDays: number;
+  afterGrantEntitled: number;
+  afterGrantRemaining: number;
+  alreadyGrantedForAllocation: boolean;
+  message?: string;
+};
+
 export const LEAVE_APPLICATION_STATUSES = [
   'pending',
   'approved',
@@ -32,6 +58,26 @@ export type LeaveApplicationShiftRow = {
   from: string | Date;
   to: string | Date;
   shiftDate?: string | Date | null;
+  department?: string | null;
+  allocationId?: string | null;
+};
+
+/** Published / amended roster duties loaded by Process Shift for a leave period. */
+export type LeaveProcessedDutyRow = {
+  allocationId: string;
+  shiftLabel: string;
+  department: string;
+  from: Date;
+  to: Date;
+  shiftDate: Date;
+  startTime: string;
+  endTime: string;
+};
+
+/** Process Lieu Shift Phase A — grantLieuLeave source duties for the combobox. */
+export type LeaveLieuSourceDutyRow = LeaveProcessedDutyRow & {
+  /** Combobox display label (includes duty date). */
+  optionLabel: string;
 };
 
 export type LeaveApplicationRecord = {
@@ -108,6 +154,16 @@ export type LeaveApplicationFormValues = {
   halfDaySession: string;
 };
 
+/** Statuses that may be hard-deleted (approved must Cancel first). */
+export const LEAVE_APPLICATION_DELETABLE_STATUSES = [
+  'pending',
+  'rejected',
+  'cancelled'
+] as const;
+
+export type LeaveApplicationDeletableStatus =
+  (typeof LEAVE_APPLICATION_DELETABLE_STATUSES)[number];
+
 export type LeaveApplicationPayload = {
   staffId: string;
   leaveTypeId: string;
@@ -125,6 +181,8 @@ export type LeaveApplicationPayload = {
   utilizedSnapshot?: number | null;
   balanceSnapshot?: number | null;
   shifts?: LeaveApplicationShiftRow[];
+  /** Continue after soft warn when published duties overlap leave dates (auto-approve). */
+  acknowledgedWarnings?: boolean;
 };
 
 export const LEAVE_ENTITLEMENT_STATUSES = [
@@ -146,6 +204,8 @@ export type LeaveEntitlementRecord = {
   staffId: string;
   leaveTypeId: string;
   leaveTypeName?: string;
+  /** True when leave type is the Lieu bank (PH grants; not manually allotted). */
+  isLieuLeave?: boolean;
   staffName?: string;
   staffCode?: string;
   fromDate: string | Date;
@@ -187,6 +247,17 @@ export type LeaveEntitlementFormValues = {
   entitled: string;
   carryForward: string;
   status: string;
+};
+
+/** Published leave type option for entitlement form (includes policy caps). */
+export type LeaveTypeEntitlementOption = {
+  id: string;
+  name: string;
+  code?: string;
+  isLieuLeave?: boolean;
+  carryForwardAllowed: boolean;
+  maxDaysPerYear: number | null;
+  maxCarryForwardDays: number | null;
 };
 
 export type LeaveEntitlementPayload = {
@@ -234,6 +305,7 @@ export type LeaveTypeRecord = {
   isPaid: boolean;
   requiresApproval: boolean;
   allowHalfDay: boolean;
+  isLieuLeave: boolean;
   carryForwardAllowed: boolean;
   maxDaysPerYear?: number | null;
   maxCarryForwardDays?: number | null;
@@ -245,6 +317,27 @@ export type LeaveTypeRecord = {
   updatedUser?: AuthUserSummary | null;
 };
 
+/** Slim row from `getLieuLeaveType` (existence / Add Lieu CTA). */
+export type LieuLeaveTypeSummary = Pick<
+  LeaveTypeRecord,
+  'id' | 'code' | 'name' | 'status'
+>;
+
+/** Published leave type option for application / entitlement selects. */
+export type LeaveTypeOption = Pick<
+  LeaveTypeRecord,
+  | 'id'
+  | 'name'
+  | 'code'
+  | 'allowHalfDay'
+  | 'isLieuLeave'
+  | 'requiresApproval'
+  | 'carryForwardAllowed'
+> & {
+  maxDaysPerYear: number | null;
+  maxCarryForwardDays: number | null;
+};
+
 export type GetLeaveTypesParams = {
   page?: string;
   limit?: string;
@@ -253,6 +346,7 @@ export type GetLeaveTypesParams = {
   isPaid?: string;
   requiresApproval?: string;
   allowHalfDay?: string;
+  isLieuLeave?: string;
 };
 
 export type GetLeaveTypesReturn = {
@@ -268,6 +362,7 @@ export type LeaveTypeFormValues = {
   isPaid: string; // yes | no
   requiresApproval: string; // yes | no
   allowHalfDay: string; // yes | no
+  isLieuLeave: boolean;
   carryForwardAllowed: string; // yes | no
   maxDaysPerYear: string;
   maxCarryForwardDays: string;
@@ -281,6 +376,7 @@ export type LeaveTypePayload = {
   isPaid: boolean;
   requiresApproval: boolean;
   allowHalfDay: boolean;
+  isLieuLeave: boolean;
   carryForwardAllowed: boolean;
   maxDaysPerYear?: number | null;
   maxCarryForwardDays?: number | null;

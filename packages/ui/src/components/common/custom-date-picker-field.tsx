@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { ErrorMessage } from "formik";
-import { format as fmt, isBefore, isAfter, startOfDay, endOfDay, startOfToday, endOfToday } from "date-fns";
+import { format as fmt, isBefore, isAfter, isValid, startOfDay, endOfDay, startOfToday, endOfToday } from "date-fns";
 import { CalendarIcon } from "lucide-react";
 
 import { cn } from "../../lib/utils";
@@ -149,7 +149,11 @@ export default function CustomDatePickerField({
                             aria-invalid={!!(error && touched)}
                             aria-describedby={error && touched ? `${id}-error` : undefined}
                         >
-                            {value ? fmt(value, "PPP") : <span>{placeholder}</span>}
+                            {value && isValid(value) ? (
+                                fmt(value, "PPP")
+                            ) : (
+                                <span>{placeholder}</span>
+                            )}
                             <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
                         </Button>
                     </PopoverTrigger>
@@ -157,7 +161,7 @@ export default function CustomDatePickerField({
                     <PopoverContent className="w-auto p-0" align="start">
                         <Calendar
                             mode="single"
-                            selected={value ?? undefined}
+                            selected={value && isValid(value) ? value : undefined}
                             onSelect={handleSelect}
                             // react-day-picker supports function or matcher array
                             disabled={isDisabled}

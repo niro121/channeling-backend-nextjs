@@ -17,7 +17,8 @@ Pages must not call Prisma. No business rules in components. Remaining work is m
 
 **Locked product decisions (Roster & Shifts group):**
 - Sidebar group: **Roster & Shifts**
-- **One permission resource** `shift-roster` for the whole group (`/shift-roster`, `/shift-types`, `/shift-assignment`, `/duty-roster`, `/roster-amendments`, `/night-shifts`, `/overnight-shifts`, `/public-holiday-shifts`, …)
+- **One permission resource** `shift-roster` for the whole group (`/roster-shifts` Guide, `/shift-roster`, `/shift-types`, `/shift-assignment`, `/duty-roster`, `/roster-amendments`, `/night-shifts`, `/overnight-shifts`, `/public-holiday-shifts`, …)
+- In-app **Guide** at `/roster-shifts` (same pattern as `/attendance`, `/payroll`) — module order, responsibilities, process
 - Shift Types codes: **`SHF-n`** via `generateRecordCode` (not fixed `D`/`E`/`N` system IDs) — auto on create/duplicate
 - Shift Types Add / Edit / Duplicate / History: **right-side Sheets** on `/shift-types` (no separate add/edit routes)
 - Shift Types: Total Working Hours **auto** from start / end / break; History sheet **Cancel only**
@@ -55,7 +56,7 @@ Pages must not call Prisma. No business rules in components. Remaining work is m
 - **Statuses:** period header Draft → Published; each cell follows the period, **Amended** after an approved amendment; Assignment Active / Pending / Inactive; Night / Overnight / Holiday **do not** get a second independent workflow — they show the allocation (and payroll flags).
 - Night / Overnight / Holiday are **registers of allocations** (shift-type flags or holiday date). **Add** creates a `RosterAllocation` when the same staff + date + **shift type** is free (multi-shift day OK up to INT-R4; same type / time overlap blocked). Status pills follow the allocation / period — **not** a second approval engine.
 - Holiday dates: owned by **HR Administration** (`HolidayCalendar` CRUD on `/holiday-calendar`). Public Holiday Shifts **reads** that master. **Manage Rosters** filter/codes (**INT-R3 / R7**) and Staff Employment roster codes (**INT-S3**) are **done** — see **§1.1**. Other masters (department, unit, designation, grade) remain on the HR Admin integration backlog.
-- Grant Lieu Leave / Send to Payroll: **flags only** in v1 (no Leave Entitlement write, no payroll engine).
+- **Grant Lieu Leave:** when the duty is Approved / published / amended, Roster syncs a `LieuLeaveGrant` and credits **+1** to the single Leave Types **Lieu** bank (`isLieuLeave`, must be published; **calendar year of the duty date** = 1 Jan–31 Dec Asia/Colombo). PH form shows a **preview card** (period + balance + after +1) when the switch is on. Un-flag / ineligible status / delete reverses unused grants. This is **not** Annual leave and **not** a leave application. **Send to Payroll** remains a flag only (no payroll engine in v1).
 - Duty attendance: store Present / Late / Absent. RFID / finger-scan engine is in `STAFF_ATTENDANCE_ARCHITECTURE.md`. HR confirms sync from **Daily Attendance → Confirm to Duty Roster** (never auto from punches).
 - Overnight: **store** Day 1 / Day 2 / Total hours + attendance allocation date; service still computes from start/end.
 - **Uniqueness (allocations):** Prisma `@@unique([staffId, date, shiftTypeId])` — multiple different shift types on the same day are allowed up to Manage Rosters `shiftsPerPersonPerDay` (**INT-R4**); same shift type on the same day is blocked; overlapping duty time windows are also rejected. Standing Shift Assignment uniqueness is separate (same staff + same shift type + overlapping effective dates among active/pending).
@@ -68,6 +69,7 @@ Pages must not call Prisma. No business rules in components. Remaining work is m
 
 | Route | Resource key | Role |
 |-------|----------------|------|
+| `/roster-shifts` | `shift-roster` | In-app **Guide** (module order, responsibilities, end-to-end process) — same pattern as `/attendance`, `/payroll` |
 | `/shift-roster` | `shift-roster` | Week/month grid **view** of allocations (plan, draft, publish, copy) |
 | `/shift-types` | `shift-roster` | **Current** hospital-wide shift template master (`ShiftType`, `SHF-n`) — used by Assignment, Duty, Shift Roster, Night/Overnight/PH |
 | `/shift-assignment` | `shift-roster` | Standing staff ↔ shift / rotation **rule** — own collection; feeds Fill / Auto Assign |
@@ -75,11 +77,21 @@ Pages must not call Prisma. No business rules in components. Remaining work is m
 | `/roster-amendments` | `shift-roster` | Overlay on **published** allocations; apply on Approve |
 | `/night-shifts` | `shift-roster` | Register: allocations whose shift type is night (hours, consecutive-night alerts) |
 | `/overnight-shifts` | `shift-roster` | Register: allocations whose shift type is overnight (stored midnight split) |
-| `/public-holiday-shifts` | `shift-roster` | Register: allocations on `HolidayCalendar` dates (pay rate, lieu, payroll flags) |
+| `/public-holiday-shifts` | `shift-roster` | Register: allocations on `HolidayCalendar` dates (pay rate, lieu, payroll flags). Shift dropdown = active Shift Types with **`holidayEligible`** (create/bulk require it; edit may keep a legacy non-eligible current shift) |
 
 **Permission:** one Auth User Group grant — resource id `shift-roster`, display name **Roster & Shifts** — covers every route in this group (same pattern as OT → `overtime-requests`).
 
-Sidebar: **Roster & Shifts** collapsible → Shift Roster, Shift Types, Shift Assignment, Duty Roster, Roster Amendments, Night Shifts, Overnight Shifts, Public Holiday Shifts.
+Sidebar: **Roster & Shifts** collapsible → **Guide** (first), Shift Roster, Shift Types, Shift Assignment, Duty Roster, Roster Amendments, Night Shifts, Overnight Shifts, Public Holiday Shifts.
+
+### Lieu leave (cross-module)
+
+| Step | Where | What happens |
+|------|--------|----------------|
+| 1 | Leave Types | **Add Lieu** once (single `isLieuLeave` type) and keep it published |
+| 2 | Public Holiday Shifts | Assign duty + **Grant Lieu Leave** + status Approved / published / amended → `LieuLeaveGrant` + **+1** to Lieu entitlement (calendar year of duty) |
+| 3 | Leave Application | Lieu type + **Process Lieu Shift** pick that duty → Management approve → consumes 1 day |
+
+In-app: Roster Guide § Lieu leave; Leave Guide at `/leave`. **Grant Lieu ≠ pay** (`sendToPayroll` is separate).
 
 Shift Roster v1 is **one screen** for calendar planning. Header actions stay on that page (dialogs / sheets), including **Create Fixed Roster** Option B.
 
@@ -505,7 +517,7 @@ Fields: Roster Group* (Manage Rosters FK — context card: name, code, departmen
 | FK | Create always sets `manageRosterId`; update must keep a resolved roster (legacy null rows backfilled via employment code when edited) |
 | Overlap | Reject only **same staff + same shift type** with overlapping effective date ranges among `active`/`pending` rows (cross-type allowed; `inactive` ignored — INT-H7) |
 | Day limit | Context card shows `shiftsPerPersonPerDay`; **do not** hard-block standing-rule create — allocate / fill-copy / publish enforced (**INT-R4**) |
-| Leave Application | **Do not** hard-block standing Shift Assignment for leave. Calendar allocate / fill / publish: soft warn + Continue if approved or pending leave overlaps that date (**INT-L2**) |
+| Leave Application | **Do not** hard-block standing Shift Assignment for leave. Calendar allocate / fill / publish: soft warn + Continue if approved or pending leave overlaps that date (**INT-L2**). **Continue ≠ cancel leave** — if staff worked and leave should not count, HR **Cancels** the Leave Application (restores entitlement). Roster does not auto-reverse leave |
 | Weekly off | Standing `weeklyOffDay` is informational on assignment create. Calendar allocate / fill / publish / Duty Swap / Replace: soft warn + Continue when the duty’s Asia/Colombo weekday matches any covering active/pending assignment’s weekly off (same `acknowledgedWarnings` as INT-L2) |
 | Delete | Removes standing rule only; does **not** cascade-delete calendar cells |
 | Shift Types | Templates only; delete blocked when assignments / allocations / amendments reference the type |
@@ -1076,16 +1088,16 @@ Unmapped routes stay open. Register before shipping the page.
 Checklist:
 
 1. `types/user-group.ts` → `{ id: 'shift-roster', name: 'Roster & Shifts' }`
-2. `lib/permissions.ts` → map `/shift-roster`, `/shift-types`, `/shift-assignment`, `/duty-roster`, `/roster-amendments`, `/night-shifts`, `/overnight-shifts`, `/public-holiday-shifts` → `shift-roster`
-3. Sidebar `hasAccess` for `/shift-roster`, `/shift-types`, `/shift-assignment`, `/duty-roster`, `/roster-amendments`, `/night-shifts`, `/overnight-shifts`, `/public-holiday-shifts` under **Roster & Shifts**
+2. `lib/permissions.ts` → map `/roster-shifts`, `/shift-roster`, `/shift-types`, `/shift-assignment`, `/duty-roster`, `/roster-amendments`, `/night-shifts`, `/overnight-shifts`, `/public-holiday-shifts` → `shift-roster`
+3. Sidebar `hasAccess` for `/roster-shifts` (Guide first), `/shift-roster`, `/shift-types`, `/shift-assignment`, `/duty-roster`, `/roster-amendments`, `/night-shifts`, `/overnight-shifts`, `/public-holiday-shifts` under **Roster & Shifts**
 4. Pages `checkRouteAccess` → `/unauthorized-access`
 5. Mutations: `requirePermission('shift-roster', action)` — no extra resources for Night vs Roster
 6. Client buttons: `usePermissions().has('shift-roster', …)`
-   - **view** — load lists / grid
+   - **view** — load lists / grid / Guide
    - **edit** — allocate, save draft, Duty swap/replace, assignment update
    - **add** or **edit** — publish, amendment approve/reject
    - View-only cannot publish
-7. `breadcrumbs.tsx` → `shift-roster`, `shift-types`, `shift-assignment`, `duty-roster`, `roster-amendments`, `night-shifts`, `overnight-shifts`, `public-holiday-shifts`
+7. `breadcrumbs.tsx` → `roster-shifts` (Guide), `shift-roster`, `shift-types`, `shift-assignment`, `duty-roster`, `roster-amendments`, `night-shifts`, `overnight-shifts`, `public-holiday-shifts`
 8. Grant on Auth User Group; user re-logins
 
 ---
@@ -1635,14 +1647,14 @@ Auto Assign that **creates week cells** waits for D5.
 |------|
 | CRUD holiday calendar (seed Nikini Poya, May Day, Independence Day as a start) |
 | List/join allocations on those dates |
-| Pay rate / allowance / `grantLieuLeave` / `sendToPayroll` on the cell (**flags only** — no entitlement or payroll post) |
+| Pay rate / allowance / `grantLieuLeave` / `sendToPayroll` on the cell (`sendToPayroll` flag only; **`grantLieuLeave` now syncs Leave** — see §11.8 / §11.11) |
 | Add / Bulk: create allocations only for selected staff with empty date cells |
 
 | Done when |
 |-----------|
 | [x] Holiday register lists live cells on holiday dates (`holidayId` / calendar join) |
 | [x] Bulk Assign creates per selected staff; skips same shift type / day limit; leave/weekly-off soft warn + Continue |
-| [x] Lieu / payroll do not call Leave or payroll services (flags only) |
+| [x] v1 shipped flags only; **superseded:** `grantLieuLeave` now calls Leave grant sync (Leave Manager Phase B). `sendToPayroll` still flag-only |
 
 ---
 
@@ -1656,7 +1668,7 @@ Auto Assign that **creates week cells** waits for D5.
 | Drag-and-drop persist | **Done** — draft-only (Phase D) |
 | Create Fixed Roster templates (Option C named templates) | Not in v1 — Option B wizard reuses E1 Fixed Auto Assign |
 | Overtime Process Staff Shift | Still open — replace OT sample fill with published roster **read** (Phase F / Overtime) |
-| Leave overlap (**INT-L2**) | **Done:** soft warn + Continue on allocate / fill / publish **and Duty Swap / Replace** when approved/pending leave overlaps the duty window (Colombo civil bounds; half-day AM/PM aware). Not on standing Shift Assignment create. Cell `isLeave` independent of Leave Application. |
+| Leave overlap (**INT-L2**) | **Done:** soft warn + Continue on allocate / fill / publish **and Duty Swap / Replace** when approved/pending leave overlaps the duty window (Colombo civil bounds; half-day AM/PM aware). Not on standing Shift Assignment create. Cell `isLeave` independent of Leave Application. **Continue ≠ cancel leave** — entitlement undo is Leave **Cancel** only (see `LEAVE_MANAGER_GUIDE.md` §3.6 / Phase 5b). |
 | Weekly-off soft warn | **Done:** soft warn + Continue when covering standing `weeklyOffDay` matches Colombo weekday (same ack as INT-L2). |
 | RFID / attendance engine | See `STAFF_ATTENDANCE_ARCHITECTURE.md`; enum on the cell is enough for D7; confirm sync is HR-gated |
 | Real Holiday Date master | **Done** — HR Administration `/holiday-calendar`; keep Roster as read consumer |
@@ -1675,7 +1687,7 @@ Auto Assign that **creates week cells** waits for D5.
 - Audit: `createdBy` / `updatedBy` / `publishedBy` are Auth User ObjectIds — **no** cross-DB Prisma relation.
 - Do not put Prisma in pages.
 - Do not trust client `status` or audit fields on save.
-- Cell Leave is **not** a Leave Application. `grantLieuLeave` is **not** a Leave Entitlement write.
+- Cell Leave is **not** a Leave Application. `grantLieuLeave` **does** credit the Lieu leave type entitlement via `LieuLeaveGrant` (Leave Manager Phase B) — it still does **not** create a Leave Application.
 - Shift type codes are **`SHF-n`**. Chips may still **display** D/E/N labels from the type; those labels are not primary keys.
 - Staff employment `roster` stores `ManageRoster.code` (**INT-S3**). No Prisma FK required.
 - Overtime must not call a fake roster API — Process Staff Shift waits on an Overtime-side published-roster **read** (Phase F).
@@ -1703,7 +1715,7 @@ Auto Assign that **creates week cells** waits for D5.
 3. Register `/shift-roster`, `/shift-types`, `/shift-assignment`, `/duty-roster`, `/roster-amendments`, `/night-shifts`, `/overnight-shifts`, and `/public-holiday-shifts` in `ROUTE_TO_RESOURCE` (same `shift-roster` resource) or the routes stay open.
 4. Permission changes need re-login (JWT snapshot).
 5. Do not reintroduce toast no-ops for Save / Publish / Copy / Swap / Allocate / Create Fixed Roster — those paths are live (Create Fixed = Option B wizard over E1).
-6. Do not merge allocations into Staff or Leave Application documents. Do not write Leave Entitlement from `grantLieuLeave`.
+6. Do not merge allocations into Staff or Leave Application documents. **Do** sync Leave via `lieu-leave-grant.service` when `grantLieuLeave` + eligible status (soft id + ledger — no Prisma FK to Leave).
 7. Do not create `NightShift`, `DutyRosterRow`, or `PublicHolidayShift` collections — query / extra fields on `RosterAllocation`.
 8. Do not block remaining polish on Fixed Roster templates or OT Process Staff Shift — those are deferred/external (Phase F / product).
 9. Process Staff Shift in Overtime must not invent a fake roster API — consume published `RosterAllocation` via a real read.
@@ -1733,6 +1745,7 @@ Canonical table: `HR_ADMINISTRATION_GUIDE.md` §32 (**INT-H***). Roster & Shifts
 - [x] **INT-H7** (Should) — overlap ignores inactive; ctive/pending still block
 - [x] **INT-R4 / R8** — enforce shiftsPerPersonPerDay on allocate / fill / publish (full calendar day)
 - [x] **INT-L2** — allocate / fill / publish: soft warn + Continue when staff has leave on that calendar day (not on standing Shift Assignment)
+- [x] **INT-L2 doc note** — Continue ≠ cancel leave; if staff worked and leave should not count, Cancel from Leave Application / Management (`LEAVE_MANAGER_GUIDE.md` Phase 5b) — documented in §2C Leave Application row + leave-overlap table above
 - [x] **Weekly-off soft warn** — allocate / fill / publish / Duty Swap / Replace when covering standing `weeklyOffDay` matches Colombo weekday
 - [x] **INT-H8** — overlap re-check immediately before create/update write (narrow TOCTOU; Mongo standalone has no reliable interactive txn for range-unique)
 - [x] **INT-H9** — `deleteStaff` / `deleteStaffs` refuse while standing assignments or roster allocations exist; schema `onDelete: Restrict` on those Staff FKs (Prisma Client emulation on Mongo)
@@ -1901,13 +1914,13 @@ Operational Load / allocate draft / publish / fill / copy / View / Auto Assign (
 
 | Status | Notes |
 |--------|--------|
-| **Complete** | Live register on holiday dates; Status Selector; Staff Combobox; Duty-parity place (working-dept switch + Location → Zone / Unit–Room cascade); conflict strip (same type / INT-R4); leave/weekly-off soft warn; Bulk Assign per selected staff (skip same type / day limit); published lock; export; lieu / send-to-payroll **flags only** |
+| **Complete** | Live register on holiday dates; Status Selector; Staff Combobox; Duty-parity place (working-dept switch + Location → Zone / Unit–Room cascade); conflict strip (same type / INT-R4); leave/weekly-off soft warn; Bulk Assign per selected staff (skip same type / day limit); published lock; export; shift options = **`holidayEligible`**; **Grant Lieu Leave** syncs Leave bank; **Send to Payroll** flag only |
 
 **Nothing left inside Roster & Shifts for this screen.** Remaining items are owned elsewhere:
 
 | Feature | Owner / notes |
 |---------|----------------|
-| `grantLieuLeave` → Leave Entitlement write | Leave Manager (**not** v1 — flag only) |
+| `grantLieuLeave` → Leave Entitlement write | **Done (Leave Phase B):** PH create/update/delete → `LieuLeaveGrant` → Lieu type entitlement (+1 / reverse). Spend via Leave Application Process Lieu Shift |
 | `sendToPayroll` → payroll engine | Payroll (**not** v1 — flag only) |
 | Holiday Calendar H7/H8 (leave day counting / year import) | HR Admin `/holiday-calendar` (PH Shifts is read consumer) |
 
@@ -1940,10 +1953,10 @@ Operational Load / allocate draft / publish / fill / copy / View / Auto Assign (
 | 1 | **OT — Process Staff Shift** reads published roster cells | Overtime Manager | Parked until Overtime is ready; do not invent a fake roster API |
 | 2 | **Payroll — `sendToPayroll`** real post | Payroll | Night / Overnight / PH flags only in v1 |
 | 3 | **Attendance — Confirm to Duty Roster** | Attendance | Writes Present/Late/Absent after HR confirm; never auto from punches. Overnight allocation-date sync in same wave |
-| 4 | **Leave — `grantLieuLeave`** entitlement write | Leave Manager | PH flag only in v1 |
+| 4 | **Leave — `grantLieuLeave`** | Leave Manager | **Phase A+B done:** Process Lieu Shift reads grant-flagged duties; PH create/update/delete syncs `LieuLeaveGrant` → Lieu leave type entitlement (+1 / reverse). Leave apps with lieu shift must use `isLieuLeave` type |
 | 5 | **HR Admin follow-ons** | HR Admin | Optional Units master polish; Holiday Calendar H7/H8; Duty filter master options if product wants parity with Shift Roster |
 | 6 | **Optional product later** | Product | Auto Assign E2/E3; Create Fixed Roster Option C (named templates); multi-step amendment approval; staff/supervisor notify on Approve |
 
 **Summary:** Roster & Shifts core ✅ · remain = **OT + Payroll + Attendance / Leave / HR Admin follow-ons** (and optional product later). Prefer this section + §11.1–§11.10 over older “toast / Phase 0” lines when they disagree.
 
-*Last updated: Nov 2026 — Roster & Shifts v1 closed (§11.11). Remaining work is cross-module: OT Process Staff Shift, Payroll `sendToPayroll`, Attendance Confirm to Duty, Leave lieu entitlement, HR Admin follow-ons.*
+*Last updated: Nov 2026 — Roster & Shifts v1 closed (§11.11); in-app Guide at `/roster-shifts` (includes Lieu cross-module). Leave lieu grant/spend done — remaining cross-module: OT Process Staff Shift, Payroll `sendToPayroll`, Attendance Confirm to Duty, HR Admin follow-ons.*

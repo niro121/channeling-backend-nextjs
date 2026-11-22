@@ -275,7 +275,8 @@ export function DesktopSidebar({ session, className }: { session: Session | null
             </SidebarCollapsible>
           </SidebarGroup>
         )}
-        {(hasAccess('/leave-types') ||
+        {(hasAccess('/leave') ||
+          hasAccess('/leave-types') ||
           hasAccess('/leave-entitlement') ||
           hasAccess('/leave-application') ||
           hasAccess('/leave-management')) && (
@@ -283,25 +284,59 @@ export function DesktopSidebar({ session, className }: { session: Session | null
             <SidebarCollapsible
               label="Leave"
               icon={<CalendarDays className="h-5 w-5" />}
-              paths={["/leave-types", "/leave-entitlement", "/leave-application", "/leave-management"]}
+              paths={[
+                '/leave',
+                '/leave-types',
+                '/leave-entitlement',
+                '/leave-application',
+                '/leave-management'
+              ]}
               allExpanded={allExpanded}
             >
-              {hasAccess("/leave-types") && (
-                <NavLink href="/leave-types" label="Types" icon={<Tags className="h-5 w-5" />} />
+              {(hasAccess('/leave') ||
+                hasAccess('/leave-types') ||
+                hasAccess('/leave-entitlement') ||
+                hasAccess('/leave-application') ||
+                hasAccess('/leave-management')) && (
+                <NavLink
+                  href="/leave"
+                  label="Guide"
+                  icon={<BookOpen className="h-5 w-5" />}
+                />
               )}
-              {hasAccess("/leave-entitlement") && (
-                <NavLink href="/leave-entitlement" label="Entitlement" icon={<CalendarDays className="h-5 w-5" />} />
+              {hasAccess('/leave-types') && (
+                <NavLink
+                  href="/leave-types"
+                  label="Types"
+                  icon={<Tags className="h-5 w-5" />}
+                />
               )}
-              {hasAccess("/leave-application") && (
-                <NavLink href="/leave-application" label="Application" icon={<FilePlus2 className="h-5 w-5" />} />
+              {hasAccess('/leave-entitlement') && (
+                <NavLink
+                  href="/leave-entitlement"
+                  label="Entitlement"
+                  icon={<CalendarDays className="h-5 w-5" />}
+                />
               )}
-              {hasAccess("/leave-management") && (
-                <NavLink href="/leave-management" label="Management" icon={<CalendarClock className="h-5 w-5" />} />
+              {hasAccess('/leave-application') && (
+                <NavLink
+                  href="/leave-application"
+                  label="Application"
+                  icon={<FilePlus2 className="h-5 w-5" />}
+                />
+              )}
+              {hasAccess('/leave-management') && (
+                <NavLink
+                  href="/leave-management"
+                  label="Management"
+                  icon={<CalendarClock className="h-5 w-5" />}
+                />
               )}
             </SidebarCollapsible>
           </SidebarGroup>
         )}
-        {(hasAccess('/shift-roster') ||
+        {(hasAccess('/roster-shifts') ||
+          hasAccess('/shift-roster') ||
           hasAccess('/shift-types') ||
           hasAccess('/shift-assignment') ||
           hasAccess('/duty-roster') ||
@@ -314,6 +349,7 @@ export function DesktopSidebar({ session, className }: { session: Session | null
               label="Roster & Shifts"
               icon={<CalendarRange className="h-5 w-5" />}
               paths={[
+                '/roster-shifts',
                 '/shift-roster',
                 '/shift-types',
                 '/shift-assignment',
@@ -325,6 +361,13 @@ export function DesktopSidebar({ session, className }: { session: Session | null
               ]}
               allExpanded={allExpanded}
             >
+              {hasAccess('/roster-shifts') && (
+                <NavLink
+                  href="/roster-shifts"
+                  label="Guide"
+                  icon={<BookOpen className="h-5 w-5" />}
+                />
+              )}
               {hasAccess('/shift-roster') && (
                 <NavLink
                   href="/shift-roster"

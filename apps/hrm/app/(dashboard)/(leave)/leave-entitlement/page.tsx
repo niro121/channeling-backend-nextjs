@@ -84,7 +84,26 @@ export default async function LeaveEntitlementPage({
 
   const leaveTypeOptions = (optionsRes.data?.leaveTypes ?? []).map((type) => ({
     id: type.id,
-    name: type.code ? `${type.code} — ${type.name}` : type.name
+    name: type.code ? `${type.code} — ${type.name}` : type.name,
+    code: type.code,
+    isLieuLeave: Boolean(type.isLieuLeave),
+    carryForwardAllowed: Boolean(type.carryForwardAllowed),
+    maxDaysPerYear:
+      type.maxDaysPerYear == null ? null : Number(type.maxDaysPerYear),
+    maxCarryForwardDays:
+      type.maxCarryForwardDays == null
+        ? null
+        : Number(type.maxCarryForwardDays)
+  }));
+
+  /** Lieu bank is PH Grant–owned — not manually allotted on this form. */
+  const formLeaveTypeOptions = leaveTypeOptions.filter(
+    (type) => !type.isLieuLeave
+  );
+
+  const filterLeaveTypeOptions = leaveTypeOptions.map(({ id, name }) => ({
+    id,
+    name
   }));
 
   const departmentOptions = (optionsRes.data?.departments ?? []).map(
@@ -165,7 +184,7 @@ export default async function LeaveEntitlementPage({
             <LeaveEntitlementFilterSection
               employeeOptions={employeeOptions}
               departmentOptions={departmentOptions}
-              leaveTypeOptions={leaveTypeOptions}
+              leaveTypeOptions={filterLeaveTypeOptions}
               employeeId={params?.employeeId}
               departmentId={params?.departmentId}
               leaveType={params?.leaveType}
@@ -180,7 +199,7 @@ export default async function LeaveEntitlementPage({
         entitlements={entitlements}
         balance={balance}
         employeeOptions={employeeOptions}
-        leaveTypeOptions={leaveTypeOptions}
+        leaveTypeOptions={formLeaveTypeOptions}
         exportHandler={handleExport}
       />
     </div>

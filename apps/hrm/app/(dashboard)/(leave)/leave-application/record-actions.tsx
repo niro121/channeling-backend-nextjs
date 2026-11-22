@@ -16,6 +16,8 @@ import {
   deleteLeaveApplicationAction
 } from '@/app/actions/leave-actions/leave-application.actions';
 import type { LeaveApplicationRecord } from '@/types/leave';
+import { buttonStyles } from '@/lib/utils/common-styles';
+import { LeaveApplicationViewDialog } from './view-dialog';
 
 interface LeaveApplicationRecordActionsProps {
   row: Row<LeaveApplicationRecord>;
@@ -32,6 +34,7 @@ export default function LeaveApplicationRecordActions({
   const router = useRouter();
   const { toast } = useToast();
   const { has } = usePermissions();
+  const [viewOpen, setViewOpen] = useState(false);
   const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
   const [showCancelConfirmation, setShowCancelConfirmation] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -39,8 +42,12 @@ export default function LeaveApplicationRecordActions({
   const canView = has('leave-application', 'view');
   const canEdit =
     has('leave-application', 'edit') || has('leave-management', 'edit');
-  const canDelete = has('leave-application', 'delete');
   const isPending = record.status === 'pending';
+  const canDelete =
+    has('leave-application', 'delete') &&
+    (record.status === 'pending' ||
+      record.status === 'rejected' ||
+      record.status === 'cancelled');
   const canCancel =
     canEdit &&
     (record.status === 'pending' || record.status === 'approved');
@@ -125,13 +132,11 @@ export default function LeaveApplicationRecordActions({
               variant="ghost"
               size="icon"
               className="h-8 w-8 text-muted-foreground hover:text-foreground"
-              onClick={() => onEdit?.(record)}
-              title={isPending ? 'View / Edit' : 'View in form'}
+              onClick={() => setViewOpen(true)}
+              title="View"
             >
               <Eye className="h-4 w-4" />
-              <span className="sr-only">
-                {isPending ? 'View / Edit' : 'View in form'}
-              </span>
+              <span className="sr-only">View</span>
             </Button>
           )}
           {has('leave-application', 'edit') && isPending && (
@@ -173,6 +178,12 @@ export default function LeaveApplicationRecordActions({
         </DataTableRowActions>
       </div>
 
+      <LeaveApplicationViewDialog
+        open={viewOpen}
+        onOpenChange={setViewOpen}
+        record={record}
+      />
+
       <CustomAlertDialog
         open={showDeleteConfirmation}
         handleVisibilityChange={setShowDeleteConfirmation}
@@ -180,6 +191,10 @@ export default function LeaveApplicationRecordActions({
         title="Delete leave application?"
         description="This action cannot be undone. This will permanently delete this leave application."
         handleContinue={onDeleteConfirmation}
+        className={{
+          cancelButton:'h-9',
+          actionButton: buttonStyles.delete.danger
+        }}
       />
 
       <CustomAlertDialog
@@ -193,6 +208,10 @@ export default function LeaveApplicationRecordActions({
             : 'This will cancel the pending leave application.'
         }
         handleContinue={onCancelConfirmation}
+        className={{
+          cancelButton:'h-9',
+          actionButton: 'h-9'
+        }}
       />
     </>
   );

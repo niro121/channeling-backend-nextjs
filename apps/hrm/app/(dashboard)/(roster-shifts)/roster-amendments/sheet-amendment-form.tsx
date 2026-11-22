@@ -1736,7 +1736,13 @@ export default function SheetAmendmentForm({
                       }
                       className={buttonStyles.save}
                     >
-                      {isEdit ? 'Save Changes' : 'Save Amendment'}
+                      {loading
+                        ? isEdit
+                          ? 'Updating...'
+                          : 'Saving...'
+                        : isEdit
+                          ? 'Update'
+                          : 'Save Amendment'}
                     </Button>
                   </SheetFooter>
                 </Form>
