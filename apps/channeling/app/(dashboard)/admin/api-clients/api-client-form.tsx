@@ -16,6 +16,8 @@ import { useRouter } from "next/navigation"
 import CustomFormField from "@/components/common/form-field"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
+import { Checkbox } from "@/components/ui/checkbox"
+import { API_CLIENT_SCOPES, type ApiClientScope } from "@/lib/api-client-scopes"
 import {
   Dialog,
   DialogContent,
@@ -36,6 +38,7 @@ type FormValues = {
   name: string
   isBlocked: boolean
   actingUserId: string
+  scopes: ApiClientScope[]
 }
 
 export default function ApiClientForm({ apiClient, isEditPage = false }: ApiClientFormProps) {
@@ -60,6 +63,7 @@ export default function ApiClientForm({ apiClient, isEditPage = false }: ApiClie
     name: apiClient?.name ?? "",
     isBlocked: apiClient?.isBlocked ?? false,
     actingUserId: apiClient?.actingUserId ?? "",
+    scopes: apiClient?.scopes ?? [],
   }
 
   const validationSchema = Yup.object({
@@ -82,6 +86,7 @@ export default function ApiClientForm({ apiClient, isEditPage = false }: ApiClie
           name: values.name.trim(),
           isBlocked: values.isBlocked,
           actingUserId: values.actingUserId.trim(),
+          scopes: values.scopes,
         })
         setLoading(false)
 
@@ -122,6 +127,7 @@ export default function ApiClientForm({ apiClient, isEditPage = false }: ApiClie
         const respond = await createApiClient({
           name: values.name.trim(),
           actingUserId: values.actingUserId.trim(),
+          scopes: values.scopes,
         })
         setLoading(false)
 
@@ -229,6 +235,35 @@ export default function ApiClientForm({ apiClient, isEditPage = false }: ApiClie
                   No API Users found. Create a user with type <strong>API User</strong> under Users first.
                 </p>
               )}
+
+              <div className={styleClasses.parentDiv}>
+                <Label className={styleClasses.labelClassName}>Scopes</Label>
+                <div className={`${styleClasses.inputClassName} space-y-2`}>
+                  {API_CLIENT_SCOPES.map((scope) => (
+                    <div key={scope.id} className="flex items-start gap-2">
+                      <Checkbox
+                        id={`scope-${scope.id}`}
+                        checked={formik.values.scopes.includes(scope.id)}
+                        onCheckedChange={(checked) =>
+                          formik.setFieldValue(
+                            "scopes",
+                            checked
+                              ? [...formik.values.scopes, scope.id]
+                              : formik.values.scopes.filter((s) => s !== scope.id)
+                          )
+                        }
+                      />
+                      <label htmlFor={`scope-${scope.id}`} className="text-sm leading-tight">
+                        <span className="font-mono">{scope.id}</span>
+                        <span className="text-muted-foreground block text-xs">{scope.label}</span>
+                      </label>
+                    </div>
+                  ))}
+                  <p className="text-muted-foreground text-xs">
+                    The public API works without scopes; scopes only unlock extra APIs.
+                  </p>
+                </div>
+              </div>
 
               {isEditPage && (
                 <div className={styleClasses.parentDiv}>
