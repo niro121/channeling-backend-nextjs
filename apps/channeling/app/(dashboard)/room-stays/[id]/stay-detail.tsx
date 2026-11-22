@@ -13,6 +13,18 @@ import { useToast } from '@/components/hooks/use-toast';
 import { usePermissions } from '@/components/hooks/use-permissions';
 import { cn } from '@/lib/utils';
 import { cancelStayAction } from '@/app/actions/room-checklist.actions';
+import { updateConcernStatusAction, updateRoomRequestStatusAction } from '@/app/actions/room-ayu.actions';
+import { StayConversations, whoLabel } from './stay-conversations';
+import {
+  ROOM_CONCERN_KIND_LABEL,
+  ROOM_CONCERN_SOURCE_LABEL,
+  ROOM_REQUEST_CATEGORY_LABEL,
+  ROOM_REQUEST_STATUS_LABEL,
+  type RoomConcernRow,
+  type RoomRequestRow,
+  type RoomRequestStatus,
+} from '@/types/room-request';
+import type { StayContactRow } from '@/types/room-checklist';
 import {
   CHECKLIST_KIND_LABEL,
   type ChecklistAnswer,
@@ -107,6 +119,36 @@ export function StayDetailView({ stay }: { stay: StayDetail }) {
           </CardContent>
         </Card>
       </div>
+
+      <ConcernsCard concerns={stay.concerns ?? []} contacts={stay.contacts} canHandle={has('room-stays', 'check-in') || has('room-stays', 'check-out')} />
+
+      <RequestsCard stayId={stay.id} requests={stay.requests ?? []} canHandle={has('room-stays', 'check-in') || has('room-stays', 'check-out')} />
+
+      <StayConversations stayId={stay.id} contacts={stay.contacts} />
+
+      {(stay.feedback ?? []).length > 0 && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">How they rated the stay</CardTitle>
+          </CardHeader>
+          <CardContent className="divide-y rounded-md border p-0">
+            {stay.feedback.map((f) => (
+              <div key={f.id} className="flex items-start gap-3 px-3 py-2 text-sm">
+                <span className={cn('shrink-0 font-semibold', f.rating <= 2 ? 'text-red-600' : f.rating === 3 ? 'text-amber-600' : 'text-emerald-600')}>
+                  {'★'.repeat(f.rating)}
+                  <span className="text-muted-foreground/40">{'★'.repeat(5 - f.rating)}</span>
+                </span>
+                <span className="min-w-0 flex-1">
+                  {f.comment && <span className="block">{f.comment}</span>}
+                  <span className="block text-xs text-muted-foreground">
+                    {f.byRole === 'patient' ? 'The patient' : f.byName ?? 'A contact'} · {formatDateTime(f.createdAt)}
+                  </span>
+                </span>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
 
       <div className="grid gap-4 xl:grid-cols-2">
         <SubmissionColumn title="Check-in" submissions={checkIn} stayId={stay.id} empty="No check-in checklist." />
@@ -374,5 +416,140 @@ function AnswerRow({ item, answer: a, stayId }: { item: FormItem; answer: Checkl
         </div>
       )}
     </div>
+  );
+}
+
+const REQUEST_STATUS_CLASS: Record<RoomRequestStatus, string> = {
+  new: 'bg-red-100 text-red-800 hover:bg-red-100 dark:bg-red-900/40 dark:text-red-300',
+  in_progress: 'bg-amber-100 text-amber-800 hover:bg-amber-100 dark:bg-amber-900/40 dark:text-amber-300',
+  done: 'bg-emerald-100 text-emerald-800 hover:bg-emerald-100 dark:bg-emerald-900/40 dark:text-emerald-300',
+  cancelled: 'bg-zinc-100 text-zinc-600 hover:bg-zinc-100 dark:bg-zinc-800 dark:text-zinc-400',
+};
+
+function RequestsCard({ stayId, requests, canHandle }: { stayId: string; requests: RoomRequestRow[]; canHandle: boolean }) {
+  const router = useRouter();
+  const { toast } = useToast();
+  const [pending, startTransition] = useTransition();
+  const open = requests.filter((r) => r.status === 'new' || r.status === 'in_progress').length;
+  const move = (id: string, status: RoomRequestStatus) =>
+    startTransition(async () => {
+      const res = await updateRoomRequestStatusAction(id, status);
+      if (!res.success) toast({ variant: 'destructive', title: res.message ?? 'Could not update' });
+      else router.refresh();
+    });
+  void stayId;
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <div className="flex items-center gap-2">
+          <CardTitle className="text-base">Requests from the room</CardTitle>
+          {open > 0 && <Badge variant="destructive">{open} open</Badge>}
+        </div>
+        <CardDescription>What the patient or their contacts asked for through in-room Ayu. Any GRO can handle them.</CardDescription>
+      </CardHeader>
+      <CardContent>
+        {requests.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No requests yet.</p>
+        ) : (
+          <div className="divide-y rounded-md border">
+            {requests.map((r) => (
+              <div key={r.id} className="flex flex-wrap items-center gap-3 p-3 text-sm">
+                <div className="min-w-0 flex-1">
+                  <p className="font-medium">
+                    {ROOM_REQUEST_CATEGORY_LABEL[r.category]}
+                    {r.details ? <span className="font-normal"> · {r.details}</span> : null}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {formatDateTime(r.createdAt)} · {r.requestedByRole === 'patient' ? 'the patient' : r.requestedByName ?? 'a contact'}
+                    {r.handledByName && r.status !== 'new' ? ` · ${ROOM_REQUEST_STATUS_LABEL[r.status]} by ${r.handledByName}` : ''}
+                  </p>
+                </div>
+                <Badge className={REQUEST_STATUS_CLASS[r.status]}>{ROOM_REQUEST_STATUS_LABEL[r.status]}</Badge>
+                {canHandle && (r.status === 'new' || r.status === 'in_progress') && (
+                  <div className="flex gap-2">
+                    {r.status === 'new' && (
+                      <Button size="sm" variant="outline" disabled={pending} onClick={() => move(r.id, 'in_progress')}>
+                        On it
+                      </Button>
+                    )}
+                    <Button size="sm" disabled={pending} onClick={() => move(r.id, 'done')}>
+                      Done
+                    </Button>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function ConcernsCard({ concerns, contacts, canHandle }: { concerns: RoomConcernRow[]; contacts: StayContactRow[]; canHandle: boolean }) {
+  const router = useRouter();
+  const { toast } = useToast();
+  const [pending, startTransition] = useTransition();
+  if (!concerns.length) return null;
+  const open = concerns.filter((c) => c.status !== 'resolved').length;
+  const move = (id: string, status: 'looking' | 'resolved') =>
+    startTransition(async () => {
+      const res = await updateConcernStatusAction(id, status);
+      toast({ variant: res.success ? 'default' : 'destructive', title: res.message ?? (res.success ? 'Done' : 'Failed') });
+      if (res.success) router.refresh();
+    });
+  return (
+    <Card className={open ? 'border-amber-300 dark:border-amber-800' : undefined}>
+      <CardHeader className="pb-3">
+        <div className="flex items-center gap-2">
+          <AlertTriangle className="size-4 text-amber-600" />
+          <CardTitle className="text-base">Concerns</CardTitle>
+          {open > 0 && <Badge variant="destructive">{open} open</Badge>}
+        </div>
+        <CardDescription>Raised by Ayu in the chat, by a rule (a request left waiting or asked twice), from a low rating, or by Ayu&apos;s review of the chat.</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-2">
+        {concerns.map((c) => {
+          const resolved = c.status === 'resolved';
+          const serious = c.level === 'serious' && !resolved;
+          return (
+            <div
+              key={c.id}
+              className={cn(
+                'rounded-md border p-3 text-sm',
+                serious ? 'border-red-300 bg-red-50/70 dark:border-red-800 dark:bg-red-950/30' : !resolved ? 'border-amber-300 bg-amber-50/60 dark:border-amber-800 dark:bg-amber-950/20' : 'opacity-70'
+              )}
+            >
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="font-semibold">{ROOM_CONCERN_KIND_LABEL[c.kind]}</span>
+                {serious && <Badge variant="destructive">Serious</Badge>}
+                {c.status === 'looking' && <Badge variant="outline">Looking into it</Badge>}
+                {resolved && <Badge variant="outline">Resolved</Badge>}
+                {c.count > 1 && <span className="text-xs text-muted-foreground">×{c.count}</span>}
+                {canHandle && !resolved && (
+                  <span className="ml-auto flex gap-2">
+                    {c.status === 'open' && (
+                      <Button size="sm" variant="outline" disabled={pending} onClick={() => move(c.id, 'looking')}>
+                        I&apos;m on it
+                      </Button>
+                    )}
+                    <Button size="sm" disabled={pending} onClick={() => move(c.id, 'resolved')}>
+                      Resolved
+                    </Button>
+                  </span>
+                )}
+              </div>
+              <p className="mt-1">{c.summary}</p>
+              {c.quote && <p className="mt-1 rounded bg-background/80 px-2 py-1 italic text-foreground/80">&ldquo;{c.quote}&rdquo;</p>}
+              <p className="mt-1 text-xs text-muted-foreground">
+                {c.raisedByName || c.raisedByRole ? `${whoLabel(c.raisedByName, c.raisedByRole, contacts)} · ` : ''}
+                {formatDateTime(c.lastAt)} · {ROOM_CONCERN_SOURCE_LABEL[c.source]}
+                {c.handledByName && c.status !== 'open' ? ` · ${resolved ? 'resolved' : 'picked up'} by ${c.handledByName}` : ''}
+              </p>
+            </div>
+          );
+        })}
+      </CardContent>
+    </Card>
   );
 }

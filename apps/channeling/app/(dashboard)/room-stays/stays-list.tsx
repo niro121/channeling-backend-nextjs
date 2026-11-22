@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { AlertTriangle, BedDouble, ChevronLeft, ChevronRight, Search, Star } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -158,6 +159,11 @@ export function RoomStaysList({
                       <TableCell>
                         <div className="flex flex-wrap items-center gap-1.5">
                           <Badge className={badge.className}>{badge.label}</Badge>
+                          {s.openConcerns > 0 && (
+                            <Badge className={cn('gap-1 text-white', s.seriousConcern ? 'bg-red-600 hover:bg-red-600' : 'bg-amber-500 hover:bg-amber-500')}>
+                              <AlertTriangle className="size-3" /> {s.openConcerns} concern{s.openConcerns === 1 ? '' : 's'}
+                            </Badge>
+                          )}
                           {s.hasIssues && (
                             <Badge variant="destructive" className="gap-1">
                               <AlertTriangle className="size-3" /> Issues

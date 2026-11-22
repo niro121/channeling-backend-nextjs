@@ -36,6 +36,16 @@ export function normalizeAdkBaseUrl(raw: string): string | null {
   }
 }
 
+/**
+ * The one assistant this app talks to: Ayu Management on the Ayu (RuhunuAI) server.
+ * AYU_ADK_URL is the server (e.g. http://localhost:8080); AYU_ADK_APP defaults to ayu_management.
+ */
+export function ayuTarget(): AdkTarget {
+  const adkBaseUrl = normalizeAdkBaseUrl(process.env.AYU_ADK_URL ?? '');
+  if (!adkBaseUrl) throw new AdkError('Ayu is not connected (AYU_ADK_URL is not set).', 503);
+  return { adkBaseUrl, adkAppName: process.env.AYU_ADK_APP?.trim() || 'ayu_management' };
+}
+
 function serviceKey(): string {
   const key = process.env.ADK_SERVICE_KEY;
   if (!key) throw new AdkError('AI is not connected (ADK_SERVICE_KEY is not set).', 503);
@@ -64,19 +74,6 @@ function sessionPath(target: AdkTarget, userId: string, sessionId: string) {
   return `/apps/${encodeURIComponent(target.adkAppName)}/users/${encodeURIComponent(userId)}/sessions/${encodeURIComponent(sessionId)}`;
 }
 
-/** App names the server offers — used by "Test connection" when setting up an assistant. */
-export async function listAdkApps(baseUrl: string): Promise<string[]> {
-  const res = await adkFetch(baseUrl, '/list-apps');
-  if (res.status === 401) throw new AdkError('The assistant server rejected the service key.', 401);
-  if (!res.ok) throw new AdkError(`The assistant server answered ${res.status}.`, 502);
-  const apps = (await res.json().catch(() => [])) as unknown;
-  return Array.isArray(apps) ? apps.filter((a): a is string => typeof a === 'string') : [];
-}
-
-/**
- * Creates the ADK session with its starting state. ADK takes the raw body as the state
- * (not wrapped in { state }) — see caddie-core lib/adk-proxy.ts.
- */
 export async function createAdkSession(target: AdkTarget, userId: string, sessionId: string, state: Record<string, unknown>) {
   const res = await adkFetch(target.adkBaseUrl, sessionPath(target, userId, sessionId), {
     method: 'POST',
@@ -137,7 +134,9 @@ export async function streamAdkTurn(
   userId: string,
   sessionId: string,
   text: string,
-  signal: AbortSignal
+  signal: AbortSignal,
+  /** Values for this turn only. `temp:` keys reach Ayu's tools but are never saved in the session. */
+  stateDelta?: Record<string, unknown>
 ): Promise<ReadableStream<Uint8Array>> {
   const res = await adkFetch(
     target.adkBaseUrl,
@@ -150,7 +149,8 @@ export async function streamAdkTurn(
         user_id: userId,
         session_id: sessionId,
         new_message: { role: 'user', parts: [{ text }] },
-        streaming: true
+        streaming: true,
+        ...(stateDelta ? { state_delta: stateDelta } : {})
       })
     },
     null

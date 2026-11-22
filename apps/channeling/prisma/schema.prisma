@@ -1746,6 +1746,9 @@ model RoomStay {
   room        Room                  @relation("RoomToRoomStay", fields: [roomId], references: [id], onDelete: Cascade)
   contacts    RoomStayContact[]     @relation("RoomStayToContact")
   submissions ChecklistSubmission[] @relation("RoomStayToSubmission")
+  requests    RoomRequest[]         @relation("RoomStayToRequest")
+  concerns    RoomConcern[]         @relation("RoomStayToConcern")
+  feedback    RoomFeedback[]        @relation("RoomStayToFeedback")
 
   @@index([roomId, status])
   @@index([status, checkedInAt(sort: Desc)])
@@ -1797,4 +1800,99 @@ model ChecklistSubmission {
   @@index([stayId])
   @@index([roomId, submittedAt(sort: Desc)])
   @@index([hasIssues, submittedAt(sort: Desc)])
+}
+
+/// The code printed in a room's QR (ai.<domain>/room/<code>). Random, so a room number can't be guessed;
+/// reissue it to retire old stickers.
+model RoomAyuCode {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  roomId    String   @unique @db.ObjectId
+  code      String   @unique
+  createdBy String?  @db.ObjectId
+  createdAt DateTime @default(now())
+}
+
+/// Something a patient (or their contact) asked for from the room, through in-room Ayu.
+model RoomRequest {
+  id               String    @id @default(auto()) @map("_id") @db.ObjectId
+  /// towels | cleaning | food | wifi | tv | maintenance | other (types/room-request.ts)
+  category         String
+  details          String?
+  /// new | in_progress | done | cancelled
+  status           String    @default("new")
+  requestedByName  String?
+  /// The verified phone that asked (patient's or an authorised contact's)
+  requestedByPhone String?
+  /// patient | contact
+  requestedByRole  String?
+  source           String    @default("ayu")
+  note             String?
+  handledBy        String?   @db.ObjectId
+  handledByName    String?
+  handledAt        DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  roomId String   @db.ObjectId
+  stayId String   @db.ObjectId
+  stay   RoomStay @relation("RoomStayToRequest", fields: [stayId], references: [id], onDelete: Cascade)
+
+  @@index([stayId, createdAt(sort: Desc)])
+  @@index([status, createdAt(sort: Desc)])
+}
+
+/// Something a GRO should look at for a patient in a room: raised by Inward Ayu while chatting, by a
+/// rule (a request left waiting, asked twice, a low rating), or later by a scan of the chats.
+model RoomConcern {
+  id            String    @id @default(auto()) @map("_id") @db.ObjectId
+  /// serious | attention
+  level         String    @default("attention")
+  /// unhappy | complaint | pain | family_worry | waiting | repeat_request | late_request | low_rating | safety | other
+  kind          String
+  /// ayu | rule | feedback | scan
+  source        String
+  summary       String
+  /// Their own words, when there are some
+  quote         String?
+  raisedByName  String?
+  /// patient | contact
+  raisedByRole  String?
+  /// One open concern per problem: a repeat adds to it (count, lastAt) instead of a new one.
+  dedupeKey     String
+  count         Int       @default(1)
+  lastAt        DateTime  @default(now())
+  /// open | looking | resolved
+  status        String    @default("open")
+  note          String?
+  handledBy     String?   @db.ObjectId
+  handledByName String?
+  handledAt     DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  roomId String   @db.ObjectId
+  stayId String   @db.ObjectId
+  stay   RoomStay @relation("RoomStayToConcern", fields: [stayId], references: [id], onDelete: Cascade)
+
+  @@index([stayId, status])
+  @@index([status, lastAt(sort: Desc)])
+  @@index([dedupeKey, status])
+}
+
+/// How the patient (or a contact) rated their stay, through Inward Ayu.
+model RoomFeedback {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  /// 1 (very unhappy) to 5 (very happy)
+  rating    Int
+  comment   String?
+  byName    String?
+  /// patient | contact
+  byRole    String?
+  createdAt DateTime @default(now())
+
+  roomId String   @db.ObjectId
+  stayId String   @db.ObjectId
+  stay   RoomStay @relation("RoomStayToFeedback", fields: [stayId], references: [id], onDelete: Cascade)
+
+  @@index([stayId, createdAt(sort: Desc)])
 }

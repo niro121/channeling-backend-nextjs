@@ -25,8 +25,8 @@ model Task {
   priority    String    @default("NORMAL")
   dueAt       DateTime?
 
-  createdById  String  @db.ObjectId
-  assigneeId   String? @db.ObjectId
+  createdById           String  @db.ObjectId
+  assigneeId            String? @db.ObjectId
   /// Assignee must leave a comment when marking Done (e.g. "cash balance confirmed: Rs 12,400")
   requireCompletionNote Boolean @default(false)
 
@@ -36,7 +36,7 @@ model Task {
   occurrenceDate  String?
   /// Unique per task: "task:<number>", or "rec:<templateId>:<date>" so a template can't create the same day twice.
   /// (A unique index on the optional recurringTaskId/occurrenceDate pair would treat every one-off task as a clash.)
-  dedupeKey       String    @unique
+  dedupeKey       String         @unique
 
   completedAt       DateTime?
   completedById     String?   @db.ObjectId
@@ -57,15 +57,15 @@ model Task {
 }
 
 model TaskComment {
-  id       String   @id @default(auto()) @map("_id") @db.ObjectId
-  taskId   String   @db.ObjectId
-  task     Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  authorId String   @db.ObjectId
-  body     String
+  id               String    @id @default(auto()) @map("_id") @db.ObjectId
+  taskId           String    @db.ObjectId
+  task             Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  authorId         String    @db.ObjectId
+  body             String
   /// Left when marking the task Done
-  isCompletionNote Boolean @default(false)
-  createdAt DateTime @default(now())
-  editedAt  DateTime?
+  isCompletionNote Boolean   @default(false)
+  createdAt        DateTime  @default(now())
+  editedAt         DateTime?
 
   @@index([taskId, createdAt])
 }
@@ -99,26 +99,26 @@ model TaskWatcher {
 
 /// Template that creates a Task on a schedule, e.g. "Cash balance channel" every Wednesday.
 model RecurringTask {
-  id          String   @id @default(auto()) @map("_id") @db.ObjectId
-  title       String
-  description String?
-  priority    String   @default("NORMAL")
-  assigneeId  String   @db.ObjectId
-  createdById String   @db.ObjectId
+  id                    String  @id @default(auto()) @map("_id") @db.ObjectId
+  title                 String
+  description           String?
+  priority              String  @default("NORMAL")
+  assigneeId            String  @db.ObjectId
+  createdById           String  @db.ObjectId
   requireCompletionNote Boolean @default(true)
 
   /// DAILY | WEEKLY | MONTHLY
-  frequency   String
+  frequency  String
   /// WEEKLY: 0 = Sunday … 6 = Saturday
-  daysOfWeek  Int[]
+  daysOfWeek Int[]
   /// MONTHLY: 1–31 (short months use their last day)
-  dayOfMonth  Int?
+  dayOfMonth Int?
   /// HH:mm Asia/Colombo — when the task appears
-  createTime  String   @default("08:00")
+  createTime String @default("08:00")
   /// HH:mm Asia/Colombo — due the same day
-  dueTime     String   @default("17:00")
+  dueTime    String @default("17:00")
 
-  active      Boolean  @default(true)
+  active      Boolean   @default(true)
   /// Next occurrence day (YYYY-MM-DD) to create; advanced by the job
   nextRunDate String
   lastRunAt   DateTime?
@@ -140,43 +140,19 @@ model Counter {
 /// An AI assistant on an ADK server (RuhunuAI: "ayu", "ayu_management"). Browsers never reach the
 /// ADK server — every chat goes through this app, which sends ADK_SERVICE_KEY. Who may chat is
 /// decided by channeling's `management-ai` privileges: STAFF needs chat-staff, PUBLIC needs chat.
-model Assistant {
-  id          String  @id @default(auto()) @map("_id") @db.ObjectId
-  name        String
-  description String?
-  /// e.g. https://ruhunuai-xxxx.run.app (no trailing slash)
-  adkBaseUrl  String
-  /// ADK app name on that server, e.g. "ayu_management"
-  adkAppName  String
-  /// STAFF | PUBLIC (lib/ai/constants.ts)
-  audience    String  @default("STAFF")
-  /// First line shown in an empty chat
-  greeting    String?
-  active      Boolean @default(true)
-  sortOrder   Int     @default(0)
-
-  createdById String @db.ObjectId
-  chats       AssistantChat[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([active, sortOrder])
-}
 
 /// One conversation. The messages themselves live in the ADK server's session store
 /// (adkSessionId); this row is the user's chat list.
+/// One person's chat with Ayu. The messages live on the Ayu server (ADK session adkSessionId).
 model AssistantChat {
-  id            String    @id @default(auto()) @map("_id") @db.ObjectId
-  assistantId   String    @db.ObjectId
-  assistant     Assistant @relation(fields: [assistantId], references: [id], onDelete: Cascade)
+  id            String   @id @default(auto()) @map("_id") @db.ObjectId
   /// Channeling/auth user id — also the ADK user_id
-  userId        String    @db.ObjectId
-  adkSessionId  String    @unique
-  title         String    @default("New chat")
-  messageCount  Int       @default(0)
-  lastMessageAt DateTime  @default(now())
-  createdAt     DateTime  @default(now())
+  userId        String   @db.ObjectId
+  adkSessionId  String   @unique
+  title         String   @default("New chat")
+  messageCount  Int      @default(0)
+  lastMessageAt DateTime @default(now())
+  createdAt     DateTime @default(now())
 
-  @@index([userId, assistantId, lastMessageAt])
+  @@index([userId, lastMessageAt])
 }

@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
-import { Bot, ChevronRight, Eye, Inbox, Menu, Plus, Repeat, UserPen, Users, type LucideIcon } from 'lucide-react';
+import { ChevronRight, Eye, Inbox, Menu, Plus, Repeat, UserPen, Users, type LucideIcon } from 'lucide-react';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@archmage/ui';
 import { cn } from '@/lib/utils';
 import { myTaskCountsAction } from '@/app/actions/tasks.actions';
@@ -12,7 +12,7 @@ import { useFeatures } from './features-context';
 
 type Counts = { open: number; overdue: number };
 
-/** ☰ button (phones / iPad portrait): other sections, Task Manager shortcuts and assistant set-up. */
+/** ☰ button (phones / iPad portrait): other sections and Task Manager shortcuts. */
 export function MoreMenu() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -37,7 +37,7 @@ export function MoreMenu() {
     { href: '/tasks/recurring', label: 'Recurring tasks', icon: Repeat, active: pathname === '/tasks/recurring', show: tasks.recurring || tasks.manageAll }
   ].filter((l) => l.show);
 
-  if (items.length === 0 && !tasks.view && !features.ai.manage) return null;
+  if (items.length === 0 && !tasks.view) return null;
   const close = () => setOpen(false);
 
   return (
@@ -65,7 +65,7 @@ export function MoreMenu() {
           <nav className="flex-1 overflow-y-auto px-3 py-2">
             <ul className="space-y-0.5">
               {items.map(({ href, label, icon }) => (
-                <MenuRow key={href} href={href} label={label} icon={icon} active={isNavActive(pathname, href) && pathname !== '/ayu/assistants'} onNavigate={close} />
+                <MenuRow key={href} href={href} label={label} icon={icon} active={isNavActive(pathname, href)} onNavigate={close} />
               ))}
             </ul>
 
@@ -89,14 +89,6 @@ export function MoreMenu() {
               </>
             )}
 
-            {features.ai.manage && (
-              <>
-                <GroupLabel>Ayu</GroupLabel>
-                <ul>
-                  <MenuRow href="/ayu/assistants" icon={Bot} label="Set up assistants" active={pathname === '/ayu/assistants'} onNavigate={close} />
-                </ul>
-              </>
-            )}
           </nav>
 
           <p className="border-t px-5 py-3 text-xs text-muted-foreground">

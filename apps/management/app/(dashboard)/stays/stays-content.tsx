@@ -24,7 +24,8 @@ export function StaysContent({ initialLocationId }: { initialLocationId: string 
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [locationId, setLocationId] = useState<string | null>(initialLocationId);
-  const [filter, setFilter] = useState<Filter>('all');
+  // Opens on the rooms in use; if none are, on all rooms.
+  const [filter, setFilter] = useState<Filter>('occupied');
   const [search, setSearch] = useState('');
 
   const load = useCallback(async (loc: string | null, quiet = false) => {
@@ -33,6 +34,8 @@ export function StaysContent({ initialLocationId }: { initialLocationId: string 
     if (res.success) {
       setData(res.data);
       setError(null);
+      // On opening the page or switching branch (not on a background refresh): in use first, else all.
+      if (!quiet) setFilter(res.data.rooms.some((r) => r.stay) ? 'occupied' : 'all');
       if (res.data.locationId !== loc) setLocationId(res.data.locationId);
     } else {
       setError(res.message);
@@ -210,7 +213,13 @@ export function StaysContent({ initialLocationId }: { initialLocationId: string 
                   <span
                     className={cn(
                       'flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-sm font-semibold',
-                      r.stay ? 'bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-300' : 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300'
+                      r.stay?.seriousConcern
+                        ? 'bg-red-600 text-white'
+                        : r.stay?.openConcerns
+                          ? 'bg-amber-100 text-amber-900 ring-2 ring-amber-400 dark:bg-amber-900/40 dark:text-amber-200'
+                          : r.stay
+                            ? 'bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-300'
+                            : 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300'
                     )}
                   >
                     {r.number}
@@ -220,7 +229,24 @@ export function StaysContent({ initialLocationId }: { initialLocationId: string 
                       <>
                         <span className="flex items-center gap-1.5 font-medium">
                           <span className="truncate">{r.stay.patientName}</span>
-                          {r.stay.hasIssues && <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-destructive" />}
+                          {r.stay.openConcerns > 0 && (
+                            <span
+                              className={cn(
+                                'flex shrink-0 items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[10px] font-bold text-white',
+                                r.stay.seriousConcern ? 'bg-red-600' : 'bg-amber-500'
+                              )}
+                              title={`${r.stay.openConcerns} open concern${r.stay.openConcerns === 1 ? '' : 's'}`}
+                            >
+                              <AlertTriangle className="h-3 w-3" />
+                              {r.stay.openConcerns}
+                            </span>
+                          )}
+                          {r.stay.hasIssues && !r.stay.openConcerns && <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-destructive" />}
+                          {r.stay.openRequests > 0 && (
+                            <span className="shrink-0 rounded-full bg-red-600 px-1.5 py-0.5 text-[10px] font-bold text-white">
+                              {r.stay.openRequests} request{r.stay.openRequests === 1 ? '' : 's'}
+                            </span>
+                          )}
                         </span>
                         <span className="block truncate text-xs text-muted-foreground">
                           BHT {r.stay.bhtNumber} · in {sinceLabel(r.stay.checkedInAt)}

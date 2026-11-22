@@ -195,6 +195,9 @@ export type StayRow = {
   checkedOutByName: string | null;
   hasIssues: boolean;
   contacts: StayContactRow[];
+  /** Concerns not resolved yet, and whether any is serious */
+  openConcerns: number;
+  seriousConcern: boolean;
 };
 
 export type SubmissionIssue = {
@@ -223,6 +226,9 @@ export type SubmissionRow = {
 export type StayDetail = StayRow & {
   cancelReason: string | null;
   submissions: SubmissionRow[];
+  requests: import('./room-request').RoomRequestRow[];
+  concerns: import('./room-request').RoomConcernRow[];
+  feedback: import('./room-request').RoomFeedbackRow[];
 };
 
 /** A room on the PWA list: vacant or with its open stay. */
@@ -241,6 +247,11 @@ export type StayRoomRow = {
     bhtNumber: string;
     checkedInAt: string;
     hasIssues: boolean;
+    /** Patient requests not done yet (new or in progress) */
+    openRequests: number;
+    /** Concerns not resolved yet, and whether any is serious */
+    openConcerns: number;
+    seriousConcern: boolean;
   } | null;
 };
 

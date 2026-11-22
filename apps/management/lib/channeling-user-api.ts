@@ -31,7 +31,7 @@ export function isChannelingUserApiConfigured(): boolean {
   return getConfig() != null;
 }
 
-async function signUserToken(userId: string, email: string | null | undefined, secret: Uint8Array) {
+async function signUserToken(userId: string, email: string | null | undefined, secret: Uint8Array, ttlSec = TOKEN_TTL_SEC) {
   const now = Math.floor(Date.now() / 1000);
   return new SignJWT(email ? { email } : {})
     .setProtectedHeader({ alg: 'HS256' })
@@ -39,8 +39,22 @@ async function signUserToken(userId: string, email: string | null | undefined, s
     .setIssuer(ISSUER)
     .setAudience(AUDIENCE)
     .setIssuedAt(now)
-    .setExpirationTime(now + TOKEN_TTL_SEC)
+    .setExpirationTime(now + ttlSec)
     .sign(secret);
+}
+
+/**
+ * A short-lived channeling token for the signed-in user, handed to Ayu for one message so its tools
+ * can look things up as this person (channeling checks their privileges). Never stored by Ayu.
+ */
+export async function channelingTokenForAyu(): Promise<string | null> {
+  const config = getConfig();
+  if (!config) return null;
+  const session = await fetchServerSession();
+  const userId = session?.user?.id;
+  if (!userId) return null;
+  // Long enough for one reply with several tool calls; a new one is signed for every message.
+  return signUserToken(userId, session.user?.email, config.secret, 300);
 }
 
 /** Raw fetch to channeling as the current user. Throws 401 when signed out or not configured. */

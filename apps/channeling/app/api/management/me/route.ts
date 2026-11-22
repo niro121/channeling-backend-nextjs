@@ -4,6 +4,7 @@ import { roomInventoryCan } from "@/lib/room-inventory-access"
 import { roomStaysCan } from "@/lib/room-checklist-access"
 import { actorTaskPermissions } from "@/services/management/task-access.service"
 import { actorAiPermissions } from "@/services/management/ai-access.service"
+import { ayuToolsFor } from "@/lib/ayu-tool-access"
 
 export const dynamic = "force-dynamic"
 
@@ -33,6 +34,6 @@ export async function GET(request: Request) {
       },
     },
     tasks: actorTaskPermissions(actor),
-    ai: actorAiPermissions(actor),
+    ai: { ...actorAiPermissions(actor), tools: ayuToolsFor(actor) },
   })
 }

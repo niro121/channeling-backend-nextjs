@@ -9,7 +9,7 @@ import { AiError, type AiActor } from './service';
 export async function getAiActor(): Promise<AiActor> {
   const [me, session] = await Promise.all([getManagementMe(), fetchServerSession()]);
   if (me.access !== 'allowed' || !me.userId) throw new AiError('You must be signed in.', 'forbidden');
-  if (!canUseAi(me.ai) && !me.ai.manage) throw new AiError("You don't have access to the AI assistants.", 'forbidden');
+  if (!canUseAi(me.ai)) throw new AiError("You don't have access to Ayu.", 'forbidden');
   return {
     userId: me.userId,
     name: session?.user?.name ?? null,

@@ -1,28 +1,23 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import Link from 'next/link';
 import { useSession } from 'next-auth/react';
 import { Button, Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, useToast } from '@archmage/ui';
-import { ArrowUp, Check, Copy, History, Loader2, MessageSquarePlus, Settings2, Sparkles, Square, Trash2 } from 'lucide-react';
+import { ArrowUp, Check, Copy, History, Loader2, MessageSquarePlus, Square, Trash2 } from 'lucide-react';
+import { AyuAvatar, AyuIcon } from '@/components/ai/ayu-avatar';
 import { cn } from '@/lib/utils';
 import { MAX_MESSAGE_LENGTH } from '@/lib/ai/constants';
 import { formatWhen } from '@/lib/tasks/constants';
 import { deleteChatAction, getChatMessagesAction, listChatsAction, startChatAction } from '@/app/actions/ai.actions';
-import type { ChatAssistant, ChatListItem } from '@/types/ai';
+import type { ChatListItem } from '@/types/ai';
 
 type Message = { role: 'user' | 'assistant'; text: string };
 type StreamEvent = { type: 'delta' | 'final'; text: string } | { type: 'error'; message: string } | { type: 'done' };
 
-const SUGGESTIONS: Record<ChatAssistant['audience'], string[]> = {
-  STAFF: ['Draft a short notice to cashiers about ', 'Summarise this for me: ', 'Help me plan '],
-  PUBLIC: ['How do I channel a consultant?', 'What services does the hospital offer?', 'What is the hospital phone number?']
-};
+const SUGGESTIONS = ['Draft a short notice to cashiers about ', 'Summarise this for me: ', 'Help me plan '];
 
-function setUrl(assistantId: string, chatId: string | null) {
-  const params = new URLSearchParams({ a: assistantId });
-  if (chatId) params.set('c', chatId);
-  window.history.replaceState(null, '', `/ayu?${params}`);
+function setUrl(chatId: string | null) {
+  window.history.replaceState(null, '', chatId ? `/ayu?c=${chatId}` : '/ayu');
 }
 
 /** Reads the app's SSE reply (`data: {type…}` lines) from POST /api/ai/chats/[id]/messages. */
@@ -67,23 +62,12 @@ function CopyButton({ text }: { text: string }) {
 }
 
 /**
- * "Ask Ayu": chat with the assistants this person may use. Fills the space between the header and
- * the bottom tab bar (or the screen bottom from lg, next to the sidebar).
+ * "Ask Ayu": chat with Ayu Management. Fills the space between the header and the bottom tab bar
+ * (or the screen bottom from lg, next to the sidebar).
  */
-export function AyuChat({
-  assistants,
-  initialAssistantId,
-  initialChatId,
-  canManage
-}: {
-  assistants: ChatAssistant[];
-  initialAssistantId: string;
-  initialChatId: string | null;
-  canManage: boolean;
-}) {
+export function AyuChat({ initialChatId }: { initialChatId: string | null }) {
   const { toast } = useToast();
   const { data: session } = useSession();
-  const [assistantId, setAssistantId] = useState(initialAssistantId);
   const [chatId, setChatId] = useState<string | null>(initialChatId);
   const [messages, setMessages] = useState<Message[]>([]);
   const [reply, setReply] = useState<string | null>(null);
@@ -97,7 +81,6 @@ export function AyuChat({
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
-  const assistant = assistants.find((a) => a.id === assistantId) ?? assistants[0];
   const firstName = session?.user?.name?.trim().split(/\s+/)[0];
 
   // Leaving the conversation mid-reply: stop it and don't add it to the next one
@@ -118,14 +101,13 @@ export function AyuChat({
     if (!result.success) {
       setChatId(null);
       setMessages([]);
-      setUrl(assistantId, null);
+      setUrl(null);
       toast({ variant: 'destructive', title: 'Could not open the chat', description: result.message });
       return;
     }
-    setAssistantId(result.data.assistantId);
     setChatId(id);
     setMessages(result.data.messages);
-    setUrl(result.data.assistantId, id);
+    setUrl(id);
   };
 
   useEffect(() => {
@@ -150,20 +132,19 @@ export function AyuChat({
 
   useEffect(() => () => abortRef.current?.abort(), []);
 
-  const newChat = (nextAssistantId = assistantId) => {
+  const newChat = () => {
     dropReply();
-    setAssistantId(nextAssistantId);
     setChatId(null);
     setMessages([]);
     setError(null);
-    setUrl(nextAssistantId, null);
+    setUrl(null);
     inputRef.current?.focus();
   };
 
   const loadHistory = async () => {
     setHistoryOpen(true);
     setChats(null);
-    const result = await listChatsAction(assistantId);
+    const result = await listChatsAction();
     setChats(result.success ? result.data : []);
     if (!result.success) toast({ variant: 'destructive', title: 'Could not load chats', description: result.message });
   };
@@ -188,7 +169,7 @@ export function AyuChat({
 
     let id = chatId;
     if (!id) {
-      const started = await startChatAction(assistantId);
+      const started = await startChatAction();
       if (!started.success) {
         setSending(false);
         setError(started.message);
@@ -196,7 +177,7 @@ export function AyuChat({
       }
       id = started.data.chatId;
       setChatId(id);
-      setUrl(assistantId, id);
+      setUrl(id);
     }
 
     const controller = new AbortController();
@@ -249,22 +230,12 @@ export function AyuChat({
 
   return (
     <div className="fixed inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] top-[calc(3.5rem+env(safe-area-inset-top))] z-30 flex flex-col bg-background lg:bottom-0 lg:left-52">
-      {/* Assistant switch + history + new chat */}
+      {/* Title + history + new chat */}
       <div className="flex shrink-0 items-center gap-2 border-b border-border/60 px-3 py-2 sm:px-4">
-        <div className="flex min-w-0 flex-1 gap-1.5 overflow-x-auto [scrollbar-width:none]">
-          {assistants.map((a) => (
-            <button
-              key={a.id}
-              type="button"
-              onClick={() => a.id !== assistantId && newChat(a.id)}
-              className={cn(
-                'shrink-0 rounded-full border px-3 py-1.5 text-sm font-medium transition-colors',
-                a.id === assistantId ? 'border-primary bg-primary text-primary-foreground' : 'border-border text-foreground active:bg-muted lg:hover:bg-muted'
-              )}
-            >
-              {a.name}
-            </button>
-          ))}
+        <AyuAvatar size={36} className="ring-1 ring-primary/30" />
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-semibold leading-tight">Ayu</p>
+          <p className="truncate text-xs text-muted-foreground">Ruhunu Hospital assistant</p>
         </div>
         <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0 rounded-full" onClick={loadHistory} aria-label="Past chats" title="Past chats">
           <History className="h-5 w-5" />
@@ -272,13 +243,6 @@ export function AyuChat({
         <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0 rounded-full" onClick={() => newChat()} aria-label="New chat" title="New chat">
           <MessageSquarePlus className="h-5 w-5" />
         </Button>
-        {canManage && (
-          <Button variant="ghost" size="icon" className="hidden h-9 w-9 shrink-0 rounded-full lg:inline-flex" asChild>
-            <Link href="/ayu/assistants" aria-label="Set up assistants" title="Set up assistants">
-              <Settings2 className="h-5 w-5" />
-            </Link>
-          </Button>
-        )}
       </div>
 
       {/* Conversation */}
@@ -292,13 +256,11 @@ export function AyuChat({
 
           {empty && (
             <div className="flex flex-col items-center px-2 pt-[8vh] text-center">
-              <span className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 text-primary">
-                <Sparkles className="h-7 w-7" />
-              </span>
-              <p className="text-lg font-semibold">{firstName ? `Hi ${firstName}, ` : ''}how can {assistant.name} help?</p>
-              <p className="mt-1 max-w-md text-sm text-muted-foreground">{assistant.greeting || assistant.description || 'Ask anything to get started.'}</p>
+              <AyuIcon className="mb-4 h-28 w-28 drop-shadow-md" />
+              <p className="text-lg font-semibold">{firstName ? `Hi ${firstName}, ` : ''}how can Ayu help?</p>
+              <p className="mt-1 max-w-md text-sm text-muted-foreground">Ask anything to get started.</p>
               <div className="mt-6 flex w-full max-w-md flex-col gap-2">
-                {SUGGESTIONS[assistant.audience].map((s) => (
+                {SUGGESTIONS.map((s) => (
                   <button
                     key={s}
                     type="button"
@@ -372,7 +334,7 @@ export function AyuChat({
                 void send(input);
               }
             }}
-            placeholder={`Message ${assistant.name}`}
+            placeholder="Message Ayu"
             disabled={loadingChat}
             className="max-h-40 min-h-11 flex-1 resize-none overflow-hidden rounded-2xl border border-input bg-muted/40 px-4 py-2.5 text-[16px] leading-6 outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-60 sm:text-[15px]"
           />
@@ -392,7 +354,7 @@ export function AyuChat({
         <SheetContent side="right" className="flex w-[85vw] max-w-sm flex-col gap-0 p-0 pt-safe">
           <SheetHeader className="border-b px-4 py-4 text-left">
             <SheetTitle className="text-base">Past chats</SheetTitle>
-            <SheetDescription className="text-xs">With {assistant.name}</SheetDescription>
+            <SheetDescription className="text-xs">With Ayu</SheetDescription>
           </SheetHeader>
           <div className="flex-1 overflow-y-auto px-2 py-2 pb-safe">
             {chats == null && (

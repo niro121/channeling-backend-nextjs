@@ -231,11 +231,13 @@ export const RESOURCES: ResourceWithOptionalActions[] = [
     // Management app AI assistants (Ayu). Assistants are set up in the management app;
     // a Staff assistant needs chat-staff, a Public one (e.g. patient Ayu) needs chat.
     id: "management-ai",
-    name: "Management App AI Assistants",
+    name: "Management App – Ayu",
+    // Each "Ayu can look up" switch also needs the person's own privilege for that data:
+    // Ayu never sees more than the person asking (lib/ayu-tool-access.ts).
     customActions: [
-      { id: "chat", name: "Chat with public assistants (Ayu)" },
-      { id: "chat-staff", name: "Chat with staff assistants (Ayu for Management)" },
-      { id: "manage", name: "Set up assistants" },
+      { id: "chat", name: "Chat with Ayu" },
+      { id: "tool-room-stays", name: "Ayu can look up: room stays, checklists and room statistics" },
+      { id: "tool-contacts", name: "Ayu can look up: patient contacts (phone numbers)" },
     ],
   },
   {

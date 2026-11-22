@@ -36,6 +36,10 @@ import {
 import { cn } from '@/lib/utils';
 import { useInnerPageHeader } from '../../page-header-context';
 import { HeaderActions } from '../../header-actions';
+import { useFeatures } from '../../features-context';
+import { RequestsSection } from './requests-section';
+import { ConcernsSection } from './concerns-section';
+import { ConversationsSection } from './conversations-section';
 import { cancelStayAction, getStayAction, updateContactsAction } from '@/app/actions/room-stays.actions';
 import { ContactsEditor, contactsProblem, type ContactsValue } from '@/components/stays/contacts-editor';
 import { checklistPhotoUrl } from '@/components/stays/photos';
@@ -58,6 +62,7 @@ export function StayView({ stayId }: { stayId: string }) {
   const [cancelOpen, setCancelOpen] = useState(false);
   const [reason, setReason] = useState('');
   const [pending, startTransition] = useTransition();
+  const features = useFeatures();
 
   useInnerPageHeader({
     title: data?.stay.patientName ?? 'Stay',
@@ -179,6 +184,43 @@ export function StayView({ stayId }: { stayId: string }) {
           </Row>
         )}
       </dl>
+
+      <ConcernsSection
+        concerns={stay.concerns ?? []}
+        contacts={stay.contacts}
+        canHandle={features.roomStays.checkIn || features.roomStays.checkOut}
+        onChanged={() => void load()}
+      />
+
+      <RequestsSection
+        requests={stay.requests ?? []}
+        canHandle={features.roomStays.checkIn || features.roomStays.checkOut}
+        onChanged={() => void load()}
+      />
+
+      <ConversationsSection stayId={stayId} contacts={stay.contacts} />
+
+      {(stay.feedback ?? []).length > 0 && (
+        <section className="space-y-2">
+          <h2 className="px-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">How they rated the stay</h2>
+          <div className="divide-y overflow-hidden rounded-2xl border bg-card">
+            {stay.feedback.map((f) => (
+              <div key={f.id} className="flex items-start gap-3 px-3 py-2.5 text-sm">
+                <span className={cn('shrink-0 font-semibold tabular-nums', f.rating <= 2 ? 'text-red-600' : f.rating === 3 ? 'text-amber-600' : 'text-emerald-600')}>
+                  {'★'.repeat(f.rating)}
+                  <span className="text-muted-foreground/40">{'★'.repeat(5 - f.rating)}</span>
+                </span>
+                <div className="min-w-0 flex-1">
+                  {f.comment && <p>{f.comment}</p>}
+                  <p className="text-xs text-muted-foreground">
+                    {f.byRole === 'patient' ? 'The patient' : f.byName ?? 'A contact'} · {when(f.createdAt)}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* ==== CONTACTS ==== */}
       <section className="space-y-2">

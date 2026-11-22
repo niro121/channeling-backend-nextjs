@@ -11,8 +11,7 @@ const PATH_NAMES: { path: string; name: string }[] = [
   { path: 'check-out', name: 'Check out' },
   { path: 'tasks', name: 'Tasks' },
   { path: 'recurring', name: 'Recurring' },
-  { path: 'ayu', name: 'Ayu' },
-  { path: 'assistants', name: 'Assistants' }
+  { path: 'ayu', name: 'Ayu' }
 ];
 
 function isDynamicId(segment: string): boolean {

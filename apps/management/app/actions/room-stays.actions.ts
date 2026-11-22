@@ -10,6 +10,10 @@ import type {
   StayPatientInput,
   StayRoomsData,
   StayStats,
+  RoomRequestRow,
+  RoomConcernRow,
+  RoomConversation,
+  RoomRequestStatus,
   StaysResult,
   SubmissionIssue
 } from '@/types/room-stays';
@@ -131,5 +135,63 @@ export async function getStayStatsAction(input: { locationId: string | null; day
     return await channelingUserJson(`/api/management/room-stays/stats?${qs}`);
   } catch (error) {
     return failure(error);
+  }
+}
+
+export async function updateRoomRequestAction(input: {
+  id: string;
+  status: RoomRequestStatus;
+  note?: string | null;
+}): Promise<StaysResult<RoomRequestRow>> {
+  if (!OBJECT_ID.test(input.id ?? '')) return invalid('Invalid request.');
+  try {
+    return await channelingUserJson(`/api/management/room-stays/requests/${input.id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status: input.status, note: input.note ?? null })
+    });
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+export async function updateConcernAction(input: {
+  id: string;
+  status: 'open' | 'looking' | 'resolved';
+  note?: string | null;
+}): Promise<StaysResult<RoomConcernRow>> {
+  if (!OBJECT_ID.test(input.id ?? '')) return invalid('Invalid concern.');
+  try {
+    return await channelingUserJson(`/api/management/room-stays/concerns/${input.id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status: input.status, note: input.note ?? null })
+    });
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+/**
+ * The stay's in-room chats with Inward Ayu. Channeling decides first whether this person may see
+ * the stay (same check as the stay page); only then are the chats read from Ayu, with this app's
+ * own key (Ayu's /inward route opens for that key only).
+ */
+export async function getStayConversationsAction(stayId: string): Promise<StaysResult<RoomConversation[]>> {
+  if (!OBJECT_ID.test(stayId ?? '')) return invalid('Invalid stay.');
+  const allowed = await getStayAction(stayId);
+  if (!allowed.success) return allowed;
+  const base = process.env.AYU_ADK_URL?.trim().replace(/\/+$/, '');
+  const key = process.env.ADK_SERVICE_KEY?.trim();
+  if (!base || !key) return { success: false, errorCode: 'unavailable', message: 'Ayu is not connected.' };
+  try {
+    const res = await fetch(`${base}/inward/stays/${stayId}/conversations`, {
+      headers: { 'X-Service-Key': key },
+      cache: 'no-store',
+      signal: AbortSignal.timeout(10_000)
+    });
+    if (!res.ok) return { success: false, errorCode: 'unavailable', message: `Couldn't load the conversations (Ayu answered ${res.status}).` };
+    const data = (await res.json()) as { conversations?: RoomConversation[] };
+    return { success: true, data: data.conversations ?? [] };
+  } catch {
+    return { success: false, errorCode: 'unavailable', message: "Couldn't reach Ayu for the conversations." };
   }
 }

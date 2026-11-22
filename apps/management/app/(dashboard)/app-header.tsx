@@ -3,7 +3,8 @@
 import { Suspense } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { ArrowLeft, Sparkles } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
+import { AyuAvatar } from '@/components/ai/ayu-avatar';
 import { useSession } from 'next-auth/react';
 import { Avatar, AvatarFallback } from '@archmage/ui';
 import DashboardBreadcrumb from './breadcrumbs';
@@ -61,14 +62,15 @@ export function AppHeader() {
           </>
         )}
         <div id={HEADER_ACTIONS_ID} className="flex shrink-0 items-center gap-2" />
+        {/* Phones have Ayu in the middle of the tab bar; this is for wider screens. */}
         {showAyu && (
           <Link
             href="/ayu"
-            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-primary active:bg-muted lg:hover:bg-muted"
+            className="hidden h-10 w-10 shrink-0 items-center justify-center rounded-full text-primary hover:bg-muted lg:flex"
             aria-label="Ask Ayu"
             title="Ask Ayu"
           >
-            <Sparkles className="h-5 w-5" />
+            <AyuAvatar size={32} className="ring-1 ring-primary/30" />
           </Link>
         )}
         {!inner && <TaskBell />}

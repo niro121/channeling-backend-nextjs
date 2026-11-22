@@ -9,6 +9,8 @@ import { ROOM_STAYS } from '@/lib/room-checklist-access';
 import { isChecklistPhotoKey } from '@/lib/s3';
 import { isValidMobile, normalizeMobile, MOBILE_VALIDATION_MESSAGE } from '@/lib/validations/phone';
 import { createNotification } from '@/services/notification.service';
+import { listRoomRequestsForStay } from '@/services/room-ayu.service';
+import { listConcernsForStay, listFeedbackForStay, openConcernsByStay } from '@/services/room-concerns.service';
 import { listInventoryRooms, setInventoryUnitsCondition } from '@/services/inventory.service';
 import { INVENTORY_CONDITION } from '@/types/inventory';
 import { REFERENCE_TYPES } from '@/types/notification';
@@ -885,12 +887,30 @@ export async function listStayRooms(locationId: string | null): Promise<StayRoom
       })
     : [];
   const byRoom = new Map(stays.map((s) => [s.roomId, s]));
+  const open = stays.length
+    ? await prisma.roomRequest.groupBy({
+        by: ['stayId'],
+        where: { stayId: { in: stays.map((s) => s.id) }, status: { in: ['new', 'in_progress'] } },
+        _count: { _all: true },
+      })
+    : [];
+  const openByStay = new Map(open.map((o) => [o.stayId, o._count._all]));
+  const concerns = await openConcernsByStay(stays.map((s) => s.id));
   return rooms.map((r) => {
     const s = byRoom.get(r.id);
     return {
       ...r,
       stay: s
-        ? { id: s.id, patientName: s.patientName, bhtNumber: s.bhtNumber, checkedInAt: s.checkedInAt.toISOString(), hasIssues: s.hasIssues }
+        ? {
+            id: s.id,
+            patientName: s.patientName,
+            bhtNumber: s.bhtNumber,
+            checkedInAt: s.checkedInAt.toISOString(),
+            hasIssues: s.hasIssues,
+            openRequests: openByStay.get(s.id) ?? 0,
+            openConcerns: concerns.get(s.id)?.open ?? 0,
+            seriousConcern: concerns.get(s.id)?.serious ?? false,
+          }
         : null,
     };
   });
@@ -1003,7 +1023,7 @@ const staySelect = {
 
 type StayRecord = Prisma.RoomStayGetPayload<{ select: typeof staySelect }>;
 
-function toStayRow(s: StayRecord, names: Map<string, string>): StayRow {
+function toStayRow(s: StayRecord, names: Map<string, string>, concerns?: Map<string, { open: number; serious: boolean }>): StayRow {
   return {
     id: s.id,
     roomId: s.roomId,
@@ -1021,6 +1041,8 @@ function toStayRow(s: StayRecord, names: Map<string, string>): StayRow {
     checkedOutByName: s.checkedOutBy ? names.get(s.checkedOutBy) ?? null : null,
     hasIssues: s.hasIssues,
     contacts: s.contacts,
+    openConcerns: concerns?.get(s.id)?.open ?? 0,
+    seriousConcern: concerns?.get(s.id)?.serious ?? false,
   };
 }
 
@@ -1060,8 +1082,11 @@ export async function listStays(filter: {
     }),
     prisma.roomStay.count({ where }),
   ]);
-  const names = await userNames(rows.flatMap((r) => [r.checkedInBy, r.checkedOutBy]));
-  return { rows: rows.map((r) => toStayRow(r, names)), total };
+  const [names, concerns] = await Promise.all([
+    userNames(rows.flatMap((r) => [r.checkedInBy, r.checkedOutBy])),
+    openConcernsByStay(rows.map((r) => r.id)),
+  ]);
+  return { rows: rows.map((r) => toStayRow(r, names, concerns)), total };
 }
 
 export async function getStayDetail(stayId: string): Promise<StayDetail | null> {
@@ -1084,7 +1109,13 @@ export async function getStayDetail(stayId: string): Promise<StayDetail | null> 
     submittedAt: s.submittedAt.toISOString(),
     submittedByName: s.submittedByName,
   }));
-  return { ...toStayRow(stay, names), cancelReason: stay.cancelReason, submissions };
+  const [requests, concerns, feedback, open] = await Promise.all([
+    listRoomRequestsForStay(stay.id),
+    listConcernsForStay(stay.id),
+    listFeedbackForStay(stay.id),
+    openConcernsByStay([stay.id]),
+  ]);
+  return { ...toStayRow(stay, names, open), cancelReason: stay.cancelReason, submissions, requests, concerns, feedback };
 }
 
 /** Photo keys used by a stay's checklists, so a photo is only served to people who can see that stay. */
