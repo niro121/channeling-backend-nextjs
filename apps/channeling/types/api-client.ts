@@ -1,3 +1,5 @@
+import type { ApiClientScope } from "@/lib/api-client-scopes"
+
 export type ApiClient = {
   id: string
   clientId: string
@@ -5,6 +7,7 @@ export type ApiClient = {
   isBlocked: boolean
   actingUserId: string
   actingUserName: string
+  scopes: ApiClientScope[]
   createdAt: string
   updatedAt: string
 }
@@ -13,6 +16,7 @@ export type ApiClientFormValues = {
   name: string
   isBlocked: boolean
   actingUserId: string
+  scopes: ApiClientScope[]
 }
 
 export type ApiClientUserOption = {

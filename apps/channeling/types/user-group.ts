@@ -93,6 +93,29 @@ export const RESOURCES: ResourceWithOptionalActions[] = [
       { id: "assign", name: "Assign / move items" },
     ],
   },
+  {
+    // Check-in / check-out forms, built on /room-checklists.
+    id: "room-checklist-forms",
+    name: "Room Checklist Forms",
+    customActions: [
+      { id: "view", name: "View" },
+      { id: "edit", name: "Create / edit forms" },
+      { id: "publish", name: "Publish / archive / delete forms" },
+    ],
+  },
+  {
+    // Patient room stays: check-in and check-out checklists, filled on the Management app.
+    id: "room-stays",
+    name: "Room Check-in / Check-out",
+    customActions: [
+      { id: "view", name: "View rooms, stays and checklists" },
+      { id: "check-in", name: "Check patients in" },
+      { id: "check-out", name: "Check patients out" },
+      { id: "contacts", name: "Edit patient contacts" },
+      { id: "override", name: "Override failed items / cancel a check-in" },
+      { id: "alerts", name: "Get alerts for checklist issues" },
+    ],
+  },
   { id: "specialities", name: "Specialities" },
   { id: "locations", name: "Locations" },
   { id: "agency-books", name: "Agency Books" },
@@ -192,6 +215,30 @@ export const RESOURCES: ResourceWithOptionalActions[] = [
     id: "management-app",
     name: "Management App",
     customActions: [{ id: "access", name: "Sign in to Management app" }],
+  },
+  {
+    // Management app Task Manager (tasks live in the management DB; who may do what is decided here).
+    id: "management-tasks",
+    name: "Management App Tasks",
+    customActions: [
+      { id: "view", name: "Use tasks (own and assigned tasks; can be assigned tasks)" },
+      { id: "create", name: "Create and assign tasks" },
+      { id: "recurring", name: "Manage recurring tasks" },
+      { id: "manage-all", name: "See and manage everyone's tasks" },
+    ],
+  },
+  {
+    // Management app AI assistants (Ayu). Assistants are set up in the management app;
+    // a Staff assistant needs chat-staff, a Public one (e.g. patient Ayu) needs chat.
+    id: "management-ai",
+    name: "Management App – Ayu",
+    // Each "Ayu can look up" switch also needs the person's own privilege for that data:
+    // Ayu never sees more than the person asking (lib/ayu-tool-access.ts).
+    customActions: [
+      { id: "chat", name: "Chat with Ayu" },
+      { id: "tool-room-stays", name: "Ayu can look up: room stays, checklists and room statistics" },
+      { id: "tool-contacts", name: "Ayu can look up: patient contacts (phone numbers)" },
+    ],
   },
   {
     // Management app Overview (apps/management) — one switch per channel-insights module.

@@ -65,7 +65,9 @@ type Stack = {
 };
 
 const isIssue = (u: UnitRow) =>
-  u.condition === INVENTORY_CONDITION.broken || u.condition === INVENTORY_CONDITION.underRepair;
+  u.condition === INVENTORY_CONDITION.broken ||
+  u.condition === INVENTORY_CONDITION.underRepair ||
+  u.condition === INVENTORY_CONDITION.missing;
 
 function stacksOf(units: UnitRow[]): Stack[] {
   const map = new Map<string, Stack>();
@@ -616,7 +618,7 @@ function RoomSheet({
                           {open && (
                             <div className="space-y-3 bg-muted/40 px-3 pb-3 pt-1">
                               {can.condition && (
-                                <div className="grid grid-cols-3 gap-1.5">
+                                <div className="grid grid-cols-2 gap-1.5">
                                   {INVENTORY_CONDITION_OPTIONS.filter((o) => o.value !== INVENTORY_CONDITION.disposed).map((o) => (
                                     <button
                                       key={o.value}
