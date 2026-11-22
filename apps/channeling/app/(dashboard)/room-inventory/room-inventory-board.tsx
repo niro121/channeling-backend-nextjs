@@ -81,6 +81,7 @@ type Stack = {
   units: InventoryUnitRow[];
   broken: number;
   repair: number;
+  missing: number;
 };
 
 function stacksOf(units: InventoryUnitRow[]): Stack[] {
@@ -97,15 +98,22 @@ function stacksOf(units: InventoryUnitRow[]): Stack[] {
         units: [],
         broken: 0,
         repair: 0,
+        missing: 0,
       };
       map.set(u.itemId, s);
     }
     s.units.push(u);
     if (u.condition === INVENTORY_CONDITION.broken) s.broken++;
     if (u.condition === INVENTORY_CONDITION.underRepair) s.repair++;
+    if (u.condition === INVENTORY_CONDITION.missing) s.missing++;
   }
   return [...map.values()].sort((a, b) => a.itemName.localeCompare(b.itemName));
 }
+
+const isIssueUnit = (u: InventoryUnitRow) =>
+  u.condition === INVENTORY_CONDITION.broken ||
+  u.condition === INVENTORY_CONDITION.underRepair ||
+  u.condition === INVENTORY_CONDITION.missing;
 
 /** Prefer moving a working unit first. */
 function pickUnit(units: InventoryUnitRow[]) {
@@ -196,7 +204,7 @@ export function RoomInventoryBoard({
     const q = search.trim().toLowerCase();
     const visibleRooms = rooms.filter((r) => {
       const ru = unitsByRoom.get(r.id) ?? [];
-      if (issuesOnly && !ru.some((u) => u.condition === INVENTORY_CONDITION.broken || u.condition === INVENTORY_CONDITION.underRepair)) return false;
+      if (issuesOnly && !ru.some((u) => isIssueUnit(u))) return false;
       if (itemFilter !== ALL && !ru.some((u) => u.itemId === itemFilter)) return false;
       if (!q) return true;
       return (
@@ -241,7 +249,7 @@ export function RoomInventoryBoard({
     for (const r of rooms) {
       for (const u of unitsByRoom.get(r.id) ?? []) {
         inRooms++;
-        if (u.condition === INVENTORY_CONDITION.broken || u.condition === INVENTORY_CONDITION.underRepair) issues++;
+        if (isIssueUnit(u)) issues++;
       }
     }
     return { inRooms, issues, store: storeUnits.length };
@@ -329,7 +337,7 @@ export function RoomInventoryBoard({
                 <Badge variant="secondary">{totals.store} in store</Badge>
                 {totals.issues > 0 && (
                   <Badge className="bg-red-100 text-red-800 hover:bg-red-100 dark:bg-red-900/40 dark:text-red-300">
-                    {totals.issues} broken / under repair
+                    {totals.issues} broken / under repair / missing
                   </Badge>
                 )}
               </div>
@@ -490,7 +498,7 @@ function RoomCard({
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: `room:${room.id}`, disabled: !canAssign });
   const stacks = stacksOf(units);
-  const issues = stacks.reduce((n, s) => n + s.broken + s.repair, 0);
+  const issues = stacks.reduce((n, s) => n + s.broken + s.repair + s.missing, 0);
 
   return (
     <div
@@ -568,7 +576,7 @@ function StackChip({
       ref={setNodeRef}
       {...(canDrag ? listeners : {})}
       {...(canDrag ? attributes : {})}
-      title={`${stack.itemName}: ${stack.units.length}${stack.broken ? `, ${stack.broken} broken` : ''}${stack.repair ? `, ${stack.repair} under repair` : ''}${canDrag ? ' (drag to move one)' : ''}`}
+      title={`${stack.itemName}: ${stack.units.length}${stack.broken ? `, ${stack.broken} broken` : ''}${stack.repair ? `, ${stack.repair} under repair` : ''}${stack.missing ? `, ${stack.missing} missing` : ''}${canDrag ? ' (drag to move one)' : ''}`}
       className={cn(
         'relative inline-flex touch-none select-none items-center gap-1 rounded-md border bg-background px-1.5 py-1 text-xs',
         canDrag && 'cursor-grab active:cursor-grabbing',
@@ -579,10 +587,11 @@ function StackChip({
       <InventoryIcon name={stack.icon} className="size-3.5" />
       <span className="max-w-24 truncate">{stack.itemName}</span>
       <span className="font-semibold tabular-nums">{stack.units.length}</span>
-      {(stack.broken > 0 || stack.repair > 0) && (
+      {(stack.broken > 0 || stack.repair > 0 || stack.missing > 0) && (
         <span className="absolute -right-1 -top-1 flex gap-0.5">
           {stack.broken > 0 && <span className="size-2 rounded-full bg-red-500 ring-2 ring-background" />}
           {stack.repair > 0 && <span className="size-2 rounded-full bg-amber-500 ring-2 ring-background" />}
+          {stack.missing > 0 && <span className="size-2 rounded-full bg-violet-500 ring-2 ring-background" />}
         </span>
       )}
     </span>
@@ -674,10 +683,11 @@ function TrayRow({ stack, canDrag }: { stack: Stack; canDrag: boolean }) {
       />
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-medium">{stack.itemName}</p>
-        {(stack.broken > 0 || stack.repair > 0) && (
+        {(stack.broken > 0 || stack.repair > 0 || stack.missing > 0) && (
           <p className="text-xs text-muted-foreground">
             {stack.broken > 0 && <span className="text-red-600 dark:text-red-400">{stack.broken} broken </span>}
-            {stack.repair > 0 && <span className="text-amber-600 dark:text-amber-400">{stack.repair} repair</span>}
+            {stack.repair > 0 && <span className="text-amber-600 dark:text-amber-400">{stack.repair} repair </span>}
+            {stack.missing > 0 && <span className="text-violet-600 dark:text-violet-400">{stack.missing} missing</span>}
           </p>
         )}
       </div>

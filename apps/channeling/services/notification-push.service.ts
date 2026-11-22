@@ -6,11 +6,17 @@ import { REFERENCE_TYPES, type NotificationCreateInput } from "@/types/notificat
 
 /**
  * Turns an in-app notification into a management PWA push. Only notifications the
- * management app has a screen for are pushed (approvals today); add more here as it grows.
+ * management app has a screen for are pushed (approvals and tasks); add more here as it grows.
  */
 function managementUrlFor(input: NotificationCreateInput): string | null {
   if (input.referenceType === REFERENCE_TYPES.ApprovalRequest && input.referenceId) {
     return `/approvals?id=${input.referenceId}`
+  }
+  if (input.referenceType === REFERENCE_TYPES.RoomStay && input.referenceId) {
+    return `/stays/${input.referenceId}`
+  }
+  if (input.referenceType === REFERENCE_TYPES.ManagementTask && input.referenceId) {
+    return `/tasks/${input.referenceId}`
   }
   return null
 }

@@ -1,6 +1,7 @@
 import "server-only"
 import prisma from "@/lib/prisma"
 import { pushNotification } from "@/services/notification-push.service"
+import { sweepLateRequests } from "@/services/room-concerns.service"
 
 /**
  * Sends management PWA pushes for new Notification rows, whichever instance created them
@@ -44,6 +45,20 @@ export function startPushWorker(): void {
   if (globalThis.__pushWorkerStarted) return
   globalThis.__pushWorkerStarted = true
   console.log(`[push-worker] started (every ${POLL_MS / 1000}s)`)
+
+  // Patient requests left waiting raise a concern for the GROs (services/room-concerns.service.ts).
+  // Same single worker instance, so it isn't raised twice; every 5 minutes.
+  let sweeping = false
+  setInterval(() => {
+    if (sweeping) return
+    sweeping = true
+    sweepLateRequests()
+      .then((n) => n && console.log(`[push-worker] ${n} overdue patient request(s) raised as concerns`))
+      .catch((e) => console.error("[push-worker] late-request sweep failed", e))
+      .finally(() => {
+        sweeping = false
+      })
+  }, 5 * 60_000)
 
   let running = false
   setInterval(() => {

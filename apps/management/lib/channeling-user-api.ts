@@ -31,7 +31,7 @@ export function isChannelingUserApiConfigured(): boolean {
   return getConfig() != null;
 }
 
-async function signUserToken(userId: string, email: string | null | undefined, secret: Uint8Array) {
+async function signUserToken(userId: string, email: string | null | undefined, secret: Uint8Array, ttlSec = TOKEN_TTL_SEC) {
   const now = Math.floor(Date.now() / 1000);
   return new SignJWT(email ? { email } : {})
     .setProtectedHeader({ alg: 'HS256' })
@@ -39,8 +39,22 @@ async function signUserToken(userId: string, email: string | null | undefined, s
     .setIssuer(ISSUER)
     .setAudience(AUDIENCE)
     .setIssuedAt(now)
-    .setExpirationTime(now + TOKEN_TTL_SEC)
+    .setExpirationTime(now + ttlSec)
     .sign(secret);
+}
+
+/**
+ * A short-lived channeling token for the signed-in user, handed to Ayu for one message so its tools
+ * can look things up as this person (channeling checks their privileges). Never stored by Ayu.
+ */
+export async function channelingTokenForAyu(): Promise<string | null> {
+  const config = getConfig();
+  if (!config) return null;
+  const session = await fetchServerSession();
+  const userId = session?.user?.id;
+  if (!userId) return null;
+  // Long enough for one reply with several tool calls; a new one is signed for every message.
+  return signUserToken(userId, session.user?.email, config.secret, 300);
 }
 
 /** Raw fetch to channeling as the current user. Throws 401 when signed out or not configured. */
@@ -52,10 +66,26 @@ export async function channelingUserFetch(path: string, init: RequestInit = {}):
   const userId = session?.user?.id;
   if (!userId) throw new ChannelingUserApiError('You must be signed in.', 401);
 
-  const token = await signUserToken(userId, session.user?.email, config.secret);
+  return channelingFetchAs({ id: userId, email: session.user?.email }, path, init);
+}
+
+/**
+ * Same call on behalf of a given user, for server work with no signed-in session
+ * (e.g. the recurring-task job notifying people as the task's creator).
+ */
+export async function channelingFetchAs(
+  user: { id: string; email?: string | null },
+  path: string,
+  init: RequestInit = {}
+): Promise<Response> {
+  const config = getConfig();
+  if (!config) throw new ChannelingUserApiError('Channeling is not connected.', 503);
+
+  const token = await signUserToken(user.id, user.email, config.secret);
   const headers = new Headers(init.headers);
   headers.set('Authorization', `Bearer ${token}`);
-  if (init.body && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json');
+  // JSON bodies only; FormData sets its own multipart boundary.
+  if (typeof init.body === 'string' && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json');
 
   const timeout = AbortSignal.timeout(REQUEST_TIMEOUT_MS);
   const signal = init.signal ? AbortSignal.any([init.signal, timeout]) : timeout;

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { NavLink } from "@archmage/ui";
 import Image from "next/image";
 import { cn } from "@/lib/utils";
-import { MORE_ITEMS, NAV_ITEMS } from "./nav-items";
+import { MORE_ITEMS, navItemsFor } from "./nav-items";
 import { useFeatures } from "./features-context";
 
 export function DesktopSidebar({ className }: { className?: string }) {
@@ -23,7 +23,7 @@ export function DesktopSidebar({ className }: { className?: string }) {
       </div>
 
       <nav className="scrollbar-thin flex-1 overflow-y-auto overflow-x-hidden flex flex-col gap-0.5 px-3 py-4 min-h-0">
-        {NAV_ITEMS.map(({ href, label, icon: Icon }) => (
+        {navItemsFor(features).map(({ href, label, icon: Icon }) => (
           <NavLink key={href} href={href} label={label} icon={<Icon className="h-5 w-5" />} />
         ))}
         {more.length > 0 && (

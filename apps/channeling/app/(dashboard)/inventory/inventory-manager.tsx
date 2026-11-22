@@ -222,7 +222,7 @@ export function InventoryManager({
             )}
           </div>
         </CardHeader>
-        <CardContent className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+        <CardContent className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-7">
           <Stat label="Item types" value={items.length} />
           <Stat label="Units" value={totals.total} />
           <Stat label="In rooms" value={totals.inRooms} />

@@ -2,6 +2,8 @@
 
 import { createContext, useContext } from 'react';
 import type { ManagementFeatures } from '@/lib/management-access';
+import { NO_TASK_PERMISSIONS } from '@/lib/tasks/constants';
+import { NO_AI_PERMISSIONS } from '@/lib/ai/constants';
 
 const FeaturesContext = createContext<ManagementFeatures | null>(null);
 
@@ -14,6 +16,9 @@ export function useFeatures(): ManagementFeatures {
   return (
     useContext(FeaturesContext) ?? {
       roomInventory: { view: false, assign: false, condition: false },
+      roomStays: { view: false, checkIn: false, checkOut: false, contacts: false, override: false },
+      tasks: NO_TASK_PERMISSIONS,
+      ai: NO_AI_PERMISSIONS
     }
   );
 }

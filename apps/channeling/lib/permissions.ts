@@ -21,6 +21,8 @@ export const ROUTE_TO_RESOURCE: Record<string, string> = {
   "/rooms": "rooms",
   "/inventory": "inventory",
   "/room-inventory": "room-inventory",
+  "/room-checklists": "room-checklist-forms",
+  "/room-stays": "room-stays",
   "/specialities": "specialities",
   "/locations": "locations",
   "/agency-books": "agency-books",
@@ -59,6 +61,12 @@ export const ROUTE_REQUIRED_ACTION: Partial<Record<string, string>> = {
   "/bulk-cashier": "bulk-cashier-dashboard",
   "/my-till": "my-till",
   "/agencies/allowed-credit-limits": "edit-allowed-credit-limit",
+}
+
+/** Routes any one of these actions opens (a form editor can open the forms page without "view"). */
+export const ROUTE_ANY_ACTION: Partial<Record<string, string[]>> = {
+  "/room-checklists": ["view", "edit", "publish"],
+  "/room-stays": ["view", "check-in", "check-out"],
 }
 
 // Map HTTP methods to permission actions
@@ -132,6 +140,8 @@ export function canAccessRoute(
 
   const resource = ROUTE_TO_RESOURCE[mappedRoute]
   const action = ROUTE_REQUIRED_ACTION[mappedRoute] ?? "view"
+  const anyOf = ROUTE_ANY_ACTION[mappedRoute]
+  if (anyOf) return anyOf.some((a) => hasPermission(permissions, resource, a))
   if (mappedRoute === "/approvals") {
     return (
       hasPermission(permissions, resource, "view") ||

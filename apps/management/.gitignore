@@ -39,3 +39,6 @@ next-env.d.ts
 # migration reports (generated)
 /temp/
 
+
+# prisma generated (management-isolated client)
+/lib/generated/

@@ -5,6 +5,7 @@ export const INVENTORY_CONDITION = {
   underRepair: 1,
   broken: 2,
   disposed: 3,
+  missing: 4,
 } as const;
 
 export type InventoryCondition =
@@ -41,6 +42,12 @@ export const INVENTORY_CONDITION_OPTIONS: {
     label: 'Disposed',
     badgeClass: 'bg-zinc-200 text-zinc-700 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-300',
     dotClass: 'bg-zinc-400',
+  },
+  {
+    value: 4,
+    label: 'Missing',
+    badgeClass: 'bg-violet-100 text-violet-800 hover:bg-violet-100 dark:bg-violet-900/40 dark:text-violet-300',
+    dotClass: 'bg-violet-500',
   },
 ];
 

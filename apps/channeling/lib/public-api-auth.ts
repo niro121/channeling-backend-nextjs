@@ -60,6 +60,8 @@ export type PublicApiClientContext = {
   id: string
   /** Public API bookings use this user as createdBy */
   actingUserId: string
+  /** Granted scopes (ApiClient.scopes), read from the DB on every call, never from the token. */
+  scopes: string[]
 }
 
 export async function getPublicApiClient(
@@ -84,7 +86,7 @@ export async function getPublicApiClient(
       // eslint-disable-next-line @typescript-eslint/no-explicit-any -- PrismaClient includes apiClient after generate
       const client = await (prisma as any).apiClient.findUnique({
         where: { clientId },
-        select: { id: true, isBlocked: true, actingUserId: true },
+        select: { id: true, isBlocked: true, actingUserId: true, scopes: true },
       })
       if (!client || client.isBlocked) return null
       const actingUserId = client.actingUserId as string | null | undefined
@@ -93,6 +95,7 @@ export async function getPublicApiClient(
         clientId,
         id: client.id as string,
         actingUserId,
+        scopes: Array.isArray(client.scopes) ? (client.scopes as string[]) : [],
       }
     }
 
@@ -100,4 +103,34 @@ export async function getPublicApiClient(
   } catch {
     return null
   }
+}
+
+export type ScopedPublicApiClient =
+  | { ok: true; client: PublicApiClientContext }
+  | { ok: false; reason: "unauthorized" | "forbidden" }
+
+/**
+ * Verify the Bearer token (client must exist and not be blocked) and require a scope.
+ * "unauthorized" → 401 (missing/invalid/blocked), "forbidden" → 403 (valid client without the scope).
+ *
+ * Only the /api/ayu/* routes use scopes today. Scoping the existing /api/public/* routes
+ * (which accept any unblocked client) is a follow-up.
+ */
+export async function checkPublicApiScope(
+  headers: Headers,
+  scope: string
+): Promise<ScopedPublicApiClient> {
+  const client = await getPublicApiClient(headers, { recheckBlocked: true })
+  if (!client) return { ok: false, reason: "unauthorized" }
+  if (!client.scopes.includes(scope)) return { ok: false, reason: "forbidden" }
+  return { ok: true, client }
+}
+
+/** Client when the token is valid and has `scope`, otherwise null. */
+export async function requirePublicApiScope(
+  headers: Headers,
+  scope: string
+): Promise<PublicApiClientContext | null> {
+  const result = await checkPublicApiScope(headers, scope)
+  return result.ok ? result.client : null
 }

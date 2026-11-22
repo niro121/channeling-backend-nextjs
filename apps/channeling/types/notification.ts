@@ -25,6 +25,9 @@ export const REFERENCE_TYPES = {
   FloatRequest: 'FloatRequest',
   ShiftHandover: 'ShiftHandover',
   ApprovalRequest: 'ApprovalRequest',
+  RoomStay: 'RoomStay',
+  /** Management app task (id in the management DB) */
+  ManagementTask: 'ManagementTask',
 } as const;
 
 export type Notification = {

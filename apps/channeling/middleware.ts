@@ -105,10 +105,10 @@ const AUTH_SKIP = /^\/(?:login|forgot-password|check-email|register|api\/|uat|fa
 const AUTH_ALSO = /^\/api\/doctors(?:\/|$)/;
 
 /**
- * API_ONLY=true (the api.ruhunuhospital.lk instance): only the management and public APIs
- * are served; every page and other API returns 404, so staff can't use a second copy of the app.
+ * API_ONLY=true (the api.ruhunuhospital.lk instance): only the management, public and Ayu
+ * (staff profiles for the Ruhunu caddie) APIs are served; every page and other API returns 404, so staff can't use a second copy of the app.
  */
-const API_ONLY_ALLOWED = /^\/api\/(?:management|public)(?:\/|$)/;
+const API_ONLY_ALLOWED = /^\/api\/(?:management|public|ayu)(?:\/|$)/;
 
 export default function middleware(request: NextRequestWithAuth, event: NextFetchEvent) {
   const path = request.nextUrl.pathname;
