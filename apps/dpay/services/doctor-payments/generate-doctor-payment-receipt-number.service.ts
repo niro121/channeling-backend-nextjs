@@ -1,7 +1,4 @@
-import {
-  generateCancelReceiptNumber,
-  generateReceiptNumber,
-} from '@/services/patient-bills/generate-receipt-number.service';
+import { generateSeriesReceiptNumber } from '@/services/patient-bills/generate-receipt-number.service';
 
 export type DoctorPaymentReceiptNumberResult = {
   receiptNumber: string;
@@ -11,21 +8,29 @@ export type DoctorPaymentReceiptNumberResult = {
 };
 
 /**
- * Doctor payout receipts use the same numbering as patient bill payments:
- * `{Location.code}DPAY/########` — scope `{locationId}-paymentreceipts`.
+ * Doctor payout receipts have their own series, separate from patient bill receipts:
+ * `{Location.code}DPAY-DOC-PAY/########` — scope `{locationId}-doctorpaymentreceipts`.
  */
 export async function generateDoctorPaymentReceiptNumber(
   userId: string | null | undefined
 ): Promise<DoctorPaymentReceiptNumberResult> {
-  return generateReceiptNumber(userId);
+  return generateSeriesReceiptNumber(userId, {
+    scopeSuffix: 'doctorpaymentreceipts',
+    prefixSuffix: 'DPAY-DOC-PAY/',
+    sources: ['doctor'],
+  });
 }
 
 /**
- * Doctor payout cancel / refund receipts use the same numbering as patient bill refunds:
- * `{Location.code}DPAY-REF/########` — scope `{locationId}-refundreceipts`.
+ * Doctor payout cancel / refund receipts have their own series, separate from patient bill refunds:
+ * `{Location.code}DPAY-DOC-REF/########` — scope `{locationId}-doctorpaymentcancelreceipts`.
  */
 export async function generateDoctorPaymentCancelReceiptNumber(
   userId: string | null | undefined
 ): Promise<DoctorPaymentReceiptNumberResult> {
-  return generateCancelReceiptNumber(userId);
+  return generateSeriesReceiptNumber(userId, {
+    scopeSuffix: 'doctorpaymentcancelreceipts',
+    prefixSuffix: 'DPAY-DOC-REF/',
+    sources: ['doctor'],
+  });
 }

@@ -122,7 +122,7 @@ export function RecordPaymentDialog({ bill, open, onOpenChange }: RecordPaymentD
   const showSlip = paymentMethod === RECEIPT_PAYMENT_METHOD.SLIP;
   const showCheque = paymentMethod === RECEIPT_PAYMENT_METHOD.CHECK;
   const showEWallet = paymentMethod === RECEIPT_PAYMENT_METHOD.E_WALLET;
-  const showBank = showCard || showSlip || showCheque;
+  const showBank = showCard || showSlip || showCheque || showEWallet;
 
   useEffect(() => {
     if (!open) return;
@@ -456,23 +456,32 @@ export function RecordPaymentDialog({ bill, open, onOpenChange }: RecordPaymentD
           ) : null}
 
           {showEWallet ? (
-            <div className="space-y-1">
-              <Label htmlFor="ewallet-ref" className="text-xs font-medium">
-                E-Wallet Reference
-              </Label>
-              <Input
-                id="ewallet-ref"
-                placeholder="Transaction reference"
-                className={`h-8 text-sm ${errors.cardReference ? 'border-destructive' : ''}`}
-                value={cardReference}
-                onChange={(e) => {
-                  setCardReference(e.target.value);
-                  setErrors({});
-                }}
+            <div className="grid grid-cols-2 gap-2.5">
+              <div className="space-y-1">
+                <Label htmlFor="ewallet-ref" className="text-xs font-medium">
+                  E-Wallet Reference
+                </Label>
+                <Input
+                  id="ewallet-ref"
+                  placeholder="Transaction reference"
+                  className={`h-8 text-sm ${errors.cardReference ? 'border-destructive' : ''}`}
+                  value={cardReference}
+                  onChange={(e) => {
+                    setCardReference(e.target.value);
+                    setErrors({});
+                  }}
+                />
+                {errors.cardReference ? (
+                  <p className="text-[11px] text-destructive">{errors.cardReference}</p>
+                ) : null}
+              </div>
+              <BankSelect
+                banks={banks}
+                loading={banksLoading}
+                value={bankId}
+                error={errors.bank}
+                onChange={handleBankChange}
               />
-              {errors.cardReference ? (
-                <p className="text-[11px] text-destructive">{errors.cardReference}</p>
-              ) : null}
             </div>
           ) : null}
 

@@ -5,12 +5,13 @@ import { fetchServerSession } from '@/lib/session';
 import { getDoctorsForPayment } from '@/services/doctor-payments/get-doctors-for-payment.service';
 import { getEligibleBillsForDoctor } from '@/services/doctor-payments/get-eligible-bills.service';
 import { processDoctorPayment } from '@/services/doctor-payments/process-doctor-payment.service';
-import { getDoctorPayments } from '@/services/doctor-payments/get-doctor-payments.service';
+import { getDoctorPayments, getDoctorPaymentsExport } from '@/services/doctor-payments/get-doctor-payments.service';
 import { getDoctorPaymentById } from '@/services/doctor-payments/get-doctor-payment.service';
 import { cancelDoctorPayment } from '@/services/doctor-payments/cancel-doctor-payment.service';
 import { markDoctorPaymentPrinted } from '@/services/doctor-payments/mark-doctor-payment-printed.service';
 import { getDoctorPaymentPrintSlip } from '@/services/doctor-payments/get-doctor-payment-print-slip.service';
 import type {
+  DoctorPaymentExportRow,
   GetDoctorPaymentsParams,
   ProcessDoctorPaymentInput,
 } from '@/types/doctor-payment';
@@ -18,6 +19,21 @@ import type { PatientBillPaymentMethod } from '@/types/patient-bill';
 
 export async function getDoctorPaymentsAction(params: GetDoctorPaymentsParams = {}) {
   return getDoctorPayments(params);
+}
+
+/** Filtered doctor payments for the Excel export (no paging). */
+export async function getDoctorPaymentsExportAction(
+  params: Omit<GetDoctorPaymentsParams, 'page' | 'limit'> = {}
+): Promise<{ success: boolean; data?: DoctorPaymentExportRow[]; message?: string }> {
+  try {
+    const data = await getDoctorPaymentsExport(params);
+    return { success: true, data };
+  } catch (err) {
+    return {
+      success: false,
+      message: err instanceof Error ? err.message : 'Failed to export doctor payments',
+    };
+  }
 }
 
 export async function getDoctorPaymentByIdAction(id: string) {

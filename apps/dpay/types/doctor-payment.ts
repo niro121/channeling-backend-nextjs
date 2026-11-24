@@ -66,6 +66,9 @@ export type GetDoctorPaymentsParams = {
   method?: string;
   doctorName?: string;
   status?: string;
+  /** `YYYY-MM-DD`, filters on created date (inclusive). */
+  dateFrom?: string;
+  dateTo?: string;
 };
 
 export type GetDoctorPaymentsResult = {
@@ -171,3 +174,15 @@ export type CancelDoctorPaymentInput = {
 export type CancelDoctorPaymentResult =
   | { success: true; cancelReceiptNumber: string }
   | { success: false; message: string };
+
+/** One row of the doctor payments Excel export (same filters as the list, no paging). */
+export type DoctorPaymentExportRow = {
+  receiptNumber: string;
+  status: string;
+  doctorName: string;
+  paymentMethod: string;
+  total: number;
+  net: number;
+  createdBy: string;
+  createdAt: string;
+};

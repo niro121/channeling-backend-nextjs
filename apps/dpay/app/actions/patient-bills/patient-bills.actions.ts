@@ -15,6 +15,7 @@ import { closePatientBill } from '@/services/patient-bills/close-patient-bill.se
 import { refundOverpaidPatientBill } from '@/services/patient-bills/refund-overpaid-patient-bill.service';
 import { getPatientBillLineItemHistory } from '@/services/patient-bills/get-line-item-history.service';
 import { getBillActivityLogs } from '@/services/patient-bills/get-bill-activity-logs.service';
+import { isOverpaymentRefundReceipt } from '@/lib/patient-bills/overpayment-refund';
 import { logActivityNonBlocking } from '@/lib/activity-log';
 import type {
   AddPatientBillLineItemInput,
@@ -326,6 +327,27 @@ export async function closePatientBillAction(billId: string) {
   }
 
   return result;
+}
+
+/**
+ * Fresh overpayment status for the refund dialog (no visit activity log).
+ * Mirrors channeling’s re-fetch before showing refund UI.
+ */
+export async function getPatientBillOverpaymentRefundStatusAction(billId: string) {
+  const result = await getPatientBillById(billId);
+  if (!result.success) {
+    return { success: false as const, message: result.message };
+  }
+
+  const overpaidAmount = Math.max(0, result.data.paidAmount - result.data.totalAmount);
+  const overpaymentRefunds = result.data.receipts.filter(isOverpaymentRefundReceipt);
+
+  return {
+    success: true as const,
+    billNumber: result.data.billNumber,
+    overpaidAmount,
+    overpaymentRefunds,
+  };
 }
 
 export async function refundOverpaidPatientBillAction(
