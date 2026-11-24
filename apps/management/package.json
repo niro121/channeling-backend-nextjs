@@ -5,6 +5,8 @@
   "scripts": {
     "dev": "next dev --turbopack --port 3003",
     "build": "next build",
+    "db:generate": "prisma generate",
+    "db:push": "prisma db push",
     "start": "next start",
     "type-check": "tsc --noEmit"
   },
@@ -31,6 +33,7 @@
     "lucide-react": "^0.544.0",
     "next": "^15.5.27",
     "next-auth": "^4.24.15",
+    "nodemailer": "^7.0.13",
     "otplib": "^13.3.0",
     "postcss": "^8.4.49",
     "qrcode.react": "^4.2.0",
@@ -45,7 +48,9 @@
     "typescript": "5.9.2"
   },
   "devDependencies": {
-    "@prisma/nextjs-monorepo-workaround-plugin": "^7.8.0"
+    "@prisma/nextjs-monorepo-workaround-plugin": "^7.8.0",
+    "@types/nodemailer": "^7.0.12",
+    "prisma": "^6.19.0"
   },
   "prettier": {
     "arrowParens": "always",

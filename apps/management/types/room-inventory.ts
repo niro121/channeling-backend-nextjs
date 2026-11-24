@@ -6,6 +6,7 @@ export const INVENTORY_CONDITION = {
   underRepair: 1,
   broken: 2,
   disposed: 3,
+  missing: 4,
 } as const;
 
 export const INVENTORY_CONDITION_OPTIONS = [
@@ -13,6 +14,7 @@ export const INVENTORY_CONDITION_OPTIONS = [
   { value: 1, label: 'Under repair', dotClass: 'bg-amber-500', badgeClass: 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300' },
   { value: 2, label: 'Broken', dotClass: 'bg-red-500', badgeClass: 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300' },
   { value: 3, label: 'Disposed', dotClass: 'bg-zinc-400', badgeClass: 'bg-zinc-200 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300' },
+  { value: 4, label: 'Missing', dotClass: 'bg-violet-500', badgeClass: 'bg-violet-100 text-violet-800 dark:bg-violet-900/40 dark:text-violet-300' },
 ] as const;
 
 export function conditionMeta(value: number) {

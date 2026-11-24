@@ -2,7 +2,7 @@ import React, { Suspense } from 'react';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
-import { Plus } from 'lucide-react';
+import { Plus, QrCode } from 'lucide-react';
 import { CustomDataTable } from '@/components/common/custom-data-table';
 import Loading from '../loading';
 import Link from 'next/link';
@@ -145,6 +145,12 @@ export default async function Page({ searchParams }: SearchParams) {
           toolbarRight={
             <div className="flex items-start gap-2 shrink-0">
               <BulkDeleteButton />
+              <Link href="/room-qr">
+                <Button size="sm" variant="outline" className="gap-1.5 h-9 cursor-pointer">
+                  <QrCode className="h-4 w-4" />
+                  <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">Room QR codes</span>
+                </Button>
+              </Link>
               <Link href="/rooms/add">
                 <Button size="sm" className="gap-1.5 h-9 cursor-pointer">
                   <Plus className="h-4 w-4" />

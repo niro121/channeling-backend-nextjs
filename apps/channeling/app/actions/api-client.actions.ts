@@ -63,6 +63,7 @@ export async function getApiClientUserOptions() {
 export async function createApiClient(payload: {
   name: string
   actingUserId: string
+  scopes?: string[]
 }) {
   await requirePermission("api-clients", "add")
 
