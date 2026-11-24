@@ -75,7 +75,7 @@ export function paymentReferenceDisplay(
     return parts.join(' · ') || legacy || '—';
   }
   if (code === RECEIPT_PAYMENT_METHOD.E_WALLET) {
-    return cardRef || legacy || '—';
+    return [bank, cardRef].filter(Boolean).join(' · ') || legacy || '—';
   }
 
   return legacy || [bank, cardRef, slipRef].filter(Boolean).join(' · ') || '—';

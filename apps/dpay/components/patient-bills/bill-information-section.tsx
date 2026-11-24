@@ -116,6 +116,7 @@ export function BillInformationSection({
           useFormikError={false}
           captionLayout="dropdown-buttons"
           styleClasses={{ parentDiv: 'space-y-2' }}
+          minDate={parseDateString(draft.admissionDate) ?? undefined}
         />
       </div>
 

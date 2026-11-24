@@ -45,7 +45,7 @@ function billWasUpdated(createdAt: string, updatedAt: string) {
 }
 
 function formatPaymentMeta(receipt: PatientBillReceipt) {
-  const date = format(new Date(receipt.paymentDate), 'yyyy-MM-dd');
+  const date = format(new Date(receipt.paymentDate), 'yyyy-MM-dd HH:mm');
   const method = paymentMethodLabel(receipt.paymentMethod);
   const reference = paymentReferenceDisplay(receipt);
   return reference !== '—'
@@ -190,7 +190,7 @@ export function BillActivityTimeline({
       icon: <CheckCircle2 className="h-4 w-4" />,
       title: 'Fully Settled',
       subtitle: lastPayment
-        ? `Ready to close • ${format(new Date(lastPayment.paymentDate), 'yyyy-MM-dd')}`
+        ? `Ready to close • ${format(new Date(lastPayment.paymentDate), 'yyyy-MM-dd HH:mm')}`
         : 'Ready to close',
     });
   } else if (status === 'draft') {

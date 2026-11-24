@@ -95,7 +95,14 @@ export function BillPaymentHistory({
                         <ReceiptStatusBadge status={status} />
                       </TableCell>
                       <TableCell>
-                        {format(new Date(receipt.paymentDate), 'yyyy-MM-dd')}
+                        <div className="space-y-0.5 text-sm">
+                          <p className="whitespace-nowrap">
+                            {format(new Date(receipt.paymentDate), 'yyyy-MM-dd')}
+                          </p>
+                          <p className="whitespace-nowrap text-muted-foreground">
+                            {format(new Date(receipt.paymentDate), 'HH:mm:ss')}
+                          </p>
+                        </div>
                       </TableCell>
                       <TableCell
                         className={

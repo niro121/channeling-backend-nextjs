@@ -130,7 +130,7 @@ export function PaymentMethodFields({
   const showSlip = method === RECEIPT_PAYMENT_METHOD.SLIP;
   const showCheque = method === RECEIPT_PAYMENT_METHOD.CHECK;
   const showEWallet = method === RECEIPT_PAYMENT_METHOD.E_WALLET;
-  const needsBanks = showCard || showSlip || showCheque;
+  const needsBanks = showCard || showSlip || showCheque || showEWallet;
 
   useEffect(() => {
     if (methodOptions.some((item) => item.value === method)) return;
@@ -289,21 +289,31 @@ export function PaymentMethodFields({
       ) : null}
 
       {showEWallet ? (
-        <div className="space-y-1">
-          <Label htmlFor="pay-ewallet-ref" className="text-xs font-medium">
-            E-Wallet Reference
-          </Label>
-          <Input
-            id="pay-ewallet-ref"
-            placeholder="Transaction reference"
-            className={`h-8 text-sm ${errors.cardReference ? 'border-destructive' : ''}`}
-            value={value.cardReference}
+        <div className="grid grid-cols-2 gap-2.5">
+          <div className="space-y-1">
+            <Label htmlFor="pay-ewallet-ref" className="text-xs font-medium">
+              E-Wallet Reference
+            </Label>
+            <Input
+              id="pay-ewallet-ref"
+              placeholder="Transaction reference"
+              className={`h-8 text-sm ${errors.cardReference ? 'border-destructive' : ''}`}
+              value={value.cardReference}
+              disabled={disabled}
+              onChange={(e) => patch({ cardReference: e.target.value })}
+            />
+            {errors.cardReference ? (
+              <p className="text-[11px] text-destructive">{errors.cardReference}</p>
+            ) : null}
+          </div>
+          <BankSelect
+            banks={banks}
+            loading={banksLoading}
+            value={value.bankId}
+            error={errors.bank}
             disabled={disabled}
-            onChange={(e) => patch({ cardReference: e.target.value })}
+            onChange={(id, name) => patch({ bankId: id, bank: name })}
           />
-          {errors.cardReference ? (
-            <p className="text-[11px] text-destructive">{errors.cardReference}</p>
-          ) : null}
         </div>
       ) : null}
     </div>
