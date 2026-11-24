@@ -78,6 +78,7 @@ function validatePaymentMeta(
   }
 
   if (method === RECEIPT_PAYMENT_METHOD.E_WALLET) {
+    if (!bank) return 'Bank is required for e-wallet payments';
     if (!input.cardReference?.trim()) {
       return 'E-wallet reference is required';
     }
@@ -118,8 +119,8 @@ function buildPaymentMeta(input: RecordPatientBillPaymentInput) {
 
   if (method === RECEIPT_PAYMENT_METHOD.E_WALLET) {
     return {
-      bank: null,
-      bankId: null,
+      bank,
+      bankId,
       cardReference: cardReferenceRaw,
       slipReference: null,
       slipDate: null,

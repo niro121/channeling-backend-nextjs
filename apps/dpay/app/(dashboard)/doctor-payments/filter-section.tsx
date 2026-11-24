@@ -27,17 +27,23 @@ const STATUS_OPTIONS = [
 type DoctorPaymentsFilterSectionProps = {
   method?: string;
   status?: string;
+  dateFrom?: string;
+  dateTo?: string;
 };
 
 export default function DoctorPaymentsFilterSection({
   method,
   status,
+  dateFrom,
+  dateTo,
 }: DoctorPaymentsFilterSectionProps) {
   return (
     <FilterWrapper
       initialValues={{
         method: method ?? '__all__',
         status: status ?? '__all__',
+        dateFrom: dateFrom ?? '',
+        dateTo: dateTo ?? '',
       }}
     >
       {({ values, setValue }) => (
@@ -73,6 +79,27 @@ export default function DoctorPaymentsFilterSection({
               ))}
             </SelectContent>
           </Select>
+
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-muted-foreground">From</span>
+            <input
+              type="date"
+              value={values.dateFrom ?? ''}
+              onChange={(e) => setValue('dateFrom', e.target.value)}
+              className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+              aria-label="Date from"
+            />
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-muted-foreground">To</span>
+            <input
+              type="date"
+              value={values.dateTo ?? ''}
+              onChange={(e) => setValue('dateTo', e.target.value)}
+              className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+              aria-label="Date to"
+            />
+          </div>
         </>
       )}
     </FilterWrapper>

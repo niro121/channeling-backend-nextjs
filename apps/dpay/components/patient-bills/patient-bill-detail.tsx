@@ -2,9 +2,11 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { CheckCircle2, Pencil, Undo2 } from 'lucide-react';
-import { BackButton, Button } from '@archmage/ui';
+import { CheckCircle2, Loader2, Pencil, Printer, Undo2 } from 'lucide-react';
+import { BackButton, Button, useToast } from '@archmage/ui';
 import type { PatientBillDetail } from '@/types/patient-bill';
+import { getReceiptLetterheadAction } from '@/app/actions/receipts/receipts.actions';
+import { printFinalBill } from '@/lib/patient-bills/print-final-bill';
 import { formatLkr } from '@/lib/patient-bills/calculations';
 import { countActiveLineItems } from '@/lib/patient-bills/line-item-status';
 import { CancelActionButton } from '@/components/ui/cancel-action-button';
@@ -27,6 +29,32 @@ export function PatientBillDetailView({ bill }: PatientBillDetailViewProps) {
   const [cancelOpen, setCancelOpen] = useState(false);
   const [closeOpen, setCloseOpen] = useState(false);
   const [refundOpen, setRefundOpen] = useState(false);
+  const { toast } = useToast();
+  const [printing, setPrinting] = useState(false);
+
+  const handlePrintFinalBill = async () => {
+    setPrinting(true);
+    try {
+      const receiptLocationId =
+        bill.receipts.find((r) => (r.status ?? 'active') === 'active')?.locationId ??
+        bill.receipts[0]?.locationId ??
+        null;
+      const letterhead = await getReceiptLetterheadAction(receiptLocationId);
+      printFinalBill(bill, {
+        locationName: letterhead.locationName,
+        addressLine: letterhead.addressLine,
+      });
+    } catch (error) {
+      toast({
+        variant: 'destructive',
+        title: 'Print failed',
+        description: error instanceof Error ? error.message : 'Something went wrong.',
+      });
+    } finally {
+      setPrinting(false);
+    }
+  };
+
   const isCancelled = bill.status === 'cancelled';
   const isClosed = bill.status === 'closed';
   const isDraft = bill.status === 'draft';
@@ -93,6 +121,23 @@ export function PatientBillDetailView({ bill }: PatientBillDetailViewProps) {
                   <Pencil className="h-4 w-4" />
                   Edit Bill
                 </Link>
+              </Button>
+            )}
+            {isClosed && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1.5"
+                type="button"
+                onClick={handlePrintFinalBill}
+                disabled={printing}
+              >
+                {printing ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Printer className="h-4 w-4" />
+                )}
+                Print Final Bill
               </Button>
             )}
             {canClose && (

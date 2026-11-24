@@ -10,6 +10,10 @@ import { generateOverpaymentRefundReceiptNumber } from './generate-receipt-numbe
 import { postTillJournal, requireActiveShift } from '@/lib/dpay-shift';
 import { allocateRefundShares, parsePayableShares } from '@/lib/patient-bills/payable-shares';
 import { activeLineItemWhere } from '@/lib/patient-bills/line-item-status';
+import {
+  isOverpaymentRefundReceipt,
+  OVERPAYMENT_ALREADY_REFUNDED_MESSAGE,
+} from '@/lib/patient-bills/overpayment-refund';
 import { isVoidablePaymentReceipt } from '@/lib/receipts/helpers';
 
 const MAX_NUMBER_RETRIES = 3;
@@ -140,6 +144,13 @@ export async function refundOverpaidPatientBill(
               status: true,
               totalAmount: true,
               paidAmount: true,
+              receipts: {
+                select: {
+                  status: true,
+                  remarks: true,
+                  refundOfReceiptId: true,
+                },
+              },
             },
           });
 
@@ -153,9 +164,12 @@ export async function refundOverpaidPatientBill(
 
           const overpaidAmount = Math.max(0, bill.paidAmount - bill.totalAmount);
           if (overpaidAmount <= 0) {
+            const alreadyRefunded = bill.receipts.some(isOverpaymentRefundReceipt);
             return {
               success: false,
-              message: 'This bill is not over-paid. No refund is required.',
+              message: alreadyRefunded
+                ? OVERPAYMENT_ALREADY_REFUNDED_MESSAGE
+                : 'This bill is not over-paid. No refund is required.',
             };
           }
 

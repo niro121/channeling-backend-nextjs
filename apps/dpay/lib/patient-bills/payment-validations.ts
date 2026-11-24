@@ -64,6 +64,7 @@ export function validatePaymentMethodFields(
   }
 
   if (method === RECEIPT_PAYMENT_METHOD.E_WALLET) {
+    if (!bank) errors.bank = 'Bank is required';
     if (!(input.cardReference?.trim() ?? '')) {
       errors.cardReference = 'E-wallet reference is required';
     }
@@ -111,8 +112,8 @@ export function buildPaymentMethodMeta(input: {
 
   if (method === RECEIPT_PAYMENT_METHOD.E_WALLET) {
     return {
-      bank: null as string | null,
-      bankId: null as string | null,
+      bank,
+      bankId,
       cardReference: cardReferenceRaw,
       slipReference: null as string | null,
       slipDate: null as Date | null,
@@ -166,6 +167,7 @@ export function validatePaymentMethodMetaMessage(
   }
 
   if (method === RECEIPT_PAYMENT_METHOD.E_WALLET) {
+    if (!bank) return 'Bank is required for e-wallet payments';
     if (!input.cardReference?.trim()) {
       return 'E-wallet reference is required';
     }

@@ -5,6 +5,33 @@ export type GetNextSequenceResult =
   | { success: false; errorCode: 'LIMIT_EXCEEDED' };
 
 /**
+ * Raise a sequence counter so lastValue is at least `minLastValue`.
+ * Never lowers an existing counter. Safe under concurrency.
+ */
+export async function ensureSequenceAtLeast(
+  scopeKey: string,
+  minLastValue: number
+): Promise<void> {
+  if (!Number.isFinite(minLastValue) || minLastValue < 0) return;
+
+  const floor = Math.floor(minLastValue);
+
+  await prisma.sequence.upsert({
+    where: { scopeKey },
+    create: { scopeKey, lastValue: floor },
+    update: {},
+  });
+
+  await prisma.sequence.updateMany({
+    where: {
+      scopeKey,
+      lastValue: { lt: floor },
+    },
+    data: { lastValue: floor },
+  });
+}
+
+/**
  * Atomically reserves the next sequence value for a scope.
  * Uses upsert + $inc so concurrent callers never receive the same number.
  */
