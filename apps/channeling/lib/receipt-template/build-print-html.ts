@@ -333,10 +333,11 @@ function receiptSerialOnly(receiptNoString: string): string {
   return serial || receiptNoString
 }
 
-function doctorPaymentSlipHtml(model: DoctorPaymentPrintModel): string {
+function doctorPaymentSlipHtml(model: DoctorPaymentPrintModel, legacyTemplate: boolean): string {
   const banner = doctorPaymentStatusBanner(model)
   const sessions = model.sessions.map(doctorPaymentSessionHtml).join("")
-  const nonWht = isNonWhtPaymentSlip(model.receiptNoString)
+  const nonWht = !legacyTemplate && isNonWhtPaymentSlip(model.receiptNoString)
+  const hideWht = nonWht || (!legacyTemplate && whtPrintAmountIsZero(model.wht))
   return `
   <div class="slip">
     ${nonWht ? "" : `<h1 class="title">Consultant Payment</h1>`}
@@ -349,7 +350,7 @@ function doctorPaymentSlipHtml(model: DoctorPaymentPrintModel): string {
     ${sessions}
     <table class="totals"><tbody>
       <tr><td class="spacer"></td><td class="label">Sub Payable :</td><td class="amount">Rs. ${escapeHtml(model.subPayable)}</td></tr>
-      ${nonWht || whtPrintAmountIsZero(model.wht) ? "" : `<tr><td class="spacer"></td><td class="label">WHT :</td><td class="amount">Rs. ${escapeHtml(model.wht)}</td></tr>`}
+      ${hideWht ? "" : `<tr><td class="spacer"></td><td class="label">WHT :</td><td class="amount">Rs. ${escapeHtml(model.wht)}</td></tr>`}
       <tr><td class="spacer"></td><td class="label">Net Paid Amount :</td><td class="amount">Rs. ${escapeHtml(model.netPaid)}</td></tr>
     </tbody></table>
     <p class="patient-count">Total patient Count : ${model.totalPatientCount}</p>
@@ -365,12 +366,23 @@ function doctorPaymentSlipHtml(model: DoctorPaymentPrintModel): string {
   </div>`
 }
 
+export type DoctorPaymentPrintHtmlOptions = {
+  /** Earlier Consultant Payment slip: title, invoice number, and WHT line on every page. */
+  legacyTemplate?: boolean
+}
+
 /**
  * Consultant payment slip. First print has no duplicate mark; later prints do.
  * Several models print as separate pages (paid slip, then cancel slip).
+ * The newer layout drops the title and invoice number on a non-WHT slip and prints only the serial.
+ * Pass legacyTemplate to keep the earlier slip for every page.
  */
-export function buildDoctorPaymentPrintHtml(models: DoctorPaymentPrintModel[]): string {
+export function buildDoctorPaymentPrintHtml(
+  models: DoctorPaymentPrintModel[],
+  options: DoctorPaymentPrintHtmlOptions = {}
+): string {
   const title = models[0]?.receiptNoString ?? "Consultant Payment"
+  const legacyTemplate = options.legacyTemplate === true
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -379,7 +391,7 @@ export function buildDoctorPaymentPrintHtml(models: DoctorPaymentPrintModel[]): 
   <style>${DOCTOR_PAYMENT_PAGE_STYLES}</style>
 </head>
 <body>
-${models.map(doctorPaymentSlipHtml).join("")}
+${models.map((model) => doctorPaymentSlipHtml(model, legacyTemplate)).join("")}
 </body>
 </html>`
 }

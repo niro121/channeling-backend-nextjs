@@ -39,11 +39,14 @@ export async function printDoctorPaymentReceiptById(
   if (!printed.success || slips.length === 0) {
     return { success: false, message: printed.message ?? "Could not prepare the receipt." };
   }
-  printHtmlInIframe(buildDoctorPaymentPrintHtml(slips), {
-    title: "Consultant Payment",
-    width: "148mm",
-    height: "210mm",
-  });
+  printHtmlInIframe(
+    buildDoctorPaymentPrintHtml(slips, { legacyTemplate: printed.legacyTemplate }),
+    {
+      title: "Consultant Payment",
+      width: "148mm",
+      height: "210mm",
+    }
+  );
   return { success: true };
 }
 
@@ -70,10 +73,12 @@ export function DoctorPaymentPrintDialog({
   const [printing, setPrinting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [slips, setSlips] = useState<DoctorPaymentPrintModel[]>([]);
+  const [legacyTemplate, setLegacyTemplate] = useState(false);
 
   useEffect(() => {
     if (!open || !receiptId) {
       setSlips([]);
+      setLegacyTemplate(false);
       setError(null);
       setLoading(false);
       return;
@@ -89,8 +94,10 @@ export function DoctorPaymentPrintDialog({
         const loaded = detailRes.slips?.length ? detailRes.slips : detailRes.data ? [detailRes.data] : [];
         if (detailRes.success && loaded.length > 0) {
           setSlips(loaded);
+          setLegacyTemplate(detailRes.legacyTemplate === true);
         } else {
           setSlips([]);
+          setLegacyTemplate(false);
           setError(detailRes.success ? "No data" : detailRes.message ?? "Failed to load receipt.");
         }
       })
@@ -134,7 +141,8 @@ export function DoctorPaymentPrintDialog({
     }
   };
 
-  const previewHtml = slips.length > 0 ? buildDoctorPaymentPrintHtml(slips) : null;
+  const previewHtml =
+    slips.length > 0 ? buildDoctorPaymentPrintHtml(slips, { legacyTemplate }) : null;
   const hasContent = Boolean(previewHtml);
 
   return (

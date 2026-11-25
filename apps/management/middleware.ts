@@ -66,6 +66,8 @@ function canonicalRedirect(request: NextRequestWithAuth): NextResponse | null {
   if (request.method !== "GET" && request.method !== "HEAD") return null;
   if (request.nextUrl.pathname.startsWith("/api/")) return null;
   const url = new URL(canonical);
+  // Staging has no custom domain: NEXTAUTH_URL is itself the herokuapp.com host, so redirecting would loop.
+  if (url.host === host) return null;
   url.pathname = request.nextUrl.pathname;
   url.search = request.nextUrl.search;
   return NextResponse.redirect(url, 308);
