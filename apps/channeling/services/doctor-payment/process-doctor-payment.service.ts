@@ -21,6 +21,7 @@ import { formatCents } from "@/lib/format-money";
 import { getCurrentShift, getShiftRequirementFailure } from "@/services/shift.service";
 import { isShiftRequirementError, shiftRequirementMessage } from "@/lib/shift-requirement-error";
 import { parseSlipDateInput } from "@/lib/slip-date";
+import { isFutureDoctorPaymentSession } from "@/lib/doctor-payment-session-day";
 import { resolveDoctorPaymentSplit } from "@/services/doctor-payment/split-doctor-payment.service";
 import {
   isDoctorPaymentHiddenSessionEnabled,
@@ -185,7 +186,12 @@ export async function processDoctorPaymentService(
 
   const existing = await prisma.booking.findMany({
     where: { id: { in: bookingIds }, doctorId },
-    select: { id: true, status: true, doctorPayment: true },
+    select: {
+      id: true,
+      status: true,
+      doctorPayment: true,
+      session: { select: { date: true } },
+    },
   });
 
   if (existing.length !== bookingIds.length) {
@@ -198,6 +204,16 @@ export async function processDoctorPaymentService(
   const notPaid = existing.filter((b) => b.status !== 1);
   if (notPaid.length > 0) {
     return { success: false, errorCode: "INVALID_STATUS", message: "All selected bookings must be paid (status 1)." };
+  }
+  const futureSession = existing.find(
+    (b) => b.session?.date && isFutureDoctorPaymentSession(new Date(b.session.date))
+  );
+  if (futureSession) {
+    return {
+      success: false,
+      errorCode: "FUTURE_SESSION",
+      message: "Doctor payments can only include sessions from today or earlier.",
+    };
   }
 
   const { findOpenApprovalForBooking } = await import("@/services/approval-request.service");

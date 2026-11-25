@@ -342,7 +342,9 @@ export function MakeDoctorPaymentClient({
       const res = await getEligibleDoctorPaymentBookings(doctorId, dateFrom, dateTo, sessionLocationId);
       if (res.success) {
         setSessions(res.sessions);
-        setSelectedSessionIds(new Set(res.sessions.map((s) => s.sessionId)));
+        setSelectedSessionIds(
+          new Set(res.sessions.filter((session) => session.payable).map((session) => session.sessionId))
+        );
         if (res.sessions.length === 0) {
           toast({
             title: sessionLocationId
@@ -535,7 +537,13 @@ export function MakeDoctorPaymentClient({
     setShowPayConfirm(true);
   };
 
+  const payableSessions = sessions.filter((session) => session.payable);
+  const allPayableSelected =
+    payableSessions.length > 0 && payableSessions.every((session) => selectedSessionIds.has(session.sessionId));
+
   const toggleSession = (sessionId: string) => {
+    const session = sessions.find((item) => item.sessionId === sessionId);
+    if (!session?.payable) return;
     setSelectedSessionIds((prev) => {
       const next = new Set(prev);
       if (next.has(sessionId)) next.delete(sessionId);
@@ -545,10 +553,10 @@ export function MakeDoctorPaymentClient({
   };
 
   const toggleAll = () => {
-    if (selectedSessionIds.size === sessions.length) {
+    if (allPayableSelected) {
       setSelectedSessionIds(new Set());
     } else {
-      setSelectedSessionIds(new Set(sessions.map((s) => s.sessionId)));
+      setSelectedSessionIds(new Set(payableSessions.map((session) => session.sessionId)));
     }
   };
 
@@ -728,8 +736,8 @@ export function MakeDoctorPaymentClient({
               <CardTitle className="text-lg">
                 <span className="text-muted-foreground font-normal">Step 2 —</span> Sessions with pending payment
               </CardTitle>
-              <Button variant="outline" size="sm" onClick={toggleAll}>
-                {selectedSessionIds.size === sessions.length ? "Deselect all" : "Select all"}
+              <Button variant="outline" size="sm" onClick={toggleAll} disabled={payableSessions.length === 0}>
+                {allPayableSelected ? "Deselect all" : "Select all"}
               </Button>
             </div>
           </CardHeader>
@@ -739,10 +747,13 @@ export function MakeDoctorPaymentClient({
               return (
                 <label
                   key={session.sessionId}
-                  className="flex flex-wrap items-center gap-3 p-3 rounded-lg border bg-muted/30 cursor-pointer hover:bg-muted/50"
+                  className={`flex flex-wrap items-center gap-3 p-3 rounded-lg border bg-muted/30 ${
+                    session.payable ? "cursor-pointer hover:bg-muted/50" : "cursor-not-allowed opacity-60"
+                  }`}
                 >
                   <Checkbox
                     checked={isSelected}
+                    disabled={!session.payable}
                     onCheckedChange={() => toggleSession(session.sessionId)}
                   />
                   <span className="font-medium text-sm">
@@ -756,6 +767,9 @@ export function MakeDoctorPaymentClient({
                   <span className="text-muted-foreground text-sm">
                     {session.bookingCount} booking{session.bookingCount !== 1 ? "s" : ""} · {formatLKR(session.totalAmount)}
                   </span>
+                  {session.payable ? null : (
+                    <span className="text-xs text-muted-foreground">Future session</span>
+                  )}
                 </label>
               );
             })}

@@ -1,6 +1,7 @@
 "use server";
 
 import prisma from "@/lib/prisma";
+import { isFutureDoctorPaymentSession } from "@/lib/doctor-payment-session-day";
 
 export type DoctorPaymentBookingRow = {
   id: string;
@@ -41,6 +42,17 @@ export async function getDoctorPaymentBookingDetailsService(bookingIds: string[]
       session: { select: { date: true, startTime: true } },
     },
   });
+
+  const future = bookings.find(
+    (b) => b.session?.date && isFutureDoctorPaymentSession(new Date(b.session.date))
+  );
+  if (future) {
+    return {
+      success: false,
+      errorCode: "FUTURE_SESSION",
+      message: "Doctor payments can only include sessions from today or earlier.",
+    };
+  }
 
   const rows: DoctorPaymentBookingRow[] = [];
   let totalDue = 0;
