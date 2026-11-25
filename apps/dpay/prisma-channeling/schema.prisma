@@ -22,9 +22,11 @@ model User {
 }
 
 model Staff {
-  id    String @id @default(auto()) @map("_id") @db.ObjectId
-  code  String @unique
-  users User[] @relation("UserToStaff")
+  id     String  @id @default(auto()) @map("_id") @db.ObjectId
+  code   String? @unique
+  name   String?
+  status Int?
+  users  User[]  @relation("UserToStaff")
 }
 
 model Location {

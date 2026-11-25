@@ -177,6 +177,8 @@ model DoctorPayment {
   slipReference        String?
   slipDate             DateTime?
   remarks              String?
+  /// Staff the payment was handed to, stored as "Name (CODE)".
+  handedToStaff        String?
   locationId           String?
   locationCode         String?
   /// Denormalized location name (same pattern as patient bill receipts).

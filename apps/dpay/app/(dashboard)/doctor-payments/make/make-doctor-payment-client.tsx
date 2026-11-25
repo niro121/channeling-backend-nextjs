@@ -36,6 +36,7 @@ import {
 import {
   type DoctorOption,
   type EligibleDoctorBill,
+  type StaffOption,
 } from '@/types/doctor-payment';
 import { formatLkr } from '@/lib/patient-bills/calculations';
 import {
@@ -56,9 +57,10 @@ import {
 
 type MakeDoctorPaymentClientProps = {
   doctors: DoctorOption[];
+  staff: StaffOption[];
 };
 
-export function MakeDoctorPaymentClient({ doctors }: MakeDoctorPaymentClientProps) {
+export function MakeDoctorPaymentClient({ doctors, staff }: MakeDoctorPaymentClientProps) {
   const router = useRouter();
   const { toast } = useToast();
   const [isPending, startTransition] = useTransition();
@@ -77,6 +79,7 @@ export function MakeDoctorPaymentClient({ doctors }: MakeDoctorPaymentClientProp
     ReturnType<typeof validatePaymentMethodFields>
   >({});
   const [remarks, setRemarks] = useState('');
+  const [handedStaffId, setHandedStaffId] = useState('');
   const [showPayConfirm, setShowPayConfirm] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
@@ -95,6 +98,7 @@ export function MakeDoctorPaymentClient({ doctors }: MakeDoctorPaymentClientProp
     setPayment(emptyPaymentMethodValues(RECEIPT_PAYMENT_METHOD.CASH));
     setPaymentErrors({});
     setRemarks('');
+    setHandedStaffId('');
   };
 
   const processedBills = useMemo(
@@ -224,6 +228,8 @@ export function MakeDoctorPaymentClient({ doctors }: MakeDoctorPaymentClientProp
         slipReference: payment.slipReference,
         slipDate: payment.slipDate,
         remarks: remarks.trim() || undefined,
+        handedToStaff:
+          staff.find((member) => member.id === handedStaffId)?.name.trim() || undefined,
       });
 
       if (result.success) {
@@ -378,6 +384,7 @@ export function MakeDoctorPaymentClient({ doctors }: MakeDoctorPaymentClientProp
                 <TableRow>
                   <TableHead className="w-10" />
                   <TableHead>Bill Number</TableHead>
+                  <TableHead>BHT No</TableHead>
                   <TableHead>Patient Name</TableHead>
                   <TableHead>Patient Status</TableHead>
                   <TableHead>Admission Date</TableHead>
@@ -392,13 +399,13 @@ export function MakeDoctorPaymentClient({ doctors }: MakeDoctorPaymentClientProp
               <TableBody>
                 {!billsLoaded ? (
                   <TableRow>
-                    <TableCell colSpan={11} className="h-24 text-center text-muted-foreground">
+                    <TableCell colSpan={12} className="h-24 text-center text-muted-foreground">
                       Select a doctor and click Load Bills.
                     </TableCell>
                   </TableRow>
                 ) : bills.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={11} className="h-24 text-center text-muted-foreground">
+                    <TableCell colSpan={12} className="h-24 text-center text-muted-foreground">
                       No eligible bills for this doctor.
                     </TableCell>
                   </TableRow>
@@ -415,6 +422,7 @@ export function MakeDoctorPaymentClient({ doctors }: MakeDoctorPaymentClientProp
                       <TableCell className="font-medium whitespace-nowrap">
                         {bill.billNumber}
                       </TableCell>
+                      <TableCell className="whitespace-nowrap">{bill.bxtNumber}</TableCell>
                       <TableCell>{bill.patientName}</TableCell>
                       <TableCell>
                         <StatusBadge status={bill.billStatus} />
@@ -502,18 +510,33 @@ export function MakeDoctorPaymentClient({ doctors }: MakeDoctorPaymentClientProp
                 onBanksError={handleBanksError}
               />
             </div>
-            <div className="space-y-2">
-              <Label>Remarks</Label>
-              <Textarea
-                placeholder="Enter remarks (optional)"
-                value={remarks}
-                onChange={(e) => setRemarks(e.target.value)}
-                disabled={!paymentReady}
-                rows={6}
-              />
-              <p className="text-xs text-muted-foreground">
-                Method: {paymentMethodLabel(payment.paymentMethod)}
-              </p>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label>Handed to staff</Label>
+                <SearchableSelector
+                  label="Handed to staff"
+                  placeholder="Select staff (optional)"
+                  value={handedStaffId || '__all__'}
+                  defaultValue="__all__"
+                  options={[{ id: '__all__', name: 'None' }, ...staff]}
+                  onChange={(value) => setHandedStaffId(value === '__all__' ? '' : value)}
+                  disabled={!paymentReady}
+                  className="w-full"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Remarks</Label>
+                <Textarea
+                  placeholder="Enter remarks (optional)"
+                  value={remarks}
+                  onChange={(e) => setRemarks(e.target.value)}
+                  disabled={!paymentReady}
+                  rows={4}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Method: {paymentMethodLabel(payment.paymentMethod)}
+                </p>
+              </div>
             </div>
           </div>
 

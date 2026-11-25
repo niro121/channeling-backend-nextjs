@@ -54,6 +54,7 @@ export type DoctorPaymentListItem = {
   total: number;
   net: number;
   remarks?: string | null;
+  handedToStaff?: string | null;
   cancelReason?: string | null;
   createdBy: string;
   createdAt: string;
@@ -81,12 +82,18 @@ export type DoctorOption = {
   name: string;
 };
 
+export type StaffOption = {
+  id: string;
+  name: string;
+};
+
 export type EligibleDoctorBill = {
   /** Patient bill line item id — unique selection key (one row per unpaid line). */
   lineItemId: string;
   /** Parent patient bill id. */
   billId: string;
   billNumber: string;
+  bxtNumber: string;
   patientName: string;
   admissionDate: string;
   /** Patient bill payment status (pending / partial / paid / over_paid). */
@@ -113,6 +120,8 @@ export type ProcessDoctorPaymentInput = {
   slipReference?: string;
   slipDate?: string;
   remarks?: string;
+  /** Display label of the staff member the payment was handed to. */
+  handedToStaff?: string;
 };
 
 export type ProcessDoctorPaymentResult =
@@ -143,6 +152,7 @@ export type DoctorPaymentDetail = {
   slipReference?: string | null;
   slipDate?: string | null;
   remarks?: string | null;
+  handedToStaff?: string | null;
   cancelReason?: string | null;
   cancelReceiptNumber?: string | null;
   refundOfPaymentId?: string | null;
@@ -185,4 +195,5 @@ export type DoctorPaymentExportRow = {
   net: number;
   createdBy: string;
   createdAt: string;
+  handedToStaff: string;
 };

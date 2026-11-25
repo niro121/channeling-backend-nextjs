@@ -33,6 +33,7 @@ export async function getDoctorPaymentById(
     slipReference: record.slipReference,
     slipDate: record.slipDate?.toISOString() ?? null,
     remarks: record.remarks,
+    handedToStaff: record.handedToStaff,
     cancelReason: record.cancelReason,
     cancelReceiptNumber: record.cancelReceiptNumber,
     refundOfPaymentId: record.refundOfPaymentId,

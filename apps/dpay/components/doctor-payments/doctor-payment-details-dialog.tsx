@@ -179,6 +179,10 @@ export function DoctorPaymentDetailsDialog({
                 />
                 <DetailRow label="Total Amount" value={formatLkr(detail.totalAmount)} />
                 <DetailRow label="Net Amount" value={formatLkr(detail.netAmount)} highlight />
+                <DetailRow
+                  label="Handed to staff"
+                  value={detail.handedToStaff?.trim() || '—'}
+                />
                 <DetailRow label="Remarks" value={detail.remarks?.trim() || '—'} />
                 {detail.status === 'refund' && detail.cancelReason?.trim() ? (
                   <DetailRow label="Refund Reason" value={detail.cancelReason} />
