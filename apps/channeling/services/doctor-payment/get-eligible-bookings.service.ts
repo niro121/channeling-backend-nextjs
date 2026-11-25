@@ -1,6 +1,7 @@
 "use server";
 
 import prisma from "@/lib/prisma";
+import { isFutureDoctorPaymentSession } from "@/lib/doctor-payment-session-day";
 
 const OBJECT_ID_RE = /^[a-fA-F0-9]{24}$/;
 
@@ -20,6 +21,8 @@ export type EligibleSessionGroup = {
   bookingIds: string[];
   bookingCount: number;
   totalAmount: number;
+  /** False when the session day is after today in Sri Lanka. Shown, but not ticked. */
+  payable: boolean;
 };
 
 export type GetEligibleBookingsResult =
@@ -136,6 +139,7 @@ export async function getEligibleBookingsService(params: {
     bookingIds: data.ids,
     bookingCount: data.ids.length,
     totalAmount: data.total,
+    payable: !isFutureDoctorPaymentSession(data.session.date),
   }));
 
   return { success: true, sessions };
