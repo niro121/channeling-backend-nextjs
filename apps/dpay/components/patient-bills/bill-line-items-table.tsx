@@ -5,6 +5,10 @@ import { Eye, Plus, Trash2 } from 'lucide-react';
 import {
   Badge,
   Button,
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
   Table,
   TableBody,
   TableCell,
@@ -37,6 +41,7 @@ export function BillLineItemsTable({
   const [historyItem, setHistoryItem] = useState<BillLineItem | null>(null);
   const [addOpen, setAddOpen] = useState(false);
   const [removeItem, setRemoveItem] = useState<BillLineItem | null>(null);
+  const [remarkItem, setRemarkItem] = useState<BillLineItem | null>(null);
 
   const activeCount = countActiveLineItems(lineItems);
   const deletedCount = lineItems.length - activeCount;
@@ -115,6 +120,17 @@ export function BillLineItemsTable({
                               Deleted
                             </Badge>
                           ) : null}
+                          {deleted && item.deleteRemark?.trim() ? (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className="h-5 px-2 text-[11px]"
+                              onClick={() => setRemarkItem(item)}
+                            >
+                              Remark
+                            </Button>
+                          ) : null}
                           {!deleted && doctorPaid ? (
                             <Badge
                               variant="outline"
@@ -189,6 +205,32 @@ export function BillLineItemsTable({
           </div>
         </div>
       </div>
+
+      <Dialog
+        open={!!remarkItem}
+        onOpenChange={(open) => {
+          if (!open) setRemarkItem(null);
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Remove remark</DialogTitle>
+          </DialogHeader>
+          {remarkItem ? (
+            <div className="space-y-3 text-sm">
+              <p className="font-medium">{remarkItem.doctorName}</p>
+              <div className="rounded-md border bg-muted/40 p-3 whitespace-pre-wrap">
+                {remarkItem.deleteRemark?.trim()}
+              </div>
+            </div>
+          ) : null}
+          <div className="flex justify-end">
+            <Button type="button" variant="outline" onClick={() => setRemarkItem(null)}>
+              Close
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <LineItemHistoryDialog
         open={!!historyItem}

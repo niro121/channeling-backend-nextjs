@@ -72,6 +72,15 @@ export const doctorPaymentColumns: ColumnDef<DoctorPaymentListItem>[] = [
     ),
   },
   {
+    accessorKey: 'handedToStaff',
+    header: 'Handed to staff',
+    cell: ({ row }) => (
+      <span className="text-sm text-muted-foreground whitespace-nowrap">
+        {row.original.handedToStaff?.trim() || '—'}
+      </span>
+    ),
+  },
+  {
     accessorKey: 'createdBy',
     header: 'Created By',
     cell: ({ row }) => (

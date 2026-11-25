@@ -131,6 +131,7 @@ export async function processDoctorPayment(
           slipReference: paymentMeta.slipReference,
           slipDate: paymentMeta.slipDate,
           remarks: input.remarks?.trim() || null,
+          handedToStaff: input.handedToStaff?.trim() || null,
           locationId: generated.locationId,
           locationCode: generated.locationCode,
           locationName: generated.locationName,

@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { fetchServerSession } from '@/lib/session';
 import { getDoctorsForPayment } from '@/services/doctor-payments/get-doctors-for-payment.service';
+import { getStaffForDoctorPayment } from '@/services/doctor-payments/get-staff-for-doctor-payment.service';
 import { getEligibleBillsForDoctor } from '@/services/doctor-payments/get-eligible-bills.service';
 import { processDoctorPayment } from '@/services/doctor-payments/process-doctor-payment.service';
 import { getDoctorPayments, getDoctorPaymentsExport } from '@/services/doctor-payments/get-doctor-payments.service';
@@ -61,6 +62,10 @@ export async function getDoctorPaymentPrintSlipAction(paymentId: string) {
 
 export async function getDoctorsForPaymentAction() {
   return getDoctorsForPayment();
+}
+
+export async function getStaffForDoctorPaymentAction() {
+  return getStaffForDoctorPayment();
 }
 
 export async function getEligibleBillsForDoctorAction(doctorName: string) {
