@@ -131,6 +131,7 @@ export type ProcessDoctorPaymentResult =
 export type DoctorPaymentDetailBill = {
   billId: string;
   billNumber: string;
+  bxtNumber: string;
   patientName: string;
   admissionDate: string;
   doctorFee: number;

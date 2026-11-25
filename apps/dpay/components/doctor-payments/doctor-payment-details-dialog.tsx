@@ -24,7 +24,7 @@ import {
 import { getReceiptLetterheadAction } from '@/app/actions/receipts/receipts.actions';
 import { DoctorPaymentStatusBadge } from '@/components/doctor-payments/status-badge';
 import { formatLkr } from '@/lib/patient-bills/calculations';
-import { paymentMethodLabel, paymentReferenceDisplay } from '@/lib/receipts/helpers';
+import { paymentMethodLabel } from '@/lib/receipts/helpers';
 import { formatIssuedLocation } from '@/lib/location';
 import { printDoctorPayment } from '@/lib/doctor-payments/print-doctor-payment';
 import type { DoctorPaymentDetail } from '@/types/doctor-payment';
@@ -165,17 +165,6 @@ export function DoctorPaymentDetailsDialog({
                 <DetailRow
                   label="Payment Method"
                   value={paymentMethodLabel(detail.paymentMethod)}
-                />
-                <DetailRow
-                  label="Reference"
-                  value={paymentReferenceDisplay({
-                    paymentMethod: detail.paymentMethod,
-                    referenceNumber: detail.referenceNumber ?? null,
-                    bank: detail.bank ?? null,
-                    cardReference: detail.cardReference ?? null,
-                    slipReference: detail.slipReference ?? null,
-                    slipDate: detail.slipDate ?? null,
-                  })}
                 />
                 <DetailRow label="Total Amount" value={formatLkr(detail.totalAmount)} />
                 <DetailRow label="Net Amount" value={formatLkr(detail.netAmount)} highlight />

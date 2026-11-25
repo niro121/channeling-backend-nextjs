@@ -31,39 +31,24 @@ export function buildFinalBillPrintHtml(
   bill: PatientBillDetail,
   letterhead?: FinalBillPrintLetterhead
 ) {
-  const hospitalName = letterhead?.locationName?.trim() || 'Ruhunu Hospital';
-  const addressLine = letterhead?.addressLine?.trim() || 'Karapitiya, Galle';
-  const admissionDate = format(new Date(bill.admissionDate), 'yyyy-MM-dd');
-  const dischargeDate = bill.dischargeDate
-    ? format(new Date(bill.dischargeDate), 'yyyy-MM-dd')
-    : '—';
   const activeItems = bill.lineItems.filter(isActiveLineItem);
   const lineRows = activeItems
     .map(
       (item, index) => `<tr>
         <td class="num">${index + 1}</td>
         <td>${escapeHtml(item.doctorName || '—')}</td>
-        <td>${escapeHtml(item.description || '—')}</td>
-        <td class="amount">${escapeHtml(formatLkr(item.amount))}</td>
+        <td class="amount">${Number(item.amount) === 0 ? 'FOC' : escapeHtml(formatLkr(item.amount))}</td>
       </tr>`
     )
     .join('');
 
-  const headerRows = [
-    invoiceRow('Bill Number', bill.billNumber, true),
-    invoiceRow('BHT Number', bill.bxtNumber, true),
-    invoiceRow('Patient', bill.customerName),
-    invoiceRow('NIC / Phone', bill.customerNicPhone?.trim() || '—'),
-    invoiceRow('Address', bill.customerAddress?.trim() || '—'),
-    invoiceRow('Admission Date', admissionDate),
-    invoiceRow('Discharge Date', dischargeDate),
-  ].join('\n        ');
+  const headerRows = invoiceRow('Patient Name', bill.customerName);
 
   return `<!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <title>Final Bill ${escapeHtml(bill.billNumber)}</title>
+    <title>Professional Bill ${escapeHtml(bill.billNumber)}</title>
     <style>
       @page { size: A4 portrait; margin: 12mm; }
       html, body { margin: 0; padding: 0; width: 100%; background: #fff; }
@@ -127,15 +112,20 @@ export function buildFinalBillPrintHtml(
       .totals .label { width: auto; }
       .totals .amount { text-align: right; white-space: nowrap; font-weight: 700; }
       .totals tr.grand td { padding-top: 8px; font-size: 12pt; }
+      .signature-wrap {
+        width: 100%;
+        max-width: 170mm;
+        margin: 40px auto 0;
+        display: flex;
+        justify-content: flex-end;
+      }
+      .signature-box { width: 60mm; text-align: center; }
+      .signature-line { border-top: 1px solid #000; margin-top: 30mm; padding-top: 4px; font-size: 10.5pt; }
     </style>
   </head>
   <body>
     <div class="invoice-wrap">
-      <div class="hospital-name">${escapeHtml(hospitalName)}</div>
-      <div class="hospital-name">${escapeHtml(addressLine)}</div>
-      <p class="contact">Phone : ${escapeHtml(LETTERHEAD_PHONE)}</p>
-      <p class="contact">Email : ${escapeHtml(LETTERHEAD_EMAIL)} | Web : ${escapeHtml(LETTERHEAD_WEB)}</p>
-      <div class="bill-title">Final Bill</div>
+      <div class="bill-title">Professional Bill</div>
       <table class="invoice-fields">
         <colgroup>
           <col class="label" />
@@ -151,12 +141,11 @@ export function buildFinalBillPrintHtml(
           <tr>
             <th class="num">#</th>
             <th>Doctor</th>
-            <th>Description</th>
             <th class="amount">Amount</th>
           </tr>
         </thead>
         <tbody>
-          ${lineRows || `<tr><td colspan="4">No line items</td></tr>`}
+          ${lineRows || `<tr><td colspan="3">No line items</td></tr>`}
         </tbody>
       </table>
       <table class="totals">
@@ -175,6 +164,11 @@ export function buildFinalBillPrintHtml(
           </tr>
         </tbody>
       </table>
+      <div class="signature-wrap">
+        <div class="signature-box">
+          <div class="signature-line">Patient/Guardian</div>
+        </div>
+      </div>
     </div>
   </body>
 </html>`;

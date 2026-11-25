@@ -2,11 +2,7 @@ import { format } from 'date-fns';
 import { RECEIPT_PAYMENT_METHOD } from '@archmage/shared';
 import type { DoctorPaymentDetail } from '@/types/doctor-payment';
 import { formatLkr } from '@/lib/patient-bills/calculations';
-import {
-  parsePaymentMethodCode,
-  paymentMethodLabel,
-  paymentReferenceDisplay,
-} from '@/lib/receipts/helpers';
+import { parsePaymentMethodCode, paymentMethodLabel } from '@/lib/receipts/helpers';
 import { formatIssuedLocation } from '@/lib/location';
 import { printReceiptHtml } from '@/lib/receipts/print-receipt';
 
@@ -47,7 +43,6 @@ function getDoctorPaymentDetailRows(detail: DoctorPaymentDetail): DetailRow[] {
 
   rows.push(
     { label: 'Payment Method', value: method },
-    { label: 'Total Amount', value: formatLkr(detail.totalAmount) },
     { label: 'Net Amount', value: formatLkr(detail.netAmount), highlight: true }
   );
 
@@ -76,24 +71,6 @@ function getDoctorPaymentDetailRows(detail: DoctorPaymentDetail): DetailRow[] {
     rows.push({
       label: code === RECEIPT_PAYMENT_METHOD.CHECK ? 'Cheque Date' : 'Slip Date',
       value: format(new Date(detail.slipDate), 'yyyy-MM-dd'),
-    });
-  }
-
-  if (
-    !detail.bank?.trim() &&
-    !detail.cardReference?.trim() &&
-    !detail.slipReference?.trim()
-  ) {
-    rows.push({
-      label: 'Reference',
-      value: paymentReferenceDisplay({
-        paymentMethod: detail.paymentMethod,
-        referenceNumber: detail.referenceNumber ?? null,
-        bank: detail.bank ?? null,
-        cardReference: detail.cardReference ?? null,
-        slipReference: detail.slipReference ?? null,
-        slipDate: detail.slipDate ?? null,
-      }),
     });
   }
 
@@ -155,15 +132,10 @@ export type DoctorPaymentPrintLetterhead = {
   printedByCode?: string | null;
 };
 
-const LETTERHEAD_PHONE = '091 7694059 / 60';
-const LETTERHEAD_EMAIL = 'info@ruhunuhospital.lk';
-const LETTERHEAD_WEB = 'www.ruhunuhospital.lk';
-
-function invoiceRow(label: string, value: string, strong = false, separated = false): string {
+function invoiceRow(label: string, value: string, strong = false): string {
   const valueClass = strong ? 'value strong' : 'value';
   const labelHtml = strong ? `<strong>${escapeHtml(label)}</strong>` : escapeHtml(label);
-  const rowClass = separated ? ' class="printed-by"' : '';
-  return `<tr${rowClass}>
+  return `<tr>
     <td class="label">${labelHtml}</td>
     <td class="colon">:</td>
     <td class="${valueClass}">${escapeHtml(value)}</td>
@@ -189,12 +161,9 @@ export function buildDoctorPaymentPrintHtml(
       )
     )
     .join('\n    ');
-  const printedByHtml = invoiceRow(
-    'Printed by',
-    letterhead?.printedByCode?.trim() || '—',
-    false,
-    true
-  );
+  const cashierCode = letterhead?.printedByCode?.trim() || '—';
+  const printedByHtml = invoiceRow('Printed by', cashierCode);
+  const printedAtHtml = invoiceRow('Printed at', format(new Date(), 'yyyy-MM-dd HH:mm'));
   const isCancelOrRefund = status === 'cancelled' || status === 'refund';
   const refundReceivedHtml = isCancelOrRefund
     ? `<tr><td class="refund-received-title" colspan="3">Refund Received By</td></tr>
@@ -202,10 +171,17 @@ export function buildDoctorPaymentPrintHtml(
         ${invoiceRow('Signature', '')}
         ${invoiceRow('Phone No', '')}`
     : '';
-
-  const hospitalName =
-    letterhead?.locationName?.trim() || detail.locationName?.trim() || 'Ruhunu Hospital';
-  const addressLine = letterhead?.addressLine?.trim() || 'Karapitiya, Galle';
+  const signHtml = `<div class="sign-block">
+        <div class="sign-col">
+          <div class="sign-space"></div>
+          <div class="sign-caption">Cashier</div>
+          <div class="sign-caption">${escapeHtml(cashierCode)}</div>
+        </div>
+        <div class="sign-col">
+          <div class="sign-space"></div>
+          <div class="sign-caption">${escapeHtml(detail.doctorName)}</div>
+        </div>
+      </div>`;
 
   const title =
     status === 'cancelled'
@@ -225,7 +201,7 @@ export function buildDoctorPaymentPrintHtml(
   const billRows = detail.bills
     .map(
       (bill) => `<tr>
-        <td>${escapeHtml(bill.billNumber)}</td>
+        <td>${escapeHtml(bill.bxtNumber)}</td>
         <td>${escapeHtml(bill.patientName)}</td>
         <td class="amount">${escapeHtml(formatLkr(bill.payableAmount))}</td>
       </tr>`
@@ -236,7 +212,7 @@ export function buildDoctorPaymentPrintHtml(
       ? `<tr class="bills-embed"><td colspan="3"><table class="bills">
           <thead>
             <tr>
-              <th>Bill No</th>
+              <th>BHT NO</th>
               <th>Patient</th>
               <th class="amount">Amount</th>
             </tr>
@@ -262,9 +238,7 @@ export function buildDoctorPaymentPrintHtml(
         padding: 0;
       }
       .invoice-wrap { width: 100%; max-width: 100%; margin: 0 auto; text-align: center; }
-      .hospital-name { font-size: 16pt; font-weight: 700; margin: 0; line-height: 1.25; }
-      .contact { font-size: 10.5pt; font-weight: 600; margin: 2px 0 0; line-height: 1.4; }
-      .bill-title { font-size: 15pt; font-weight: 700; margin: 10px 0 5px; }
+      .bill-title { font-size: 15pt; font-weight: 700; margin: 0 0 5px; }
       .status-banner { font-size: 13pt; font-weight: 700; margin: 3px 0 8px; }
       .invoice-fields {
         margin: 0 auto;
@@ -299,20 +273,29 @@ export function buildDoctorPaymentPrintHtml(
       .bills th { font-weight: 700; }
       .bills .amount { text-align: right; white-space: nowrap; padding-right: 0; }
       .invoice-fields tr.bills-embed > td { padding: 8px 0 0; }
-      .invoice-fields tr.printed-by td { padding-top: 12px; }
       .invoice-fields .refund-received-title {
         text-align: center;
         padding-top: 12px;
         padding-bottom: 4px;
       }
+      .sign-block {
+        display: flex;
+        justify-content: space-between;
+        gap: 16mm;
+        margin-top: 16mm;
+        text-align: center;
+      }
+      .sign-col { width: 42%; }
+      .sign-space {
+        height: 16mm;
+        border-bottom: 1px solid #000;
+        margin-bottom: 4px;
+      }
+      .sign-caption { font-size: 11pt; line-height: 1.35; }
     </style>
   </head>
   <body>
     <div class="invoice-wrap">
-      <div class="hospital-name">${escapeHtml(hospitalName)}</div>
-      <div class="hospital-name">${escapeHtml(addressLine)}</div>
-      <p class="contact">Phone : ${escapeHtml(LETTERHEAD_PHONE)}</p>
-      <p class="contact">Email : ${escapeHtml(LETTERHEAD_EMAIL)} | Web : ${escapeHtml(LETTERHEAD_WEB)}</p>
       <div class="bill-title">${escapeHtml(title)}</div>
       ${bannerHtml}
       <table class="invoice-fields">
@@ -323,10 +306,12 @@ export function buildDoctorPaymentPrintHtml(
         </colgroup>
         <tbody>
         ${rowsHtml}
+        ${printedByHtml}
+        ${printedAtHtml}
         ${billsHtml}
         ${refundReceivedHtml}
-        ${printedByHtml}
       </tbody></table>
+      ${signHtml}
     </div>
   </body>
 </html>`;
