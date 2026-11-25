@@ -8,6 +8,7 @@ import {
   getDoctorPaymentReceiptDetail,
   type DoctorPaymentReceiptDetail,
 } from "@/services/doctor-payment/get-doctor-payment-receipt-detail.service"
+import { isDoctorPaymentHiddenSessionEnabled } from "@/services/doctor-payment/move-bookings-to-hidden-session"
 
 const SRI_LANKA_TZ = "Asia/Colombo"
 
@@ -20,6 +21,8 @@ export type PrintDoctorPaymentResult = {
   success: boolean
   data?: DoctorPaymentPrintModel
   slips?: DoctorPaymentPrintModel[]
+  /** True when DOCTOR_PAYMENT_HIDDEN_SESSION is off: print the earlier Consultant Payment slip. */
+  legacyTemplate?: boolean
   message?: string
 }
 
@@ -216,7 +219,12 @@ export async function previewDoctorPaymentReceiptService(
     if (!slip.success || !slip.data) return slip
     slips.push(slip.data)
   }
-  return { success: true, data: slips[0], slips }
+  return {
+    success: true,
+    data: slips[0],
+    slips,
+    legacyTemplate: !isDoctorPaymentHiddenSessionEnabled(),
+  }
 }
 
 /**
@@ -278,5 +286,10 @@ export async function printDoctorPaymentReceiptService(
     if (!slip.success || !slip.data) return slip
     slips.push(slip.data)
   }
-  return { success: true, data: slips[0], slips }
+  return {
+    success: true,
+    data: slips[0],
+    slips,
+    legacyTemplate: !isDoctorPaymentHiddenSessionEnabled(),
+  }
 }
