@@ -137,7 +137,7 @@ export function PatientBillDetailView({ bill }: PatientBillDetailViewProps) {
                 ) : (
                   <Printer className="h-4 w-4" />
                 )}
-                Print Final Bill
+                Print Professional Bill
               </Button>
             )}
             {canClose && (

@@ -14,6 +14,7 @@ export async function getDoctorPaymentById(
     include: {
       items: {
         orderBy: { billNumber: 'asc' },
+        include: { patientBill: { select: { bxtNumber: true } } },
       },
     },
   });
@@ -48,6 +49,7 @@ export async function getDoctorPaymentById(
     bills: record.items.map((item) => ({
       billId: item.patientBillId,
       billNumber: item.billNumber,
+      bxtNumber: item.patientBill?.bxtNumber?.trim() || '—',
       patientName: item.patientName,
       admissionDate: item.admissionDate.toISOString(),
       doctorFee: item.doctorFee,
