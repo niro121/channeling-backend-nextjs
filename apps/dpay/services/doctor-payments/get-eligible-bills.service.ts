@@ -60,6 +60,7 @@ export async function getEligibleBillsForDoctor(
           lineItemId: item.id,
           billId: bill.id,
           billNumber: bill.billNumber,
+          bxtNumber: bill.bxtNumber,
           patientName: bill.customerName,
           admissionDate: bill.admissionDate.toISOString(),
           billStatus: normalizeBillStatus(bill.status),

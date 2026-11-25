@@ -99,7 +99,10 @@ function getDoctorPaymentDetailRows(detail: DoctorPaymentDetail): DetailRow[] {
 
   const isRefund = detail.status === 'refund';
   const isCancelled = detail.status === 'cancelled';
-  rows.push({ label: 'Remarks', value: detail.remarks?.trim() || '—' });
+  rows.push(
+    { label: 'Handed to staff', value: detail.handedToStaff?.trim() || '—' },
+    { label: 'Remarks', value: detail.remarks?.trim() || '—' }
+  );
   if (!isCancelled) {
     rows.push(
       { label: isRefund ? 'Refund by' : 'Created By', value: detail.createdBy },

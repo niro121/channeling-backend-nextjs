@@ -154,6 +154,7 @@ export async function cancelDoctorPayment(
           slipReference: refundMeta.slipReference,
           slipDate: refundMeta.slipDate,
           remarks: `Refund for ${original.receiptNumber}: ${reason}`,
+          handedToStaff: original.handedToStaff,
           locationId: generated.locationId,
           locationCode: generated.locationCode,
           locationName: generated.locationName,

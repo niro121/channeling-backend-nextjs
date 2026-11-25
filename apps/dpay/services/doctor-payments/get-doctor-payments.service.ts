@@ -53,6 +53,7 @@ export async function getDoctorPayments(
       { receiptNumber: { contains: keyword, mode: 'insensitive' } },
       { doctorName: { contains: keyword, mode: 'insensitive' } },
       { remarks: { contains: keyword, mode: 'insensitive' } },
+      { handedToStaff: { contains: keyword, mode: 'insensitive' } },
       { cancelReason: { contains: keyword, mode: 'insensitive' } },
       { createdByName: { contains: keyword, mode: 'insensitive' } },
     ];
@@ -79,6 +80,7 @@ export async function getDoctorPayments(
     total: record.totalAmount,
     net: record.netAmount,
     remarks: record.remarks,
+    handedToStaff: record.handedToStaff,
     cancelReason: record.cancelReason,
     createdBy: record.createdByName?.trim() || '—',
     createdAt: record.createdAt.toISOString(),
@@ -110,6 +112,7 @@ export async function getDoctorPaymentsExport(
       { receiptNumber: { contains: keyword, mode: 'insensitive' } },
       { doctorName: { contains: keyword, mode: 'insensitive' } },
       { remarks: { contains: keyword, mode: 'insensitive' } },
+      { handedToStaff: { contains: keyword, mode: 'insensitive' } },
       { cancelReason: { contains: keyword, mode: 'insensitive' } },
       { createdByName: { contains: keyword, mode: 'insensitive' } },
     ];
@@ -131,5 +134,6 @@ export async function getDoctorPaymentsExport(
     net: record.netAmount,
     createdBy: record.createdByName?.trim() || '—',
     createdAt: format(record.createdAt, 'yyyy-MM-dd'),
+    handedToStaff: record.handedToStaff?.trim() || '',
   }));
 }

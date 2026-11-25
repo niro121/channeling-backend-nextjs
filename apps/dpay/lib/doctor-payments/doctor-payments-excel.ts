@@ -15,6 +15,7 @@ const COLUMNS = [
   'Net',
   'Created By',
   'Created',
+  'Handed to Staff',
 ];
 
 const KEYS: (keyof DoctorPaymentExportRow)[] = [
@@ -26,6 +27,7 @@ const KEYS: (keyof DoctorPaymentExportRow)[] = [
   'net',
   'createdBy',
   'createdAt',
+  'handedToStaff',
 ];
 
 export async function downloadDoctorPaymentsExcel(args: {
@@ -44,8 +46,8 @@ export async function downloadDoctorPaymentsExcel(args: {
     sheetName: 'Doctor Payments',
     orientation: 'portrait',
     compactTable: true,
-    columnWidths: [15, 11, 22, 14, 12, 12, 14, 11],
-    columnNumberFormats: [undefined, undefined, undefined, undefined, MONEY, MONEY, undefined, undefined],
-    extraWrapColumnIndexes: [2, 3, 6],
+    columnWidths: [15, 11, 22, 14, 12, 12, 14, 11, 22],
+    columnNumberFormats: [undefined, undefined, undefined, undefined, MONEY, MONEY, undefined, undefined, undefined],
+    extraWrapColumnIndexes: [2, 3, 6, 8],
   });
 }
