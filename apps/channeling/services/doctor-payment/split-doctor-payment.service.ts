@@ -3,6 +3,7 @@ import prisma from "@/lib/prisma"
 import { logActivityNonBlocking } from "@/lib/activity-log"
 import { planDoctorPaymentWhtSplit, type WhtSplitBooking } from "@/lib/doctor-payment-wht-split"
 import {
+  isDoctorPaymentHiddenSessionEnabled,
   logHiddenSessionMoves,
   moveNonWhtBookingsToHiddenSession,
 } from "@/services/doctor-payment/move-bookings-to-hidden-session"
@@ -94,7 +95,8 @@ export type DoctorPaymentSplitDecision =
  * Tick on: one receipt with WHT on the full amount. Bookings stay where they are.
  * Tick off: split by the doctor's WHT percentage.
  * A percentage of 0, or a share below one whole booking, is one receipt without WHT
- * and every selected booking moves to the hidden session.
+ * and every selected booking moves to the hidden session when
+ * DOCTOR_PAYMENT_HIDDEN_SESSION is on (the default).
  */
 export async function resolveDoctorPaymentSplit(args: {
   input: ProcessDoctorPaymentInput
@@ -282,11 +284,13 @@ async function executeSplitDoctorPayment(args: {
         },
       })
 
-      const moveLogs = await moveNonWhtBookingsToHiddenSession(tx, {
-        bookingIds: restRows.map((row) => row.id),
-        doctorId: input.doctorId,
-        userId: input.userId,
-      })
+      const moveLogs = isDoctorPaymentHiddenSessionEnabled()
+        ? await moveNonWhtBookingsToHiddenSession(tx, {
+            bookingIds: restRows.map((row) => row.id),
+            doctorId: input.doctorId,
+            userId: input.userId,
+          })
+        : []
 
       return { whtReceipt: whtReceipt.receipt, restReceipt: restReceipt.receipt, moveLogs }
     })

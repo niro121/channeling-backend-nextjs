@@ -5,6 +5,16 @@ import { logActivityNonBlocking } from "@/lib/activity-log"
 /** Not a DoctorSession id. Session.doctorSessionId is a required string, not a relation. */
 export const HIDDEN_SESSION_DOCTOR_SESSION_ID = "hidden-wht"
 
+/**
+ * Doctor payment moves non-WHT bookings onto a hidden session unless
+ * DOCTOR_PAYMENT_HIDDEN_SESSION is 0, false, no, or off. Unset keeps the move on.
+ */
+export function isDoctorPaymentHiddenSessionEnabled(): boolean {
+  const raw = process.env.DOCTOR_PAYMENT_HIDDEN_SESSION?.trim()
+  if (!raw) return true
+  return !/^(0|false|no|off)$/i.test(raw)
+}
+
 /** Older sessions have no hidden field. Only an explicit true is hidden. */
 export function isHiddenSession(hidden: boolean | null | undefined): boolean {
   return hidden === true

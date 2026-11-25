@@ -23,6 +23,7 @@ import { isShiftRequirementError, shiftRequirementMessage } from "@/lib/shift-re
 import { parseSlipDateInput } from "@/lib/slip-date";
 import { resolveDoctorPaymentSplit } from "@/services/doctor-payment/split-doctor-payment.service";
 import {
+  isDoctorPaymentHiddenSessionEnabled,
   logHiddenSessionMoves,
   moveNonWhtBookingsToHiddenSession,
   type HiddenSessionMoveLog,
@@ -312,7 +313,7 @@ export async function processDoctorPaymentService(
         },
       });
 
-      if (moveToHiddenBookingIds.length > 0) {
+      if (isDoctorPaymentHiddenSessionEnabled() && moveToHiddenBookingIds.length > 0) {
         hiddenMoveLogs = await moveNonWhtBookingsToHiddenSession(tx, {
           bookingIds: moveToHiddenBookingIds,
           doctorId,
