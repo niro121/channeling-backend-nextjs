@@ -61,7 +61,7 @@ export type CancelPatientBillReceiptResult =
  * - Creates a separate refund receipt (`{code}DPAY-REF/########`)
  * - Links original ↔ refund (cancelReceiptNumber / refundOfReceiptId)
  * - Recalculates bill from remaining active receipts
- * Blocked if already cancelled / already has a refund link / bill locked / doctor paid.
+ * Blocked if already cancelled / already has a refund link / bill locked.
  */
 export async function cancelPatientBillReceipt(
   input: CancelPatientBillReceiptInput
@@ -104,12 +104,6 @@ export async function cancelPatientBillReceipt(
           billNumber: true,
           status: true,
           totalAmount: true,
-          lineItems: {
-            select: {
-              doctorPaymentId: true,
-              doctorPayment: { select: { status: true } },
-            },
-          },
         },
       },
     },
@@ -145,17 +139,6 @@ export async function cancelPatientBillReceipt(
     return {
       success: false,
       message: 'Cannot cancel a receipt on a closed patient bill.',
-    };
-  }
-
-  const activeDoctorPayment = receipt.bill.lineItems.find(
-    (item) => item.doctorPaymentId && item.doctorPayment?.status === 'paid'
-  );
-  if (activeDoctorPayment) {
-    return {
-      success: false,
-      message:
-        'Cannot cancel this receipt because doctor fees have already been paid for this bill. Cancel the related doctor payment first.',
     };
   }
 
