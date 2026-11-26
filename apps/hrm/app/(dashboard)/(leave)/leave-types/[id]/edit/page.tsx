@@ -1,0 +1,63 @@
+import { notFound, redirect } from 'next/navigation';
+import { CommonManagerHeader } from '@/components/common/common-manager-header';
+import { fetchServerSession } from '@/lib/session';
+import { logActivityNonBlocking } from '@/lib/activity-log';
+import { checkPermission } from '@/lib/server-permissions';
+import { getLeaveTypeByIdAction } from '@/app/actions/leave-actions/leave-type.actions';
+import { leaveTypeRecordToFormValues } from '@/lib/mappers/leave-type-form.mapper';
+import FormLeaveType from '../../form-leave-type';
+import type { LeaveTypeRecord } from '@/types/leave';
+
+type EditLeaveTypePageProps = {
+  params: Promise<{ id: string }>;
+};
+
+export default async function LeaveTypeEditPage({
+  params
+}: EditLeaveTypePageProps) {
+  const canEdit = await checkPermission('leave-types', 'edit');
+  if (!canEdit) {
+    redirect('/unauthorized-access');
+  }
+
+  const { id } = await params;
+  const session = await fetchServerSession();
+  if (session?.user?.id) {
+    logActivityNonBlocking({
+      userId: session.user.id,
+      action: 'leave-types.visited',
+      entityType: 'LeaveType',
+      entityId: id,
+      importance: 'low'
+    });
+  }
+
+  const response = await getLeaveTypeByIdAction(id);
+
+  if (response.isError || !response.data) {
+    notFound();
+  }
+
+  const leaveType = response.data as LeaveTypeRecord;
+  const isLieu = Boolean(leaveType.isLieuLeave);
+
+  return (
+    <div className="space-y-6">
+      <CommonManagerHeader
+        title={isLieu ? 'Edit Lieu Leave Type' : 'Edit Leave Type'}
+        description={
+          isLieu
+            ? 'Update the compensatory leave bank used by Public Holiday Grant Lieu Leave.'
+            : 'Update leave type details for entitlement and application workflows.'
+        }
+        backwordButton
+      />
+      <FormLeaveType
+        mode="edit"
+        leaveTypeId={id}
+        variant={isLieu ? 'lieu' : 'normal'}
+        initialValues={leaveTypeRecordToFormValues(leaveType)}
+      />
+    </div>
+  );
+}

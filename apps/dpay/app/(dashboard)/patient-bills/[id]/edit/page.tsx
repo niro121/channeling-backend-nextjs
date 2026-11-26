@@ -1,0 +1,22 @@
+import { notFound, redirect } from 'next/navigation';
+import { getPatientBillByIdAction } from '@/app/actions/patient-bills/patient-bills.actions';
+import { PatientBillForm } from '@/components/patient-bills/patient-bill-form';
+
+type PageProps = {
+  params: Promise<{ id: string }>;
+};
+
+export default async function EditPatientBillPage({ params }: PageProps) {
+  const { id } = await params;
+  const result = await getPatientBillByIdAction(id);
+
+  if (!result.success || !result.data) {
+    notFound();
+  }
+
+  if (result.data.status === 'cancelled' || result.data.status === 'closed') {
+    redirect(`/patient-bills/${id}`);
+  }
+
+  return <PatientBillForm bill={result.data} isEditPage />;
+}

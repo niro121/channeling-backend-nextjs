@@ -1,0 +1,219 @@
+'use client';
+
+import React, { useState } from 'react';
+import { ColumnDef } from '@tanstack/react-table';
+import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
+import moment from 'moment';
+import { formatTimeSriLanka, normalizeSessionTime } from '@/lib/utils';
+import { formatLKR } from '@/lib/format-money';
+import { SessionRecordActions } from './record-actions';
+import { SessionViewDialog } from './session-view-dialog';
+
+function SessionIdCell({ row }: { row: { original: SessionListItem } }) {
+  const [viewOpen, setViewOpen] = useState(false);
+  const session = row.original;
+  const id = session.id;
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setViewOpen(true)}
+        className="font-mono text-xs text-primary hover:underline max-w-[8rem] truncate block text-left cursor-pointer"
+        title={`View session ${id}`}
+      >
+        {id}
+      </button>
+      <SessionViewDialog session={session} open={viewOpen} onOpenChange={setViewOpen} />
+    </>
+  );
+}
+
+function formatSessionFee(value: number | null | undefined): string {
+  if (value == null) return '—';
+  return formatLKR(value);
+}
+
+/** Format session time for display in Sri Lanka (DB stores UTC). */
+function formatSessionTime(value: Date | number | string, date?: Date): string {
+  const sessionDate = date instanceof Date ? date : date ? new Date(date) : new Date();
+  const normalized =
+    typeof value === 'string' ? new Date(value) : normalizeSessionTime(value as Date | number, sessionDate);
+  return formatTimeSriLanka(normalized);
+}
+
+export type SessionListItem = {
+  id: string;
+  date: Date;
+  startTime: number;
+  endTime: number;
+  durationMinutes?: number | null;
+  maxPatientNumber?: number;
+  originalSessionName?: string;
+  isScan?: boolean;
+  location?: { name: string | null } | null;
+  doctor?: { name?: string | null } | null;
+  department?: { name?: string | null } | null;
+  room?: { number?: string | null } | null;
+  amountLocal?: number | null;
+  amountForeign?: number | null;
+  appointmentNo?: number;
+  startingPatientNumber?: number;
+  refundable?: number;
+  remarks?: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+  createdUser?: { name: string | null } | null;
+  updatedUser?: { name: string | null } | null;
+  status: number;
+  hidden?: boolean;
+  [key: string]: unknown;
+};
+
+export const SessionColumns: ColumnDef<SessionListItem>[] = [
+  {
+    id: 'select',
+    header: ({ table }) => (
+      <Checkbox
+        checked={
+          table.getIsAllPageRowsSelected() ||
+          (table.getIsSomePageRowsSelected() && 'indeterminate')
+        }
+        onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
+        aria-label="Select all"
+        className="translate-y-0.5"
+      />
+    ),
+    cell: ({ row }) => (
+      <Checkbox
+        checked={row.getIsSelected()}
+        onCheckedChange={(value) => row.toggleSelected(!!value)}
+        disabled={!row.getCanSelect()}
+        aria-label={row.getCanSelect() ? 'Select row' : 'Hidden sessions cannot be deleted'}
+        className="translate-y-0.5"
+      />
+    ),
+    enableSorting: false,
+    enableHiding: false,
+  },
+  {
+    accessorKey: 'id',
+    header: '#',
+    cell: ({ row }) => <SessionIdCell row={row} />,
+    enableSorting: false
+  },
+  {
+    id: 'date',
+    header: 'Date',
+    cell: ({ row }) => {
+      const { date, originalSessionName, isScan, hidden } = row.original;
+      const dateStr = moment(date).format('DD MMM YYYY');
+      const original = originalSessionName ? `(${originalSessionName})` : null;
+      return (
+        <div className="flex flex-col gap-0.5 text-xs whitespace-nowrap">
+          <div className="flex items-center gap-2">
+            <span>{dateStr}</span>
+            {hidden ? (
+              <Badge className="h-5 bg-amber-100 px-1.5 text-[10px] font-semibold tracking-wide text-amber-900 hover:bg-amber-100">
+                H
+              </Badge>
+            ) : null}
+            {isScan ? (
+              <Badge variant="secondary" className="h-5 px-1.5 text-[10px] font-semibold tracking-wide">
+                SCAN
+              </Badge>
+            ) : null}
+          </div>
+          {original && <span className="text-muted-foreground/80">{original}</span>}
+        </div>
+      );
+    },
+    enableSorting: false
+  },
+  {
+    id: 'time',
+    header: 'Time',
+    cell: ({ row }) => {
+      const { date, startTime, endTime } = row.original;
+      const timeStr = `${formatSessionTime(startTime, date)} – ${formatSessionTime(endTime, date)}`;
+      return <span className="text-xs whitespace-nowrap">{timeStr}</span>;
+    },
+    enableSorting: false
+  },
+  {
+    id: 'branch',
+    header: 'Branch',
+    cell: ({ row }) => row.original.location?.name ?? '—',
+    enableSorting: false
+  },
+  {
+    id: 'fees',
+    header: () => <div className="text-right w-full">Fee</div>,
+    cell: ({ row }) => {
+      const local = formatSessionFee(row.original.amountLocal);
+      const foreign = formatSessionFee(row.original.amountForeign);
+      return (
+        <div className="flex flex-col gap-0.5 text-xs text-right tabular-nums">
+          <span>Local Fee: {local}</span>
+          <span className="text-muted-foreground">Foreign Fee: {foreign}</span>
+        </div>
+      );
+    },
+    enableSorting: false
+  },
+  {
+    accessorKey: 'appointmentNo',
+    header: 'Appt',
+    cell: ({ row }) => row.original.appointmentNo ?? 0,
+    enableSorting: false
+  },
+  {
+    id: 'createdUpdated',
+    header: 'Created / Updated',
+    cell: ({ row }) => {
+      const createdName = row.original.createdUser?.name ?? '—';
+      const createdDate = row.original.createdAt
+        ? moment(row.original.createdAt).format('DD/MM/YYYY hh:mm A')
+        : '—';
+      const updatedName = row.original.updatedUser?.name ?? '—';
+      const updatedDate = row.original.updatedAt
+        ? moment(row.original.updatedAt).format('DD/MM/YYYY hh:mm A')
+        : '—';
+      return (
+        <div className="flex flex-col gap-1 text-xs">
+          <div className="flex flex-col gap-0.5">
+            <span className="font-medium text-muted-foreground">Created</span>
+            <span>{createdName}</span>
+            <span className="text-muted-foreground">{createdDate}</span>
+          </div>
+          <div className="flex flex-col gap-0.5">
+            <span className="font-medium text-muted-foreground">Updated</span>
+            <span>{updatedName}</span>
+            <span className="text-muted-foreground">{updatedDate}</span>
+          </div>
+        </div>
+      );
+    },
+    enableSorting: false
+  },
+  {
+    accessorKey: 'status',
+    header: 'Status',
+    cell: ({ row }) => {
+      const status = Number(row.original.status);
+      const isActive = status === 1 && !Number.isNaN(status);
+      return (
+        <Badge variant={isActive ? 'default' : 'secondary'} className={!isActive ? 'bg-amber-100 text-amber-800' : ''}>
+          {isActive ? 'Active' : 'Leave'}
+        </Badge>
+      );
+    },
+    enableSorting: false
+  },
+  {
+    id: 'actions',
+    header: 'Actions',
+    cell: ({ row }) => <SessionRecordActions row={row} />,
+    enableSorting: false
+  }
+];

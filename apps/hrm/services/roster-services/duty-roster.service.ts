@@ -1,0 +1,1520 @@
+'use server';
+
+import { format, parseISO } from 'date-fns';
+import { z } from 'zod';
+import prisma, { Prisma } from '@/lib/prisma';
+import type { AuditUser } from '@/lib/audit-user';
+import { toAuditUser } from '@/lib/audit-user';
+import { resolveAuthUsers } from '@/lib/helpers/resolve-auth-users.helper';
+import { buildManageRosterFilterOptions } from '@/lib/helpers/roster/manage-roster-filter-options.helper';
+import { assertLeaveSoftWarn } from '@/lib/helpers/roster/leave-roster-soft-warn.helper';
+import { assertWeeklyOffSoftWarn } from '@/lib/helpers/roster/weekly-off-soft-warn.helper';
+import { assertStaffDayShiftLimit } from '@/lib/helpers/roster/shifts-per-person-per-day.helper';
+import { shiftsOverlap } from '@/lib/helpers/roster/shift-time-overlap.helper';
+import { getDepartmentOptions } from '@/services/organization-services/department.service';
+import { getRoomOptions } from '@/services/organization-services/room.service';
+import { saveRosterAllocationDraft } from '@/services/roster-services/shift-roster.service';
+import { getInstitutionName } from '@/types/institution';
+import type {
+  DutyAttendance,
+  DutyRosterFilterOptions,
+  DutyRosterFormOptions,
+  DutyRosterHistoryEntry,
+  DutyRosterRow,
+  DutyRosterStaffOption,
+  DutyRosterStandingAssignmentOption,
+  DutyRosterSummary,
+  DutyRosterSwapCandidate,
+  GetDutyRosterParams,
+  ReplaceDutyPayload,
+  RosterAllocationStatus,
+  RosterFilterOption,
+  SaveRosterAllocationDraftPayload,
+  SwapDutyPayload,
+  UpdateDutyAttendancePayload
+} from '@/types/roster';
+import { parseDutyView, dutyRangeBounds } from '@/lib/utils/duty-roster-view';
+import { DUTY_ATTENDANCE_VALUES } from '@/types/roster';
+
+function parseInstitutionId(value: string | null | undefined): number | null {
+  if (!value?.trim()) return null;
+  if (value === 'ruhunu_hospitals') return 0;
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) && parsed >= 0 && parsed <= 3 ? parsed : null;
+}
+
+const PUBLISHED_LOCK_MESSAGE =
+  'This date is already published. Use a roster amendment before changing it.';
+
+function toIsoString(value: Date | string | null | undefined): string {
+  if (!value) return '';
+  if (value instanceof Date) return value.toISOString();
+  return String(value);
+}
+
+function isoDate(value: Date): string {
+  return format(value, 'yyyy-MM-dd');
+}
+
+function startOfDay(dateStr: string): Date {
+  const d = parseISO(dateStr.slice(0, 10));
+  return new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+}
+
+function toOption(value: string): RosterFilterOption {
+  return { id: value, name: value };
+}
+
+function uniqueStrings(values: Array<string | null | undefined>): string[] {
+  return [
+    ...new Set(values.map((v) => v?.trim()).filter(Boolean) as string[])
+  ].sort((a, b) => a.localeCompare(b));
+}
+
+function todayIso(): string {
+  return isoDate(new Date());
+}
+
+function publishedLockError(): {
+  success: false;
+  error: {
+    message: string;
+    issues?: Record<string, string[]>;
+    softWarnings?: string[];
+    requiresAck?: boolean;
+  };
+} {
+  return {
+    success: false,
+    error: {
+      message: PUBLISHED_LOCK_MESSAGE,
+      issues: {
+        dutyDate: ['Published roster dates cannot be changed directly']
+      }
+    }
+  };
+}
+
+type AllocationWithShift = {
+  id: string;
+  staffId: string;
+  shiftTypeId: string;
+  date: Date;
+  staffCode: string;
+  staffName: string;
+  department: string;
+  unit: string;
+  roster: string;
+  status: string;
+  isLeave: boolean;
+  dutyLocation: string;
+  dutyLocationDepartmentId: string | null;
+  dutyZoneId: string | null;
+  dutyRoomId: string | null;
+  allocationSource: string;
+  staffShiftAssignmentId: string | null;
+  supervisorId: string | null;
+  supervisorName: string;
+  attendance: string | null;
+  comments: string;
+  createdAt: Date;
+  updatedAt: Date;
+  createdBy: string | null;
+  updatedBy: string | null;
+  shiftType: {
+    name: string;
+    code: string;
+    chipLabel: string | null;
+    startTime: string;
+    endTime: string;
+  };
+};
+
+function compareDutyRowsByStaffThenShift(a: DutyRosterRow, b: DutyRosterRow) {
+  const code = a.staffCode.localeCompare(b.staffCode, undefined, {
+    sensitivity: 'base'
+  });
+  if (code !== 0) return code;
+  const date = (a.date ?? '').localeCompare(b.date ?? '');
+  if (date !== 0) return date;
+  return (a.startTime ?? '').localeCompare(b.startTime ?? '');
+}
+
+function mapDutyRow(record: AllocationWithShift & {
+  createdUser?: DutyRosterRow['createdUser'];
+  updatedUser?: DutyRosterRow['updatedUser'];
+}): DutyRosterRow {
+  return {
+    id: record.id,
+    staffId: record.staffId,
+    staffCode: record.staffCode,
+    staffName: record.staffName,
+    shiftTypeId: record.shiftTypeId,
+    shiftName: record.shiftType.chipLabel || record.shiftType.name,
+    startTime: record.shiftType.startTime,
+    endTime: record.shiftType.endTime,
+    dutyLocation: record.dutyLocation,
+    dutyLocationDepartmentId: record.dutyLocationDepartmentId,
+    dutyZoneId: record.dutyZoneId,
+    dutyRoomId: record.dutyRoomId,
+    wardUnit: record.unit,
+    department: record.department,
+    roster: record.roster,
+    supervisorId: record.supervisorId,
+    supervisorName: record.supervisorName,
+    allocationSource: record.allocationSource || 'adhoc',
+    staffShiftAssignmentId: record.staffShiftAssignmentId,
+    status: record.status as RosterAllocationStatus,
+    attendance: (record.attendance as DutyAttendance | null) ?? null,
+    comments: record.comments,
+    isLeave: record.isLeave,
+    date: toIsoString(record.date),
+    createdAt: toIsoString(record.createdAt),
+    updatedAt: toIsoString(record.updatedAt),
+    createdBy: record.createdBy,
+    updatedBy: record.updatedBy,
+    createdUser: record.createdUser ?? null,
+    updatedUser: record.updatedUser ?? null
+  };
+}
+
+async function assertWritableAllocation(allocation: {
+  id: string;
+  status: string;
+  date: Date;
+  department: string;
+  unit: string;
+  roster: string;
+  shiftRosterId: string;
+}): Promise<{ ok: true } | { ok: false; message: string }> {
+  if (allocation.status === 'published' || allocation.status === 'amended') {
+    return { ok: false, message: PUBLISHED_LOCK_MESSAGE };
+  }
+
+  const publishedPeriod = await prisma.shiftRoster.findFirst({
+    where: {
+      department: allocation.department,
+      unit: allocation.unit,
+      roster: allocation.roster,
+      status: 'published',
+      fromDate: { lte: allocation.date },
+      toDate: { gte: allocation.date }
+    },
+    select: { id: true }
+  });
+
+  if (publishedPeriod && allocation.shiftRosterId === publishedPeriod.id) {
+    return { ok: false, message: PUBLISHED_LOCK_MESSAGE };
+  }
+
+  return { ok: true };
+}
+
+async function getStaffSnapshot(staffId: string): Promise<{
+  staffCode: string;
+  staffName: string;
+  department: string;
+  unit: string;
+  roster: string;
+} | null> {
+  const staff = await prisma.staff.findUnique({
+    where: { id: staffId },
+    select: {
+      code: true,
+      name: true,
+      employmentDetails: true,
+      shiftAssignments: {
+        where: { status: 'active' },
+        select: { department: true, unit: true },
+        take: 1,
+        orderBy: { effectiveFrom: 'desc' }
+      }
+    }
+  });
+  if (!staff) return null;
+  const employment = staff.employmentDetails?.employment;
+  return {
+    staffCode: staff.code ?? '',
+    staffName: staff.name ?? '',
+    department:
+      staff.shiftAssignments[0]?.department?.trim() ||
+      employment?.department?.trim() ||
+      '',
+    unit: staff.shiftAssignments[0]?.unit?.trim() || '',
+    roster: employment?.roster?.trim() || ''
+  };
+}
+
+const swapSchema = z.object({
+  allocationId: z.string().optional(),
+  staffId: z.string().min(1, 'Staff member is required'),
+  otherStaffId: z.string().min(1, 'Swap with staff is required'),
+  dutyDate: z.coerce.date(),
+  acknowledgedWarnings: z.boolean().optional()
+});
+
+const replaceSchema = z.object({
+  allocationId: z.string().optional(),
+  staffId: z.string().min(1, 'Staff member is required'),
+  replacementStaffId: z.string().min(1, 'Replacement staff is required'),
+  dutyDate: z.coerce.date(),
+  acknowledgedWarnings: z.boolean().optional()
+});
+
+const attendanceSchema = z.object({
+  allocationId: z.string().min(1, 'Allocation is required'),
+  attendance: z.enum(DUTY_ATTENDANCE_VALUES).nullable()
+});
+
+const allocationSelect = {
+  id: true,
+  staffId: true,
+  shiftTypeId: true,
+  date: true,
+  staffCode: true,
+  staffName: true,
+  department: true,
+  unit: true,
+  roster: true,
+  status: true,
+  isLeave: true,
+  dutyLocation: true,
+  dutyLocationDepartmentId: true,
+  dutyZoneId: true,
+  dutyRoomId: true,
+  allocationSource: true,
+  staffShiftAssignmentId: true,
+  supervisorId: true,
+  supervisorName: true,
+  attendance: true,
+  comments: true,
+  createdAt: true,
+  updatedAt: true,
+  createdBy: true,
+  updatedBy: true,
+  shiftType: {
+    select: {
+      name: true,
+      code: true,
+      chipLabel: true,
+      startTime: true,
+      endTime: true
+    }
+  }
+} as const;
+
+function dutyWhere(
+  params: GetDutyRosterParams,
+  fromUtc: Date,
+  toUtc: Date
+): Prisma.RosterAllocationWhereInput {
+  const where: Prisma.RosterAllocationWhereInput = {
+    date:
+      fromUtc.getTime() === toUtc.getTime()
+        ? fromUtc
+        : { gte: fromUtc, lte: toUtc }
+  };
+  if (params.department) where.department = params.department;
+  if (params.unit) where.unit = params.unit;
+  if (params.roster) where.roster = params.roster;
+  if (params.shiftTypeId) where.shiftTypeId = params.shiftTypeId;
+  if (params.staffId?.trim()) where.staffId = params.staffId.trim();
+  if (params.search?.trim()) {
+    const q = params.search.trim();
+    where.OR = [
+      { staffCode: { contains: q, mode: 'insensitive' } },
+      { staffName: { contains: q, mode: 'insensitive' } }
+    ];
+  }
+  return where;
+}
+
+function resolveDutyUtcRange(params: GetDutyRosterParams): {
+  fromUtc: Date;
+  toUtc: Date;
+} {
+  const dutyDate = params.dutyDate || todayIso();
+  const view = parseDutyView(params.view);
+  const { from, to } = dutyRangeBounds(parseISO(dutyDate.slice(0, 10)), view);
+  return {
+    fromUtc: startOfDay(format(from, 'yyyy-MM-dd')),
+    toUtc: startOfDay(format(to, 'yyyy-MM-dd'))
+  };
+}
+
+export async function getDutyRoster(params: GetDutyRosterParams): Promise<{
+  success: boolean;
+  data?: {
+    records: DutyRosterRow[];
+    totalRecords: number;
+    summary: DutyRosterSummary;
+  };
+  message?: string;
+  error?: { message?: string };
+}> {
+  try {
+    const { fromUtc, toUtc } = resolveDutyUtcRange(params);
+    const view = parseDutyView(params.view);
+    const unpaged = view !== 'list';
+    const pageNumber =
+      Number.parseInt(params.page ?? process.env.DEFAULT_PAGE ?? '0', 10) || 1;
+    const defaultLimit =
+      Number.parseInt(process.env.DEFAULT_PAGE_SIZE ?? '100', 10) || 100;
+    const pageSize = Math.min(
+      Number.parseInt(params.limit ?? String(defaultLimit), 10) || defaultLimit,
+      200
+    );
+    const skip = (pageNumber - 1) * pageSize;
+    const where = dutyWhere(params, fromUtc, toUtc);
+    const takeLimit = view === 'months' ? 5000 : unpaged ? 2000 : pageSize;
+
+    const assignmentWhere: Prisma.StaffShiftAssignmentWhereInput = {
+      status: 'active',
+      effectiveFrom: { lte: toUtc },
+      OR: [{ effectiveTo: null }, { effectiveTo: { gte: fromUtc } }]
+    };
+    if (params.department) assignmentWhere.department = params.department;
+    if (params.unit) assignmentWhere.unit = params.unit;
+
+    const [totalRecords, records, assignedStaff, allocatedStaff] =
+      await Promise.all([
+        prisma.rosterAllocation.count({ where }),
+        prisma.rosterAllocation.findMany({
+          where,
+          select: allocationSelect,
+          orderBy: [{ staffCode: 'asc' }, { date: 'asc' }],
+          take: takeLimit,
+          ...(unpaged ? {} : { skip })
+        }),
+        prisma.staffShiftAssignment.findMany({
+          where: assignmentWhere,
+          select: { staffId: true },
+          distinct: ['staffId']
+        }),
+        prisma.rosterAllocation.findMany({
+          where,
+          select: { staffId: true },
+          distinct: ['staffId']
+        })
+      ]);
+
+    const withUsers = await resolveAuthUsers(records);
+    const mapped = withUsers.map(mapDutyRow).sort(compareDutyRowsByStaffThenShift);
+
+    const attendanceCounts = await prisma.rosterAllocation.groupBy({
+      by: ['attendance'],
+      where,
+      _count: { _all: true }
+    });
+
+    let present = 0;
+    let lateArrivals = 0;
+    for (const row of attendanceCounts) {
+      if (row.attendance === 'present') present = row._count._all;
+      if (row.attendance === 'late') lateArrivals = row._count._all;
+    }
+
+    const allocatedSet = new Set(allocatedStaff.map((row) => row.staffId));
+    const summary: DutyRosterSummary = {
+      onDutyToday: totalRecords,
+      present,
+      lateArrivals,
+      unfilledDuties: assignedStaff.filter(
+        (row) => !allocatedSet.has(row.staffId)
+      ).length
+    };
+
+    return {
+      success: true,
+      data: { records: mapped, totalRecords, summary },
+      message: 'Duty roster loaded'
+    };
+  } catch (error: any) {
+    console.error('getDutyRoster error:', error);
+    return {
+      success: false,
+      error: { message: error.message || 'Failed to load duty roster' }
+    };
+  }
+}
+
+export async function getDutyRosterForExport(
+  params: GetDutyRosterParams
+): Promise<{
+  data: DutyRosterRow[];
+  totalRecords: number;
+}> {
+  try {
+    const { fromUtc, toUtc } = resolveDutyUtcRange(params);
+    const records = await prisma.rosterAllocation.findMany({
+      where: dutyWhere(params, fromUtc, toUtc),
+      select: allocationSelect,
+      orderBy: [{ staffCode: 'asc' }, { date: 'asc' }]
+    });
+    const recordsWithUsers = await resolveAuthUsers(records);
+    const data = recordsWithUsers
+      .map(mapDutyRow)
+      .sort(compareDutyRowsByStaffThenShift);
+    return {
+      data,
+      totalRecords: data.length
+    };
+  } catch (error) {
+    console.error('getDutyRosterForExport error:', error);
+    throw new Error('Error getting data');
+  }
+}
+
+export async function getDutyRosterFilterOptions(): Promise<{
+  success: boolean;
+  data?: DutyRosterFilterOptions;
+  message?: string;
+  error?: { message?: string };
+}> {
+  try {
+    const [departmentRes, roomRes, allocations, shiftTypes, staff] =
+      await Promise.all([
+        getDepartmentOptions(),
+        getRoomOptions(),
+        prisma.rosterAllocation.findMany({
+          select: { roster: true },
+          distinct: ['roster']
+        }),
+        prisma.shiftType.findMany({
+          where: { status: 'active' },
+          orderBy: { name: 'asc' },
+          select: { id: true, name: true, code: true }
+        }),
+        prisma.staff.findMany({
+          where: { status: 1 },
+          orderBy: { name: 'asc' },
+          take: 500,
+          select: { id: true, name: true, code: true, employmentDetails: true }
+        })
+      ]);
+
+    const rosterFilterOptions = await buildManageRosterFilterOptions([
+      ...allocations.map((row) => row.roster),
+      ...staff.map((row) => row.employmentDetails?.employment?.roster)
+    ]);
+
+    return {
+      success: true,
+      data: {
+        departments: departmentRes.data ?? [],
+        units: roomRes.data ?? [],
+        rosters: rosterFilterOptions,
+        shifts: shiftTypes.map((shift) => ({
+          id: shift.id,
+          name: shift.code ? `${shift.code} — ${shift.name}` : shift.name
+        })),
+        staff: staff.map((row) => ({
+          id: row.id,
+          name: row.code
+            ? `${row.code} — ${row.name ?? 'Staff'}`
+            : (row.name ?? 'Staff')
+        }))
+      },
+      message: 'Duty roster filters fetched'
+    };
+  } catch (error: any) {
+    console.error('getDutyRosterFilterOptions error:', error);
+    return {
+      success: false,
+      error: { message: error.message || 'Failed to load duty roster filters' }
+    };
+  }
+}
+
+export async function getDutyRosterFormOptions(): Promise<{
+  success: boolean;
+  data?: DutyRosterFormOptions;
+  message?: string;
+  error?: { message?: string };
+}> {
+  try {
+    const [staffRecords, shiftTypes, departments, locations, zones, rooms] =
+      await Promise.all([
+        prisma.staff.findMany({
+          where: { status: 1 },
+          orderBy: { name: 'asc' },
+          take:
+            Number.parseInt(process.env.DEFAULT_PAGE_SIZE ?? '100', 10) || 100,
+          select: {
+            id: true,
+            name: true,
+            code: true,
+            employmentDetails: true,
+            shiftAssignments: {
+              where: { status: 'active' },
+              select: { unit: true, department: true },
+              take: 1,
+              orderBy: { effectiveFrom: 'desc' }
+            }
+          }
+        }),
+        prisma.shiftType.findMany({
+          where: { status: 'active' },
+          orderBy: { name: 'asc' },
+          select: {
+            id: true,
+            name: true,
+            code: true,
+            startTime: true,
+            endTime: true
+          }
+        }),
+        prisma.department.findMany({
+          where: { status: 1 },
+          orderBy: { name: 'asc' },
+          select: { id: true, name: true, institution: true }
+        }),
+        prisma.location.findMany({
+          where: { status: 1 },
+          orderBy: [{ order: 'asc' }, { name: 'asc' }],
+          select: { id: true, name: true, code: true }
+        }),
+        prisma.zone.findMany({
+          where: { status: 1 },
+          orderBy: { name: 'asc' },
+          select: { id: true, name: true, code: true, locationId: true }
+        }),
+        prisma.room.findMany({
+          where: { status: 1 },
+          orderBy: { number: 'asc' },
+          select: {
+            id: true,
+            number: true,
+            code: true,
+            zoneId: true,
+            locationId: true
+          }
+        })
+      ]);
+
+    const departmentById = new Map(
+      departments.map((d) => [d.id, d] as const)
+    );
+    const departmentsByNameInstitution = new Map(
+      departments.map((d) => [`${d.institution}::${d.name.trim().toLowerCase()}`, d] as const)
+    );
+
+    const staff: DutyRosterStaffOption[] = staffRecords.map((record) => {
+      const employment = (
+        record.employmentDetails as {
+          employment?: {
+            institution?: string;
+            department?: string;
+            roster?: string;
+          };
+        } | null
+      )?.employment;
+      const institutionNum = parseInstitutionId(employment?.institution);
+      const institutionId =
+        institutionNum != null ? String(institutionNum) : '';
+      const rawDept = employment?.department?.trim() || '';
+      const byId = rawDept ? departmentById.get(rawDept) : undefined;
+      const byName =
+        !byId && rawDept && institutionNum != null
+          ? departmentsByNameInstitution.get(
+              `${institutionNum}::${rawDept.toLowerCase()}`
+            )
+          : undefined;
+      const workingDept = byId || byName;
+      const assignmentDept = record.shiftAssignments[0]?.department?.trim() || '';
+      const assignmentDeptRow = assignmentDept
+        ? departmentById.get(assignmentDept) ||
+          (institutionNum != null
+            ? departmentsByNameInstitution.get(
+                `${institutionNum}::${assignmentDept.toLowerCase()}`
+              )
+            : undefined)
+        : undefined;
+
+      return {
+        id: record.id,
+        name: record.code
+          ? `${record.code} — ${record.name}`
+          : (record.name ?? ''),
+        staffCode: record.code ?? '',
+        dutyLocation: workingDept?.name || assignmentDept || '',
+        wardUnit: record.shiftAssignments[0]?.unit?.trim() || '',
+        institutionId,
+        institutionName:
+          institutionNum != null ? getInstitutionName(institutionNum) : '',
+        workingDepartmentId: workingDept?.id || assignmentDeptRow?.id || '',
+        workingDepartmentName:
+          workingDept?.name || assignmentDeptRow?.name || assignmentDept || '',
+        roster: employment?.roster?.trim() || ''
+      };
+    });
+
+    return {
+      success: true,
+      data: {
+        staff,
+        shiftTypes: shiftTypes.map((shift) => ({
+          id: shift.id,
+          name: shift.code ? `${shift.code} — ${shift.name}` : shift.name,
+          startTime: shift.startTime,
+          endTime: shift.endTime
+        })),
+        supervisors: staff.map((record) => ({
+          id: record.id,
+          name: record.name
+        })),
+        departments: departments.map((d) => ({
+          id: d.id,
+          name: d.name,
+          institutionId: String(d.institution)
+        })),
+        locations: locations.map((loc) => ({
+          id: loc.id,
+          name: loc.code ? `${loc.code} — ${loc.name}` : loc.name
+        })),
+        zones: zones.map((z) => ({
+          id: z.id,
+          name: z.code ? `${z.code} — ${z.name}` : z.name,
+          locationId: z.locationId
+        })),
+        rooms: rooms.map((r) => ({
+          id: r.id,
+          name: r.code ? `${r.number} (${r.code})` : r.number,
+          zoneId: r.zoneId,
+          locationId: r.locationId
+        }))
+      },
+      message: 'Duty roster form options fetched'
+    };
+  } catch (error: any) {
+    console.error('getDutyRosterFormOptions error:', error);
+    return {
+      success: false,
+      error: {
+        message: error.message || 'Failed to load duty roster form options'
+      }
+    };
+  }
+}
+
+export async function getStaffStandingAssignmentsForDuty(
+  staffId: string,
+  dutyDate: Date | string
+): Promise<{
+  success: boolean;
+  data?: DutyRosterStandingAssignmentOption[];
+  message?: string;
+  error?: { message?: string };
+}> {
+  try {
+    const id = staffId?.trim();
+    if (!id) {
+      return { success: true, data: [] };
+    }
+
+    const raw =
+      typeof dutyDate === 'string' ? parseISO(dutyDate.slice(0, 10)) : dutyDate;
+    const day = new Date(
+      Date.UTC(raw.getFullYear(), raw.getMonth(), raw.getDate())
+    );
+    const nextDay = new Date(day);
+    nextDay.setUTCDate(nextDay.getUTCDate() + 1);
+
+    const rows = await prisma.staffShiftAssignment.findMany({
+      where: {
+        staffId: id,
+        status: { in: ['active', 'pending'] },
+        effectiveFrom: { lt: nextDay },
+        OR: [{ effectiveTo: null }, { effectiveTo: { gte: day } }]
+      },
+      orderBy: [{ effectiveFrom: 'desc' }],
+      select: {
+        id: true,
+        code: true,
+        department: true,
+        unit: true,
+        designation: true,
+        rotationPattern: true,
+        weeklyOffDay: true,
+        status: true,
+        effectiveFrom: true,
+        effectiveTo: true,
+        shiftType: {
+          select: {
+            id: true,
+            name: true,
+            code: true,
+            startTime: true,
+            endTime: true,
+            status: true
+          }
+        },
+        manageRoster: {
+          select: { code: true, name: true }
+        }
+      }
+    });
+
+    const data: DutyRosterStandingAssignmentOption[] = rows
+      .filter((row) => row.shiftType.status === 'active')
+      .map((row) => {
+        const shiftLabel = row.shiftType.code
+          ? `${row.shiftType.code} — ${row.shiftType.name}`
+          : row.shiftType.name;
+        return {
+          id: row.id,
+          name: row.code ? `${row.code} — ${shiftLabel}` : shiftLabel,
+          shiftTypeId: row.shiftType.id,
+          shiftName: shiftLabel,
+          startTime: row.shiftType.startTime,
+          endTime: row.shiftType.endTime,
+          rosterCode: row.manageRoster?.code ?? '',
+          rosterName: row.manageRoster?.name ?? '',
+          department: row.department,
+          unit: row.unit,
+          designation: row.designation,
+          rotationPattern: row.rotationPattern,
+          weeklyOffDay: row.weeklyOffDay,
+          effectiveFrom: toIsoString(row.effectiveFrom),
+          effectiveTo: row.effectiveTo ? toIsoString(row.effectiveTo) : null,
+          status: row.status
+        };
+      });
+
+    return {
+      success: true,
+      data,
+      message: 'Standing assignments fetched'
+    };
+  } catch (error: any) {
+    console.error('getStaffStandingAssignmentsForDuty error:', error);
+    return {
+      success: false,
+      error: {
+        message: error.message || 'Failed to load standing assignments'
+      }
+    };
+  }
+}
+
+export async function getDutySwapCandidates(
+  dutyDate: Date | string
+): Promise<{
+  success: boolean;
+  data?: DutyRosterSwapCandidate[];
+  message?: string;
+  error?: { message?: string };
+}> {
+  try {
+    const raw =
+      typeof dutyDate === 'string' ? parseISO(dutyDate.slice(0, 10)) : dutyDate;
+    const day = new Date(
+      Date.UTC(raw.getFullYear(), raw.getMonth(), raw.getDate())
+    );
+
+    const rows = await prisma.rosterAllocation.findMany({
+      where: { date: day },
+      orderBy: [{ staffName: 'asc' }],
+      select: allocationSelect
+    });
+
+    const data: DutyRosterSwapCandidate[] = rows.map((row) => {
+      const shiftLabel =
+        row.shiftType.chipLabel ||
+        (row.shiftType.code
+          ? `${row.shiftType.code} — ${row.shiftType.name}`
+          : row.shiftType.name);
+      const staffLabel = row.staffCode
+        ? `${row.staffCode} — ${row.staffName}`
+        : row.staffName;
+      return {
+        id: row.staffId,
+        allocationId: row.id,
+        staffId: row.staffId,
+        name: staffLabel,
+        staffCode: row.staffCode,
+        staffName: row.staffName,
+        shiftTypeId: row.shiftTypeId,
+        shiftName: shiftLabel,
+        startTime: row.shiftType.startTime,
+        endTime: row.shiftType.endTime,
+        dutyLocation: row.dutyLocation,
+        wardUnit: row.unit,
+        department: row.department,
+        roster: row.roster,
+        supervisorName: row.supervisorName,
+        status: row.status,
+        allocationSource: row.allocationSource || 'adhoc',
+        date: toIsoString(row.date)
+      };
+    });
+
+    return {
+      success: true,
+      data,
+      message: 'Swap candidates fetched'
+    };
+  } catch (error: any) {
+    console.error('getDutySwapCandidates error:', error);
+    return {
+      success: false,
+      error: {
+        message: error.message || 'Failed to load swap candidates'
+      }
+    };
+  }
+}
+
+export async function saveDutyAllocation(
+  payload: SaveRosterAllocationDraftPayload,
+  user?: AuditUser
+) {
+  if (payload.allocationId) {
+    const existing = await prisma.rosterAllocation.findUnique({
+      where: { id: payload.allocationId },
+      select: {
+        id: true,
+        status: true,
+        date: true,
+        department: true,
+        unit: true,
+        roster: true,
+        shiftRosterId: true
+      }
+    });
+    if (!existing) {
+      return { success: false, error: { message: 'Duty allocation not found' } };
+    }
+    const lock = await assertWritableAllocation(existing);
+    if (!lock.ok) {
+      return publishedLockError();
+    }
+  }
+
+  if (!payload.dutyLocationDepartmentId?.trim()) {
+    return {
+      success: false,
+      error: {
+        message: 'Duty department is required',
+        issues: {
+          dutyLocationDepartmentId: ['Select a duty department']
+        }
+      }
+    };
+  }
+
+  if (payload.staffId) {
+    const snapshot = await getStaffSnapshot(payload.staffId);
+    if (snapshot) {
+      payload = {
+        ...payload,
+        // Let saveRosterAllocationDraft snapshot department / room unit from FKs.
+        department: undefined,
+        unit: payload.dutyRoomId?.trim()
+          ? undefined
+          : (payload.unit ?? snapshot.unit),
+        roster: payload.roster ?? snapshot.roster
+      };
+    }
+  }
+
+  return saveRosterAllocationDraft(payload, user);
+}
+
+export async function swapDutyAllocations(
+  payload: SwapDutyPayload,
+  user?: AuditUser
+): Promise<{
+  success: boolean;
+  message?: string;
+  error?: {
+    message?: string;
+    issues?: Record<string, string[]>;
+    softWarnings?: string[];
+    requiresAck?: boolean;
+  };
+}> {
+  try {
+    const parsed = swapSchema.safeParse(payload);
+    if (!parsed.success) {
+      return {
+        success: false,
+        error: {
+          message: 'Validation failed',
+          issues: parsed.error.flatten().fieldErrors as Record<string, string[]>
+        }
+      };
+    }
+
+    const data = parsed.data;
+    if (data.staffId === data.otherStaffId) {
+      return {
+        success: false,
+        error: {
+          message: 'Select a different registered staff member',
+          issues: { otherStaffId: ['Must be different from the first staff member'] }
+        }
+      };
+    }
+
+    const dutyUtc = new Date(
+      Date.UTC(
+        data.dutyDate.getFullYear(),
+        data.dutyDate.getMonth(),
+        data.dutyDate.getDate()
+      )
+    );
+
+    const swapSelect = {
+      id: true,
+      staffId: true,
+      staffName: true,
+      staffCode: true,
+      shiftTypeId: true,
+      hours: true,
+      status: true,
+      date: true,
+      department: true,
+      unit: true,
+      roster: true,
+      shiftRosterId: true,
+      shiftType: { select: { startTime: true, endTime: true } }
+    } as const;
+
+    const left = data.allocationId
+      ? await prisma.rosterAllocation.findUnique({
+          where: { id: data.allocationId },
+          select: swapSelect
+        })
+      : await prisma.rosterAllocation.findFirst({
+          where: { staffId: data.staffId, date: dutyUtc },
+          select: swapSelect
+        });
+
+    if (!left) {
+      return {
+        success: false,
+        error: { message: 'The selected staff member has no duty on this date' }
+      };
+    }
+
+    // Prefer partner with the same shift type when staff has multiple duties that day.
+    const right =
+      (await prisma.rosterAllocation.findFirst({
+        where: {
+          staffId: data.otherStaffId,
+          date: dutyUtc,
+          shiftTypeId: left.shiftTypeId
+        },
+        select: swapSelect
+      })) ??
+      (await prisma.rosterAllocation.findFirst({
+        where: { staffId: data.otherStaffId, date: dutyUtc },
+        select: swapSelect
+      }));
+
+    if (!right) {
+      return {
+        success: false,
+        error: {
+          message:
+            'Swap requires both staff members to already have a duty on this date. Use Replace to assign the duty to another staff member.'
+        }
+      };
+    }
+
+    const [leftLock, rightLock] = await Promise.all([
+      assertWritableAllocation(left),
+      assertWritableAllocation(right)
+    ]);
+    if (!leftLock.ok || !rightLock.ok) {
+      return publishedLockError();
+    }
+
+    const staffLabel = (row: {
+      staffName: string;
+      staffCode: string;
+    }) =>
+      row.staffName
+        ? row.staffCode
+          ? `${row.staffName} (${row.staffCode})`
+          : row.staffName
+        : undefined;
+
+    // INT-L2 + weekly-off — soft warn if either staff has leave / weekly off on swap day.
+    const [leftLeave, rightLeave, leftWeeklyOff, rightWeeklyOff] =
+      await Promise.all([
+        assertLeaveSoftWarn({
+          staffId: left.staffId,
+          date: dutyUtc,
+          acknowledgedWarnings: data.acknowledgedWarnings,
+          startTime: left.shiftType.startTime,
+          endTime: left.shiftType.endTime,
+          staffLabel: staffLabel(left)
+        }),
+        assertLeaveSoftWarn({
+          staffId: right.staffId,
+          date: dutyUtc,
+          acknowledgedWarnings: data.acknowledgedWarnings,
+          startTime: right.shiftType.startTime,
+          endTime: right.shiftType.endTime,
+          staffLabel: staffLabel(right)
+        }),
+        assertWeeklyOffSoftWarn({
+          staffId: left.staffId,
+          date: dutyUtc,
+          acknowledgedWarnings: data.acknowledgedWarnings,
+          staffLabel: staffLabel(left)
+        }),
+        assertWeeklyOffSoftWarn({
+          staffId: right.staffId,
+          date: dutyUtc,
+          acknowledgedWarnings: data.acknowledgedWarnings,
+          staffLabel: staffLabel(right)
+        })
+      ]);
+    if (
+      !leftLeave.ok ||
+      !rightLeave.ok ||
+      !leftWeeklyOff.ok ||
+      !rightWeeklyOff.ok
+    ) {
+      const softWarnings = [
+        ...(!leftLeave.ok ? leftLeave.softWarnings : []),
+        ...(!rightLeave.ok ? rightLeave.softWarnings : []),
+        ...(!leftWeeklyOff.ok ? leftWeeklyOff.softWarnings : []),
+        ...(!rightWeeklyOff.ok ? rightWeeklyOff.softWarnings : [])
+      ];
+      return {
+        success: false,
+        error: {
+          message: softWarnings[0] ?? 'Acknowledge warnings to continue',
+          softWarnings,
+          requiresAck: true
+        }
+      };
+    }
+
+    const auditUser = toAuditUser(user);
+    await prisma.$transaction([
+      prisma.rosterAllocation.update({
+        where: { id: left.id },
+        data: {
+          shiftTypeId: right.shiftTypeId,
+          hours: right.hours,
+          updatedBy: auditUser?.id
+        }
+      }),
+      prisma.rosterAllocation.update({
+        where: { id: right.id },
+        data: {
+          shiftTypeId: left.shiftTypeId,
+          hours: left.hours,
+          updatedBy: auditUser?.id
+        }
+      })
+    ]);
+
+    return { success: true, message: 'Duty shifts swapped' };
+  } catch (error: any) {
+    console.error('swapDutyAllocations error:', error);
+    return {
+      success: false,
+      error: { message: error.message || 'Failed to swap duty shifts' }
+    };
+  }
+}
+
+export async function replaceDutyStaff(
+  payload: ReplaceDutyPayload,
+  user?: AuditUser
+): Promise<{
+  success: boolean;
+  message?: string;
+  error?: {
+    message?: string;
+    issues?: Record<string, string[]>;
+    softWarnings?: string[];
+    requiresAck?: boolean;
+  };
+}> {
+  try {
+    const parsed = replaceSchema.safeParse(payload);
+    if (!parsed.success) {
+      return {
+        success: false,
+        error: {
+          message: 'Validation failed',
+          issues: parsed.error.flatten().fieldErrors as Record<string, string[]>
+        }
+      };
+    }
+
+    const data = parsed.data;
+    if (data.staffId === data.replacementStaffId) {
+      return {
+        success: false,
+        error: {
+          message: 'Select a different registered staff member',
+          issues: {
+            replacementStaffId: ['Must be different from the staff being replaced']
+          }
+        }
+      };
+    }
+
+    const dutyUtc = new Date(
+      Date.UTC(
+        data.dutyDate.getFullYear(),
+        data.dutyDate.getMonth(),
+        data.dutyDate.getDate()
+      )
+    );
+
+    const allocation = data.allocationId
+      ? await prisma.rosterAllocation.findUnique({
+          where: { id: data.allocationId },
+          select: {
+            id: true,
+            staffId: true,
+            shiftTypeId: true,
+            status: true,
+            date: true,
+            department: true,
+            unit: true,
+            roster: true,
+            shiftRosterId: true,
+            shiftType: { select: { startTime: true, endTime: true, name: true } }
+          }
+        })
+      : await prisma.rosterAllocation.findFirst({
+          where: { staffId: data.staffId, date: dutyUtc },
+          select: {
+            id: true,
+            staffId: true,
+            shiftTypeId: true,
+            status: true,
+            date: true,
+            department: true,
+            unit: true,
+            roster: true,
+            shiftRosterId: true,
+            shiftType: { select: { startTime: true, endTime: true, name: true } }
+          }
+        });
+
+    if (!allocation) {
+      return {
+        success: false,
+        error: { message: 'The selected staff member has no duty on this date' }
+      };
+    }
+
+    const lock = await assertWritableAllocation(allocation);
+    if (!lock.ok) {
+      return publishedLockError();
+    }
+
+    const sameShift = await prisma.rosterAllocation.findFirst({
+      where: {
+        staffId: data.replacementStaffId,
+        date: allocation.date,
+        shiftTypeId: allocation.shiftTypeId,
+        id: { not: allocation.id }
+      },
+      select: { id: true }
+    });
+    if (sameShift) {
+      return {
+        success: false,
+        error: {
+          message:
+            'Replacement staff already has this shift type on this date'
+        }
+      };
+    }
+
+    const snapshot = await getStaffSnapshot(data.replacementStaffId);
+    if (!snapshot) {
+      return { success: false, error: { message: 'Replacement staff not found' } };
+    }
+
+    const dayLimit = await assertStaffDayShiftLimit({
+      staffId: data.replacementStaffId,
+      date: allocation.date,
+      rosterCode: snapshot.roster || allocation.roster,
+      excludeAllocationId: allocation.id,
+      issueField: 'replacementStaffId'
+    });
+    if (!dayLimit.ok) {
+      return {
+        success: false,
+        error: { message: dayLimit.message, issues: dayLimit.issues }
+      };
+    }
+
+    const otherDuties = await prisma.rosterAllocation.findMany({
+      where: {
+        staffId: data.replacementStaffId,
+        date: allocation.date,
+        id: { not: allocation.id }
+      },
+      select: {
+        shiftType: { select: { name: true, startTime: true, endTime: true } }
+      }
+    });
+    const overlap = otherDuties.find((row) =>
+      shiftsOverlap({
+        startTime: allocation.shiftType.startTime,
+        endTime: allocation.shiftType.endTime,
+        otherStartTime: row.shiftType.startTime,
+        otherEndTime: row.shiftType.endTime
+      })
+    );
+    if (overlap) {
+      return {
+        success: false,
+        error: {
+          message: `Replacement staff already has overlapping duty (${overlap.shiftType.name} ${overlap.shiftType.startTime}–${overlap.shiftType.endTime})`
+        }
+      };
+    }
+
+    const replacementLabel = snapshot.staffName
+      ? snapshot.staffCode
+        ? `${snapshot.staffName} (${snapshot.staffCode})`
+        : snapshot.staffName
+      : undefined;
+
+    // INT-L2 + weekly-off — soft warn for replacement staff.
+    const [leaveWarn, weeklyOffWarn] = await Promise.all([
+      assertLeaveSoftWarn({
+        staffId: data.replacementStaffId,
+        date: allocation.date,
+        acknowledgedWarnings: data.acknowledgedWarnings,
+        startTime: allocation.shiftType.startTime,
+        endTime: allocation.shiftType.endTime,
+        staffLabel: replacementLabel
+      }),
+      assertWeeklyOffSoftWarn({
+        staffId: data.replacementStaffId,
+        date: allocation.date,
+        acknowledgedWarnings: data.acknowledgedWarnings,
+        staffLabel: replacementLabel
+      })
+    ]);
+    if (!leaveWarn.ok || !weeklyOffWarn.ok) {
+      const softWarnings = [
+        ...(!leaveWarn.ok ? leaveWarn.softWarnings : []),
+        ...(!weeklyOffWarn.ok ? weeklyOffWarn.softWarnings : [])
+      ];
+      return {
+        success: false,
+        error: {
+          message: softWarnings[0] ?? 'Acknowledge warnings to continue',
+          softWarnings,
+          requiresAck: true
+        }
+      };
+    }
+
+    const auditUser = toAuditUser(user);
+    await prisma.rosterAllocation.update({
+      where: { id: allocation.id },
+      data: {
+        staffId: data.replacementStaffId,
+        staffCode: snapshot.staffCode,
+        staffName: snapshot.staffName,
+        department: snapshot.department || allocation.department,
+        unit: snapshot.unit || allocation.unit,
+        roster: snapshot.roster || allocation.roster,
+        updatedBy: auditUser?.id
+      }
+    });
+
+    return { success: true, message: 'Duty staff replaced' };
+  } catch (error: any) {
+    console.error('replaceDutyStaff error:', error);
+    if (error?.code === 'P2002') {
+      return {
+        success: false,
+        error: {
+          message:
+            'Replacement staff already has this shift type on this date'
+        }
+      };
+    }
+    return {
+      success: false,
+      error: { message: error.message || 'Failed to replace duty staff' }
+    };
+  }
+}
+
+export async function updateDutyAttendance(
+  payload: UpdateDutyAttendancePayload,
+  user?: AuditUser
+): Promise<{
+  success: boolean;
+  message?: string;
+  error?: { message?: string; issues?: Record<string, string[]> };
+}> {
+  try {
+    const parsed = attendanceSchema.safeParse(payload);
+    if (!parsed.success) {
+      return {
+        success: false,
+        error: {
+          message: 'Validation failed',
+          issues: parsed.error.flatten().fieldErrors as Record<string, string[]>
+        }
+      };
+    }
+
+    const allocation = await prisma.rosterAllocation.findUnique({
+      where: { id: parsed.data.allocationId },
+      select: {
+        id: true,
+        status: true,
+        date: true,
+        department: true,
+        unit: true,
+        roster: true,
+        shiftRosterId: true
+      }
+    });
+    if (!allocation) {
+      return { success: false, error: { message: 'Duty allocation not found' } };
+    }
+
+    const lock = await assertWritableAllocation(allocation);
+    if (!lock.ok) {
+      return publishedLockError();
+    }
+
+    const auditUser = toAuditUser(user);
+    await prisma.rosterAllocation.update({
+      where: { id: allocation.id },
+      data: {
+        attendance: parsed.data.attendance,
+        updatedBy: auditUser?.id
+      }
+    });
+
+    return { success: true, message: 'Attendance updated' };
+  } catch (error: any) {
+    console.error('updateDutyAttendance error:', error);
+    return {
+      success: false,
+      error: { message: error.message || 'Failed to update attendance' }
+    };
+  }
+}
+
+export async function deleteDutyAllocation(
+  id: string,
+  user?: AuditUser
+): Promise<{
+  success: boolean;
+  message?: string;
+  error?: { message?: string };
+}> {
+  try {
+    if (!id) {
+      return { success: false, error: { message: 'Invalid allocation ID' } };
+    }
+
+    const allocation = await prisma.rosterAllocation.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        status: true,
+        date: true,
+        department: true,
+        unit: true,
+        roster: true,
+        shiftRosterId: true
+      }
+    });
+    if (!allocation) {
+      return { success: false, error: { message: 'Duty allocation not found' } };
+    }
+
+    const lock = await assertWritableAllocation(allocation);
+    if (!lock.ok) {
+      return { success: false, error: { message: PUBLISHED_LOCK_MESSAGE } };
+    }
+
+    void user;
+    await prisma.rosterAllocation.delete({ where: { id } });
+    return { success: true, message: 'Duty allocation deleted' };
+  } catch (error: any) {
+    console.error('deleteDutyAllocation error:', error);
+    return {
+      success: false,
+      error: { message: error.message || 'Failed to delete duty allocation' }
+    };
+  }
+}
+
+const HISTORY_TITLES: Record<string, string> = {
+  'duty.roster.assigned': 'Duty assigned',
+  'duty.roster.updated': 'Duty updated',
+  'duty.roster.swapped': 'Duty shifts swapped',
+  'duty.roster.replaced': 'Duty staff replaced',
+  'duty.roster.attendanceUpdated': 'Attendance updated',
+  'duty.roster.deleted': 'Duty allocation deleted'
+};
+
+export async function getDutyRosterHistory(id: string): Promise<{
+  success: boolean;
+  data?: DutyRosterHistoryEntry[];
+  message?: string;
+  error?: { message?: string };
+}> {
+  try {
+    if (!id) {
+      return { success: false, error: { message: 'Invalid allocation ID' } };
+    }
+
+    const logs = await prisma.activityLog.findMany({
+      where: { entityType: 'RosterAllocation', entityId: id },
+      orderBy: { createdAt: 'desc' },
+      take: 50
+    });
+
+    const withUsers = await resolveAuthUsers(
+      logs.map((log) => ({
+        ...log,
+        createdBy: log.userId,
+        updatedBy: null
+      }))
+    );
+
+    return {
+      success: true,
+      data: withUsers.map((log) => {
+        const metadata = (log.metadata ?? {}) as {
+          staffName?: string;
+          staffCode?: string;
+        };
+        const label = metadata.staffName || 'Duty allocation';
+        const code = metadata.staffCode ? ` (${metadata.staffCode})` : '';
+        return {
+          id: log.id,
+          title: HISTORY_TITLES[log.action] ?? 'Duty roster change',
+          detail: `${label}${code}.`,
+          userLabel: log.createdUser?.name ?? '—',
+          at: toIsoString(log.createdAt)
+        };
+      }),
+      message: 'Duty roster history fetched'
+    };
+  } catch (error: any) {
+    console.error('getDutyRosterHistory error:', error);
+    return {
+      success: false,
+      error: { message: error.message || 'Failed to fetch duty roster history' }
+    };
+  }
+}

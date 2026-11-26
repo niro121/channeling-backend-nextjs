@@ -1,0 +1,439 @@
+'use client';
+
+import { useMemo, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { Form, Formik, type FormikHelpers } from 'formik';
+import * as Yup from 'yup';
+import { Save, Send, X } from 'lucide-react';
+import {
+  Button,
+  CustomDatePickerField,
+  CustomFormField,
+  CustomSelectField,
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+  useToast
+} from '@archmage/ui';
+import {
+  createVacancyRequestAction,
+  updateVacancyRequestAction
+} from '@/app/actions/recruitment-actions/vacancy-request.actions';
+import { BadgeInput } from '@/components/custom/badge-input';
+import { buttonStyles } from '@/lib/utils/common-styles';
+import {
+  EMPTY_VACANCY_REQUEST_FORM,
+  VACANCY_EMPLOYMENT_TYPE_LABELS,
+  VACANCY_EMPLOYMENT_TYPES,
+  VACANCY_PRIORITIES,
+  VACANCY_PRIORITY_LABELS,
+  type VacancyRequestFormValues,
+  type VacancyRequestPayload,
+  type VacancyRequestRecord,
+  type VacancySelectOption
+} from '@/types/recruitment';
+import type { VacancyFormMode } from './vacancy-requests-ui-context';
+
+type SheetVacancyRequestFormProps = {
+  open: boolean;
+  mode: VacancyFormMode;
+  record: VacancyRequestRecord | null;
+  departmentOptions: VacancySelectOption[];
+  designationOptions: VacancySelectOption[];
+  onOpenChange: (open: boolean) => void;
+};
+
+const fieldStyleClasses = {
+  parentDiv: 'grid grid-cols-1 gap-1.5 items-start',
+  labelClassName: 'text-sm font-semibold text-foreground',
+  inputClassName: 'w-full'
+};
+
+const validationSchema = Yup.object({
+  departmentId: Yup.string().required('Department is required'),
+  designationId: Yup.string().required('Designation is required'),
+  vacancies: Yup.string()
+    .required('Number of vacancies is required')
+    .test('vacancies', 'Enter a whole number of at least 1', (value) => {
+      if (value == null || value === '') return false;
+      const n = Number(value);
+      return Number.isInteger(n) && n >= 1;
+    }),
+  employmentType: Yup.string().required('Employment type is required'),
+  requiredQualifications: Yup.string().trim(),
+  requiredExperience: Yup.string().trim(),
+  skills: Yup.array().of(Yup.string()),
+  jobDescription: Yup.string().trim(),
+  salaryRange: Yup.string().trim(),
+  requiredDate: Yup.date().nullable().required('Required date is required'),
+  priority: Yup.string().required('Priority is required'),
+  justification: Yup.string().trim().required('Justification is required'),
+  remarks: Yup.string().trim()
+});
+
+const employmentTypeOptions = VACANCY_EMPLOYMENT_TYPES.map((id) => ({
+  id,
+  name: VACANCY_EMPLOYMENT_TYPE_LABELS[id]
+}));
+
+const priorityOptions = VACANCY_PRIORITIES.map((id) => ({
+  id,
+  name: VACANCY_PRIORITY_LABELS[id]
+}));
+
+function parseIsoDate(value?: string | null): Date | null {
+  if (!value) return null;
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function recordToFormValues(
+  record: VacancyRequestRecord | null
+): VacancyRequestFormValues {
+  if (!record) return EMPTY_VACANCY_REQUEST_FORM;
+  return {
+    departmentId: record.departmentId,
+    designationId: record.designationId,
+    vacancies: String(record.vacancies),
+    employmentType: record.employmentType,
+    requiredQualifications: record.requiredQualifications,
+    requiredExperience: record.requiredExperience,
+    skills: [...record.skills],
+    jobDescription: record.jobDescription,
+    salaryRange: record.salaryRange,
+    requiredDate: parseIsoDate(record.requiredDate),
+    priority: record.priority,
+    justification: record.justification,
+    remarks: record.remarks
+  };
+}
+
+function firstErrorMessage(errors: unknown): string {
+  if (!errors || typeof errors !== 'object') {
+    return 'Something went wrong. Please try again later';
+  }
+  const record = errors as Record<string, unknown>;
+  if (typeof record.message === 'string' && record.message) {
+    return record.message;
+  }
+  for (const value of Object.values(record)) {
+    if (Array.isArray(value) && typeof value[0] === 'string') return value[0];
+    if (typeof value === 'string' && value) return value;
+  }
+  return 'Something went wrong. Please try again later';
+}
+
+type SubmitIntent = 'draft' | 'submit';
+
+export default function SheetVacancyRequestForm({
+  open,
+  mode,
+  record,
+  departmentOptions,
+  designationOptions,
+  onOpenChange
+}: SheetVacancyRequestFormProps) {
+  const { toast } = useToast();
+  const router = useRouter();
+  const [saving, setSaving] = useState(false);
+  const submitIntentRef = useRef<SubmitIntent>('draft');
+
+  const isDraft = mode === 'create' || record?.status === 'draft';
+
+  const initialValues = useMemo(
+    () =>
+      mode === 'create' ? EMPTY_VACANCY_REQUEST_FORM : recordToFormValues(record),
+    [mode, record]
+  );
+
+  const title =
+    mode === 'create'
+      ? 'New Vacancy Request'
+      : `Edit ${record?.requestId ?? 'Vacancy Request'}`;
+
+  const description =
+    mode === 'create'
+      ? 'Raise a staffing vacancy request for approval.'
+      : 'Update vacancy request details.';
+
+  const handleClose = () => onOpenChange(false);
+
+  const handleSubmit = async (
+    values: VacancyRequestFormValues,
+    _helpers: FormikHelpers<VacancyRequestFormValues>
+  ) => {
+    setSaving(true);
+    try {
+      const payload: VacancyRequestPayload = {
+        departmentId: values.departmentId,
+        designationId: values.designationId,
+        vacancies: values.vacancies,
+        employmentType: values.employmentType,
+        requiredQualifications: values.requiredQualifications,
+        requiredExperience: values.requiredExperience,
+        skills: values.skills,
+        jobDescription: values.jobDescription,
+        salaryRange: values.salaryRange,
+        requiredDate: values.requiredDate,
+        priority: values.priority,
+        justification: values.justification,
+        remarks: values.remarks,
+        submitIntent: submitIntentRef.current
+      };
+
+      const result =
+        mode === 'create'
+          ? await createVacancyRequestAction(payload)
+          : await updateVacancyRequestAction(record!.id, payload);
+
+      if (result.isError) {
+        toast({
+          variant: 'destructive',
+          title: 'Save failed',
+          description: firstErrorMessage(result.errors)
+        });
+        return;
+      }
+
+      toast({
+        variant: 'success',
+        title: submitIntentRef.current === 'submit' ? 'Submitted' : 'Saved',
+        description:
+          submitIntentRef.current === 'submit'
+            ? 'Vacancy request submitted for approval.'
+            : 'Vacancy request saved successfully.'
+      });
+      handleClose();
+      router.refresh();
+    } finally {
+      setSaving(false);
+      submitIntentRef.current = 'draft';
+    }
+  };
+
+  return (
+    <Sheet
+      open={open}
+      onOpenChange={(next) => {
+        if (!next) handleClose();
+        else onOpenChange(next);
+      }}
+    >
+      <SheetContent
+        side="right"
+        className="flex h-full w-full flex-col gap-0 overflow-hidden p-0 sm:max-w-2xl"
+      >
+        <SheetHeader className="shrink-0 space-y-1 border-b border-border bg-background px-6 py-4 pr-14 text-left">
+          <SheetTitle>{title}</SheetTitle>
+          <SheetDescription>{description}</SheetDescription>
+        </SheetHeader>
+
+        <Formik
+          key={`${mode}-${record?.id ?? 'new'}`}
+          initialValues={initialValues}
+          enableReinitialize
+          validationSchema={validationSchema}
+          onSubmit={handleSubmit}
+        >
+          {(formik) => (
+            <Form className="flex min-h-0 flex-1 flex-col">
+              <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-6 py-4">
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <CustomSelectField
+                    id="departmentId"
+                    placeholder="Department"
+                    value={formik.values.departmentId || undefined}
+                    onChange={(value) =>
+                      void formik.setFieldValue('departmentId', value)
+                    }
+                    required
+                    options={departmentOptions}
+                    styleClasses={fieldStyleClasses}
+                  />
+                  <CustomSelectField
+                    id="designationId"
+                    placeholder="Designation"
+                    value={formik.values.designationId || undefined}
+                    onChange={(value) =>
+                      void formik.setFieldValue('designationId', value)
+                    }
+                    required
+                    options={designationOptions}
+                    styleClasses={fieldStyleClasses}
+                  />
+                  <CustomFormField
+                    id="vacancies"
+                    type="number"
+                    placeholder="Number of Vacancies"
+                    value={formik.values.vacancies}
+                    onChange={formik.handleChange}
+                    onBlur={formik.handleBlur}
+                    required
+                    min={1}
+                    styleClasses={fieldStyleClasses}
+                  />
+                  <CustomSelectField
+                    id="employmentType"
+                    placeholder="Employment Type"
+                    value={formik.values.employmentType || undefined}
+                    onChange={(value) =>
+                      void formik.setFieldValue('employmentType', value)
+                    }
+                    required
+                    options={employmentTypeOptions}
+                    styleClasses={fieldStyleClasses}
+                  />
+                </div>
+
+                <CustomFormField
+                  id="requiredQualifications"
+                  type="textarea"
+                  placeholder="Required Qualifications"
+                  value={formik.values.requiredQualifications}
+                  onChange={formik.handleChange}
+                  onBlur={formik.handleBlur}
+                  required={false}
+                  styleClasses={fieldStyleClasses}
+                />
+
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <CustomFormField
+                    id="requiredExperience"
+                    type="text"
+                    placeholder="Required Experience"
+                    value={formik.values.requiredExperience}
+                    onChange={formik.handleChange}
+                    onBlur={formik.handleBlur}
+                    required={false}
+                    styleClasses={fieldStyleClasses}
+                  />
+                  <CustomFormField
+                    id="salaryRange"
+                    type="text"
+                    placeholder="Salary Range (Where Applicable)"
+                    value={formik.values.salaryRange}
+                    onChange={formik.handleChange}
+                    onBlur={formik.handleBlur}
+                    required={false}
+                    styleClasses={fieldStyleClasses}
+                  />
+                </div>
+
+                <BadgeInput
+                  id="skills"
+                  label="Skills"
+                  value={formik.values.skills}
+                  onChange={(skills) =>
+                    void formik.setFieldValue('skills', skills)
+                  }
+                  onBlur={() => void formik.setFieldTouched('skills', true)}
+                  placeholder="e.g. Patient care — Enter to add"
+                />
+
+                <CustomFormField
+                  id="jobDescription"
+                  type="textarea"
+                  placeholder="Job Description"
+                  value={formik.values.jobDescription}
+                  onChange={formik.handleChange}
+                  onBlur={formik.handleBlur}
+                  required={false}
+                  styleClasses={fieldStyleClasses}
+                />
+
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <CustomDatePickerField
+                    id="requiredDate"
+                    placeholder="Required Date"
+                    value={formik.values.requiredDate}
+                    onChange={(date) =>
+                      void formik.setFieldValue('requiredDate', date ?? null)
+                    }
+                    onBlur={formik.handleBlur}
+                    required
+                    styleClasses={fieldStyleClasses}
+                  />
+                  <CustomSelectField
+                    id="priority"
+                    placeholder="Priority"
+                    value={formik.values.priority || undefined}
+                    onChange={(value) =>
+                      void formik.setFieldValue('priority', value)
+                    }
+                    required
+                    options={priorityOptions}
+                    styleClasses={fieldStyleClasses}
+                  />
+                </div>
+
+                <CustomFormField
+                  id="justification"
+                  type="textarea"
+                  placeholder="Justification"
+                  value={formik.values.justification}
+                  onChange={formik.handleChange}
+                  onBlur={formik.handleBlur}
+                  required
+                  styleClasses={fieldStyleClasses}
+                />
+
+                <CustomFormField
+                  id="remarks"
+                  type="textarea"
+                  placeholder="Remarks"
+                  value={formik.values.remarks}
+                  onChange={formik.handleChange}
+                  onBlur={formik.handleBlur}
+                  required={false}
+                  styleClasses={fieldStyleClasses}
+                />
+              </div>
+
+              <SheetFooter className="shrink-0 flex-row justify-end gap-2 border-t border-border bg-background px-6 py-4 sm:space-x-0">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className={buttonStyles.cancel.normal}
+                  disabled={saving}
+                  onClick={handleClose}
+                >
+                  <X className="h-4 w-4" />
+                  Cancel
+                </Button>
+
+                <Button
+                  type="submit"
+                  className={buttonStyles.save}
+                  disabled={saving}
+                  onClick={() => {
+                    submitIntentRef.current = 'draft';
+                  }}
+                >
+                  <Save className="h-4 w-4" />
+                  {saving ? 'Saving…' : 'Save'}
+                </Button>
+                {isDraft ? (
+                  <Button
+                    type="submit"
+                    variant="outline"
+                    className={buttonStyles.saveAndClose}
+                    disabled={saving}
+                    onClick={() => {
+                      submitIntentRef.current = 'submit';
+                    }}
+                  >
+                    <Send className="h-4 w-4" />
+                    {saving ? 'Submitting…' : 'Submit for approval'}
+                  </Button>
+                ) : null}
+              </SheetFooter>
+            </Form>
+          )}
+        </Formik>
+      </SheetContent>
+    </Sheet>
+  );
+}
