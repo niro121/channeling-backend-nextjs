@@ -22,14 +22,14 @@ export default async function DashboardLayout({ children }: { children: React.Re
     <Providers session={session}>
       <NavigationLoadingWrapper>
         <div className="flex min-h-screen w-full flex-col bg-background">
-          <SidebarLayoutClient>
+          <SidebarLayoutClient permissions={session.user.permissions} userType={session.user.userType}>
             <header className="sticky top-0 z-40 flex h-14 shrink-0 flex-nowrap items-center gap-4 border-b border-border bg-background/95 px-4 backdrop-blur supports-[backdrop-filter]:bg-background/60 sm:px-6">
               <div className="flex min-w-0 flex-1 flex-nowrap items-center gap-4 overflow-hidden">
                 <DashboardBreadcrumb />
               </div>
               <div className="ml-auto flex shrink-0 items-center gap-3">
                 <ShiftStrip initialShift={shiftState.success ? shiftState.shift : null} />
-                <HeaderClientControls />
+                <HeaderClientControls permissions={session.user.permissions} userType={session.user.userType} />
               </div>
             </header>
             <main className="flex-1 p-4 sm:p-6">

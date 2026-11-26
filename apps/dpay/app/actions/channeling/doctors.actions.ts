@@ -1,5 +1,6 @@
 'use server';
 
+import { requireAnyPermission } from '@/lib/server-permissions';
 import {
   fetchChannelingDoctors,
   isChannelingApiConfigured,
@@ -14,6 +15,10 @@ export type SearchDoctorsResult =
 export async function searchChannelingDoctorsAction(
   keyword?: string
 ): Promise<SearchDoctorsResult> {
+  await requireAnyPermission([
+    { resource: 'patient-bills', action: 'view' },
+    { resource: 'doctor-payments', action: 'view' },
+  ]);
   if (!isChannelingApiConfigured()) {
     return {
       success: true,

@@ -1,69 +1,9 @@
 import { CustomDataTable } from '@archmage/ui';
 import { fetchServerSession } from '@/lib/session';
 import { logActivityNonBlocking } from '@/lib/activity-log';
+import { userTypes } from '@/lib/roles';
+import { DPAY_REPORTS, REPORT_CATEGORIES, canViewReport } from '@/lib/report-privileges';
 import { reportColumns, type ReportListItem } from './columns';
-
-const financialReports: ReportListItem[] = [
-  {
-    id: '1',
-    rank: 1,
-    masterData: 'Receipt Report',
-    description:
-      'Patient payment receipts with date filters, search, print, and export.',
-    route: '/reports/receipts',
-  },
-  {
-    id: '2',
-    rank: 2,
-    masterData: 'Doctor Payment Report',
-    description:
-      'Doctor payment receipts with totals, status, search, print, and export.',
-    route: '/reports/doctor-payments',
-  },
-  {
-    id: '3',
-    rank: 3,
-    masterData: 'Doctor Due Payment Report',
-    description:
-      'Doctors still owed for unpaid bill line items, with search, print, and export.',
-    route: '/reports/doctor-due',
-  },
-  {
-    id: '4',
-    rank: 4,
-    masterData: 'Patient Due Report',
-    description:
-      'Patients with outstanding balances (pending / partially paid) for collection follow-up.',
-    route: '/reports/patient-due',
-  },
-  {
-    id: '5',
-    rank: 5,
-    masterData: 'Patient Excess Report',
-    description:
-      'Patients who overpaid their bills, with excess amount for refund follow-up.',
-    route: '/reports/patient-excess',
-  },
-  {
-    id: '6',
-    rank: 6,
-    masterData: 'Admission List Report',
-    description:
-      'Admitted patients with BHT, bill number, and patient details. Date filters, search, print, and export.',
-    route: '/reports/admission-list',
-  },
-];
-
-const systemReports: ReportListItem[] = [
-  {
-    id: '7',
-    rank: 1,
-    masterData: 'User Activity Report',
-    description:
-      'View user activity logs with filters for date range, user, and action.',
-    route: '/reports/user-activity',
-  },
-];
 
 export default async function ReportsPage() {
   const session = await fetchServerSession();
@@ -76,6 +16,11 @@ export default async function ReportsPage() {
     });
   }
 
+  const isAdmin = session?.user?.userType === userTypes.admin;
+  const visible = DPAY_REPORTS.filter(
+    (report) => isAdmin || canViewReport(session?.user?.permissions, report.action)
+  );
+
   return (
     <div className="space-y-6">
       <div>
@@ -85,25 +30,30 @@ export default async function ReportsPage() {
         </p>
       </div>
 
-      <CustomDataTable
-        heading="Financial"
-        subHeading=""
-        columns={reportColumns}
-        data={financialReports}
-        rowCount={financialReports.length}
-        haveBulkDelete={false}
-        showPagination={false}
-      />
-
-      <CustomDataTable
-        heading="System"
-        subHeading=""
-        columns={reportColumns}
-        data={systemReports}
-        rowCount={systemReports.length}
-        haveBulkDelete={false}
-        showPagination={false}
-      />
+      {REPORT_CATEGORIES.map((category) => {
+        const reports: ReportListItem[] = visible
+          .filter((report) => report.category === category)
+          .map((report) => ({
+            id: report.action,
+            rank: report.rank,
+            masterData: report.name,
+            description: report.description,
+            route: report.route,
+          }));
+        if (reports.length === 0) return null;
+        return (
+          <CustomDataTable
+            key={category}
+            heading={category}
+            subHeading=""
+            columns={reportColumns}
+            data={reports}
+            rowCount={reports.length}
+            haveBulkDelete={false}
+            showPagination={false}
+          />
+        );
+      })}
     </div>
   );
 }

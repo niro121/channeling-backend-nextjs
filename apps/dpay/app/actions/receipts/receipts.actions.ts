@@ -1,5 +1,7 @@
 'use server';
 
+import { requirePermission } from '@/lib/server-permissions';
+
 import { revalidatePath } from 'next/cache';
 import { getLocationLetterhead } from '@/lib/location';
 import { markPatientReceiptPrinted } from '@/services/receipts/mark-patient-receipt-printed.service';
@@ -18,6 +20,7 @@ import { format } from 'date-fns';
  * Download does not call this. If recording fails, the caller can still print without the banner.
  */
 export async function markPatientReceiptPrintedAction(receiptId: string) {
+  await requirePermission('receipts', 'view');
   const session = await fetchServerSession();
   if (!session?.user?.id) {
     return { success: false as const, message: 'You must be logged in to print a receipt.' };
@@ -28,6 +31,7 @@ export async function markPatientReceiptPrintedAction(receiptId: string) {
 
 /** Which patient slip to print. Does not change the receipt. */
 export async function getPatientReceiptPrintSlipAction(receiptId: string) {
+  await requirePermission('receipts', 'view');
   const session = await fetchServerSession();
   if (!session?.user?.id) {
     return {
@@ -46,6 +50,7 @@ export async function getPatientReceiptPrintSlipAction(receiptId: string) {
 
 /** Branch name and address for the print letterhead. Empty when it cannot be resolved. */
 export async function getReceiptLetterheadAction(locationId?: string | null) {
+  await requirePermission('receipts', 'view');
   const empty = { locationName: '', addressLine: '' };
   const session = await fetchServerSession();
   if (!session?.user?.id) return empty;
@@ -54,12 +59,14 @@ export async function getReceiptLetterheadAction(locationId?: string | null) {
 }
 
 export async function getReceiptsAction(params: GetReceiptsParams = {}) {
+  await requirePermission('receipts', 'view');
   return getReceipts(params);
 }
 
 export async function getReceiptsExportAction(
   params: Omit<GetReceiptsParams, 'page' | 'limit'>
 ): Promise<{ success: boolean; data?: ReceiptExportRow[]; message?: string }> {
+  await requirePermission('receipts', 'view');
   try {
     const items = await getReceiptsExport(params);
     const data: ReceiptExportRow[] = items.map((item) => ({
@@ -105,6 +112,7 @@ export async function cancelPatientBillReceiptAction(
     slipDate?: string;
   }
 ) {
+  await requirePermission('patient-bills', 'edit');
   const session = await fetchServerSession();
   if (!session?.user?.id) {
     return { success: false as const, message: 'You must be logged in to cancel a receipt.' };

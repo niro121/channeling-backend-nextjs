@@ -1,5 +1,7 @@
 'use server';
 
+import { requireReport } from '@/lib/server-permissions';
+
 import { format } from 'date-fns';
 import { formatLkr, formatReportLkr } from '@/lib/patient-bills/calculations';
 import { paymentMethodLabel } from '@/lib/receipts/helpers';
@@ -55,12 +57,14 @@ function receiptStatusLabel(status: string): string {
 }
 
 export async function getReceiptReportAction(params: ReceiptReportParams = {}) {
+  await requireReport('receipts');
   return getReceiptReport(params);
 }
 
 export async function getReceiptReportExportAction(
   params: Omit<ReceiptReportParams, 'page' | 'limit'>
 ): Promise<{ success: boolean; data?: ReceiptReportExportRow[]; message?: string }> {
+  await requireReport('receipts');
 
   try {
     const items = await getReceiptReportExport(params);
@@ -87,6 +91,7 @@ export async function getReceiptReportExportAction(
 export async function getDoctorPaymentReportAction(
   params: DoctorPaymentReportParams = {}
 ) {
+  await requireReport('doctor-payments');
   return getDoctorPaymentReport(params);
 }
 
@@ -97,6 +102,7 @@ export async function getDoctorPaymentReportExportAction(
   data?: DoctorPaymentReportExportRow[];
   message?: string;
 }> {
+  await requireReport('doctor-payments');
 
   try {
     const items = await getDoctorPaymentReportExport(params);
@@ -148,12 +154,14 @@ function patientBillStatusLabel(status: string): string {
 }
 
 export async function getPatientDueReportAction(params: PatientDueReportParams = {}) {
+  await requireReport('patient-due');
   return getPatientDueReport(params);
 }
 
 export async function getPatientDueReportExportAction(
   params: PatientDueReportParams = {}
 ): Promise<{ success: boolean; data?: PatientDueReportExportRow[]; message?: string }> {
+  await requireReport('patient-due');
 
   try {
     const items = await getPatientDueReportExport(params);
@@ -183,6 +191,7 @@ export async function getPatientDueReportExportAction(
 export async function getPatientExcessReportAction(
   params: PatientExcessReportParams = {}
 ) {
+  await requireReport('patient-excess');
   return getPatientExcessReport(params);
 }
 
@@ -193,6 +202,7 @@ export async function getPatientExcessReportExportAction(
   data?: PatientExcessReportExportRow[];
   message?: string;
 }> {
+  await requireReport('patient-excess');
 
   try {
     const items = await getPatientExcessReportExport(params);
@@ -220,6 +230,7 @@ export async function getPatientExcessReportExportAction(
 export async function getDoctorDuePaymentReportAction(
   params: DoctorDuePaymentReportParams = {}
 ) {
+  await requireReport('doctor-due');
   return getDoctorDuePaymentReport(params);
 }
 
@@ -230,6 +241,7 @@ export async function getDoctorDuePaymentReportExportAction(
   data?: DoctorDuePaymentReportExportRow[];
   message?: string;
 }> {
+  await requireReport('doctor-due');
 
   try {
     const items = await getDoctorDuePaymentReportExport(params);
@@ -269,6 +281,7 @@ function formatAdmissionAndDischarge(
 export async function getAdmissionListReportAction(
   params: AdmissionListReportParams = {}
 ) {
+  await requireReport('admission-list');
   return getAdmissionListReport(params);
 }
 
@@ -279,6 +292,7 @@ export async function getAdmissionListReportExportAction(
   data?: AdmissionListReportExportRow[];
   message?: string;
 }> {
+  await requireReport('admission-list');
 
   try {
     const items = await getAdmissionListReportExport(params);
