@@ -1,5 +1,7 @@
 'use server';
 
+import { requireReport } from '@/lib/server-permissions';
+
 import { format } from 'date-fns';
 import { authPrisma } from '@archmage/db-auth';
 import { fetchServerSession } from '@/lib/session';
@@ -17,6 +19,7 @@ export async function getReportUserOptionsAction(): Promise<{
   data?: Array<{ id: string; name: string }>;
   message?: string;
 }> {
+  await requireReport('user-activity');
   try {
     const users = await authPrisma.user.findMany({
       where: { status: 1 },
@@ -44,6 +47,7 @@ export async function getReportUserOptionsAction(): Promise<{
 export async function getUserActivityReportData(
   query: UserActivityReportQuery
 ): Promise<UserActivityReportResponse> {
+  await requireReport('user-activity');
   try {
     return await getActivityLogsForReport(
       query.userId === '__all__' || !query.userId ? undefined : query.userId,
@@ -71,6 +75,7 @@ export async function exportUserActivityReportData(
   message?: string;
   hasMore?: boolean;
 }> {
+  await requireReport('user-activity');
   try {
     const result = await getActivityLogsForReport(
       query.userId === '__all__' || !query.userId ? undefined : query.userId,
