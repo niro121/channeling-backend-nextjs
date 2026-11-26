@@ -1,10 +1,36 @@
 'use client';
 
+import type { ReactNode } from 'react';
 import Link from 'next/link';
 import { Button, Sheet, SheetContent, SheetTrigger, NavLink } from '@archmage/ui';
-import { PanelLeft, LayoutGrid, Landmark, FileText, Receipt, ScrollText, Wallet, BarChart3 } from 'lucide-react';
+import { PanelLeft, LayoutGrid, Landmark, FileText, Receipt, ScrollText, Wallet, BarChart3, Users, Shield } from 'lucide-react';
+import type { Permissions } from '@archmage/shared';
+import { ADMIN_LINKS, FINANCE_LINKS, canSeeLink, type DpayNavLink } from '@/lib/dpay-nav';
 
-export default function MobileNavClient() {
+const ICONS: Record<string, ReactNode> = {
+  '/patient-bills': <FileText className="h-5 w-5" />,
+  '/receipts': <Receipt className="h-5 w-5" />,
+  '/receipt-manager': <ScrollText className="h-5 w-5" />,
+  '/doctor-payments': <Wallet className="h-5 w-5" />,
+  '/reports': <BarChart3 className="h-5 w-5" />,
+  '/users': <Users className="h-5 w-5" />,
+  '/user-groups': <Shield className="h-5 w-5" />,
+};
+
+function visible(links: DpayNavLink[], permissions?: Permissions | null, userType?: number | null) {
+  return links.filter((link) => canSeeLink(link, permissions, userType));
+}
+
+export default function MobileNavClient({
+  permissions,
+  userType,
+}: {
+  permissions?: Permissions | null;
+  userType?: number | null;
+}) {
+  const finance = visible(FINANCE_LINKS, permissions, userType);
+  const admin = visible(ADMIN_LINKS, permissions, userType);
+
   return (
     <Sheet>
       <div />
@@ -29,18 +55,30 @@ export default function MobileNavClient() {
         <nav className="scrollbar-thin flex-1 overflow-y-auto flex flex-col gap-6 py-4 px-3 min-h-0">
           <div className="space-y-3">
             <NavLink href="/welcome" label="Dashboard" icon={<LayoutGrid className="h-5 w-5" />} />
-            <div>
-              <p className="px-2 mb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                Finance
-              </p>
-              <div className="space-y-0.5">
-                <NavLink href="/patient-bills" label="Patient Bills" icon={<FileText className="h-5 w-5" />} />
-                <NavLink href="/receipts" label="Receipts" icon={<Receipt className="h-5 w-5" />} />
-                <NavLink href="/receipt-manager" label="Receipt Manager" icon={<ScrollText className="h-5 w-5" />} />
-                <NavLink href="/doctor-payments" label="Doctor Payments" icon={<Wallet className="h-5 w-5" />} />
-                <NavLink href="/reports" label="Reports" icon={<BarChart3 className="h-5 w-5" />} />
+            {finance.length > 0 ? (
+              <div>
+                <p className="px-2 mb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  Finance
+                </p>
+                <div className="space-y-0.5">
+                  {finance.map((link) => (
+                    <NavLink key={link.href} href={link.href} label={link.label} icon={ICONS[link.href]} />
+                  ))}
+                </div>
               </div>
-            </div>
+            ) : null}
+            {admin.length > 0 ? (
+              <div>
+                <p className="px-2 mb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  Administration
+                </p>
+                <div className="space-y-0.5">
+                  {admin.map((link) => (
+                    <NavLink key={link.href} href={link.href} label={link.label} icon={ICONS[link.href]} />
+                  ))}
+                </div>
+              </div>
+            ) : null}
           </div>
         </nav>
       </SheetContent>

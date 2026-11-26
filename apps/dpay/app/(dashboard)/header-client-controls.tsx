@@ -1,10 +1,17 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import type { Permissions } from '@archmage/shared';
 import { Profile } from './profile';
 import MobileNavClient from './mobile-nav-client';
 
-export function HeaderClientControls() {
+export function HeaderClientControls({
+  permissions,
+  userType,
+}: {
+  permissions?: Permissions | null;
+  userType?: number | null;
+}) {
   const [mounted, setMounted] = useState(false);
   useEffect(() => { setMounted(true); }, []);
 
@@ -19,7 +26,7 @@ export function HeaderClientControls() {
 
   return (
     <>
-      <MobileNavClient />
+      <MobileNavClient permissions={permissions} userType={userType} />
       <div className="shrink-0"><Profile /></div>
     </>
   );

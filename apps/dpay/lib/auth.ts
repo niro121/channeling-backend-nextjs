@@ -2,8 +2,17 @@ import { NextAuthOptions } from 'next-auth';
 import CredentialsProvider from 'next-auth/providers/credentials';
 import { authPrisma } from '@archmage/db-auth';
 import * as argon2 from 'argon2';
+import { Permissions } from '@archmage/shared';
 import { verifyTotp } from '@/lib/helpers/2fa/totp';
-import { isDashboardLoginUserType } from '@/lib/roles';
+import { isDashboardLoginUserType, userTypes } from '@/lib/roles';
+import { assertDpayAppAccess } from '@/lib/auth-app-access';
+
+function assertCanSignIn(user: { userType: number; userGroup?: { app?: string | null; status?: number } | null }) {
+  assertDpayAppAccess(user);
+  if (user.userType !== userTypes.admin && user.userGroup?.status !== 1) {
+    throw new Error('Invalid credentials');
+  }
+}
 
 const getSecret = () => {
   if (process.env.NEXTAUTH_SECRET) return process.env.NEXTAUTH_SECRET;
@@ -60,10 +69,12 @@ export const authOptions: NextAuthOptions = {
                   twoFactorTempCode: twoFactorToken,
                   twoFactorExpires: { gt: new Date() },
                   status: 1
-                }
+                },
+                include: { userGroup: true }
               });
               if (!user) throw new Error('Invalid or expired 2FA. Please try again.');
               if (!isDashboardLoginUserType(user.userType)) throw new Error('Invalid credentials');
+              assertCanSignIn(user);
 
               const totpSecret = user.twoFactorSecret ?? user.twoFactorPendingSecret ?? process.env.TOTP_SECRET;
               if (!totpSecret) throw new Error('Invalid or expired 2FA. Please try again.');
@@ -89,15 +100,17 @@ export const authOptions: NextAuthOptions = {
                 name: user.name,
                 email: user.email,
                 userLocationId: user.userLocationId ?? null,
-                locationCode: user.locationCode ?? null
+                locationCode: user.locationCode ?? null,
+                permissions: (user.userGroup?.permissions as Permissions | null) ?? null
               };
             }
 
             // SMS/EMAIL 2FA
-            const user = await authPrisma.user.findFirst({ where: userWhere });
+            const user = await authPrisma.user.findFirst({ where: userWhere, include: { userGroup: true } });
             if (!user?.password) throw new Error('Invalid credentials');
             if (!await argon2.verify(user.password, credentials.password)) throw new Error('Invalid credentials');
             if (!isDashboardLoginUserType(user.userType)) throw new Error('Invalid credentials');
+            assertCanSignIn(user);
             if (!user.twoFactorExpires || user.twoFactorExpires < new Date()) throw new Error('2FA code expired.');
 
             const storedCode = user.twoFactorTempCode != null ? String(user.twoFactorTempCode) : '';
@@ -114,15 +127,17 @@ export const authOptions: NextAuthOptions = {
               name: user.name,
               email: user.email,
               userLocationId: user.userLocationId ?? null,
-              locationCode: user.locationCode ?? null
+              locationCode: user.locationCode ?? null,
+              permissions: (user.userGroup?.permissions as Permissions | null) ?? null
             };
           }
 
           // Password-only login
-          const user = await authPrisma.user.findFirst({ where: userWhere });
+          const user = await authPrisma.user.findFirst({ where: userWhere, include: { userGroup: true } });
           if (!user?.password) throw new Error('Invalid credentials');
           if (!await argon2.verify(user.password, credentials.password)) throw new Error('Invalid credentials');
           if (!isDashboardLoginUserType(user.userType)) throw new Error('Invalid credentials');
+          assertCanSignIn(user);
           if (user.mustChangePassword) return null;
 
           // Require 2FA when enabled on the user (ignore group settings)
@@ -134,7 +149,8 @@ export const authOptions: NextAuthOptions = {
             name: user.name,
             email: user.email,
             userLocationId: user.userLocationId ?? null,
-            locationCode: user.locationCode ?? null
+            locationCode: user.locationCode ?? null,
+            permissions: (user.userGroup?.permissions as Permissions | null) ?? null
           };
         } catch (error: any) {
           console.error('[dpay auth]', error);
@@ -152,6 +168,7 @@ export const authOptions: NextAuthOptions = {
         token.userType = user.userType;
         token.userLocationId = user.userLocationId ?? null;
         token.locationCode = user.locationCode ?? null;
+        token.permissions = user.permissions ?? null;
       }
       return token;
     },
@@ -161,6 +178,7 @@ export const authOptions: NextAuthOptions = {
         session.user.userType = token.userType;
         session.user.userLocationId = token.userLocationId ?? null;
         session.user.locationCode = token.locationCode ?? null;
+        session.user.permissions = token.permissions ?? null;
       }
       return session;
     }
