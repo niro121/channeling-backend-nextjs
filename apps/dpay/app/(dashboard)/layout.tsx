@@ -7,6 +7,8 @@ import { SidebarLayoutClient } from './sidebar-layout-client';
 import { ShiftStrip } from './shift-strip';
 import { loadCashierShift } from '@/lib/dpay-shift';
 
+export const dynamic = 'force-dynamic';
+
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const session = await fetchServerSession();
 
