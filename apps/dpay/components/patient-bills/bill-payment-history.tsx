@@ -155,6 +155,7 @@ export function BillPaymentHistory({
           amountPaid={cancelReceipt.amountPaid}
           billNumber={billNumber}
           originalPaymentMethod={cancelReceipt.paymentMethod}
+          originalPaymentDetails={cancelReceipt}
         />
       ) : null}
     </>

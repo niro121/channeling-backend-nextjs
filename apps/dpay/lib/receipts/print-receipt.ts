@@ -323,10 +323,6 @@ export function buildReceiptPrintHtml(
   </head>
   <body>
     <div class="invoice-wrap">
-      <div class="hospital-name">${escapeHtml(hospitalName)}</div>
-      ${addressHtml}
-      <p class="contact">Phone : ${escapeHtml(RECEIPT_LETTERHEAD_PHONE)}</p>
-      <p class="contact">Email : ${escapeHtml(RECEIPT_LETTERHEAD_EMAIL)} | Web : ${escapeHtml(RECEIPT_LETTERHEAD_WEB)}</p>
       <div class="bill-title">${escapeHtml(title)}</div>
       ${bannerHtml}
       <table class="invoice-fields">

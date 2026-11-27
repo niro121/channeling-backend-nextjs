@@ -133,6 +133,7 @@ export function ReceiptRecordActions({ row }: ReceiptRecordActionsProps) {
         amountPaid={item.amountPaid}
         billNumber={item.billNumber}
         originalPaymentMethod={item.paymentMethod}
+        originalPaymentDetails={item}
       />
     </div>
   );
