@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
+import { format } from 'date-fns';
+import { RECEIPT_PAYMENT_METHOD } from '@archmage/shared';
 import {
   Button,
   Dialog,
@@ -41,12 +43,34 @@ type CancelPatientBillReceiptDialogProps = {
   billNumber?: string;
   /** Original payment method — used as default refund method when valid. */
   originalPaymentMethod?: PatientBillPaymentMethod | string | null;
+  /** Original payment details — prefilled when refunding via the original method. */
+  originalPaymentDetails?: OriginalPaymentDetails;
+};
+
+export type OriginalPaymentDetails = {
+  bank?: string | null;
+  bankId?: string | null;
+  cardReference?: string | null;
+  slipReference?: string | null;
+  slipDate?: string | null;
 };
 
 function defaultRefundValues(
-  original?: PatientBillPaymentMethod | string | null
+  original?: PatientBillPaymentMethod | string | null,
+  details?: OriginalPaymentDetails
 ): RefundMethodValues {
-  return emptyRefundMethodValues(defaultRefundPaymentMethod(original));
+  const method = defaultRefundPaymentMethod(original);
+  const base = emptyRefundMethodValues(method);
+  if (method === RECEIPT_PAYMENT_METHOD.CASH || !details) return base;
+
+  return {
+    ...base,
+    bank: details.bank ?? '',
+    bankId: details.bankId ?? '',
+    cardReference: details.cardReference ?? '',
+    slipReference: details.slipReference ?? '',
+    slipDate: details.slipDate ? format(new Date(details.slipDate), 'yyyy-MM-dd') : '',
+  };
 }
 
 export function CancelPatientBillReceiptDialog({
@@ -57,12 +81,13 @@ export function CancelPatientBillReceiptDialog({
   amountPaid,
   billNumber,
   originalPaymentMethod,
+  originalPaymentDetails,
 }: CancelPatientBillReceiptDialogProps) {
   const router = useRouter();
   const { toast } = useToast();
   const [reason, setReason] = useState('');
   const [refund, setRefund] = useState<RefundMethodValues>(() =>
-    defaultRefundValues(originalPaymentMethod)
+    defaultRefundValues(originalPaymentMethod, originalPaymentDetails)
   );
   const [errors, setErrors] = useState<ReturnType<typeof validatePaymentMethodFields>>({});
   const [loading, setLoading] = useState(false);
@@ -71,9 +96,11 @@ export function CancelPatientBillReceiptDialog({
   useEffect(() => {
     if (!open) return;
     setReason('');
-    setRefund(defaultRefundValues(originalPaymentMethod));
+    setRefund(defaultRefundValues(originalPaymentMethod, originalPaymentDetails));
     setErrors({});
-  }, [open, originalPaymentMethod]);
+    // receiptId identifies the receipt; avoids resetting on new details object identity
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, originalPaymentMethod, receiptId]);
 
   const handleBanksError = useCallback(
     (message: string) => {
