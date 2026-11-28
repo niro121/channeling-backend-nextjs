@@ -64,6 +64,7 @@ import {
   Mail,
   FileBarChart2,
   PieChart,
+  TrendingUp,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { canAccessRoute } from "@/lib/permissions";
@@ -170,7 +171,11 @@ export function DesktopSidebar({ session, className }: { session: Session | null
         </Link>
       </div>
 
-      <nav className="scrollbar-thin flex-1 overflow-y-auto overflow-x-hidden flex flex-col gap-6 px-3 py-4 min-h-0">
+      {/* overflowAnchor: expanding/collapsing a group must not shift the scroll position (browser scroll anchoring made lower groups jump). */}
+      <nav
+        className="scrollbar-thin flex-1 overflow-y-auto overflow-x-hidden flex flex-col gap-6 px-3 py-4 min-h-0"
+        style={{ overflowAnchor: 'none' }}
+      >
         <div className="space-y-0.5 [&_a>svg]:!size-5 [&_a>svg]:shrink-0">
           <NavLink href="/welcome" label="Dashboard" icon={<LayoutGrid className="size-5 shrink-0" />} />
           <button
@@ -689,6 +694,44 @@ export function DesktopSidebar({ session, className }: { session: Session | null
                   href="/appointment-letters"
                   label="Appointment Letters"
                   icon={<Mail className="h-5 w-5" />}
+                />
+              )}
+            </SidebarCollapsible>
+          </SidebarGroup>
+        )}
+        {(hasAccess('/performance-evaluations') ||
+          hasAccess('/probation-reviews') ||
+          hasAccess('/promotions')) && (
+          <SidebarGroup label="Performance">
+            <SidebarCollapsible
+              label="Performance"
+              icon={<Award className="h-5 w-5" />}
+              paths={[
+                '/performance-evaluations',
+                '/probation-reviews',
+                '/promotions'
+              ]}
+              allExpanded={allExpanded}
+            >
+              {hasAccess('/performance-evaluations') && (
+                <NavLink
+                  href="/performance-evaluations"
+                  label="Evaluations"
+                  icon={<ClipboardCheck className="h-5 w-5" />}
+                />
+              )}
+              {hasAccess('/probation-reviews') && (
+                <NavLink
+                  href="/probation-reviews"
+                  label="Probation Reviews"
+                  icon={<ClipboardList className="h-5 w-5" />}
+                />
+              )}
+              {hasAccess('/promotions') && (
+                <NavLink
+                  href="/promotions"
+                  label="Promotions"
+                  icon={<TrendingUp className="h-5 w-5" />}
                 />
               )}
             </SidebarCollapsible>

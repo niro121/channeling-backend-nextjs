@@ -99,6 +99,10 @@ export const ROUTE_TO_RESOURCE: Record<string, string> = {
   '/interview-schedule': 'recruitment',
   '/evaluation': 'recruitment',
   '/appointment-letters': 'recruitment',
+  // Performance
+  '/performance-evaluations': 'performance',
+  '/probation-reviews': 'performance',
+  '/promotions': 'performance',
   // Reports
   '/reports': 'reports',
   '/reports/department': 'reports',
